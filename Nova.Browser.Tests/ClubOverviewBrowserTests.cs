@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -14,7 +14,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task Overview_Desktop_RendersAdministratorDirectoryAndIndependentWaypoints()
+    public async Task OverviewDesktopRendersAdministratorDirectoryAndIndependentWaypointsAsync()
     {
         var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password, new() { Width = 1280, Height = 800 });
@@ -37,11 +37,15 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Verifies mobile keyboard navigation, touch sizing, and the no-script directory fallback.</summary>
     /// <returns>A task that completes after both directory variants have been checked.</returns>
     [Fact]
-    public async Task Overview_MobileSheet_OpensCompleteDirectory_AndNoScriptShowsRoutes()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task OverviewMobileSheetOpensCompleteDirectoryAndNoScriptShowsRoutesAsync()
+#pragma warning restore MA0051
     {
         var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
         var viewport = new ViewportSize { Width = 390, Height = 844 };
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = await fixture.NewSignedInContextAsync(seed.Email, Password, viewport))
+#pragma warning restore MA0004
         {
             var page = context.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
@@ -70,7 +74,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             // The sheet is fully open and its links are tab-reachable. While the nav is in a
             // transition its links are not yet reachable (focus bounces toggle -> body -> toggle),
             // so wait for the "show" state before walking the tab order.
-            await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+            await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
             // Keyboard activation proves attachment before asserting focus on the surviving node.
             await Expect(toggle).ToBeFocusedAsync();
             // Successful activation proves attachment before measuring a node that SSR replacement could remove.
@@ -94,7 +98,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             // Activate the destination once so this check uses its attached button, not the
             // prerendered node that may still be replaced after the route heading first receives focus.
             await InteractionHelpers.ActUntilAsync(page, () => destinationToggle.PressAsync("Enter"),
-                async () => await destinationToggle.GetAttributeAsync("aria-expanded") == "true");
+                async () => string.Equals(await destinationToggle.GetAttributeAsync("aria-expanded"), "true", StringComparison.Ordinal));
             await destinationToggle.PressAsync("Enter");
             await Expect(destinationToggle).ToHaveAttributeAsync("aria-expanded", "false");
             await destinationToggle.FocusAsync();
@@ -106,7 +110,6 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
                 """);
             await Expect(destinationToggle).ToBeFocusedAsync();
         }
-
         await using var noScript = await fixture.NewSignedInContextAsync(seed.Email, Password, viewport, javaScriptEnabled: false);
         var noScriptPage = noScript.Pages[0];
         await noScriptPage.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
@@ -117,7 +120,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Verifies mobile link activation closes the directory between reserved routes sharing one page component.</summary>
     /// <returns>A task that completes after the reused destination is visible with its directory collapsed.</returns>
     [Fact]
-    public async Task ReservedRoutes_CloseMobileDirectory_WhenFollowingSectionLink()
+    public async Task ReservedRoutesCloseMobileDirectoryWhenFollowingSectionLinkAsync()
     {
         var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password, new() { Width = 390, Height = 844 });
@@ -127,10 +130,10 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
 
         var toggle = page.Locator(".club-directory-toggle");
         await InteractionHelpers.ActUntilAsync(page, () => toggle.PressAsync("Enter"),
-            async () => await toggle.GetAttributeAsync("aria-expanded") == "true");
+            async () => string.Equals(await toggle.GetAttributeAsync("aria-expanded"), "true", StringComparison.Ordinal));
         var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
         await directory.GetByRole(AriaRole.Link, new() { Name = "Members", Exact = true }).PressAsync("Enter");
-        await page.WaitForURLAsync(url => new Uri(url).AbsolutePath == ClubRoutes.Members,
+        await page.WaitForURLAsync(url => string.Equals(new Uri(url).AbsolutePath, ClubRoutes.Members, StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Members", Exact = true })).ToBeVisibleAsync();
         await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
@@ -138,7 +141,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task LegacyClubAndTeamsRoutes_ResolveToCanonicalClubUrls()
+    public async Task LegacyClubAndTeamsRoutesResolveToCanonicalClubUrlsAsync()
     {
         var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password);
@@ -153,7 +156,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Overview_MemberDirectory_HidesAdministratorRoutes_AndDeniedRouteShowsPermissionNotice()
+    public async Task OverviewMemberDirectoryHidesAdministratorRoutesAndDeniedRouteShowsPermissionNoticeAsync()
     {
         var seed = await SeedMemberAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password);
@@ -190,7 +193,9 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         using var member = fixture.AppHost.CreateNovaHttpClient();
         var email = SeedingHelpers.UniqueEmail("club-overview-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(member, email, Password, cancellationToken);
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.AppHost.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var normalizedEmail = email.ToUpperInvariant();
             var user = await context.Users.SingleAsync(item => item.NormalizedEmail == normalizedEmail, cancellationToken);

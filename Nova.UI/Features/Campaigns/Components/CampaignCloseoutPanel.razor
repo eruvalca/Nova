@@ -1,5 +1,5 @@
-@using Nova.Shared.Enums
-@using Nova.Shared.Features.Campaigns
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
 
 <section class="card shadow-sm border-0" aria-labelledby="closeout-region-heading">
     <div class="card-body">
@@ -85,7 +85,8 @@
                                 }
                                 Confirm reopen
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" disabled="@_isReopening" @onclick="CancelReopen">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary" disabled="@_isReopening"
+                                    @onclick="CancelReopen">Cancel</button>
                         </div>
                     </div>
                 }
@@ -111,7 +112,8 @@
                             <span class="fw-semibold">@outcomes.Count</span>
                         </div>
                         <div class="text-muted small">@outcomes.Message</div>
-                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(true)">Review unresolved</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2"
+                                @onclick="() => ReviewUnresolvedAsync(true)">Review unresolved</button>
                     </li>
                 }
                 else
@@ -130,7 +132,8 @@
                             <span class="fw-semibold">@eligibility.Count</span>
                         </div>
                         <div class="text-muted small">@eligibility.Message</div>
-                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2"
+                                @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
                     </li>
                 }
                 else
@@ -149,7 +152,8 @@
                             <span class="fw-semibold">@archivedTeams.Count</span>
                         </div>
                         <div class="text-muted small">@archivedTeams.Message</div>
-                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2"
+                                @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
                     </li>
                 }
                 else
@@ -171,7 +175,8 @@
                     }
                     Close campaign
                 </button>
-                <button type="button" class="btn btn-outline-secondary" disabled="@_isClosing" @onclick="OnCancel">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@_isClosing"
+                        @onclick="OnCancel">Cancel</button>
             </div>
         }
     </div>

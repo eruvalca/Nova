@@ -5,9 +5,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -26,7 +26,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies the campaign creation route is registered and rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsUnauthorized_ForAnonymous()
+    public async Task CreateCampaignReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -43,7 +43,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies an authenticated non-administrator club member cannot create a campaign.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsForbidden_ForClubMember()
+    public async Task CreateCampaignReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -71,7 +71,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies endpoint validation returns structured validation ProblemDetails.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsValidationProblem_ForInvalidInput()
+    public async Task CreateCampaignReturnsValidationProblemForInvalidInputAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -98,16 +98,17 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies an unparseable JSON payload is mapped to a 400 ProblemDetails response before the handler runs.
     /// </summary>
     [Fact]
-    public async Task CampaignCreate_ReturnsBadRequest_ForUnparseableJsonBody()
+    public async Task CampaignCreateReturnsBadRequestForUnparseableJsonBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         _ = await RegisterClubAdminAsync(client, "campaign-malformed", cancellationToken);
 
+        using var responseContent = new StringContent("{ not json", Encoding.UTF8, "application/json");
         using var response = await client.PostAsync(
-            CampaignEndpoints.Create,
-            new StringContent("{ not json", Encoding.UTF8, "application/json"),
-            cancellationToken);
+        new Uri(CampaignEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
@@ -124,7 +125,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies another club's season is hidden as not found.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsNotFound_ForCrossTenantSeason()
+    public async Task CreateCampaignReturnsNotFoundForCrossTenantSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -146,7 +147,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies duplicate names within one season map to conflict ProblemDetails.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsConflict_ForDuplicateNameWithinSeason()
+    public async Task CreateCampaignReturnsConflictForDuplicateNameWithinSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -176,7 +177,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
     /// Verifies successful inline-season creation returns the complete committed aggregate.
     /// </summary>
     [Fact]
-    public async Task CreateCampaign_ReturnsCreatedAggregate_ForInlineSeason()
+    public async Task CreateCampaignReturnsCreatedAggregateForInlineSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -241,10 +242,11 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
         var userId = await UpdateUserAsync(email, "Campaign", "Admin", clubId: null, cancellationToken);
 
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Campaign Club {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"Campaign Club {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
@@ -260,24 +262,27 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = actor.Club.ClubId;
         fixture.CurrentUser.IsClubAdmin = true;
 
-        await using var context = fixture.CreateAdminContext();
-        var season = new SeasonEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"HTTP Season {Guid.CreateVersion7():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            EndDate = new DateOnly(2026, 12, 31),
-            ClubId = actor.Club.ClubId,
-            CreatedById = actor.UserId
-        };
-        context.Seasons.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(
-            candidate => candidate.ClubId == actor.Club.ClubId,
-            cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await context.SaveChangesAsync(cancellationToken);
-        return season;
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"HTTP Season {Guid.CreateVersion7():N}",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 12, 31),
+                ClubId = actor.Club.ClubId,
+                CreatedById = actor.UserId
+            };
+            context.Seasons.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
+            var club = await context.Clubs.SingleAsync(
+                candidate => candidate.ClubId == actor.Club.ClubId,
+                cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
+            return season;
+        }
     }
 
     private async Task<long> UpdateUserAsync(
@@ -287,17 +292,20 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(
-            candidate => candidate.NormalizedEmail == normalizedEmail,
-            cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
-        return user.Id;
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(
+                candidate => candidate.NormalizedEmail == normalizedEmail,
+                cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+            return user.Id;
+        }
     }
 
     private static async Task RefreshClubMembershipCookieAsync(
@@ -305,7 +313,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            $"{ClubEndpoints.Complete}?returnUrl=/dashboard",
+new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }

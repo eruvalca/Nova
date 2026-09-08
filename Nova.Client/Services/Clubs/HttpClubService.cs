@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Headers;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Clubs;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Clubs;
 /// minimal API endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubService(HttpClient http) : IClubService
+internal sealed class HttpClubService(HttpClient http) : IClubService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubDto>> CreateClubAsync(
@@ -17,14 +17,17 @@ public sealed class HttpClubService(HttpClient http) : IClubService
         CancellationToken cancellationToken = default)
     {
         using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(input.Name), "name");
-        form.Add(new StringContent(input.City), "city");
-        form.Add(new StringContent(input.State), "state");
+        using var nameContent = new StringContent(input.Name);
+        using var cityContent = new StringContent(input.City);
+        using var stateContent = new StringContent(input.State);
+        form.Add(nameContent, "name");
+        form.Add(cityContent, "city");
+        form.Add(stateContent, "state");
         using var crestContent = new ByteArrayContent(input.CrestContent);
         crestContent.Headers.ContentType = new MediaTypeHeaderValue(input.CrestContentType);
         form.Add(crestContent, "crest", "crest");
 
-        using var response = await http.PostAsync(ClubEndpoints.Create, form, cancellationToken);
+        using var response = await http.PostAsync(new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute), form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -42,7 +45,7 @@ public sealed class HttpClubService(HttpClient http) : IClubService
         CancellationToken cancellationToken = default)
     {
         var url = ClubEndpoints.SearchUrl(query);
-        using var response = await http.GetAsync(url, cancellationToken);
+        using var response = await http.GetAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

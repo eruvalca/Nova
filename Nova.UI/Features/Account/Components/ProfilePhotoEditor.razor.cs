@@ -1,10 +1,11 @@
-﻿using Cropper.Blazor.Components;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using Cropper.Blazor.Components;
 using Cropper.Blazor.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
+using Nova.UI.Common;
 using Nova.UI.Components;
-using Nova.UI.Shared;
 
 namespace Nova.UI.Features.Account.Components;
 
@@ -22,6 +23,9 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// The cropper component reference used to extract the cropped canvas.
     /// </summary>
     private CropperComponent? _cropper;
+
+    /// <summary>Whether the selected image's cropper has finished initializing.</summary>
+    private bool _cropperReady;
 
     /// <summary>
     /// The validation/processing error messages currently displayed.
@@ -102,6 +106,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     private async Task OnFileSelectedAsync(InputFileChangeEventArgs args)
     {
         _errorMessages.Clear();
+        _cropperReady = false;
         var file = args.File;
 
         if (file.Size > ProfilePhotoConstraints.MaxBytes)
@@ -119,7 +124,9 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
         IsBusy = true;
         try
         {
+#pragma warning disable S5693 // OpenReadStream enforces the shared MaxBytes limit; client metadata is also checked before reading.
             await using var stream = file.OpenReadStream(ProfilePhotoConstraints.MaxBytes, ComponentCancellationToken);
+#pragma warning restore S5693
             using var buffer = new MemoryStream((int)file.Size);
             await stream.CopyToAsync(buffer, ComponentCancellationToken);
             ImageDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
@@ -141,7 +148,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <returns>A task representing the operation.</returns>
     private async Task SavePhotoAsync()
     {
-        if (_cropper is null)
+        if (_cropper is null || !_cropperReady || IsBusy)
         {
             return;
         }
@@ -199,11 +206,19 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     private void ChooseDifferentPhoto()
     {
         _errorMessages.Clear();
+        _cropper = null;
+        _cropperReady = false;
         ImageDataUrl = null;
     }
+
+    /// <summary>Enables saving once Cropper.js has loaded the selected image.</summary>
+    private void OnCropperReady() => _cropperReady = true;
 
     /// <summary>
     /// Navigates to the cancel URL to close the photo editor without saving.
     /// </summary>
     private void CancelPhoto() => navigationManager.NavigateTo(CancelUrl ?? "/");
 }
+
+
+#pragma warning restore CA1055, CA1056

@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using Nova.Entities;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 
 namespace Nova.Features.Activity;
 

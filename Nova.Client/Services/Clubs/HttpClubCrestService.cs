@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Clubs;
@@ -12,7 +12,7 @@ namespace Nova.Client.Services.Clubs;
 /// <see cref="HttpClient"/>).
 /// </summary>
 /// <param name="httpClient">The DI-registered HTTP client with the app base address and trace propagation.</param>
-public sealed class HttpClubCrestService(HttpClient httpClient) : IClubCrestService
+internal sealed class HttpClubCrestService(HttpClient httpClient) : IClubCrestService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> ChangeClubCrestAsync(long clubId, ClubCrestUpload upload, CancellationToken cancellationToken = default)
@@ -22,7 +22,7 @@ public sealed class HttpClubCrestService(HttpClient httpClient) : IClubCrestServ
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(upload.ContentType);
         form.Add(fileContent, "crest", "crest");
 
-        using var response = await httpClient.PostAsync(ClubCrestEndpoints.ChangeCrestUrl(clubId), form, cancellationToken);
+        using var response = await httpClient.PostAsync(new Uri(ClubCrestEndpoints.ChangeCrestUrl(clubId), UriKind.RelativeOrAbsolute), form, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
             return new Success();
@@ -35,7 +35,7 @@ public sealed class HttpClubCrestService(HttpClient httpClient) : IClubCrestServ
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> RemoveClubCrestAsync(long clubId, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.DeleteAsync(ClubCrestEndpoints.RemoveCrestUrl(clubId), cancellationToken);
+        using var response = await httpClient.DeleteAsync(new Uri(ClubCrestEndpoints.RemoveCrestUrl(clubId), UriKind.RelativeOrAbsolute), cancellationToken);
         if (response.IsSuccessStatusCode)
         {
             return new Success();

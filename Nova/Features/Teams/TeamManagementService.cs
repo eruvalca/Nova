@@ -4,11 +4,11 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Teams;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Teams;
 
@@ -18,7 +18,7 @@ namespace Nova.Features.Teams;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for operation outcomes.</param>
-public sealed partial class TeamManagementService(
+internal sealed partial class TeamManagementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamManagementService> logger) : ITeamManagementService
@@ -237,7 +237,9 @@ public sealed partial class TeamManagementService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The updated team or a ProblemDetails-mappable failure.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<TeamDto>> UpdateTeamAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         UpdateTeamInput input,
         long actorUserId,
@@ -335,14 +337,12 @@ public sealed partial class TeamManagementService(
             }
         }
 
-        if (!string.Equals(input.Name, team.Name, StringComparison.Ordinal)
+        if ((!string.Equals(input.Name, team.Name, StringComparison.Ordinal)
             || input.GraduationYear != team.GraduationYear)
+            && await TeamNameExistsAsync(db, clubId, input.Name, input.GraduationYear, input.TeamId, cancellationToken))
         {
-            if (await TeamNameExistsAsync(db, clubId, input.Name, input.GraduationYear, input.TeamId, cancellationToken))
-            {
-                LogDuplicateTeamName(clubId, input.GraduationYear);
-                return ServiceProblem.Conflict(DuplicateTeamMessage);
-            }
+            LogDuplicateTeamName(clubId, input.GraduationYear);
+            return ServiceProblem.Conflict(DuplicateTeamMessage);
         }
 
         team.Name = input.Name;

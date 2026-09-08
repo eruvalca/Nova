@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Players.Components;
 
@@ -121,17 +122,21 @@ public sealed class PlayerFormState : IValidatableObject
     /// </summary>
     /// <param name="detail">The player detail payload.</param>
     /// <returns>An edit-mode form state.</returns>
-    public static PlayerFormState FromDetail(PlayerDetailDto detail) => new()
+    public static PlayerFormState FromDetail(PlayerDetailDto detail)
     {
-        IsEdit = true,
-        PlayerId = detail.PlayerId,
-        FirstName = detail.FirstName,
-        LastName = detail.LastName,
-        DateOfBirth = detail.DateOfBirth,
-        GraduationYear = detail.GraduationYear,
-        Gender = detail.Gender,
-        JerseyNumber = detail.JerseyNumber
-    };
+        ArgumentNullException.ThrowIfNull(detail);
+        return new()
+        {
+            IsEdit = true,
+            PlayerId = detail.PlayerId,
+            FirstName = detail.FirstName,
+            LastName = detail.LastName,
+            DateOfBirth = detail.DateOfBirth,
+            GraduationYear = detail.GraduationYear,
+            Gender = detail.Gender,
+            JerseyNumber = detail.JerseyNumber
+        };
+    }
 
     /// <summary>
     /// Converts this form state to a create-player input payload.

@@ -1,7 +1,8 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Teams.Components;
 
@@ -82,7 +83,7 @@ public partial class TeamForm
     /// Submits a cloned local model to the parent callback.
     /// </summary>
     /// <returns>A task that completes when the parent callback finishes.</returns>
-    private async Task HandleValidSubmit() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
+    private async Task HandleValidSubmitAsync() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
 }
 
 /// <summary>
@@ -121,26 +122,34 @@ public sealed class TeamFormState : IValidatableObject
     /// </summary>
     /// <param name="team">The selected roster team.</param>
     /// <returns>An edit-mode form state.</returns>
-    public static TeamFormState FromRosterItem(TeamRosterItem team) => new()
+    public static TeamFormState FromRosterItem(TeamRosterItem team)
     {
-        IsEdit = true,
-        TeamId = team.TeamId,
-        Name = team.Name,
-        GraduationYear = team.GraduationYear
-    };
+        ArgumentNullException.ThrowIfNull(team);
+        return new()
+        {
+            IsEdit = true,
+            TeamId = team.TeamId,
+            Name = team.Name,
+            GraduationYear = team.GraduationYear
+        };
+    }
 
     /// <summary>
     /// Creates an edit-mode form state from a loaded team detail payload.
     /// </summary>
     /// <param name="team">The loaded team detail.</param>
     /// <returns>An edit-mode form state.</returns>
-    public static TeamFormState FromDetailDto(TeamDetailDto team) => new()
+    public static TeamFormState FromDetailDto(TeamDetailDto team)
     {
-        IsEdit = true,
-        TeamId = team.TeamId,
-        Name = team.Name,
-        GraduationYear = team.GraduationYear
-    };
+        ArgumentNullException.ThrowIfNull(team);
+        return new()
+        {
+            IsEdit = true,
+            TeamId = team.TeamId,
+            Name = team.Name,
+            GraduationYear = team.GraduationYear
+        };
+    }
 
     /// <summary>
     /// Converts this state to a create-team input payload.

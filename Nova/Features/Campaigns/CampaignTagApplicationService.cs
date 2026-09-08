@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using Npgsql;
 using OneOf;
 using OneOf.Types;
@@ -18,13 +18,13 @@ namespace Nova.Features.Campaigns;
 /// Reports that the current user is not authorized to mutate campaign tag applications.
 /// </summary>
 /// <param name="Detail">A description of the authorization failure.</param>
-public readonly record struct CampaignTagApplicationForbidden(string Detail);
+internal readonly record struct CampaignTagApplicationForbidden(string Detail);
 
 /// <summary>
 /// Reports that a campaign tag application mutation conflicts with lifecycle or uniqueness rules.
 /// </summary>
 /// <param name="Detail">A description of the conflict.</param>
-public readonly record struct CampaignTagApplicationConflict(string Detail);
+internal readonly record struct CampaignTagApplicationConflict(string Detail);
 
 /// <summary>
 /// Applies tenant-safe campaign tag application add and remove mutations.
@@ -32,7 +32,7 @@ public readonly record struct CampaignTagApplicationConflict(string Detail);
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for mutation outcomes.</param>
-public sealed partial class CampaignTagApplicationService(
+internal sealed partial class CampaignTagApplicationService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignTagApplicationService> logger) : ICampaignTagApplicationService
@@ -124,7 +124,9 @@ public sealed partial class CampaignTagApplicationService(
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
         CampaignTagApplicationForbidden,
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
         CampaignTagApplicationConflict>> ApplyMutationAsync(
+#pragma warning restore MA0051
             NovaDbContext db,
             ApplyCampaignTagApplicationInput input,
             long actorUserId,
@@ -307,7 +309,9 @@ public sealed partial class CampaignTagApplicationService(
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
         CampaignTagApplicationForbidden,
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
         CampaignTagApplicationConflict>> RemoveMutationAsync(
+#pragma warning restore MA0051
             NovaDbContext db,
             RemoveCampaignTagApplicationInput input,
             long actorUserId,

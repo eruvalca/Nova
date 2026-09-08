@@ -1,8 +1,9 @@
-﻿using System.Globalization;
+﻿
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Security;
 
 namespace Nova.UI.Features.Clubs.Pages;
 

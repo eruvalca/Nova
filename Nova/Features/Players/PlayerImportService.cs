@@ -5,8 +5,8 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Players;
 
@@ -29,7 +29,7 @@ internal sealed partial class PlayerImportService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory) : IPlayerImportService
 {
-    private static readonly byte[] TemplateContent = CreateTemplateContent();
+    private static readonly byte[] _templateContent = CreateTemplateContent();
 
     /// <inheritdoc />
     public Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(
@@ -45,7 +45,7 @@ internal sealed partial class PlayerImportService(
 
         LogTemplateGenerated(actorUserId, clubId);
         return Task.FromResult<ServiceResult<PlayerImportTemplate>>(new PlayerImportTemplate(
-            TemplateContent.ToArray(),
+            _templateContent.ToArray(),
             PlayerImportConstraints.CsvContentType,
             PlayerImportConstraints.TemplateFileName));
     }
@@ -70,7 +70,7 @@ internal sealed partial class PlayerImportService(
         upload = upload with { Content = upload.Content.ToArray() };
         var startedAt = Stopwatch.GetTimestamp();
         var parseResult = parser.Parse(upload.Content, cancellationToken);
-        return await parseResult.Match<Task<ServiceResult<PlayerImportPreview>>>(
+        return await parseResult.Match(
             parsed => BuildPreviewAsync(
                 parsed,
                 upload.Content,
@@ -134,16 +134,20 @@ internal sealed partial class PlayerImportService(
             duplicateRows,
             classifiedRows);
 
-        LogPreviewCompleted(
-            operationId,
-            actorUserId,
-            clubId,
-            content.Length,
-            preview.TotalRows,
-            readyRows,
-            invalidRows,
-            duplicateRows,
-            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            var durationMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            LogPreviewCompleted(
+                        operationId,
+                        actorUserId,
+                        clubId,
+                        content.Length,
+                        preview.TotalRows,
+                        readyRows,
+                        invalidRows,
+                        duplicateRows,
+                        durationMilliseconds);
+        }
         return preview;
     }
 
@@ -174,8 +178,8 @@ internal sealed partial class PlayerImportService(
         }
 
         if (string.IsNullOrWhiteSpace(upload.FileName)
-            || upload.FileName.Contains('\r')
-            || upload.FileName.Contains('\n')
+            || upload.FileName.Contains('\r', StringComparison.Ordinal)
+            || upload.FileName.Contains('\n', StringComparison.Ordinal)
             || !string.Equals(Path.GetExtension(upload.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
         {
             return ServiceProblem.Validation("file", "The uploaded file must have a .csv extension.");

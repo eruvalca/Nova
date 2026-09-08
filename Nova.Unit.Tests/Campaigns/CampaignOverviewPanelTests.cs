@@ -1,9 +1,9 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using NSubstitute;
 using Shouldly;
 using CampaignOverviewPanel = Nova.UI.Features.Campaigns.Components.CampaignOverviewPanel;
@@ -20,7 +20,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     // ── Snapshot and summary ───────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_RendersSnapshotFields_FromDetail()
+    public void PanelRendersSnapshotFieldsFromDetail()
     {
         RegisterServices();
 
@@ -35,7 +35,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_RendersSummaryCounts_ExactlyFromReadiness()
+    public void PanelRendersSummaryCountsExactlyFromReadiness()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(assigned: 2, notSelected: 3, withdrawn: 4, undecided: 5))));
@@ -51,7 +51,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     // ── Closeout-readiness line and link gating ────────────────────────────────
 
     [Fact]
-    public void Panel_ShowsReadyLine_WhenReadinessIsReady()
+    public void PanelShowsReadyLineWhenReadinessIsReady()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(undecided: 0))));
@@ -63,7 +63,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_ShowsBlockedLine_WhenReadinessIsNotReady()
+    public void PanelShowsBlockedLineWhenReadinessIsNotReady()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(undecided: 3), isReady: false)));
@@ -75,25 +75,25 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_ShowsOpenCloseoutLink_OnlyForAdminActiveCampaign()
+    public void PanelShowsOpenCloseoutLinkOnlyForAdminActiveCampaign()
     {
         RegisterServices();
 
         var adminActive = RenderPanel(isClubAdmin: true);
         adminActive.WaitForAssertion(() => adminActive.Markup.ShouldContain("Ready to close"));
-        adminActive.FindAll("button.btn-link").Any(button => button.TextContent.Trim() == "Open closeout").ShouldBeTrue();
+        adminActive.FindAll("button.btn-link").Any(button => string.Equals(button.TextContent.Trim(), "Open closeout", StringComparison.Ordinal)).ShouldBeTrue();
 
         var memberActive = RenderPanel(isClubAdmin: false);
         memberActive.WaitForAssertion(() => memberActive.Markup.ShouldContain("Ready to close"));
-        memberActive.FindAll("button.btn-link").Any(button => button.TextContent.Trim() == "Open closeout").ShouldBeFalse();
+        memberActive.FindAll("button.btn-link").Any(button => string.Equals(button.TextContent.Trim(), "Open closeout", StringComparison.Ordinal)).ShouldBeFalse();
 
         var adminClosed = RenderPanel(isClubAdmin: true, status: CampaignStatus.Closed);
         adminClosed.WaitForAssertion(() => adminClosed.Markup.ShouldContain("Ready to close"));
-        adminClosed.FindAll("button.btn-link").Any(button => button.TextContent.Trim() == "Open closeout").ShouldBeFalse();
+        adminClosed.FindAll("button.btn-link").Any(button => string.Equals(button.TextContent.Trim(), "Open closeout", StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Fact]
-    public void Panel_OpenCloseoutLink_InvokesCallback()
+    public void PanelOpenCloseoutLinkInvokesCallback()
     {
         RegisterServices();
         var opened = false;
@@ -103,7 +103,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Ready to close"));
 
         cut.FindAll("button.btn-link")
-            .Single(button => button.TextContent.Trim() == "Open closeout")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Open closeout", StringComparison.Ordinal))
             .Click();
 
         opened.ShouldBeTrue();
@@ -112,7 +112,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     // ── Activity feed ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_RendersActivityRows_NewestFirst_WithVerbDateActor()
+    public void PanelRendersActivityRowsNewestFirstWithVerbDateActor()
     {
         var closed = CreateActivityItem(1, CampaignLifecycleEventType.Closed, "Coach Rivera",
             new DateTimeOffset(2026, 6, 10, 9, 0, 0, TimeSpan.Zero));
@@ -134,7 +134,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_ShowsEmptyActivityState_WhenNoEvents()
+    public void PanelShowsEmptyActivityStateWhenNoEvents()
     {
         RegisterServices(activityResult: new ServiceResult<CampaignActivityResult>(
             new CampaignActivityResult([])));
@@ -146,7 +146,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     // ── Error and retry ────────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_ShowsErrorAndRetries_WhenLoadFails()
+    public void PanelShowsErrorAndRetriesWhenLoadFails()
     {
         var queryService = Substitute.For<ICampaignCloseoutQueryService>();
         queryService.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
@@ -168,7 +168,7 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     // ── Persisted-state restoration ────────────────────────────────────────────
 
     [Fact]
-    public void Panel_DoesNotRefetch_WhenPersistedStateIsRestored()
+    public void PanelDoesNotRefetchWhenPersistedStateIsRestored()
     {
         var queryService = Substitute.For<ICampaignCloseoutQueryService>();
         RegisterServices(closeoutQueryService: queryService);
@@ -182,9 +182,9 @@ public sealed class CampaignOverviewPanelTests : BunitContext
 
         cut.Markup.ShouldContain("Ready to close");
         cut.Markup.ShouldContain("Coach Rivera closed the campaign");
-        queryService.DidNotReceive().GetCloseoutReadinessAsync(
+        _ = queryService.DidNotReceive().GetCloseoutReadinessAsync(
             Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
-        queryService.DidNotReceive().GetActivityAsync(
+        _ = queryService.DidNotReceive().GetActivityAsync(
             Arg.Any<GetCampaignActivityInput>(), Arg.Any<CancellationToken>());
     }
 
@@ -278,7 +278,9 @@ public sealed class CampaignOverviewPanelTests : BunitContext
     /// A test-only <see cref="CampaignOverviewPanel"/> subclass that seeds persisted prerender state.
     /// </summary>
     /// <param name="closeoutQueryService">The closeout query service.</param>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedStateCampaignOverviewPanel(
+#pragma warning restore CA1812
         ICampaignCloseoutQueryService closeoutQueryService)
         : CampaignOverviewPanel(closeoutQueryService)
     {

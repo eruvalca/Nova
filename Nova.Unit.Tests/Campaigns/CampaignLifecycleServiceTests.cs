@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using OneOf.Types;
@@ -47,7 +47,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies a club administrator can close a campaign when all close conditions succeed.
     /// </summary>
     [Fact]
-    public async Task CloseAsync_ClosesCampaign_AndAppendsClosedEvent_WhenConditionsPass()
+    public async Task CloseAsyncClosesCampaignAndAppendsClosedEventWhenConditionsPassAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -78,7 +78,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies close returns every blocker condition and does not partially transition the campaign.
     /// </summary>
     [Fact]
-    public async Task CloseAsync_ReturnsAllBlockers_AndLeavesCampaignActive_WhenConditionsFail()
+    public async Task CloseAsyncReturnsAllBlockersAndLeavesCampaignActiveWhenConditionsFailAsync()
     {
         await SetOnlyActiveCampaignAsync(BlockedCampaignId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -106,7 +106,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies reopening clears closure metadata, appends a reopen event, and preserves participation outcomes.
     /// </summary>
     [Fact]
-    public async Task ReopenAsync_ClearsClosureMetadata_AndAppendsReopenedEvent()
+    public async Task ReopenAsyncClearsClosureMetadataAndAppendsReopenedEventAsync()
     {
         await SetOnlyActiveCampaignAsync(null);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -143,7 +143,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies repeated close and reopen cycles retain every lifecycle event in order.
     /// </summary>
     [Fact]
-    public async Task LifecycleTransitions_PreserveAllEvents_AcrossRepeatedCloseReopenCycles()
+    public async Task LifecycleTransitionsPreserveAllEventsAcrossRepeatedCloseReopenCyclesAsync()
     {
         await SetOnlyActiveCampaignAsync(null);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -182,7 +182,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies a Draft cannot be closed and produces no activity.</summary>
     [Fact]
-    public async Task CloseAsync_ReturnsConflict_ForDraftCampaign()
+    public async Task CloseAsyncReturnsConflictForDraftCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
 
@@ -200,7 +200,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies a Draft cannot be reopened and produces no activity.</summary>
     [Fact]
-    public async Task ReopenAsync_ReturnsConflict_ForDraftCampaign()
+    public async Task ReopenAsyncReturnsConflictForDraftCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
 
@@ -218,7 +218,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies reopening conflicts while another campaign is Active.</summary>
     [Fact]
-    public async Task ReopenAsync_ReturnsConflict_WhenClubAlreadyHasActiveCampaign()
+    public async Task ReopenAsyncReturnsConflictWhenClubAlreadyHasActiveCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
 
@@ -234,7 +234,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies non-admin users cannot close campaigns.
     /// </summary>
     [Fact]
-    public async Task CloseAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task CloseAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -248,7 +248,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies tenant filters hide another club's campaign from close operations.
     /// </summary>
     [Fact]
-    public async Task CloseAsync_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task CloseAsyncReturnsNotFoundForCrossTenantCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -262,7 +262,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies non-admin users cannot reopen campaigns.
     /// </summary>
     [Fact]
-    public async Task ReopenAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task ReopenAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -276,7 +276,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies tenant filters hide another club's campaign from reopen operations.
     /// </summary>
     [Fact]
-    public async Task ReopenAsync_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task ReopenAsyncReturnsNotFoundForCrossTenantCampaignAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isClubAdmin: true);
         var service = CreateService();
@@ -288,11 +288,11 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies a campaign from a superseded season cannot be reopened.</summary>
     [Fact]
-    public async Task ReopenAsync_ReturnsConflict_WhenCampaignSeasonIsHistorical()
+    public async Task ReopenAsyncReturnsConflictWhenCampaignSeasonIsHistoricalAsync()
     {
         await using (var db = _harness.CreateAdminContext())
         {
-            db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = NextSeasonAId;
+            (await db.Clubs.SingleAsync(club => club.ClubId == ClubAId, TestContext.Current.CancellationToken)).CurrentSeasonId = NextSeasonAId;
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -304,7 +304,9 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         result.IsT3.ShouldBeTrue();
         result.AsT3.Detail.ShouldContain("current season");
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var verify = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         (await verify.Campaigns.SingleAsync(
             campaign => campaign.CampaignId == ClosedCampaignId,
             TestContext.Current.CancellationToken)).Status.ShouldBe(CampaignStatus.Closed);
@@ -317,7 +319,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies the cross-tier interface returns a success result when a close succeeds.
     /// </summary>
     [Fact]
-    public async Task ICampaignLifecycleService_CloseAsync_ReturnsSuccess_WhenCloseSucceeds()
+    public async Task ICampaignLifecycleServiceCloseAsyncReturnsSuccessWhenCloseSucceedsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         ICampaignLifecycleService service = CreateService();
@@ -332,7 +334,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// condition-keyed error groups.
     /// </summary>
     [Fact]
-    public async Task ICampaignLifecycleService_CloseAsync_MapsBlockers_ToConflictWithErrors()
+    public async Task ICampaignLifecycleServiceCloseAsyncMapsBlockersToConflictWithErrorsAsync()
     {
         await SetOnlyActiveCampaignAsync(BlockedCampaignId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -343,7 +345,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors!.ShouldContainKey("outcomes");
+        result.Problem.Errors.ShouldContainKey("outcomes");
         result.Problem.Errors.ShouldContainKey("eligibility");
         result.Problem.Errors.ShouldContainKey("archivedTeams");
     }
@@ -352,7 +354,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies the cross-tier interface maps forbidden, not-found, and already-closed outcomes for close.
     /// </summary>
     [Fact]
-    public async Task ICampaignLifecycleService_CloseAsync_MapsForbiddenNotFoundAndConflict()
+    public async Task ICampaignLifecycleServiceCloseAsyncMapsForbiddenNotFoundAndConflictAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         ICampaignLifecycleService memberService = CreateService();
@@ -376,7 +378,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies the cross-tier interface maps success, conflict, forbidden, and not-found outcomes for reopen.
     /// </summary>
     [Fact]
-    public async Task ICampaignLifecycleService_ReopenAsync_MapsSuccessConflictForbiddenAndNotFound()
+    public async Task ICampaignLifecycleServiceReopenAsyncMapsSuccessConflictForbiddenAndNotFoundAsync()
     {
         await SetOnlyActiveCampaignAsync(null);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -406,7 +408,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// and replays without duplicating participation or activity.
     /// </summary>
     [Fact]
-    public async Task OpenAsync_OpensDraftAndReplaysOriginalReceipt_WithoutDuplicateEffects()
+    public async Task OpenAsyncOpensDraftAndReplaysOriginalReceiptWithoutDuplicateEffectsAsync()
     {
         await using (var arrange = _harness.CreateAdminContext())
         {
@@ -468,7 +470,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies every freshly detected opening blocker is returned without writes.</summary>
     [Fact]
-    public async Task OpenAsync_ReturnsAllBlockers_WithoutPartialMutation()
+    public async Task OpenAsyncReturnsAllBlockersWithoutPartialMutationAsync()
     {
         await using (var arrange = _harness.CreateAdminContext())
         {
@@ -515,7 +517,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// Verifies Draft deletion leaves durable club data and exactly one tenant-scoped tombstone.
     /// </summary>
     [Fact]
-    public async Task DeleteDraftAsync_DeletesDraftAndReplaysFromDurableTombstone()
+    public async Task DeleteDraftAsyncDeletesDraftAndReplaysFromDurableTombstoneAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -551,7 +553,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
 
     /// <summary>Verifies only the most recently opened current-season campaign may reopen.</summary>
     [Fact]
-    public async Task ReopenAsync_RejectsOlderCampaign_WhenANewerCampaignWasOpened()
+    public async Task ReopenAsyncRejectsOlderCampaignWhenANewerCampaignWasOpenedAsync()
     {
         await SetOnlyActiveCampaignAsync(null);
         await using (var arrange = _harness.CreateAdminContext())
@@ -626,7 +628,9 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// <summary>
     /// Seeds campaign lifecycle data across two clubs.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 
@@ -938,7 +942,9 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     /// <param name="campaignId">The campaign to activate, or <see langword="null"/> for none.</param>
     private async Task SetOnlyActiveCampaignAsync(long? campaignId)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var db = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         var campaigns = await db.Campaigns
             .Where(campaign => campaign.ClubId == ClubAId && campaign.Status != CampaignStatus.Closed)
             .ToListAsync(TestContext.Current.CancellationToken);

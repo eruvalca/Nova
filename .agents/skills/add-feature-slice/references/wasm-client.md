@@ -2,16 +2,16 @@
 
 After `add-api-endpoint` defines route constants and maps the endpoint, add a WebAssembly HTTP client
 service in `Nova.Client\Services\{Feature}\Http{Feature}Service.cs`. The service should implement the shared
-`I{Feature}Service` interface from `Nova.Shared\Features\{Feature}\`, use `HttpClient`, and return the same
+`I{Feature}Service` interface from `Nova.SharedKernel\Features\{Feature}\`, use `HttpClient`, and return the same
 `ServiceResult<T>` contract as the server service.
 
 Canonical files:
 
 - `Nova.Client\Services\Campaigns\HttpCampaignCreationService.cs`
 - `Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs`
-- `Nova.Client\Services\HttpSuccessContentExtensions.cs`
-- `Nova.Shared\Features\Campaigns\CampaignEndpoints.cs`
-- `Nova.Shared\Features\Campaigns\ICampaignQueryService.cs`
+- `Nova.SharedKernel\Results\HttpSuccessContentExtensions.cs`
+- `Nova.SharedKernel\Features\Campaigns\CampaignEndpoints.cs`
+- `Nova.SharedKernel\Features\Campaigns\ICampaignQueryService.cs`
 
 ## Pattern
 
@@ -58,18 +58,18 @@ consumer. State which guarantees come from one snapshot and which totals are eve
 
 For bounded opening previews, inspect `CampaignQueryService.cs`, `CampaignOpeningContracts.cs`,
 `HttpCampaignQueryService.cs`, and `CampaignEntry.razor(.cs)` together. The focused evidence is
-`CampaignOpeningHttpTests.CampaignOpeningReadiness_ReturnsBoundedActiveTeamPreview` for real HTTP,
-`HttpCampaignQueryServiceTests.GetOpeningReadinessAsync_RequiresCompleteBoundedPreview` for zero,
+`CampaignOpeningHttpTests.CampaignOpeningReadinessReturnsBoundedActiveTeamPreviewAsync` for real HTTP,
+`HttpCampaignQueryServiceTests.GetOpeningReadinessAsyncRequiresCompleteBoundedPreviewAsync` for zero,
 singleton, and capped client bounds, and
-`CampaignEntryTests.CampaignEntry_UsesCountAwareReadinessLabels` for rendered count wording.
+`CampaignEntryTests.CampaignEntryUsesCountAwareReadinessLabels` for rendered count wording.
 These tests prove their named contracts; add the missing boundary evidence for the current change.
 
 ## Canonical example
 
 ```csharp
 using System.Net.Http.Json;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services;
 

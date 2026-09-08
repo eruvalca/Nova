@@ -1,5 +1,5 @@
 ﻿using Nova.Entities;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Features.Teams;
 
 namespace Nova.Extensions.Teams;
 

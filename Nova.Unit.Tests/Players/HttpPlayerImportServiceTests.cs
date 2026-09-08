@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Players;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -17,7 +17,7 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData("enrolled")]
     [InlineData("mixed")]
     [InlineData("blocked")]
-    public async Task CommitAsync_SendsExactMultipartIdentity_AndAcceptsValidCompletion(string shape)
+    public async Task CommitAsyncSendsExactMultipartIdentityAndAcceptsValidCompletionAsync(string shape)
     {
         var completion = ValidCompletion();
         completion = shape switch
@@ -39,7 +39,8 @@ public sealed class HttpPlayerImportServiceTests
             },
             _ => completion
         };
-        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = JsonContent.Create(completion) });
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(completion) };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var input = CommitInput(completion.OperationId);
         var result = await new HttpPlayerImportService(http).CommitAsync(input, TestContext.Current.CancellationToken);
@@ -76,7 +77,7 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData("blocked without reason")]
     [InlineData("invalid duplicate")]
     [InlineData("skip with player")]
-    public async Task CommitAsync_RejectsMalformedCompletion(string malformation)
+    public async Task CommitAsyncRejectsMalformedCompletionAsync(string malformation)
     {
         var valid = ValidCompletion();
         var row = valid.Rows[0];
@@ -102,7 +103,8 @@ public sealed class HttpPlayerImportServiceTests
             "skip with player" => valid with { TotalRows = 2, SkippedDuplicateRows = 1, Rows = [row, row with { SourceRowNumber = 3, Status = PlayerImportCommitRowStatus.SkippedDuplicateAtPreview }] },
             _ => throw new ArgumentOutOfRangeException(nameof(malformation))
         };
-        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = JsonContent.Create(invalid) });
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(invalid) };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(valid.OperationId), TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
@@ -115,9 +117,10 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData("null")]
     [InlineData("{}")]
     [InlineData("not-json")]
-    public async Task CommitAsync_RejectsMalformedSuccessJson(string body)
+    public async Task CommitAsyncRejectsMalformedSuccessJsonAsync(string body)
     {
-        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(Guid.CreateVersion7()), TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
@@ -131,12 +134,13 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData(HttpStatusCode.Forbidden, ServiceProblemKind.Forbidden)]
     [InlineData(HttpStatusCode.Conflict, ServiceProblemKind.Conflict)]
     [InlineData(HttpStatusCode.BadRequest, ServiceProblemKind.Validation)]
-    public async Task CommitAsync_PropagatesProblemDetails(HttpStatusCode status, ServiceProblemKind kind)
+    public async Task CommitAsyncPropagatesProblemDetailsAsync(HttpStatusCode status, ServiceProblemKind kind)
     {
-        var handler = new CapturingHandler(new(status)
+        using var handlerResponse = new HttpResponseMessage(status)
         {
-            Content = JsonContent.Create(new { detail = "Preview again.", errors = new Dictionary<string, string[]> { ["file"] = ["Invalid confirmation."] } })
-        });
+            Content = JsonContent.Create(new { detail = "Preview again.", errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["file"] = ["Invalid confirmation."] } })
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(Guid.CreateVersion7()), TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
@@ -165,7 +169,7 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData("operation")]
     [InlineData("token")]
     [InlineData("file size")]
-    public async Task CommitAsync_RejectsInvalidInput_WithoutSendingRequest(string invalidField)
+    public async Task CommitAsyncRejectsInvalidInputWithoutSendingRequestAsync(string invalidField)
     {
         var input = CommitInput(Guid.CreateVersion7());
         input = invalidField switch
@@ -175,7 +179,8 @@ public sealed class HttpPlayerImportServiceTests
             "file size" => input with { Upload = input.Upload with { Content = new byte[PlayerImportConstraints.MaxFileBytes + 1] } },
             _ => throw new ArgumentOutOfRangeException(nameof(invalidField))
         };
-        var handler = new CapturingHandler(new(HttpStatusCode.OK));
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var result = await new HttpPlayerImportService(http).CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
@@ -185,24 +190,28 @@ public sealed class HttpPlayerImportServiceTests
 
     /// <summary>Cancellation stays cancellation rather than being misreported as a completed or rolled-back batch.</summary>
     [Fact]
-    public async Task CommitAsync_PreservesCancellation()
+    public async Task CommitAsyncPreservesCancellationAsync()
     {
-        var handler = new CapturingHandler(new(HttpStatusCode.OK));
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         using var cancellation = new CancellationTokenSource();
+#pragma warning disable CA1849, S6966 // Complete cancellation callbacks before asserting the cancelled operation state.
         cancellation.Cancel();
+#pragma warning restore CA1849, S6966
         await Should.ThrowAsync<OperationCanceledException>(() => new HttpPlayerImportService(http)
             .CommitAsync(CommitInput(Guid.CreateVersion7()), cancellation.Token));
     }
 
     [Fact]
-    public async Task PreviewAsync_SendsMultipartFile_AndReturnsValidPreview()
+    public async Task PreviewAsyncSendsMultipartFileAndReturnsValidPreviewAsync()
     {
         var preview = ValidPreview();
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var content = Encoding.UTF8.GetBytes("csv-content");
 
@@ -225,9 +234,10 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_DoesNotSendRequest_WhenFileExceedsSharedBound()
+    public async Task PreviewAsyncDoesNotSendRequestWhenFileExceedsSharedBoundAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -245,12 +255,13 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_DoesNotSendRequest_WhenFilenameContainsNewline()
+    public async Task PreviewAsyncDoesNotSendRequestWhenFilenameContainsNewlineAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview())
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -263,16 +274,17 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_PropagatesValidationProblemDetails()
+    public async Task PreviewAsyncPropagatesValidationProblemDetailsAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.BadRequest)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
             Content = JsonContent.Create(new
             {
                 detail = "Please correct the validation errors.",
-                errors = new Dictionary<string, string[]> { ["file"] = ["The CSV is malformed."] }
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["file"] = ["The CSV is malformed."] }
             })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -285,24 +297,28 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_PreservesCancellation()
+    public async Task PreviewAsyncPreservesCancellationAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         using var cancellation = new CancellationTokenSource();
+#pragma warning disable CA1849, S6966 // Complete cancellation callbacks before asserting the cancelled operation state.
         cancellation.Cancel();
+#pragma warning restore CA1849, S6966
 
         await Should.ThrowAsync<OperationCanceledException>(() =>
             new HttpPlayerImportService(http).PreviewAsync(ValidUpload(), cancellation.Token));
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenCountsAreInconsistent()
+    public async Task PreviewAsyncReturnsServerErrorWhenCountsAreInconsistentAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with { ReadyRows = 0 })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -314,12 +330,13 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenOperationIdIsNotUuidVersion7()
+    public async Task PreviewAsyncReturnsServerErrorWhenOperationIdIsNotUuidVersion7Async()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with { OperationId = Guid.NewGuid() })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -331,7 +348,7 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenNestedRowValueIsNull()
+    public async Task PreviewAsyncReturnsServerErrorWhenNestedRowValueIsNullAsync()
     {
         var invalidRow = new PlayerImportPreviewRow(
             2,
@@ -340,7 +357,7 @@ public sealed class HttpPlayerImportServiceTests
             PlayerImportRowStatus.Invalid,
             [new(PlayerImportField.FirstName, "First name is required.")],
             Duplicate: null);
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with
             {
@@ -348,7 +365,8 @@ public sealed class HttpPlayerImportServiceTests
                 InvalidRows = 1,
                 Rows = [invalidRow]
             })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -360,10 +378,10 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenInvalidRowValuesAreActuallyValid()
+    public async Task PreviewAsyncReturnsServerErrorWhenInvalidRowValuesAreActuallyValidAsync()
     {
         var row = ValidPreview().Rows[0];
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with
             {
@@ -376,7 +394,8 @@ public sealed class HttpPlayerImportServiceTests
                     Errors = [new(PlayerImportField.FirstName, "Arbitrary error.")]
                 }]
             })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -388,7 +407,7 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenInvalidRowExceedsCellBound()
+    public async Task PreviewAsyncReturnsServerErrorWhenInvalidRowExceedsCellBoundAsync()
     {
         var invalidRow = new PlayerImportPreviewRow(
             2,
@@ -403,7 +422,7 @@ public sealed class HttpPlayerImportServiceTests
             PlayerImportRowStatus.Invalid,
             [new(PlayerImportField.FirstName, "First name is too long.")],
             Duplicate: null);
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with
             {
@@ -411,7 +430,8 @@ public sealed class HttpPlayerImportServiceTests
                 InvalidRows = 1,
                 Rows = [invalidRow]
             })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -423,7 +443,7 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
+    public async Task PreviewAsyncReturnsServerErrorWhenRowsAreOutOfOrderAsync()
     {
         var preview = ValidPreview() with
         {
@@ -431,10 +451,11 @@ public sealed class HttpPlayerImportServiceTests
             ReadyRows = 2,
             Rows = [ValidPreview().Rows[0] with { SourceRowNumber = 3 }, ValidPreview().Rows[0]]
         };
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -446,7 +467,7 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenSourceRowsContainGap()
+    public async Task PreviewAsyncReturnsServerErrorWhenSourceRowsContainGapAsync()
     {
         var first = ValidPreview().Rows[0];
         var preview = ValidPreview() with
@@ -455,10 +476,11 @@ public sealed class HttpPlayerImportServiceTests
             ReadyRows = 2,
             Rows = [first, first with { SourceRowNumber = 4 }]
         };
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -470,12 +492,12 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenReadyOrDuplicateCandidateIsInvalid()
+    public async Task PreviewAsyncReturnsServerErrorWhenReadyOrDuplicateCandidateIsInvalidAsync()
     {
         var invalidInputs = new[]
         {
             ValidPreview().Rows[0].Candidate! with { FirstName = " " },
-            ValidPreview().Rows[0].Candidate! with { Gender = (Nova.Shared.Enums.Gender)999 }
+            ValidPreview().Rows[0].Candidate! with { Gender = (Nova.SharedKernel.Enums.Gender)999 }
         };
 
         foreach (var invalidInput in invalidInputs)
@@ -491,10 +513,11 @@ public sealed class HttpPlayerImportServiceTests
                     DuplicateRows = status == PlayerImportRowStatus.Duplicate ? 1 : 0,
                     Rows = [ValidPreview().Rows[0] with { Candidate = invalidInput, Status = status, Duplicate = duplicate }]
                 };
-                var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+                using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = JsonContent.Create(preview)
-                });
+                };
+                using var handler = new CapturingHandler(handlerResponse);
                 using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
                 var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -510,7 +533,7 @@ public sealed class HttpPlayerImportServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlayerImportRowStatus.Ready)]
     [InlineData(PlayerImportRowStatus.Duplicate)]
-    public async Task PreviewAsync_ReturnsServerError_WhenCandidateDoesNotMatchRawValues(
+    public async Task PreviewAsyncReturnsServerErrorWhenCandidateDoesNotMatchRawValuesAsync(
         PlayerImportRowStatus status)
     {
         var row = ValidPreview().Rows[0];
@@ -528,10 +551,11 @@ public sealed class HttpPlayerImportServiceTests
                 Duplicate = duplicate
             }]
         };
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -545,7 +569,7 @@ public sealed class HttpPlayerImportServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PreviewAsync_ReturnsServerError_WhenEarlierUploadReferenceIsIneligible(
+    public async Task PreviewAsyncReturnsServerErrorWhenEarlierUploadReferenceIsIneligibleAsync(
         bool referencedRowIsInvalid)
     {
         var first = ValidPreview().Rows[0];
@@ -578,10 +602,11 @@ public sealed class HttpPlayerImportServiceTests
             DuplicateRows = 1,
             Rows = [referencedRow, duplicateRow]
         };
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -593,12 +618,13 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_AcceptsNonDefaultExpiry_WithoutUsingClientClock()
+    public async Task PreviewAsyncAcceptsNonDefaultExpiryWithoutUsingClientClockAsync()
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with { ExpiresAt = DateTimeOffset.UnixEpoch })
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -609,17 +635,18 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsServerError_WhenSuccessfulPreviewExceedsSharedRowBound()
+    public async Task PreviewAsyncReturnsServerErrorWhenSuccessfulPreviewExceedsSharedRowBoundAsync()
     {
         var preview = ValidPreview() with
         {
             TotalRows = PlayerImportConstraints.MaxDataRows + 1,
             ReadyRows = PlayerImportConstraints.MaxDataRows + 1
         };
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -631,9 +658,9 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task GetTemplateAsync_ReturnsBytesAndFilename_ForCsvResponse()
+    public async Task GetTemplateAsyncReturnsBytesAndFilenameForCsvResponseAsync()
     {
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(TemplateBytes())
         };
@@ -642,7 +669,7 @@ public sealed class HttpPlayerImportServiceTests
         {
             FileName = PlayerImportConstraints.TemplateFileName
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).GetTemplateAsync(TestContext.Current.CancellationToken);
@@ -654,7 +681,7 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
-    public async Task GetTemplateAsync_ReturnsServerError_WhenTemplateContractDrifts()
+    public async Task GetTemplateAsyncReturnsServerErrorWhenTemplateContractDriftsAsync()
     {
         var cases = new[]
         {
@@ -681,12 +708,13 @@ public sealed class HttpPlayerImportServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{bad-json")]
-    public async Task PreviewAsync_ReturnsServerError_WhenSuccessBodyIsMalformed(string body)
+    public async Task PreviewAsyncReturnsServerErrorWhenSuccessBodyIsMalformedAsync(string body)
     {
-        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
@@ -702,16 +730,17 @@ public sealed class HttpPlayerImportServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(1)]
-    public async Task PreviewAsync_EnforcesConfirmationTokenLength(int excess)
+    public async Task PreviewAsyncEnforcesConfirmationTokenLengthAsync(int excess)
     {
         var preview = ValidPreview() with
         {
             ConfirmationToken = new string('x', PlayerImportConstraints.MaxConfirmationTokenCharacters + excess)
         };
-        using var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handlerResponse = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(preview)
-        });
+        };
+        using var handler = new CapturingHandler(handlerResponse);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var result = await new HttpPlayerImportService(http).PreviewAsync(ValidUpload(), TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBe(excess == 0);

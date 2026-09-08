@@ -9,12 +9,12 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
+using Nova.Features.Common;
 using Nova.Features.Photos;
-using Nova.Features.Shared;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 
@@ -29,7 +29,7 @@ namespace Nova.Features.Clubs;
 /// <param name="currentUserProvider">The provider for the current user's identity.</param>
 /// <param name="crestContainerClient">The blob container client for the club crest container.</param>
 /// <param name="logger">The logger.</param>
-public sealed partial class ClubService(
+internal sealed partial class ClubService(
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -37,7 +37,9 @@ public sealed partial class ClubService(
     ILogger<ClubService> logger) : IClubService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<ClubDto>> CreateClubAsync(CreateClubInput input, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         // Validate input against the DataAnnotations declared on CreateClubInput.
         var errors = InputValidator.Validate(input);
@@ -62,7 +64,7 @@ public sealed partial class ClubService(
         var crestErrors = ClubCrestValidator.Validate(input.CrestContent, input.CrestContentType);
         if (crestErrors.Count > 0)
         {
-            return ServiceProblem.Validation(new Dictionary<string, string[]> { ["crest"] = [.. crestErrors] });
+            return ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["crest"] = [.. crestErrors] });
         }
 
         var crestContentType = ProfilePhotoValidator.SniffContentType(input.CrestContent)!;
@@ -217,7 +219,9 @@ public sealed partial class ClubService(
     /// <param name="commitAttempted">Tracks whether this attempt reached its commit.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The created club or a known service problem.</returns>
-    private async Task<ServiceResult<ClubDto>> CreateClubAsync(
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
+    private static async Task<ServiceResult<ClubDto>> CreateClubAsync(
+#pragma warning restore MA0051
         NovaAdminDbContext db,
         CreateClubInput input,
         long userId,
@@ -274,7 +278,9 @@ public sealed partial class ClubService(
         }
 
         var administratorRoleId = await db.Roles
+#pragma warning disable CA1862 // Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
             .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => (long?)role.Id)
             .SingleOrDefaultAsync(cancellationToken);
         if (administratorRoleId is null)
@@ -416,9 +422,15 @@ public sealed partial class ClubService(
                     EF.Functions.ILike(c.City, $"%{escapedSearch}%", @"\") ||
                     EF.Functions.ILike(c.State, $"%{escapedSearch}%", @"\"))
                 : baseQuery.Where(c =>
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                     c.Name.ToUpper().Contains(uppercaseSearch) ||
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                     c.City.ToUpper().Contains(uppercaseSearch) ||
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                     c.State.ToUpper().Contains(uppercaseSearch));
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
         }
 
         var clubs = await baseQuery

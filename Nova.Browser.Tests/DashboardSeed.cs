@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 
 namespace Nova.Browser.Tests;
 
@@ -29,7 +29,7 @@ namespace Nova.Browser.Tests;
 /// <param name="ArchivedTeamCount">The seeded archived team count.</param>
 /// <param name="PendingJoinRequestCount">The seeded pending join-request count.</param>
 /// <param name="UnresolvedPlacementCount">The seeded whole-club unresolved placement count.</param>
-public sealed record SeededDashboardWorkspace(
+internal sealed record SeededDashboardWorkspace(
     long ClubId,
     long AdminUserId,
     string AdminEmail,
@@ -55,7 +55,7 @@ public sealed record SeededDashboardWorkspace(
 /// <param name="ClubId">The owning club identifier.</param>
 /// <param name="AdminEmail">The club administrator's login e-mail.</param>
 /// <param name="EvaluatorEmail">The approved evaluator's login e-mail.</param>
-public sealed record SeededEmptyDashboardWorkspace(
+internal sealed record SeededEmptyDashboardWorkspace(
     long ClubId,
     string AdminEmail,
     string EvaluatorEmail);
@@ -66,7 +66,7 @@ public sealed record SeededEmptyDashboardWorkspace(
 /// undecided and decided participants, active + archived players and teams, one pending join request, and one
 /// member-visible activity event so the evaluator sees a recent-activity row with the actor name.
 /// </summary>
-public static class DashboardSeed
+internal static class DashboardSeed
 {
     /// <summary>The password shared by every seeded user.</summary>
     public const string Password = "Test#Passw0rd!";
@@ -77,7 +77,9 @@ public static class DashboardSeed
     /// <param name="fixture">The shared AppHost fixture.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The seeded dashboard workspace.</returns>
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
     public static async Task<SeededDashboardWorkspace> SeedAsync(
+#pragma warning restore MA0051
         NovaAppHostFixture fixture,
         CancellationToken cancellationToken)
     {
@@ -115,11 +117,19 @@ public static class DashboardSeed
         long adminUserId;
         long evaluatorUserId;
         long applicantUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             applicantUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == applicantEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         var undecided = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
@@ -132,7 +142,9 @@ public static class DashboardSeed
             cancellationToken);
 
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var seedContext = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             seedContext.AddRange(
                 new PlayerEntity
@@ -176,13 +188,11 @@ public static class DashboardSeed
                     IsAdminOnly = false,
                     ActorUserId = evaluatorUserId,
                     ActorDisplayName = "Bob Observer",
-                    PayloadJson = JsonSerializer.Serialize(
-                        new CampaignLifecycleContext
-                        {
-                            CampaignId = undecided.CampaignId,
-                            CampaignName = undecided.CampaignName,
-                        },
-                        typeof(ClubActivityContext)),
+                    PayloadJson = JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext
+                    {
+                        CampaignId = undecided.CampaignId,
+                        CampaignName = undecided.CampaignName,
+                    }),
                     CreatedById = evaluatorUserId
                 });
             await seedContext.SaveChangesAsync(cancellationToken);
@@ -251,8 +261,10 @@ public static class DashboardSeed
         CancellationToken cancellationToken)
     {
         await using var context = fixture.CreateAdminContext();
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
         var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
-        var suffix = Guid.NewGuid().ToString("N");
+#pragma warning restore CA1862
+
         var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Decided", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
         context.Add(player);
         await context.SaveChangesAsync(cancellationToken);

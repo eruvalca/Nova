@@ -4,9 +4,9 @@ using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Players;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -20,7 +20,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
 {
     /// <summary>Verifies opening waits for player creation and enrolls the committed roster.</summary>
     [Fact]
-    public async Task CampaignOpen_WaitsForPlayerCreation_AndEnrollsCommittedRoster()
+    public async Task CampaignOpenWaitsForPlayerCreationAndEnrollsCommittedRosterAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 1, cancellationToken);
@@ -69,7 +69,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies opening waits for player archival and excludes the committed archived player.</summary>
     [Fact]
-    public async Task CampaignOpen_WaitsForPlayerArchive_AndEnrollsOnlyCommittedActiveRoster()
+    public async Task CampaignOpenWaitsForPlayerArchiveAndEnrollsOnlyCommittedActiveRosterAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 2, cancellationToken);
@@ -116,12 +116,14 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
     /// player is not enrolled by the racing opening.
     /// </summary>
     [Fact]
-    public async Task CampaignOpenHoldingRosterLock_RestoreWaits_AndDoesNotEnrollAfterOpen()
+    public async Task CampaignOpenHoldingRosterLockRestoreWaitsAndDoesNotEnrollAfterOpenAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 2, cancellationToken);
         var archivedPlayerId = seed.PlayerIds[1];
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var archive = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var player = await archive.Players.SingleAsync(
                 candidate => candidate.PlayerId == archivedPlayerId, cancellationToken);
@@ -179,7 +181,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
     /// receipt counts the team as active at the opening instant.
     /// </summary>
     [Fact]
-    public async Task CampaignOpenHoldingRosterLock_TeamArchiveWaits_AndReceiptMatchesOpeningInstant()
+    public async Task CampaignOpenHoldingRosterLockTeamArchiveWaitsAndReceiptMatchesOpeningInstantAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 1, cancellationToken, activeTeamCount: 2);
@@ -227,83 +229,90 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <param name="activeTeamCount">The number of active teams to create.</param>
     /// <returns>The identifiers needed by the competing operations.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<RosterRaceSeed> SeedDraftAsync(
+#pragma warning restore MA0051
         int activePlayerCount,
         CancellationToken cancellationToken,
         int activeTeamCount = 0)
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.CreateVersion7().ToString("N");
-        await using var context = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Opening Roster Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        context.Add(club);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Opening Roster Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        context.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await context.SaveChangesAsync(cancellationToken);
-
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Opening Roster Draft {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Draft,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var players = Enumerable.Range(0, activePlayerCount)
-            .Select(index => new PlayerEntity
+            var club = new ClubEntity
             {
                 CreationOperationId = Guid.CreateVersion7(),
-                FirstName = "Roster",
-                LastName = $"Player {index + 1} {suffix}",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030,
-                LifecycleStatus = LifecycleStatus.Active,
-                ClubId = club.ClubId,
+                Name = $"Opening Roster Club {suffix}",
+                City = "Austin",
+                State = "TX",
                 CreatedById = actorUserId
-            })
-            .ToList();
-        var teams = Enumerable.Range(0, activeTeamCount)
-            .Select(index => new TeamEntity
+            };
+            context.Add(club);
+            await context.SaveChangesAsync(cancellationToken);
+
+            var season = new SeasonEntity
             {
                 CreationOperationId = Guid.CreateVersion7(),
-                Name = $"Roster Team {index + 1} {suffix}",
-                GraduationYear = 2030,
-                LifecycleStatus = LifecycleStatus.Active,
+                Name = $"Opening Roster Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
-            })
-            .ToList();
-        context.Add(campaign);
-        context.AddRange(players);
-        context.AddRange(teams);
-        await context.SaveChangesAsync(cancellationToken);
+            };
+            context.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
 
-        return new RosterRaceSeed(
-            club.ClubId,
-            campaign.CampaignId,
-            actorUserId,
-            players.Select(player => player.PlayerId).ToList(),
-            teams.Select(team => team.TeamId).ToList());
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                Name = $"Opening Roster Draft {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Draft,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var players = Enumerable.Range(0, activePlayerCount)
+                .Select(index => new PlayerEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    FirstName = "Roster",
+                    LastName = $"Player {index + 1} {suffix}",
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                })
+                .ToList();
+            var teams = Enumerable.Range(0, activeTeamCount)
+                .Select(index => new TeamEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    Name = $"Roster Team {index + 1} {suffix}",
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                })
+                .ToList();
+            context.Add(campaign);
+            context.AddRange(players);
+            context.AddRange(teams);
+            await context.SaveChangesAsync(cancellationToken);
+
+            return new RosterRaceSeed(
+                club.ClubId,
+                campaign.CampaignId,
+                actorUserId,
+                players.Select(player => player.PlayerId).ToList(),
+                teams.Select(team => team.TeamId).ToList());
+        }
     }
 
     /// <summary>Sets the flow-local test actor to the seeded club administrator.</summary>

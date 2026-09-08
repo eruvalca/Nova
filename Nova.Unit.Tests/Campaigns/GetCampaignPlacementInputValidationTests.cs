@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -16,7 +16,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Validate_ReturnsCampaignIdError_ForNonPositiveRosterCampaignId(long campaignId)
+    public void ValidateReturnsCampaignIdErrorForNonPositiveRosterCampaignId(long campaignId)
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementRosterInput { CampaignId = campaignId });
@@ -28,7 +28,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies invalid paging and graduation-year values are represented by their field keys.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsAllScalarErrors_ForInvalidRosterValues()
+    public void ValidateReturnsAllScalarErrorsForInvalidRosterValues()
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementRosterInput
@@ -51,7 +51,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies omitted optional filters and default paging values are valid.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForMinimalRosterInput()
+    public void ValidateReturnsNoErrorsForMinimalRosterInput()
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementRosterInput { CampaignId = 42 });
@@ -63,7 +63,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies explicitly supplied valid filters are accepted.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForPopulatedRosterInput()
+    public void ValidateReturnsNoErrorsForPopulatedRosterInput()
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementRosterInput
@@ -82,7 +82,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies page offsets that would overflow an integer are rejected by shared validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsPageError_WhenPageOffsetWouldOverflow()
+    public void ValidateReturnsPageErrorWhenPageOffsetWouldOverflow()
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementRosterInput
@@ -102,7 +102,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Validate_ReturnsCampaignIdError_ForNonPositiveSummaryCampaignId(long campaignId)
+    public void ValidateReturnsCampaignIdErrorForNonPositiveSummaryCampaignId(long campaignId)
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementSummaryInput { CampaignId = campaignId });
@@ -114,7 +114,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies a valid summary input passes model validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForValidSummaryInput()
+    public void ValidateReturnsNoErrorsForValidSummaryInput()
     {
         var errors = InputValidator.Validate(
             new GetCampaignPlacementSummaryInput { CampaignId = 42 });

@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Players;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Players;
 /// WebAssembly client implementation of <see cref="IPlayerService"/> that calls player-roster APIs.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpPlayerService(HttpClient http) : IPlayerService
+internal sealed class HttpPlayerService(HttpClient http) : IPlayerService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PagedResult<PlayerListItem>>> GetPlayerRosterAsync(
@@ -43,7 +43,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
             input.Page,
             input.PageSize);
 
-        using var response = await http.GetAsync(url, cancellationToken);
+        using var response = await http.GetAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

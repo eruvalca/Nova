@@ -7,19 +7,21 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Players;
 
 internal sealed partial class PlayerImportService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
+#pragma warning restore MA0051
         PlayerImportCommitInput input,
         CancellationToken cancellationToken = default)
     {
@@ -93,7 +95,9 @@ internal sealed partial class PlayerImportService
     /// <param name="startedAt">The monotonic request start timestamp for completion timing.</param>
     /// <param name="cancellationToken">Cancels the attempt.</param>
     /// <returns>A committed or recovered result, or a safe rejection.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<PlayerImportCompletion>> CommitImportAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db, PlayerImportCommitInput input, long actorUserId, long clubId,
         string fileHash, string tokenHash, long startedAt, CancellationToken cancellationToken)
     {
@@ -217,8 +221,12 @@ internal sealed partial class PlayerImportService
                     });
                     await db.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
-                    LogImportCompleted(completion.OperationId, clubId, actorUserId, completion.CreatedRows,
-                        completion.BlockedRows, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        var durationMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+                        LogImportCompleted(completion.OperationId, clubId, actorUserId, completion.CreatedRows,
+                                                completion.BlockedRows, durationMilliseconds);
+                    }
                     return completion;
                 }
                 catch (DbUpdateConcurrencyException)
@@ -270,8 +278,8 @@ internal sealed partial class PlayerImportService
         PlayerImportReceiptEntity receipt, PlayerImportCommitInput input, long actorUserId, string fileHash, string tokenHash)
     {
         if (receipt.ActorUserId != actorUserId || receipt.FileLength != input.Upload.Content.Length
-            || receipt.FileSha256 != fileHash || receipt.ConfirmationTokenSha256 != tokenHash
-            || receipt.RecoveryExpiresAt <= timeProvider.GetUtcNow())
+            || !string.Equals(receipt.FileSha256, fileHash, StringComparison.Ordinal) || !string.Equals(receipt.ConfirmationTokenSha256, tokenHash
+, StringComparison.Ordinal) || receipt.RecoveryExpiresAt <= timeProvider.GetUtcNow())
         {
             return ServiceProblem.Conflict("This import cannot be recovered with that confirmation. Preview the file again.");
         }
@@ -288,7 +296,7 @@ internal sealed partial class PlayerImportService
     /// <param name="created">Created players keyed by source row.</param>
     /// <returns>The immutable row result.</returns>
     private static PlayerImportCommitRow CreateImportRowOutcome(
-        PlayerImportPreviewRow row, PlayerImportRowStatus previewStatus, IReadOnlyDictionary<int, PlayerEntity> created) =>
+        PlayerImportPreviewRow row, PlayerImportRowStatus previewStatus, Dictionary<int, PlayerEntity> created) =>
         previewStatus switch
         {
             PlayerImportRowStatus.Invalid => new(row.SourceRowNumber, PlayerImportCommitRowStatus.SkippedInvalidAtPreview, null, [], null),

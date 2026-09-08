@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Enums;
+﻿using Nova.SharedKernel.Enums;
 using Nova.UI.Features.Players;
 
 namespace Nova.UI.Features.Campaigns.Components;

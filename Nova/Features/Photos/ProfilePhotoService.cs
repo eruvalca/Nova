@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
@@ -28,7 +28,7 @@ namespace Nova.Features.Photos;
 /// <param name="readDbContextFactory">The factory for the read-only context.</param>
 /// <param name="currentUserProvider">The provider for the current user's identity.</param>
 /// <param name="logger">The logger.</param>
-public sealed partial class ProfilePhotoService(
+internal sealed partial class ProfilePhotoService(
     [FromKeyedServices("profile-photos")] BlobContainerClient containerClient,
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
@@ -36,7 +36,9 @@ public sealed partial class ProfilePhotoService(
     ILogger<ProfilePhotoService> logger) : IProfilePhotoService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<Success>> SaveProfilePhotoAsync(ProfilePhotoUpload upload, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         if (currentUserProvider.UserId is not long userId)
         {
@@ -46,7 +48,7 @@ public sealed partial class ProfilePhotoService(
         var validationErrors = ProfilePhotoValidator.Validate(upload.Content, upload.ContentType);
         if (validationErrors.Count > 0)
         {
-            var errorDict = new Dictionary<string, string[]> { ["photo"] = [.. validationErrors] };
+            var errorDict = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["photo"] = [.. validationErrors] };
             return ServiceProblem.Validation(errorDict);
         }
 
@@ -126,6 +128,7 @@ public sealed partial class ProfilePhotoService(
                 await dbContext.SaveChangesAsync(cancellationToken);
                 committed = true;
             }
+
 
             LogPhotoSaved(userId);
             await DeleteBlobsBestEffortAsync(previousBlobNames, userId);

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Data.Startup;
 
@@ -23,7 +23,8 @@ internal static class StartupDatabaseInitializer
         bool applyMigrations,
         CancellationToken cancellationToken = default)
     {
-        await using var scope = serviceProvider.CreateAsyncScope();
+        var scope = serviceProvider.CreateAsyncScope();
+        await using var scopeDisposal = scope;
         var services = scope.ServiceProvider;
 
         // Migrations are attributed to NovaDbContext, so it must be the context that applies them.

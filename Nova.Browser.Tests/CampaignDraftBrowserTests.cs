@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -10,7 +10,9 @@ namespace Nova.Browser.Tests;
 public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
-    public async Task Draft_OpensIntoRoster_AfterCreationAndCorrectionRoundTrips()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task DraftOpensIntoRosterAfterCreationAndCorrectionRoundTripsAsync()
+#pragma warning restore MA0051
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedingHelpers.SeedDraftClubAsync(fixture.AppHost, 24, 3, ct);
@@ -114,14 +116,14 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Verifies Draft exclusion, non-blocking team warnings, and safe directory query normalization.</summary>
     /// <returns>The member and administrator browser validation task.</returns>
     [Fact]
-    public async Task Draft_IsUnavailableToOrdinaryMember_AndWarningDoesNotBlockAdministrator()
+    public async Task DraftIsUnavailableToOrdinaryMemberAndWarningDoesNotBlockAdministratorAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedingHelpers.SeedDraftClubAsync(fixture.AppHost, 1, 0, ct);
         await using var browser = await fixture.NewSignedInContextAsync(seed.AdminEmail, "Test#Passw0rd!");
         var page = browser.Pages[0];
-        const string name = "North Shore autumn evaluation and placement preparation for returning and newly registered players";
-        await CreateDraftAsync(page, name);
+        const string Name = "North Shore autumn evaluation and placement preparation for returning and newly registered players";
+        await CreateDraftAsync(page, Name);
         var draftUrl = page.Url;
         await page.GetByRole(AriaRole.Link, new() { Name = "Review opening", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Open campaign and enroll 1 player" })).ToBeEnabledAsync();
@@ -139,26 +141,26 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         var memberPage = member.Pages[0];
         await memberPage.GotoAsync(draftUrl);
         await Expect(memberPage.GetByRole(AriaRole.Heading, new() { Name = "Campaign not found", Exact = true })).ToBeVisibleAsync();
-        await Expect(memberPage.GetByText(name, new() { Exact = true })).ToHaveCountAsync(0);
+        await Expect(memberPage.GetByText(Name, new() { Exact = true })).ToHaveCountAsync(0);
         await memberPage.GotoAsync(new Uri(fixture.BaseUri, "/campaigns/9223372036854775807").ToString());
         await Expect(memberPage.GetByRole(AriaRole.Heading, new() { Name = "Campaign not found", Exact = true })).ToBeVisibleAsync();
         await memberPage.GotoAsync(new Uri(fixture.BaseUri, "/campaigns?view=draft&page=3").ToString());
         await Expect(memberPage.GetByLabel("Campaign view", new() { Exact = true })).ToHaveValueAsync("all");
         await Expect(memberPage.GetByRole(AriaRole.Heading, new() { Name = "No campaigns available", Exact = true })).ToBeVisibleAsync();
-        await Expect(memberPage).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"[?&]view=all(?:&|$)"));
+        await Expect(memberPage).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"[?&]view=all(?:&|$)", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         memberPage.Url.ShouldContain("page=1");
         await Expect(memberPage.GetByRole(AriaRole.Option, new() { Name = "Draft", Exact = true })).ToHaveCountAsync(0);
-        await Expect(memberPage.GetByText(name, new() { Exact = true })).ToHaveCountAsync(0);
+        await Expect(memberPage.GetByText(Name, new() { Exact = true })).ToHaveCountAsync(0);
         await CaptureAsync(memberPage, "directory-member-empty");
         await memberPage.GotoAsync(new Uri(fixture.BaseUri, "/campaigns?page=abc&deleted=abc").ToString());
         await Expect(memberPage.GetByRole(AriaRole.Heading, new() { Name = "No campaigns available", Exact = true })).ToBeVisibleAsync();
         await Expect(memberPage.GetByText("Draft deleted. Your club's teams remain.", new() { Exact = true })).ToHaveCountAsync(0);
-        await Expect(memberPage).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"[?&]page=1(?:&|$)"));
+        await Expect(memberPage).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"[?&]page=1(?:&|$)", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         memberPage.Url.ShouldNotContain("deleted=");
     }
 
     [Fact]
-    public async Task Draft_DeletesWithoutDeletingTeams_AfterInlineTeamCreation()
+    public async Task DraftDeletesWithoutDeletingTeamsAfterInlineTeamCreationAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedingHelpers.SeedDraftClubAsync(fixture.AppHost, 0, 0, ct);
@@ -213,7 +215,7 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#campaign-planned-end-date").FillAsync("2026-09-26");
         await page.Locator("#inline-season-name").FillAsync("2026–27 Season");
         await page.Locator("#inline-season-start-date").FillAsync("2026-08-01");
-        if (name == "Fall evaluation")
+        if (string.Equals(name, "Fall evaluation", StringComparison.Ordinal))
         {
             await CaptureAsync(page, "creation-desktop");
             await page.SetViewportSizeAsync(390, 844);
@@ -233,7 +235,7 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await page.Mouse.MoveAsync((page.ViewportSize?.Width ?? 1280) - 5, 5);
         await page.EvaluateAsync("window.scrollTo(0, 0)");
         await page.ScreenshotAsync(new() { Path = Path.Combine(directory, $"{name}.png"), FullPage = true });
-        if (name == "preparation-desktop")
+        if (string.Equals(name, "preparation-desktop", StringComparison.Ordinal))
         {
             await page.ScreenshotAsync(new() { Path = Path.Combine(directory, "hero.png") });
             await page.SetViewportSizeAsync(1440, 1045);

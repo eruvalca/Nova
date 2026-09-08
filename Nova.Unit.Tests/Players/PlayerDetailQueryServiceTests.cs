@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -59,7 +59,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     /// notes, tag applications, and active-campaign current traits.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsOrderedCampaignHistoryAndCurrentTraits()
+    public async Task GetPlayerDetailAsyncReturnsOrderedCampaignHistoryAndCurrentTraitsAsync()
     {
         ActAs(ClubAViewerId, ClubAId);
         var service = CreateService();
@@ -94,7 +94,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     /// Verifies unresolved note/tag actors use the stable non-sensitive fallback display text.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_UsesFormerMemberFallback_WhenActorCannotBeResolved()
+    public async Task GetPlayerDetailAsyncUsesFormerMemberFallbackWhenActorCannotBeResolvedAsync()
     {
         ActAs(ClubAViewerId, ClubAId);
         var service = CreateService();
@@ -111,7 +111,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     /// Verifies missing or cross-tenant players return a non-disclosing not-found result.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsNotFound_ForCrossTenantPlayer()
+    public async Task GetPlayerDetailAsyncReturnsNotFoundForCrossTenantPlayerAsync()
     {
         ActAs(ClubAViewerId, ClubAId);
         var service = CreateService();
@@ -126,7 +126,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     /// Verifies callers without approved club membership are forbidden.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsForbidden_WhenUserIsNotClubMember()
+    public async Task GetPlayerDetailAsyncReturnsForbiddenWhenUserIsNotClubMemberAsync()
     {
         ActAs(userId: ClubAViewerId, clubId: null);
         var service = CreateService();
@@ -167,7 +167,9 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     /// <summary>
     /// Seeds club, player, campaign, note, and tag-application history across two clubs.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var context = _harness.CreateAdminContext();
 

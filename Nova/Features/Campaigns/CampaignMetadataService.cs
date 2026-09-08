@@ -2,11 +2,11 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Campaigns;
 
@@ -17,7 +17,7 @@ namespace Nova.Features.Campaigns;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for metadata mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for metadata correction outcomes.</param>
-public sealed partial class CampaignMetadataService(
+internal sealed partial class CampaignMetadataService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignMetadataService> logger) : ICampaignMetadataService
@@ -79,7 +79,9 @@ public sealed partial class CampaignMetadataService(
     /// <param name="clubId">The current tenant club identifier.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The updated metadata result or a ProblemDetails-mappable failure.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<UpdateCampaignMetadataResult>> UpdateCampaignMetadataAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         UpdateCampaignMetadataInput input,
         long actorUserId,
@@ -197,7 +199,7 @@ public sealed partial class CampaignMetadataService(
         UpdateCampaignMetadataInput input,
         SeasonEntity season)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
 
         if (input.StartDate < season.StartDate)
         {

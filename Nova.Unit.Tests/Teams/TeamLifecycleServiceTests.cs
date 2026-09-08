@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -39,7 +39,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsForbidden_WhenActorIsNotClubAdmin()
+    public async Task ArchiveAsyncReturnsForbiddenWhenActorIsNotClubAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isClubAdmin: false);
         var service = CreateService();
@@ -51,7 +51,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsForbidden_WhenActorHasNoClub()
+    public async Task ArchiveAsyncReturnsForbiddenWhenActorHasNoClubAsync()
     {
         ActAs(ClubAAdminId, clubId: null, isClubAdmin: true);
         var service = CreateService();
@@ -63,7 +63,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsNotFound_WhenTeamBelongsToOtherClub()
+    public async Task ArchiveAsyncReturnsNotFoundWhenTeamBelongsToOtherClubAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -75,7 +75,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ArchiveAsync_ArchivesTeam_AndSetsProvenance()
+    public async Task ArchiveAsyncArchivesTeamAndSetsProvenanceAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -93,7 +93,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsConflict_WhenTeamAlreadyArchived()
+    public async Task ArchiveAsyncReturnsConflictWhenTeamAlreadyArchivedAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -105,7 +105,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsConflict_WhenActivePlacementRemains()
+    public async Task ArchiveAsyncReturnsConflictWhenActivePlacementRemainsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -123,7 +123,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RestoreAsync_RestoresTeam_AndClearsProvenance()
+    public async Task RestoreAsyncRestoresTeamAndClearsProvenanceAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -141,7 +141,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RestoreAsync_ReturnsConflict_WhenTeamAlreadyActive()
+    public async Task RestoreAsyncReturnsConflictWhenTeamAlreadyActiveAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -165,7 +165,9 @@ public sealed class TeamLifecycleServiceTests : IDisposable
         _harness.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

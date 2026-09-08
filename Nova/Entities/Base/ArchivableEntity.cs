@@ -1,4 +1,5 @@
-﻿using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities.Base;
 

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddClubMembershipMutationReceipts : Migration
+internal partial class AddClubMembershipMutationReceipts : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

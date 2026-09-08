@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -13,7 +13,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a fully valid input passes structural validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForValidInput()
+    public void ValidateReturnsNoErrorsForValidInput()
     {
         var errors = InputValidator.Validate(ValidInput());
 
@@ -24,7 +24,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a valid input with a planned end date passes structural validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForValidInputWithPlannedEndDate()
+    public void ValidateReturnsNoErrorsForValidInputWithPlannedEndDate()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -38,7 +38,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a zero CampaignId is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsError_WhenCampaignIdIsZero()
+    public void ValidateReturnsErrorWhenCampaignIdIsZero()
     {
         var errors = InputValidator.Validate(ValidInput() with { CampaignId = 0 });
 
@@ -49,7 +49,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a zero SeasonId is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsError_WhenSeasonIdIsZero()
+    public void ValidateReturnsErrorWhenSeasonIdIsZero()
     {
         var errors = InputValidator.Validate(ValidInput() with { SeasonId = 0 });
 
@@ -60,7 +60,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a blank campaign name is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsError_WhenNameIsBlank()
+    public void ValidateReturnsErrorWhenNameIsBlank()
     {
         var errors = InputValidator.Validate(ValidInput() with { Name = "   " });
 
@@ -71,7 +71,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a default start date is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsError_WhenStartDateIsDefault()
+    public void ValidateReturnsErrorWhenStartDateIsDefault()
     {
         var errors = InputValidator.Validate(ValidInput() with { StartDate = default });
 
@@ -82,7 +82,7 @@ public sealed class UpdateCampaignMetadataInputValidationTests
     /// Verifies a planned end date before the start date is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsError_WhenPlannedEndDateIsBeforeStartDate()
+    public void ValidateReturnsErrorWhenPlannedEndDateIsBeforeStartDate()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {

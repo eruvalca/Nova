@@ -4,10 +4,10 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -25,7 +25,7 @@ public sealed class TeamComponentsTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Teams_DiscardsDraftReturnContext_WhenScopeChanges(bool clubChange)
+    public async Task TeamsDiscardsDraftReturnContextWhenScopeChangesAsync(bool clubChange)
     {
         RegisterServices(isClubAdmin: true);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true, false));
@@ -33,11 +33,11 @@ public sealed class TeamComponentsTests : BunitContext
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/club/teams?returnToDraft=10&view=archived&search=Blue");
         var cut = Render<TeamsPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Return to draft"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Return to draft"));
 
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(clubChange, false, clubChange ? 43 : 42)));
 
-        cut.WaitForAssertion(() => navigation.Uri.ShouldNotContain("returnToDraft"));
+        await cut.WaitForAssertionAsync(() => navigation.Uri.ShouldNotContain("returnToDraft"));
         navigation.Uri.ShouldContain("view=archived");
         navigation.Uri.ShouldContain("search=Blue");
         cut.Instance.ReturnToDraft.ShouldBeNull();
@@ -52,7 +52,7 @@ public sealed class TeamComponentsTests : BunitContext
 
     /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without a team query.</summary>
     [Fact]
-    public async Task Teams_AppliesEmptyIdentity_WhenItOvertakesStartup()
+    public async Task TeamsAppliesEmptyIdentityWhenItOvertakesStartupAsync()
     {
         RegisterServices(isClubAdmin: true);
         var pending = new TaskCompletionSource<AuthenticationState>();
@@ -63,7 +63,7 @@ public sealed class TeamComponentsTests : BunitContext
 
         await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(new AuthenticationState(new ClaimsPrincipal()))));
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("You must join a club before viewing the team roster."));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("You must join a club before viewing the team roster."));
         cut.Instance.Initialized.ShouldBeTrue();
         await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(true, false))));
         cut.Markup.ShouldContain("You must join a club before viewing the team roster.");
@@ -76,7 +76,7 @@ public sealed class TeamComponentsTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Teams_IgnoresOvertakenAdministratorAuthentication(bool startup)
+    public async Task TeamsIgnoresOvertakenAdministratorAuthenticationAsync(bool startup)
     {
         RegisterServices(isClubAdmin: true);
         var older = new TaskCompletionSource<AuthenticationState>();
@@ -87,12 +87,12 @@ public sealed class TeamComponentsTests : BunitContext
         var cut = Render<TeamsPage>();
         if (!startup)
         {
-            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+            await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Add team"));
             await cut.InvokeAsync(() => authentication.Publish(older.Task));
         }
         await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
             new AuthenticationState(CreatePrincipal(isClubAdmin: false, isAdmin: false)))));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("U16 Blue"));
         cut.Markup.ShouldNotContain("Add team");
         cut.Markup.ShouldNotContain("Return to draft");
 
@@ -106,14 +106,14 @@ public sealed class TeamComponentsTests : BunitContext
 
     /// <summary>Verifies a pending identity completion cannot reload the roster after disposal.</summary>
     [Fact]
-    public async Task Teams_IgnoresAuthenticationCompletion_AfterDisposal()
+    public async Task TeamsIgnoresAuthenticationCompletionAfterDisposalAsync()
     {
         RegisterServices(isClubAdmin: true);
         var authentication = new DeferredAuthentication(Task.FromResult(
             new AuthenticationState(CreatePrincipal(isClubAdmin: true, isAdmin: false))));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<TeamsPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("U16 Blue"));
         var roster = Services.GetRequiredService<ITeamRosterService>();
         var callsBeforeDisposal = roster.ReceivedCalls().Count();
         var pending = new TaskCompletionSource<AuthenticationState>();
@@ -132,7 +132,7 @@ public sealed class TeamComponentsTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public void Teams_ReturnToDraft_RequiresCurrentAdministratorRole(bool startsAsAdmin)
+    public void TeamsReturnToDraftRequiresCurrentAdministratorRole(bool startsAsAdmin)
     {
         RegisterServices(isClubAdmin: startsAsAdmin);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin, isAdmin: false));
@@ -143,7 +143,7 @@ public sealed class TeamComponentsTests : BunitContext
 
         if (startsAsAdmin)
         {
-            cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
+            cut.FindAll("a").Single(link => string.Equals(link.TextContent.Trim(), "Return to draft", StringComparison.Ordinal))
                 .GetAttribute("href").ShouldBe("/campaigns/10");
             authentication.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
         }
@@ -159,7 +159,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsLoadingState_WhileRosterRequestIsPending()
+    public void TeamsShowsLoadingStateWhileRosterRequestIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<IReadOnlyList<TeamRosterItem>>>();
         var rosterService = Substitute.For<ITeamRosterService>();
@@ -176,7 +176,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsEmptyState_WhenRosterHasNoRows()
+    public void TeamsShowsEmptyStateWhenRosterHasNoRows()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -189,7 +189,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsErrorAndRetries_WhenInitialLoadFails()
+    public void TeamsShowsErrorAndRetriesWhenInitialLoadFails()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -206,7 +206,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsRetryableError_WhenRosterTransportFails()
+    public void TeamsShowsRetryableErrorWhenRosterTransportFails()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -219,7 +219,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_NavigatesToAccessDenied_WhenRosterResponseIsForbidden()
+    public void TeamsNavigatesToAccessDeniedWhenRosterResponseIsForbidden()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -236,7 +236,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsMutationControls_ForClubAdmin()
+    public void TeamsShowsMutationControlsForClubAdmin()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -249,7 +249,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_RowActions_IncludeTeamNameInAccessibleLabel()
+    public void TeamsRowActionsIncludeTeamNameInAccessibleLabel()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -265,7 +265,7 @@ public sealed class TeamComponentsTests : BunitContext
     /// mutation controls.
     /// </summary>
     [Fact]
-    public void Teams_HidesMutationControls_ForGlobalAdminWithoutClubAdmin()
+    public void TeamsHidesMutationControlsForGlobalAdminWithoutClubAdmin()
     {
         RegisterServices(isClubAdmin: false, isAdmin: true);
 
@@ -278,7 +278,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_HidesMutationControls_ForEvaluator()
+    public void TeamsHidesMutationControlsForEvaluator()
     {
         RegisterServices(isClubAdmin: false);
 
@@ -291,7 +291,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsMutationControls_WhenClubAdminRoleIsGrantedAfterLoad()
+    public void TeamsShowsMutationControlsWhenClubAdminRoleIsGrantedAfterLoad()
     {
         RegisterServices(isClubAdmin: false);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false, isAdmin: false));
@@ -312,7 +312,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_HidesMutationControls_WhenClubAdminRoleIsRevokedAfterLoad()
+    public void TeamsHidesMutationControlsWhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
@@ -333,7 +333,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_RebindsRoster_WhenClubMembershipChangesAfterLoad()
+    public void TeamsRebindsRosterWhenClubMembershipChangesAfterLoad()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -375,7 +375,7 @@ public sealed class TeamComponentsTests : BunitContext
             cut.Markup.ShouldContain("U18 Crimson");
             cut.Markup.ShouldNotContain("U16 Orange");
         });
-        rosterService.Received(2).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+        _ = rosterService.Received(2).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -383,7 +383,7 @@ public sealed class TeamComponentsTests : BunitContext
     /// club's roster request completes instead of leaving the previous club's roster visible.
     /// </summary>
     [Fact]
-    public void Teams_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    public void TeamsShowsLoadingStateWhenClubMembershipChangesBeforeReloadCompletes()
     {
         var pending = new TaskCompletionSource<ServiceResult<IReadOnlyList<TeamRosterItem>>>();
         var rosterService = Substitute.For<ITeamRosterService>();
@@ -421,7 +421,9 @@ public sealed class TeamComponentsTests : BunitContext
     /// A stale mutation completing later must not clear the flag of a newer mutation.
     /// </summary>
     [Fact]
-    public void Teams_ReenablesMutationControls_WhenClubChangesDuringInFlightMutation()
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    public void TeamsReenablesMutationControlsWhenClubChangesDuringInFlightMutation()
+#pragma warning restore MA0051
     {
         var pendingCreate1 = new TaskCompletionSource<ServiceResult<TeamDto>>();
         var pendingCreate2 = new TaskCompletionSource<ServiceResult<TeamDto>>();
@@ -492,7 +494,7 @@ public sealed class TeamComponentsTests : BunitContext
     /// new club's roster only — years from the previous club must not leak into the dropdown.
     /// </summary>
     [Fact]
-    public void Teams_ClearsGraduationYearOptions_WhenClubMembershipChanges()
+    public void TeamsClearsGraduationYearOptionsWhenClubMembershipChanges()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -543,7 +545,7 @@ public sealed class TeamComponentsTests : BunitContext
     /// previous club must not be restored; the page must reload against the new club scope instead.
     /// </summary>
     [Fact]
-    public void Teams_ReloadsRoster_WhenPersistedSnapshotBelongsToDifferentClub()
+    public void TeamsReloadsRosterWhenPersistedSnapshotBelongsToDifferentClub()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -568,11 +570,11 @@ public sealed class TeamComponentsTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
         cut.Markup.ShouldNotContain("U14 Emerald");
-        rosterService.Received(1).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+        _ = rosterService.Received(1).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
+    public void TeamsClosesManagementPanelsWhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
@@ -595,7 +597,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_AppliesLifecycleAndGraduationFilters_WhenInputsChange()
+    public void TeamsAppliesLifecycleAndGraduationFiltersWhenInputsChange()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -609,24 +611,28 @@ public sealed class TeamComponentsTests : BunitContext
 
         cut.Find("#teams-view-filter").Change("archived");
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && input.LifecycleStatus != null
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         navigationManager.Uri.ShouldContain("view=archived");
 
         cut.Find("#teams-grad-year").Change("2032");
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input => input != null && input.GraduationYear == 2032),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         navigationManager.Uri.ShouldContain("graduationYear=2032");
     }
 
     [Fact]
-    public void Teams_AppliesSearchFilter_AfterDebounce()
+    public void TeamsAppliesSearchFilterAfterDebounce()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -640,18 +646,20 @@ public sealed class TeamComponentsTests : BunitContext
 
         cut.Find("#teams-search").Input("Blue");
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && input.Search != null
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)),
-                Arg.Any<CancellationToken>()),
+                Arg.Any<CancellationToken>());
+            },
             timeout: TimeSpan.FromSeconds(2));
         navigationManager.Uri.ShouldContain("search=Blue");
     }
 
     [Fact]
-    public void Teams_AppliesInitialQueryStringFilters_OnFirstRender()
+    public void TeamsAppliesInitialQueryStringFiltersOnFirstRender()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -663,18 +671,20 @@ public sealed class TeamComponentsTests : BunitContext
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
                     && input.GraduationYear == 2032),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         cut.WaitForAssertion(() => cut.Find("#teams-search").GetAttribute("value").ShouldBe("Blue"));
     }
 
     [Fact]
-    public void Teams_IgnoresMalformedGraduationYearQuery_OnFirstRender()
+    public void TeamsIgnoresMalformedGraduationYearQueryOnFirstRender()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -686,18 +696,20 @@ public sealed class TeamComponentsTests : BunitContext
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
                     && input.GraduationYear == null),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         cut.WaitForAssertion(() => cut.Find("#teams-search").GetAttribute("value").ShouldBe("Blue"));
     }
 
     [Fact]
-    public void Teams_AppliesUpdatedQueryStringFilters_OnSameRouteNavigation()
+    public void TeamsAppliesUpdatedQueryStringFiltersOnSameRouteNavigation()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -711,17 +723,19 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Render();
 
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
                     && input.GraduationYear == 2032),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
     }
 
     [Fact]
-    public void Teams_PreservesSearchDraft_WhenLifecycleChangesBeforeDebounce()
+    public void TeamsPreservesSearchDraftWhenLifecycleChangesBeforeDebounce()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -737,17 +751,19 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Find("#teams-view-filter").Change("archived");
 
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         navigationManager.Uri.ShouldContain("search=Blue");
     }
 
     [Fact]
-    public void Teams_PreservesSearchDraft_WhenGraduationYearChangesBeforeDebounce()
+    public void TeamsPreservesSearchDraftWhenGraduationYearChangesBeforeDebounce()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -763,17 +779,19 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Find("#teams-grad-year").Change("2032");
 
         cut.WaitForAssertion(() =>
-            rosterService.Received().GetRosterAsync(
+            {
+                _ = rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input =>
                     input != null
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
                     && input.GraduationYear == 2032),
-                Arg.Any<CancellationToken>()));
+                Arg.Any<CancellationToken>());
+            });
         navigationManager.Uri.ShouldContain("search=Blue");
     }
 
     [Fact]
-    public void Teams_ShowsCreateSuccessMessage_AfterMutationReload()
+    public void TeamsShowsCreateSuccessMessageAfterMutationReload()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
         rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
@@ -808,7 +826,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsCutoffConflictBlockers_WhenUpdateReturnsConflict()
+    public void TeamsShowsCutoffConflictBlockersWhenUpdateReturnsConflict()
     {
         var managementService = Substitute.For<ITeamManagementService>();
         managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
@@ -848,7 +866,7 @@ public sealed class TeamComponentsTests : BunitContext
     /// backing field, which silently renders the field name to the user.
     /// </summary>
     [Fact]
-    public void Teams_ShowsServerErrorText_WhenUpdateReturnsConflict()
+    public void TeamsShowsServerErrorTextWhenUpdateReturnsConflict()
     {
         var managementService = Substitute.For<ITeamManagementService>();
         managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
@@ -872,7 +890,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsArchiveBlockers_WhenArchiveReturnsConflict()
+    public void TeamsShowsArchiveBlockersWhenArchiveReturnsConflict()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -908,7 +926,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsArchiveTransportError_AndKeepsArchiveWorkflowOpen()
+    public void TeamsShowsArchiveTransportErrorAndKeepsArchiveWorkflowOpen()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -933,7 +951,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_BeginArchive_ClosesEditWorkflow()
+    public void TeamsBeginArchiveClosesEditWorkflow()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -952,7 +970,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowCreateForm_ClosesArchiveWorkflow()
+    public void TeamsShowCreateFormClosesArchiveWorkflow()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -971,7 +989,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_BeginEdit_ClosesArchiveWorkflow()
+    public void TeamsBeginEditClosesArchiveWorkflow()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -990,7 +1008,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsLifecycleMutationError_InGlobalAlert()
+    public void TeamsShowsLifecycleMutationErrorInGlobalAlert()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
@@ -1006,7 +1024,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ClearsRestoreSuccessMessage_WhenLaterRestoreFails()
+    public void TeamsClearsRestoreSuccessMessageWhenLaterRestoreFails()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
@@ -1034,7 +1052,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Teams_ShowsOnlyRestore_ForArchivedRows()
+    public void TeamsShowsOnlyRestoreForArchivedRows()
     {
         RegisterServices(isClubAdmin: true, rosterItems: CreateRosterItems(LifecycleStatus.Archived));
 
@@ -1048,7 +1066,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void TeamsRoute_DeclaresInteractiveAutoRenderMode()
+    public void TeamsRouteDeclaresInteractiveAutoRenderMode()
     {
         var repoRoot = FindRepoRoot();
         var razorPath = Path.Combine(repoRoot, "Nova.UI", "Features", "Teams", "Pages", "Teams.razor");
@@ -1056,7 +1074,7 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
-    public void TeamForm_ShowsValidationMessages_WhenSubmittedInvalid()
+    public void TeamFormShowsValidationMessagesWhenSubmittedInvalid()
     {
         var model = new Nova.UI.Features.Teams.Components.TeamFormState
         {
@@ -1186,14 +1204,19 @@ public sealed class TeamComponentsTests : BunitContext
         /// </summary>
         /// <param name="newPrincipal">The principal to publish to subscribers.</param>
         public void Change(ClaimsPrincipal newPrincipal)
-            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
+        {
+            _state = Task.FromResult(new AuthenticationState(newPrincipal));
+            NotifyAuthenticationStateChanged(_state);
+        }
     }
 
     /// <summary>
     /// Starts with a prerendered state already restored from the previous club (club 42), so tests can
     /// exercise the interactive-attach path where the persisted snapshot's club differs from the current one.
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedClubIdTeams(
+#pragma warning restore CA1812
         ITeamRosterService rosterService,
         ITeamManagementService managementService,
         ITeamLifecycleService lifecycleService,

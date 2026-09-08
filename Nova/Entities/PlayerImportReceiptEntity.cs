@@ -3,7 +3,7 @@
 namespace Nova.Entities;
 
 /// <summary>Preserves immutable import commit proof independently of mutable or deleted aggregates.</summary>
-public sealed class PlayerImportReceiptEntity : BaseEntity, ITenantOwnedEntity
+internal sealed class PlayerImportReceiptEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>Gets or sets the generated receipt identifier.</summary>
     public long PlayerImportReceiptId { get; set; }

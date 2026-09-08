@@ -5,13 +5,13 @@ using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Campaigns;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 using OneOf;
 using OneOf.Types;
 
@@ -21,19 +21,19 @@ namespace Nova.Features.Campaigns;
 /// Reports that the current user is not an approved club member authorized to mutate campaign placements.
 /// </summary>
 /// <param name="Detail">A description of the authorization failure.</param>
-public readonly record struct PlacementForbidden(string Detail);
+internal readonly record struct PlacementForbidden(string Detail);
 
 /// <summary>
 /// Reports that a placement changed after the caller loaded it.
 /// </summary>
 /// <param name="Detail">A description of the concurrency conflict.</param>
-public readonly record struct PlacementConflict(string Detail);
+internal readonly record struct PlacementConflict(string Detail);
 
 /// <summary>
 /// Represents every supported outcome of a campaign-placement mutation.
 /// </summary>
 [GenerateOneOf]
-public partial class PlacementUpdateResult : OneOfBase<
+internal partial class PlacementUpdateResult : OneOfBase<
     PlacementMutationSuccess,
     Error<IReadOnlyDictionary<string, string[]>>,
     NotFound,
@@ -48,7 +48,7 @@ public partial class PlacementUpdateResult : OneOfBase<
 /// <param name="dbContextFactory">The tenant-scoped context factory used for the placement mutation.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for mutation outcomes.</param>
-public sealed partial class CampaignPlacementService(
+internal sealed partial class CampaignPlacementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignPlacementService> logger) : ICampaignPlacementService
@@ -166,7 +166,9 @@ public sealed partial class CampaignPlacementService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The placement update result for this attempt.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<PlacementUpdateResult> UpdatePlacementAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         UpdateCampaignPlacementInput input,
         long userId,
@@ -296,7 +298,9 @@ public sealed partial class CampaignPlacementService(
             RejectTerminalWithdrawalAsync,
             RejectWithdrawalAuthorityAsync);
 
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
         async Task<PlacementUpdateResult> ApplyPlacementAsync(PlacementMayApply decision)
+#pragma warning restore MA0051
         {
             if (decision.IsNoOp)
             {
@@ -441,7 +445,7 @@ public sealed partial class CampaignPlacementService(
             LogPlacementEligibilityFailed(input.PlayerCampaignAssignmentId, input.TeamId!.Value);
             return Task.FromResult<PlacementUpdateResult>(
                 new Error<IReadOnlyDictionary<string, string[]>>(
-                    new Dictionary<string, string[]>
+                    new Dictionary<string, string[]>(StringComparer.Ordinal)
                     {
                         [nameof(input.TeamId)] =
                         [

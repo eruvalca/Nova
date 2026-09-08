@@ -2,8 +2,8 @@
 using Microsoft.Playwright;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -26,7 +26,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     /// the club detail page header shows the crest.
     /// </summary>
     [Fact]
-    public async Task ClubCrest_OnboardingCreate_ShowsCrestInNavAndClubDetail()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ClubCrestOnboardingCreateShowsCrestInNavAndClubDetailAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await SeedPhotoCompleteClubLessUserAsync(cancellationToken);
@@ -98,7 +100,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     /// navigation falls back to the building icon.
     /// </summary>
     [Fact]
-    public async Task ClubCrest_AdminReplacesAndRemoves_NavReflectsCrestPresence()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ClubCrestAdminReplacesAndRemovesNavReflectsCrestPresenceAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminWithCrestClubAsync(cancellationToken);
@@ -174,7 +178,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     /// avatar stays a square (the 64px small variant).
     /// </summary>
     [Fact]
-    public async Task ClubCrest_NonSquareUpload_ClubDetailPreservesAspectRatio()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ClubCrestNonSquareUploadClubDetailPreservesAspectRatioAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await SeedPhotoCompleteClubLessUserAsync(cancellationToken);
@@ -232,7 +238,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
             .Locator("img.nav-avatar");
         await Expect(navAvatar).ToHaveCountAsync(1);
         var navSize = await WaitForNaturalSizeAsync(navAvatar, page);
+#pragma warning disable CA1861 // These expected values belong to this isolated browser scenario.
         navSize.ShouldBe(new[] { 64d, 64d });
+#pragma warning restore CA1861
 
         // The club detail crest preserves its aspect ratio: natural width differs from height.
         var clubId = await GetCurrentClubIdAsync(page);

@@ -7,7 +7,7 @@ namespace Nova.Data;
 /// A read-only, tenant-scoped context for efficient bulk reads. Queries are not tracked
 /// and any attempt to save changes throws.
 /// </summary>
-public class NovaReadDbContext : ApplicationDbContext
+internal sealed class NovaReadDbContext : ApplicationDbContext
 {
     private const string ReadOnlyMessage = $"{nameof(NovaReadDbContext)} is read-only. Use {nameof(NovaDbContext)} for writes.";
 

@@ -3,7 +3,7 @@
 ## The rule that matters most
 
 **Never re-declare business validation rules in the UI.** The DataAnnotations on the shared
-`Nova.Shared\{Feature}\{Name}Input.cs` record are the single source of truth. A form model bridges to
+`Nova.SharedKernel\{Feature}\{Name}Input.cs` record are the single source of truth. A form model bridges to
 them through `InputValidator` so the client and server can never disagree.
 
 See `.github/instructions/validation.instructions.md` for the rule set and
@@ -121,7 +121,7 @@ validates again. Show what the server returns:
   re-add the unchanged parent error snapshot on every render. Clearing only inside `OnValidSubmit`
   deadlocks retry because those messages prevent the callback. Detach field-change subscriptions
   when replacing the `EditContext` and on disposal. See `CampaignMetadataForm.razor.cs` and
-  `CampaignEntryTests.CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation`.
+  `CampaignEntryTests.CampaignEntryResubmitsMetadataAfterCorrectingServerValidation`.
 
 Keep the success message from being wiped by the reload that follows a successful mutation — clear it
 at the next intentional user action instead.

@@ -150,7 +150,7 @@ when closing the participant drawer after opening it as a hydration proof.
   is assigned after render, so a single probe races.
 - Polling helpers must fail loudly: when a mutation may settle as success *or* conflict, poll for
   either, then throw a descriptive `TimeoutException` if neither appeared.
-- One behavior per test; `Subject_Outcome_Condition` naming, Shouldly assertions, and
+- One behavior per test; `SubjectOutcomeConditionAsync` naming for async tests, Shouldly assertions, and
   `TestContext.Current.CancellationToken` — same conventions as the other test projects.
 
 ## Writing pattern

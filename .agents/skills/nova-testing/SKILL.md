@@ -80,7 +80,7 @@ validation summary.
 ## Checklist
 
 1. Pick `Nova.Unit.Tests` unless the behavior is provider-specific.
-2. Follow existing sibling tests for arrangement and naming (`Subject_Outcome_Condition`).
+2. Follow existing sibling tests for arrangement and naming (`SubjectOutcomeCondition`, with an `Async` suffix for async methods).
    Select the transitions affected by the change before writing assertions. Read production rules
    by behavior as well as test path (especially tenancy rules for EF-backed tests).
 3. Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.

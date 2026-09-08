@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Features.Teams;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -35,7 +35,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// contains that substring and does not return unrelated names.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_Search_MatchesLiteralPercent()
+    public async Task GetRosterAsyncSearchMatchesLiteralPercentAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(
@@ -52,7 +52,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// literally contain <c>50%</c>.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_Search_PercentDoesNotMatchUnrelatedNames()
+    public async Task GetRosterAsyncSearchPercentDoesNotMatchUnrelatedNamesAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(
@@ -69,7 +69,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// would otherwise act as a single-character wildcard (e.g. <c>axb</c>).
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_Search_UnderscoreDoesNotMatchSingleCharWildcard()
+    public async Task GetRosterAsyncSearchUnderscoreDoesNotMatchSingleCharWildcardAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(
@@ -85,7 +85,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// (Name, then TeamId) order without applying the limit to an unordered set.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_Limit_ReturnsFirstTeamsInDeterministicOrder()
+    public async Task GetRosterAsyncLimitReturnsFirstTeamsInDeterministicOrderAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(
@@ -100,7 +100,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// Verifies that omitting the limit keeps the existing unbounded behavior.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_WithoutLimit_ReturnsEveryMatchingTeam()
+    public async Task GetRosterAsyncWithoutLimitReturnsEveryMatchingTeamAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(
@@ -115,7 +115,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     /// Verifies a limit that exceeds the match count returns every matching team.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_LimitAboveMatchCount_ReturnsEveryMatchingTeam()
+    public async Task GetRosterAsyncLimitAboveMatchCountReturnsEveryMatchingTeamAsync()
     {
         ActAs(AdminId, ClubId);
         var result = await CreateService().GetRosterAsync(

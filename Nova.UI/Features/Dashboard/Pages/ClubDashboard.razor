@@ -2,9 +2,9 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
-@using Nova.Shared.Enums
-@using Nova.Shared.Features.Clubs
-@using Nova.Shared.Security
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Clubs
+@using Nova.SharedKernel.Security
 @using Nova.UI.Features.Dashboard
 
 <PageTitle>Dashboard</PageTitle>
@@ -93,102 +93,106 @@ FORM: Campaign map, ranked 1; two-zone operations-board staging; seed key assign
                                     <tr>
                                         <td><strong>@card.Name</strong></td>
                                         <td>@card.ParticipantCount</td>
-                                        <td><span class="attention-count@(card.UnresolvedCount > 0 ? null : " is-zero")">@card.UnresolvedCount</span></td>
-                                        <td class="text-end">
-                                            <a class="workspace-link" href="@card.WorkspaceUrl" aria-label="Open workspace for @card.Name">Open workspace <span aria-hidden="true">→</span></a>
+                                        <td><span
+                                            class="attention-count@(card.UnresolvedCount > 0 ? null : " is-zero")">@card.UnresolvedCount</span>
                                         </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </section>
-
-            <aside class="dashboard-sidebar" aria-label="Club summary">
-                <section class="status-panel">
-                    <div class="section-heading">
-                        <h2>Club status</h2>
-                    </div>
-                    <a class="status-row" href="players">
-                        <span class="status-icon bi bi-people" aria-hidden="true"></span>
-                        <span>
-                            <strong>Roster</strong>
-                            <small>@_summary.Roster.ActivePlayers active · @_summary.Roster.ArchivedPlayers archived</small>
-                        </span>
-                        <span aria-hidden="true">→</span>
-                    </a>
-                    <a class="status-row" href="@ClubRoutes.Teams">
-                        <span class="status-icon bi bi-shield" aria-hidden="true"></span>
-                        <span>
-                            <strong>Teams</strong>
-                            <small>@_summary.Teams.ActiveTeams active · @_summary.Teams.ArchivedTeams archived</small>
-                        </span>
-                        <span aria-hidden="true">→</span>
-                    </a>
+                                        <td class="text-end">
+                                            <a class="workspace-link" href="@card.WorkspaceUrl"
+                                               aria-label="Open workspace for @card.Name">Open workspace <span
+                                                aria-hidden="true">→</span></a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </section>
 
-                @if (_attention is not null)
-                {
-                    <section class="attention-panel">
+                <aside class="dashboard-sidebar" aria-label="Club summary">
+                    <section class="status-panel">
                         <div class="section-heading">
-                            <h2>Admin attention</h2>
+                            <h2>Club status</h2>
                         </div>
-                        @if (_attention.PendingJoinRequests.Status == AttentionRegionStatus.Loaded)
-                        {
-                            <p><strong>@_attention.PendingJoinRequests.Count</strong> pending join requests</p>
-                            <a href="@ReviewRequestsUrl">Review requests <span aria-hidden="true">→</span></a>
-                        }
-                        else
-                        {
-                            <p class="text-muted">Pending join requests unavailable.</p>
-                        }
-                        @if (_attention.NeedsPlacement.Status == AttentionRegionStatus.Loaded)
-                        {
-                            <p><strong>@_attention.NeedsPlacement.Count</strong> unresolved placements</p>
-                            <a href="@ReviewPlacementsUrl">Review placements <span aria-hidden="true">→</span></a>
-                        }
-                        else
-                        {
-                            <p class="text-muted">Unresolved placements unavailable.</p>
-                        }
-                    </section>
-                }
-            </aside>
-        </div>
-
-        <section class="activity-board" aria-labelledby="recent-activity-heading">
-            <div class="section-heading">
-                <div>
-                    <h2 id="recent-activity-heading">Recent activity</h2>
-                    <p>The latest recorded movement across your club.</p>
-                </div>
-            </div>
-            @if (_activity is null || _activity.Events.Count == 0)
-            {
-                <p class="text-muted mb-0">No recent activity.</p>
-            }
-            else
-            {
-                <ul class="activity-list">
-                    @foreach (var item in _activity.Events)
-                    {
-                        <li>
-                            <time>@DashboardDisplay.FormatActivityDate(item.OccurredAt)</time>
+                        <a class="status-row" href="players">
+                            <span class="status-icon bi bi-people" aria-hidden="true"></span>
                             <span>
-                                @if (item.ActorDisplayName is string actorName)
-                                {
-                                    @($"{actorName} {DashboardDisplay.ActivityVerb(item)}")
-                                }
-                                else
-                                {
-                                    @DashboardDisplay.ActivityVerb(item)
-                                }
+                                <strong>Roster</strong>
+                                <small>@_summary.Roster.ActivePlayers active · @_summary.Roster.ArchivedPlayers archived</small>
                             </span>
-                        </li>
+                            <span aria-hidden="true">→</span>
+                        </a>
+                        <a class="status-row" href="@ClubRoutes.Teams">
+                            <span class="status-icon bi bi-shield" aria-hidden="true"></span>
+                            <span>
+                                <strong>Teams</strong>
+                                <small>@_summary.Teams.ActiveTeams active · @_summary.Teams.ArchivedTeams archived</small>
+                            </span>
+                            <span aria-hidden="true">→</span>
+                        </a>
+                    </section>
+
+                    @if (_attention is not null)
+                    {
+                        <section class="attention-panel">
+                            <div class="section-heading">
+                                <h2>Admin attention</h2>
+                            </div>
+                            @if (_attention.PendingJoinRequests.Status == AttentionRegionStatus.Loaded)
+                            {
+                                <p><strong>@_attention.PendingJoinRequests.Count</strong> pending join requests</p>
+                                <a href="@ReviewRequestsUrl">Review requests <span aria-hidden="true">→</span></a>
+                            }
+                            else
+                            {
+                                <p class="text-muted">Pending join requests unavailable.</p>
+                            }
+                            @if (_attention.NeedsPlacement.Status == AttentionRegionStatus.Loaded)
+                            {
+                                <p><strong>@_attention.NeedsPlacement.Count</strong> unresolved placements</p>
+                                <a href="@ReviewPlacementsUrl">Review placements <span aria-hidden="true">→</span></a>
+                            }
+                            else
+                            {
+                                <p class="text-muted">Unresolved placements unavailable.</p>
+                            }
+                        </section>
                     }
-                </ul>
-            }
-        </section>
-    }
-</div>
+                </aside>
+            </div>
+
+            <section class="activity-board" aria-labelledby="recent-activity-heading">
+                <div class="section-heading">
+                    <div>
+                        <h2 id="recent-activity-heading">Recent activity</h2>
+                        <p>The latest recorded movement across your club.</p>
+                    </div>
+                </div>
+                @if (_activity is null || _activity.Events.Count == 0)
+                {
+                    <p class="text-muted mb-0">No recent activity.</p>
+                }
+                else
+                {
+                    <ul class="activity-list">
+                        @foreach (var item in _activity.Events)
+                        {
+                            <li>
+                                <time>@DashboardDisplay.FormatActivityDate(item.OccurredAt)</time>
+                                <span>
+                                    @if (item.ActorDisplayName is string actorName)
+                                    {
+                                        @($"{actorName} {DashboardDisplay.ActivityVerb(item)}")
+                                    }
+                                    else
+                                    {
+                                        @DashboardDisplay.ActivityVerb(item)
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+    </div>

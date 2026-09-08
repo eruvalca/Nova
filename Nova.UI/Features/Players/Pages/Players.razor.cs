@@ -1,10 +1,12 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1724 // The Razor page name identifies its routed feature; namespaces remain fully qualified where ambiguous.
+#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Players.Components;
 
@@ -270,7 +272,7 @@ public partial class Players(
         _clubId = ReadClubIdClaim(principal);
         _userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (Initialized && SnapshotScope == CurrentScope)
+        if (Initialized && string.Equals(SnapshotScope, CurrentScope, StringComparison.Ordinal))
         {
             _roster = PersistedRoster;
             _pageError = PersistedPageError;
@@ -313,7 +315,7 @@ public partial class Players(
             var clubId = ReadClubIdClaim(state.User);
             var userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
-            if (_identityApplied && clubId == _clubId && userId == _userId && canManagePlayers == _canManagePlayers)
+            if (_identityApplied && clubId == _clubId && string.Equals(userId, _userId, StringComparison.Ordinal) && canManagePlayers == _canManagePlayers)
             {
                 return;
             }
@@ -837,7 +839,7 @@ public partial class Players(
 
     /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
     [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
-    private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
+    private long? DraftReturnId => long.TryParse(ReturnToDraft, CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Builds the inline CSS style string for one roster tag pill.
@@ -852,7 +854,9 @@ public partial class Players(
     /// </summary>
     /// <param name="errors">The service-problem errors dictionary.</param>
     /// <returns>A parsed list of blocker items, or an empty list when unavailable.</returns>
+#pragma warning disable CA1859 // The helper returns both an empty array and a read-only list; the interface describes both results.
     private static IReadOnlyList<GraduationYearBlockerItem> ExtractGraduationYearBlockers(
+#pragma warning restore CA1859
         IReadOnlyDictionary<string, string[]>? errors)
     {
         if (errors is null || errors.Count == 0)
@@ -928,7 +932,7 @@ public partial class Players(
             return false;
         }
 
-        var closeBracketIndex = key.IndexOf(']');
+        var closeBracketIndex = key.IndexOf(']', StringComparison.Ordinal);
         var dotIndex = key.IndexOf('.', closeBracketIndex + 1);
         if (closeBracketIndex <= "blockers[".Length || dotIndex < 0)
         {
@@ -975,7 +979,7 @@ public partial class Players(
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 
     /// <summary>
@@ -1004,3 +1008,8 @@ public partial class Players(
         public int? TeamGraduationYear { get; set; }
     }
 }
+
+
+#pragma warning restore CA1849, S6966
+
+#pragma warning restore CA1724

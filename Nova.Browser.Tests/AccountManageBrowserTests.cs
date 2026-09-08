@@ -19,7 +19,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
     /// a full navigation/reload.
     /// </summary>
     [Fact]
-    public async Task ProfilePhone_Update_PersistsAfterReload()
+    public async Task ProfilePhoneUpdatePersistsAfterReloadAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await AccountManageBrowserHelpers.SeedPhotoCompleteUserAsync(
@@ -31,13 +31,13 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage").ToString());
-        const string phone = "+1 512 555 0198";
-        await page.GetByLabel("Phone number").FillAsync(phone);
+        const string Phone = "+1 512 555 0198";
+        await page.GetByLabel("Phone number").FillAsync(Phone);
         await page.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).ClickAsync();
 
         await Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Your profile has been updated");
         await page.ReloadAsync();
-        await Expect(page.GetByLabel("Phone number")).ToHaveValueAsync(phone);
+        await Expect(page.GetByLabel("Phone number")).ToHaveValueAsync(Phone);
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
     /// the session, and the new password signs in successfully.
     /// </summary>
     [Fact]
-    public async Task PasswordChange_SignOutAndSignInWithNewPassword()
+    public async Task PasswordChangeSignOutAndSignInWithNewPasswordAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await AccountManageBrowserHelpers.SeedPhotoCompleteUserAsync(
@@ -55,12 +55,12 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
             cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(email, Password);
         var page = context.Pages[0];
-        const string newPassword = "Changed#Passw0rd!";
+        const string NewPassword = "Changed#Passw0rd!";
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage/ChangePassword").ToString());
         await page.GetByLabel("Old password").FillAsync(Password);
-        await page.GetByLabel("New password").FillAsync(newPassword);
-        await page.GetByLabel("Confirm password").FillAsync(newPassword);
+        await page.GetByLabel("New password").FillAsync(NewPassword);
+        await page.GetByLabel("Confirm password").FillAsync(NewPassword);
         await page.GetByRole(AriaRole.Button, new() { Name = "Update password", Exact = true }).ClickAsync();
 
         await Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Your password has been changed");
@@ -70,7 +70,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
             new() { WaitUntil = WaitUntilState.Commit });
 
         await page.GetByLabel("Email").FillAsync(email);
-        await page.GetByLabel("Password").FillAsync(newPassword);
+        await page.GetByLabel("Password").FillAsync(NewPassword);
         await page.GetByRole(AriaRole.Button, new() { Name = "Log in", Exact = true }).ClickAsync();
         await page.WaitForURLAsync(
             url => !url.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase),
@@ -86,7 +86,9 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
     /// matching directory panel at both desktop and narrow viewports.
     /// </summary>
     [Fact]
-    public async Task ManageRoutes_NarrowViewport_RenderInsideWorkingHallWithActivePanel()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ManageRoutesNarrowViewportRenderInsideWorkingHallWithActivePanelAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await AccountManageBrowserHelpers.SeedPhotoCompleteUserAsync(
@@ -123,7 +125,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
                     .GetByRole(AriaRole.Link, new() { Name = route.Panel, Exact = true });
                 await Expect(activePanel).ToHaveAttributeAsync("aria-current", "page");
 
-                if (route.Path == "/Account/Manage/Email")
+                if (string.Equals(route.Path, "/Account/Manage/Email", StringComparison.Ordinal))
                 {
                     var emailFieldBounds = await page.Locator("#email").BoundingBoxAsync();
                     var verificationButtonBounds = await page
@@ -132,13 +134,13 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
                     emailFieldBounds.ShouldNotBeNull();
                     verificationButtonBounds.ShouldNotBeNull();
 
-                    var verificationGap = (double)verificationButtonBounds!.Y
-                        - ((double)emailFieldBounds!.Y + emailFieldBounds.Height);
+                    var verificationGap = (double)verificationButtonBounds.Y
+                        - ((double)emailFieldBounds.Y + emailFieldBounds.Height);
                     verificationGap.ShouldBeGreaterThanOrEqualTo(7.5,
                         "the verification action needs breathing room below the current email field");
                 }
 
-                if (route.Path == "/Account/Manage/Passkeys")
+                if (string.Equals(route.Path, "/Account/Manage/Passkeys", StringComparison.Ordinal))
                 {
                     var boards = page.Locator(".manage-passkeys > .manage-board");
                     await Expect(boards).ToHaveCountAsync(2);
@@ -147,8 +149,8 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
                     registeredBounds.ShouldNotBeNull();
                     addBounds.ShouldNotBeNull();
 
-                    var boardGap = (double)addBounds!.Y
-                        - ((double)registeredBounds!.Y + registeredBounds.Height);
+                    var boardGap = (double)addBounds.Y
+                        - ((double)registeredBounds.Y + registeredBounds.Height);
                     boardGap.ShouldBeGreaterThanOrEqualTo(15.5,
                         "stacked passkey boards need a clear section break");
                 }
@@ -176,7 +178,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
     /// management state and recovery-code action surface.
     /// </summary>
     [Fact]
-    public async Task TwoFactor_GenuineEnrollment_ShowsRecoveryManagementState()
+    public async Task TwoFactorGenuineEnrollmentShowsRecoveryManagementStateAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await AccountManageBrowserHelpers.SeedPhotoCompleteUserAsync(
@@ -202,7 +204,9 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
     /// required photo gate after the cookie-refresh redirect.
     /// </summary>
     [Fact]
-    public async Task ProfilePhoto_OnboardingUploadAndSave_LeavesPhotoGate()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ProfilePhotoOnboardingUploadAndSaveLeavesPhotoGateAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var email = await AccountManageBrowserHelpers.SeedPhotoLessUserAsync(

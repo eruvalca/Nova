@@ -1,5 +1,6 @@
-﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -11,7 +12,7 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Player Campaign Assignment Id.
     /// </summary>
-    public long PlayerCampaignAssignmentId { get; set; } = default;
+    public long PlayerCampaignAssignmentId { get; set; }
 
     /// <summary>
     /// Gets or sets the Player Id.
@@ -53,16 +54,18 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Team Id.
     /// </summary>
-    public long? TeamId { get; set; } = null;
+    public long? TeamId { get; set; }
     /// <summary>
     /// Gets or sets the Team.
     /// </summary>
-    public TeamEntity? Team { get; set; } = null;
+    public TeamEntity? Team { get; set; }
 
     /// <summary>
     /// Gets or sets the campaign tag applications for this participation.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
+#pragma warning restore CA2227
 
     /// <summary>
     /// Gets or sets the application-managed token used to detect concurrent placement updates.
@@ -72,7 +75,9 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the evaluation notes written for this campaign participation.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<NoteEntity> Notes { get; set; } = [];
+#pragma warning restore CA2227
 
     /// <summary>
     /// Gets or sets the Club Id.

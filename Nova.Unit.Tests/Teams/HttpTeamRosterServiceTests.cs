@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -15,7 +15,7 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class HttpTeamRosterServiceTests
 {
     [Fact]
-    public async Task GetRoster_SendsFiltersToTeamRoute_AndReadsRows()
+    public async Task GetRosterSendsFiltersToTeamRouteAndReadsRowsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -31,7 +31,7 @@ public sealed class HttpTeamRosterServiceTests
                 }
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -47,7 +47,7 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies the bounded limit reaches the team roster route.
     /// </summary>
     [Fact]
-    public async Task GetRoster_SendsLimitToTeamRoute()
+    public async Task GetRosterSendsLimitToTeamRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -63,7 +63,7 @@ public sealed class HttpTeamRosterServiceTests
                 }
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -78,13 +78,13 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies a valid empty roster remains a successful response.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    public async Task GetRosterAsyncReturnsEmptyListWhenSuccessBodyIsEmptyArrayAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("[]", Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -104,13 +104,13 @@ public sealed class HttpTeamRosterServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetRosterAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -125,7 +125,7 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies roster rows that violate portable invariants are rejected.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_ReturnsServerError_WhenRosterElementIsInvalid()
+    public async Task GetRosterAsyncReturnsServerErrorWhenRosterElementIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -141,7 +141,7 @@ public sealed class HttpTeamRosterServiceTests
                 }
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -156,7 +156,7 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies roster rows always require a graduation year within the shared contract.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_ReturnsServerError_WhenGraduationYearIsOutOfRange()
+    public async Task GetRosterAsyncReturnsServerErrorWhenGraduationYearIsOutOfRangeAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -172,7 +172,7 @@ public sealed class HttpTeamRosterServiceTests
                 }
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -191,7 +191,7 @@ public sealed class HttpTeamRosterServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleStatus.Active, 2029)]
     [InlineData(LifecycleStatus.Archived, 2028)]
-    public async Task GetRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(
+    public async Task GetRosterAsyncReturnsServerErrorWhenRowDoesNotMatchExactFiltersAsync(
         LifecycleStatus lifecycleStatus,
         int graduationYear)
     {
@@ -209,7 +209,7 @@ public sealed class HttpTeamRosterServiceTests
                 }
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(
@@ -228,10 +228,10 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies invalid shared input is rejected before a lossy URL builder can normalize it.
     /// </summary>
     [Fact]
-    public async Task GetRosterAsync_ReturnsValidationProblem_BeforeSendingInvalidInput()
+    public async Task GetRosterAsyncReturnsValidationProblemBeforeSendingInvalidInputAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK);
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamRosterService(http).GetRosterAsync(

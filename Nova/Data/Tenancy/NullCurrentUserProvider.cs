@@ -1,11 +1,11 @@
-﻿using Nova.Shared.Security;
+﻿using Nova.SharedKernel.Security;
 
 namespace Nova.Data.Tenancy;
 /// <summary>
 /// An <see cref="ICurrentUserProvider"/> that represents no user. Used at design time
 /// (EF migrations) and in tests that do not require an authenticated user.
 /// </summary>
-public sealed class NullCurrentUserProvider : ICurrentUserProvider
+internal sealed class NullCurrentUserProvider : ICurrentUserProvider
 {
     /// <inheritdoc />
     public long? UserId => null;

@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -27,16 +27,16 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("archive")]
     [InlineData("restore")]
-    public async Task TeamLifecycleEndpoints_ReturnUnauthorized_ForAnonymous(string operation)
+    public async Task TeamLifecycleEndpointsReturnUnauthorizedForAnonymousAsync(string operation)
     {
         using var client = fixture.CreateNovaHttpClient();
         var cancellationToken = TestContext.Current.CancellationToken;
         var teamId = 999_999L;
 
         using var response = await client.PostAsync(
-            operation == "archive"
-                ? TeamEndpoints.ArchiveUrl(teamId)
-                : TeamEndpoints.RestoreUrl(teamId),
+new Uri(string.Equals(operation, "archive"
+, StringComparison.Ordinal) ? TeamEndpoints.ArchiveUrl(teamId)
+                : TeamEndpoints.RestoreUrl(teamId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -47,7 +47,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can archive and then restore a team over HTTP.
     /// </summary>
     [Fact]
-    public async Task TeamLifecycleEndpoints_ArchiveRestoreRoundTrip_ReturnsNoContentAsync()
+    public async Task TeamLifecycleEndpointsArchiveRestoreRoundTripReturnsNoContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -55,19 +55,21 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         var club = await RegisterClubAdminAsync(adminClient, "team-lifecycle-roundtrip-admin", "Roundtrip Rovers", cancellationToken);
         var teamId = await SeedTeamAsync(club.ClubId, cancellationToken);
 
-        using (var archive = await adminClient.PostAsync(TeamEndpoints.ArchiveUrl(teamId), content: null, cancellationToken))
+        using (var archive = await adminClient.PostAsync(new Uri(TeamEndpoints.ArchiveUrl(teamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var afterArchive = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var archived = await afterArchive.Teams.SingleAsync(team => team.TeamId == teamId, cancellationToken);
             archived.LifecycleStatus.ShouldBe(LifecycleStatus.Archived);
             archived.ArchivedAt.ShouldNotBeNull();
         }
 
-        using (var restore = await adminClient.PostAsync(TeamEndpoints.RestoreUrl(teamId), content: null, cancellationToken))
+        using (var restore = await adminClient.PostAsync(new Uri(TeamEndpoints.RestoreUrl(teamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -84,7 +86,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// structured blockers in the problem extensions.
     /// </summary>
     [Fact]
-    public async Task ArchiveEndpoint_ReturnsStructuredBlockers_ForActiveCampaignPlacementsAsync()
+    public async Task ArchiveEndpointReturnsStructuredBlockersForActiveCampaignPlacementsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -92,7 +94,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         var club = await RegisterClubAdminAsync(adminClient, "team-lifecycle-blockers-admin", "Blocker Bandits", cancellationToken);
         var (teamId, campaignId, placementId) = await SeedBlockedTeamAsync(club.ClubId, cancellationToken);
 
-        using var archive = await adminClient.PostAsync(TeamEndpoints.ArchiveUrl(teamId), content: null, cancellationToken);
+        using var archive = await adminClient.PostAsync(new Uri(TeamEndpoints.ArchiveUrl(teamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         archive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         var problem = await archive.ToServiceProblemAsync(cancellationToken);
@@ -113,7 +115,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// is reported as missing rather than forbidden so identifiers are not disclosed.
     /// </summary>
     [Fact]
-    public async Task ArchiveEndpoint_ReturnsForbiddenForNonAdmin_AndNotFoundForCrossTenantAsync()
+    public async Task ArchiveEndpointReturnsForbiddenForNonAdminAndNotFoundForCrossTenantAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAAdminClient = fixture.CreateNovaHttpClient();
@@ -131,17 +133,17 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         var clubATeamId = await SeedTeamAsync(clubA.ClubId, cancellationToken);
         var clubBTeamId = await SeedTeamAsync(clubB.ClubId, cancellationToken);
 
-        using (var forbidden = await clubAMemberClient.PostAsync(TeamEndpoints.ArchiveUrl(clubATeamId), content: null, cancellationToken))
+        using (var forbidden = await clubAMemberClient.PostAsync(new Uri(TeamEndpoints.ArchiveUrl(clubATeamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var notFound = await clubAAdminClient.PostAsync(TeamEndpoints.ArchiveUrl(clubBTeamId), content: null, cancellationToken))
+        using (var notFound = await clubAAdminClient.PostAsync(new Uri(TeamEndpoints.ArchiveUrl(clubBTeamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
 
-        using var restoreNotFound = await clubAAdminClient.PostAsync(TeamEndpoints.RestoreUrl(clubBTeamId), content: null, cancellationToken);
+        using var restoreNotFound = await clubAAdminClient.PostAsync(new Uri(TeamEndpoints.RestoreUrl(clubBTeamId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         restoreNotFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
@@ -150,7 +152,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// club roster never leaks another club's teams.
     /// </summary>
     [Fact]
-    public async Task TeamEndpoints_IsolateTenants_ForDetailUpdateAndRosterAsync()
+    public async Task TeamEndpointsIsolateTenantsForDetailUpdateAndRosterAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAAdminClient = fixture.CreateNovaHttpClient();
@@ -162,7 +164,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         var clubATeamId = await SeedTeamAsync(clubA.ClubId, cancellationToken);
         var clubBTeamId = await SeedTeamAsync(clubB.ClubId, cancellationToken);
 
-        using (var detail = await clubAAdminClient.GetAsync(TeamEndpoints.GetDetailUrl(clubBTeamId), cancellationToken))
+        using (var detail = await clubAAdminClient.GetAsync(new Uri(TeamEndpoints.GetDetailUrl(clubBTeamId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             detail.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
@@ -175,7 +177,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
             update.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
 
-        using (var roster = await clubAAdminClient.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken))
+        using (var roster = await clubAAdminClient.GetAsync(new Uri(TeamRosterEndpoints.GetRoster, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             roster.StatusCode.ShouldBe(HttpStatusCode.OK);
             var rows = await roster.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -186,7 +188,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
 
         await using var verify = fixture.CreateAdminContext();
         var team = await verify.Teams.SingleAsync(candidate => candidate.TeamId == clubBTeamId, cancellationToken);
-        team.Name.ShouldNotBe("Hijacked");
+        team.Name.ShouldNotBe("Hijacked", StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -224,10 +226,11 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         string name,
         CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(name, "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(name, "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
@@ -243,7 +246,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes once refresh is confirmed.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -263,14 +266,17 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -281,23 +287,26 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <returns>The seeded team identifier.</returns>
     private async Task<long> SeedTeamAsync(long clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var actorUserId = await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var actorUserId = await context.Users
             .Where(user => user.ClubId == clubId)
             .Select(user => user.Id)
             .FirstAsync(cancellationToken);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team-{Guid.CreateVersion7():N}",
-            GraduationYear = 2030,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Teams.Add(team);
-        await context.SaveChangesAsync(cancellationToken);
-        return team.TeamId;
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team-{Guid.CreateVersion7():N}",
+                GraduationYear = 2030,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Teams.Add(team);
+            await context.SaveChangesAsync(cancellationToken);
+            return team.TeamId;
+        }
     }
 
     /// <summary>
@@ -306,75 +315,80 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The identifiers used by blocker assertions.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long TeamId, long CampaignId, long PlacementId)> SeedBlockedTeamAsync(
+#pragma warning restore MA0051
         long clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var actorUserId = await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var actorUserId = await context.Users
             .Where(user => user.ClubId == clubId)
             .Select(user => user.Id)
             .FirstAsync(cancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season-{Guid.CreateVersion7():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Seasons.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season-{Guid.CreateVersion7():N}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Seasons.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Active Team Blocker Campaign",
-            StartDate = new DateOnly(2026, 8, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Campaigns.Add(campaign);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Active Team Blocker Campaign",
+                StartDate = new DateOnly(2026, 8, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Campaigns.Add(campaign);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team-{Guid.CreateVersion7():N}",
-            GraduationYear = 2030,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Teams.Add(team);
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team-{Guid.CreateVersion7():N}",
+                GraduationYear = 2030,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Teams.Add(team);
 
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Placed",
-            LastName = "Player",
-            DateOfBirth = new DateOnly(2012, 3, 3),
-            GraduationYear = 2030,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Players.Add(player);
-        await context.SaveChangesAsync(cancellationToken);
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Placed",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2012, 3, 3),
+                GraduationYear = 2030,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Players.Add(player);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var placement = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            TeamId = team.TeamId,
-            PlacementOutcome = PlacementOutcome.Assigned,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.PlayerCampaignAssignments.Add(placement);
-        await context.SaveChangesAsync(cancellationToken);
+            var placement = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                TeamId = team.TeamId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.PlayerCampaignAssignments.Add(placement);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (team.TeamId, campaign.CampaignId, placement.PlayerCampaignAssignmentId);
+            return (team.TeamId, campaign.CampaignId, placement.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>

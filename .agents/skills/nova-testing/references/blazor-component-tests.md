@@ -59,7 +59,7 @@ cut.Markup.ShouldNotContain("_formError");
 
 The negative assertion catches `ErrorMessage="_formError"`, which compiles but passes literal text
 instead of the backing-field value. Use
-`TeamComponentsTests.Teams_ShowsServerErrorText_WhenUpdateReturnsConflict` as the canonical example.
+`TeamComponentsTests.TeamsShowsServerErrorTextWhenUpdateReturnsConflict` as the canonical example.
 
 ## Transition coverage
 
@@ -82,23 +82,23 @@ seeing the first validation error does not prove a corrected retry succeeds.
 Examples prove specific invariants, not complete pages:
 
 - **Validation store lifetime:** `CampaignCreateForm.razor.cs` with
-  `CampaignComponentsTests.CampaignCreateForm_ResubmitsCorrectedField_WithUnchangedParentErrorSnapshot`;
+  `CampaignComponentsTests.CampaignCreateFormResubmitsCorrectedFieldWithUnchangedParentErrorSnapshot`;
   its sibling `CampaignMetadataForm.razor.cs` with
-  `CampaignEntryTests.CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation`.
+  `CampaignEntryTests.CampaignEntryResubmitsMetadataAfterCorrectingServerValidation`.
 - **Identity and late ownership:** `Players.razor.cs` with
-  `PlayerComponentsTests.Players_AppliesEmptyIdentity_WhenItOvertakesStartup` and
-  `Players_IgnoresPreviousClubArchiveCompletion`; `Teams.razor.cs` with
-  `TeamComponentsTests.Teams_ReenablesMutationControls_WhenClubChangesDuringInFlightMutation`.
+  `PlayerComponentsTests.PlayersAppliesEmptyIdentityWhenItOvertakesStartupAsync` and
+  `PlayersIgnoresPreviousClubArchiveCompletionAsync`; `Teams.razor.cs` with
+  `TeamComponentsTests.TeamsReenablesMutationControlsWhenClubChangesDuringInFlightMutation`.
 - **Recovery gates and partial cleanup:** `CampaignEntry.razor.cs` with
-  `CampaignEntryTests.CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation` and
-  `CampaignEntry_ConcealsDraft_WhenRecoveryLosesAccessAndStorageRemovalFails`;
-  `NewCampaign.razor.cs` with `NewCampaignRecoveryTests.NewCampaign_RetainsPendingRequest_WhenSuccessfulFormCleanupFails`.
+  `CampaignEntryTests.CampaignEntryRetriesStorageBeforeOpeningWithTheSameOperation` and
+  `CampaignEntryConcealsDraftWhenRecoveryLosesAccessAndStorageRemovalFails`;
+  `NewCampaign.razor.cs` with `NewCampaignRecoveryTests.NewCampaignRetainsPendingRequestWhenSuccessfulFormCleanupFails`.
 - **URL/permissions and browser history:** `Campaigns.razor.cs` with
-  `CampaignComponentsTests.Campaigns_NormalizesDraftView_WhenAdministratorRoleIsRemoved`;
+  `CampaignComponentsTests.CampaignsNormalizesDraftViewWhenAdministratorRoleIsRemovedAsync`;
   `CampaignWorkspace.razor.cs` with
-  `CampaignEvaluationBrowserTests.UrlState_SurvivesReload_AndBackForward_RestoresDrawer`.
+  `CampaignEvaluationBrowserTests.UrlStateSurvivesReloadAndBackForwardRestoresDrawer`.
 - **Composed semantics, touch, and opening focus:** the Draft journey's pages and child forms with
-  `CampaignDraftBrowserTests.Draft_OpensIntoRoster_AfterCreationAndCorrectionRoundTrips`.
+  `CampaignDraftBrowserTests.DraftOpensIntoRosterAfterCreationAndCorrectionRoundTrips`.
 
 Use controlled `TaskCompletionSource` instances for ordering rather than timing-based sleeps;
 observe the cleared/loading state before releasing replacement work. Reproduce the failing behavior
@@ -122,7 +122,7 @@ by reflection over its type, as with `Players`:
 
 ```csharp
 [Fact]
-public void PlayersPage_DeclaresInteractiveAutoRenderMode()
+public void PlayersPageDeclaresInteractiveAutoRenderMode()
 {
     var attribute = typeof(Players)
         .GetCustomAttributes(inherit: false)
@@ -184,8 +184,8 @@ service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
 ## Testing independent regions
 
 For a page whose regions load and recover independently, inspect `ClubOverview.razor.cs` alongside
-`ClubOverviewComponentTests.Render_PreservesEverySuccessfulRegion_WhenAnyCombinationFails` and
-`RetryIdentity_ReloadsOnlyIdentity_AndPreservesSuccessfulRegions`. Cover every meaningful failure combination,
+`ClubOverviewComponentTests.RenderPreservesEverySuccessfulRegionWhenAnyCombinationFails` and
+`RetryIdentityReloadsOnlyIdentityAndPreservesSuccessfulRegions`. Cover every meaningful failure combination,
 assert that successful regions remain visible, prove a regional retry calls only its own service,
 and seed persisted state to prove interactive attach performs no duplicate startup requests. If the
 loader catches transport cancellation, also protect the distinction between component-token
@@ -195,13 +195,13 @@ cancellation and a recoverable transport failure.
 
 Use the identity and ownership cases in the transition matrix. Seed a persisted error with its
 original club id as well as a successful snapshot; a null payload still has tenant ownership.
-`ClubOverviewComponentTests.Render_InvalidatesPersistedState_WhenClubMembershipChanges` is the
+`ClubOverviewComponentTests.RenderInvalidatesPersistedStateWhenClubMembershipChanges` is the
 scoped example. Browser focus and DOM replacement behavior belongs in the
 [browser suite](browser-suite.md), not a bUnit JS mock.
 
 ## Conventions
 
-- Name tests `Subject_Outcome_Condition`.
+- Name tests `SubjectOutcomeCondition` (append `Async` for async methods).
 - Assert on rendered markup (`cut.Markup`, `cut.Find(...)`) and on substituted-service interactions —
   not on private component fields.
 - Build culture-sensitive expected strings (dates, numbers) with the same culture the component uses;

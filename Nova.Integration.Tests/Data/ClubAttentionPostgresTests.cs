@@ -2,8 +2,8 @@
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Attention;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Attention;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Attention;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -26,7 +26,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
     /// transaction.
     /// </summary>
     [Fact]
-    public async Task GetClubAttention_Postgres_CountsUndecidedAssignments_AndNamesNewestCampaign()
+    public async Task GetClubAttentionPostgresCountsUndecidedAssignmentsAndNamesNewestCampaignAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
@@ -47,7 +47,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
     /// on PostgreSQL alongside the needs-placement region.
     /// </summary>
     [Fact]
-    public async Task GetClubAttention_Postgres_CountsPendingJoinRequests_WithOldestTimestamp()
+    public async Task GetClubAttentionPostgresCountsPendingJoinRequestsWithOldestTimestampAsync()
     {
         var seed = await SeedAsync();
         var pending = new[]
@@ -92,92 +92,98 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
     /// the older campaign, two on the newer) plus one already-assigned player that must be excluded.
     /// </summary>
     /// <returns>The generated identifiers and the expected newest campaign name.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<AttentionSeed> SeedAsync()
+#pragma warning restore MA0051
     {
         ActAs(0, 0, isClubAdmin: false);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Attention Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var member = new NovaUserEntity { FirstName = "A", LastName = "Member", ClubId = club.ClubId };
-        db.Users.Add(member);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Attention Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var member = new NovaUserEntity { FirstName = "A", LastName = "Member", ClubId = club.ClubId };
+            db.Users.Add(member);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var olderCampaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Older Campaign {suffix}",
-            StartDate = new DateOnly(2026, 5, 1),
-            Status = CampaignStatus.Closed,
-            ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            ClosedById = actorUserId,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var newerCampaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Newer Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.AddRange(olderCampaign, newerCampaign);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var players = Enumerable.Range(0, 4).Select(i => new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = $"P{i}",
-            LastName = "Player",
-            DateOfBirth = new DateOnly(2010, 1, 1),
-            GraduationYear = 2028,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        }).ToArray();
-        db.Players.AddRange(players);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var olderCampaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Older Campaign {suffix}",
+                StartDate = new DateOnly(2026, 5, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ClosedById = actorUserId,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var newerCampaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Newer Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.AddRange(olderCampaign, newerCampaign);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team {suffix}",
-            GraduationYear = 2028,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Teams.Add(team);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var players = Enumerable.Range(0, 4).Select(i => new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = $"P{i}",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2010, 1, 1),
+                GraduationYear = 2028,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            }).ToArray();
+            db.Players.AddRange(players);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var assignments = new[]
-        {
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team {suffix}",
+                GraduationYear = 2028,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Teams.Add(team);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var assignments = new[]
+            {
             new PlayerCampaignAssignmentEntity
             {
                 PlayerId = players[0].PlayerId,
@@ -215,10 +221,11 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
                 TeamId = team.TeamId
             }
         };
-        db.PlayerCampaignAssignments.AddRange(assignments);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.PlayerCampaignAssignments.AddRange(assignments);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new AttentionSeed(club.ClubId, member.Id, newerCampaign.Name);
+            return new AttentionSeed(club.ClubId, member.Id, newerCampaign.Name);
+        }
     }
 
     /// <summary>
@@ -229,34 +236,37 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
     /// </summary>
     /// <param name="clubId">The club identifier.</param>
     /// <param name="createdAts">The submit timestamps for the pending requests, in order.</param>
-    private async Task SeedPendingJoinRequestsAsync(long clubId, IReadOnlyList<DateTimeOffset> createdAts)
+    private async Task SeedPendingJoinRequestsAsync(long clubId, DateTimeOffset[] createdAts)
     {
-        await using var db = fixture.CreateAdminContext();
-        var requests = new List<ClubJoinRequestEntity>(createdAts.Count);
-        for (var index = 0; index < createdAts.Count; index++)
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            var requester = new NovaUserEntity { FirstName = $"R{index}", LastName = "Requester", ClubId = null };
-            db.Users.Add(requester);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-            var request = new ClubJoinRequestEntity
+            var requests = new List<ClubJoinRequestEntity>(createdAts.Length);
+            for (var index = 0; index < createdAts.Length; index++)
             {
-                ClubId = clubId,
-                RequestingUserId = requester.Id,
-                Status = RequestStatus.Pending,
-                CreatedById = requester.Id
-            };
-            db.ClubJoinRequests.Add(request);
-            requests.Add(request);
+                var requester = new NovaUserEntity { FirstName = $"R{index}", LastName = "Requester", ClubId = null };
+                db.Users.Add(requester);
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+                var request = new ClubJoinRequestEntity
+                {
+                    ClubId = clubId,
+                    RequestingUserId = requester.Id,
+                    Status = RequestStatus.Pending,
+                    CreatedById = requester.Id
+                };
+                db.ClubJoinRequests.Add(request);
+                requests.Add(request);
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            }
+
+            for (var index = 0; index < requests.Count; index++)
+            {
+                requests[index].CreatedAt = createdAts[index];
+            }
+
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
-
-        for (var index = 0; index < requests.Count; index++)
-        {
-            requests[index].CreatedAt = createdAts[index];
-        }
-
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>Identifiers produced by the attention PostgreSQL seed.</summary>

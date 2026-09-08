@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -16,7 +16,7 @@ namespace Nova.Integration.Tests.Data;
 public sealed class CampaignParticipantSearchEscapingPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
-    public async Task GetParticipantRoster_Search_TreatsLikeMetacharactersAsLiterals()
+    public async Task GetParticipantRosterSearchTreatsLikeMetacharactersAsLiteralsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
@@ -53,35 +53,39 @@ public sealed class CampaignParticipantSearchEscapingPostgresTests(NovaAppHostFi
     private async Task<Seed> SeedAsync(CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-
-        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Participant Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
-        db.Users.Add(member);
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Escaping Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var campaign = new CampaignEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Escaping Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(cancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var players = new[]
-        {
+            var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Participant Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
+            db.Users.Add(member);
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Escaping Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Escaping Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var players = new[]
+            {
             NewPlayer("Fifty", "50% Wins", club.ClubId, actorUserId),
             NewPlayer("Fifty", "50 Losses", club.ClubId, actorUserId),
             NewPlayer("Player", "a_b Squad", club.ClubId, actorUserId),
@@ -89,23 +93,24 @@ public sealed class CampaignParticipantSearchEscapingPostgresTests(NovaAppHostFi
             NewPlayer("Player", @"Path\Team", club.ClubId, actorUserId),
             NewPlayer("Player", "PathTeam", club.ClubId, actorUserId)
         };
-        foreach (var player in players)
-        {
-            db.Players.Add(player);
-            await db.SaveChangesAsync(cancellationToken);
-            db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            foreach (var player in players)
             {
-                PlayerId = player.PlayerId,
-                CampaignId = campaign.CampaignId,
-                PlacementOutcome = PlacementOutcome.Undecided,
-                ClubId = club.ClubId,
-                CreatedById = actorUserId
-            });
+                db.Players.Add(player);
+                await db.SaveChangesAsync(cancellationToken);
+                db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = player.PlayerId,
+                    CampaignId = campaign.CampaignId,
+                    PlacementOutcome = PlacementOutcome.Undecided,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                });
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new Seed(club.ClubId, member.Id, campaign.CampaignId);
         }
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        return new Seed(club.ClubId, member.Id, campaign.CampaignId);
     }
 
     private void ActAs(long? userId, long? clubId)

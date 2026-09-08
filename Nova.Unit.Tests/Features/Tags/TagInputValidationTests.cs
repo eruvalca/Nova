@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Tags;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Tags;
@@ -23,18 +23,18 @@ public sealed class TagInputValidationTests
     };
 
     [Fact]
-    public void Create_WithValidInput_ReturnsNoErrors()
+    public void CreateWithValidInputReturnsNoErrors()
         => InputValidator.Validate(ValidCreate()).ShouldBeEmpty();
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_WithBlankName_ReturnsError(string? name)
+    public void CreateWithBlankNameReturnsError(string? name)
         => InputValidator.Validate(ValidCreate() with { Name = name! }).ShouldContainKey("Name");
 
     [Fact]
-    public void Create_WithOverlongName_ReturnsError()
+    public void CreateWithOverlongNameReturnsError()
         => InputValidator.Validate(ValidCreate() with { Name = new string('x', 101) })
             .ShouldContainKey("Name");
 
@@ -47,34 +47,34 @@ public sealed class TagInputValidationTests
     [InlineData("1234567")]  // missing leading hash
     [InlineData("#GGGGGG")]  // non-hex characters
     [InlineData("#12345g")]  // trailing non-hex character
-    public void Create_WithInvalidColor_ReturnsError(string? color)
+    public void CreateWithInvalidColorReturnsError(string? color)
         => InputValidator.Validate(ValidCreate() with { Color = color! }).ShouldContainKey("Color");
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("#a1b2c3")] // lowercase is valid
     [InlineData("#A1B2C3")] // uppercase is valid
     [InlineData("#09AfF0")] // mixed case is valid
-    public void Create_WithValidColor_ReturnsNoErrors(string color)
+    public void CreateWithValidColorReturnsNoErrors(string color)
         => InputValidator.Validate(ValidCreate() with { Color = color }).ShouldBeEmpty();
 
     [Fact]
-    public void Update_WithValidInput_ReturnsNoErrors()
+    public void UpdateWithValidInputReturnsNoErrors()
         => InputValidator.Validate(ValidUpdate()).ShouldBeEmpty();
 
     [Fact]
-    public void Update_WithInvalidTagId_ReturnsError()
+    public void UpdateWithInvalidTagIdReturnsError()
         => InputValidator.Validate(ValidUpdate() with { TagId = 0 }).ShouldContainKey("TagId");
 
     [Fact]
-    public void Update_WithBlankName_ReturnsError()
+    public void UpdateWithBlankNameReturnsError()
         => InputValidator.Validate(ValidUpdate() with { Name = "  " }).ShouldContainKey("Name");
 
     [Fact]
-    public void Update_WithInvalidColor_ReturnsError()
+    public void UpdateWithInvalidColorReturnsError()
         => InputValidator.Validate(ValidUpdate() with { Color = "red" }).ShouldContainKey("Color");
 
     [Fact]
-    public void GetList_WithValidInput_ReturnsNoErrors()
+    public void GetListWithValidInputReturnsNoErrors()
         => InputValidator.Validate(new GetTagDefinitionsInput { Search = "for", LifecycleStatus = "active" })
             .ShouldBeEmpty();
 
@@ -84,18 +84,18 @@ public sealed class TagInputValidationTests
     [InlineData("all")]
     [InlineData("Active")]
     [InlineData("ARCHIVED")]
-    public void GetList_WithValidLifecycleStatus_ReturnsNoErrors(string? status)
+    public void GetListWithValidLifecycleStatusReturnsNoErrors(string? status)
         => InputValidator.Validate(new GetTagDefinitionsInput { LifecycleStatus = status }).ShouldBeEmpty();
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("bogus")]
     [InlineData("   ")]
-    public void GetList_WithInvalidLifecycleStatus_ReturnsError(string? status)
+    public void GetListWithInvalidLifecycleStatusReturnsError(string? status)
         => InputValidator.Validate(new GetTagDefinitionsInput { LifecycleStatus = status })
             .ShouldContainKey("LifecycleStatus");
 
     [Fact]
-    public void GetList_WithOverlongSearch_ReturnsError()
+    public void GetListWithOverlongSearchReturnsError()
         => InputValidator.Validate(new GetTagDefinitionsInput { Search = new string('x', 101) })
             .ShouldContainKey("Search");
 }

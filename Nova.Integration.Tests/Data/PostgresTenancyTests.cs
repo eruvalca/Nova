@@ -30,44 +30,46 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     {
         ActAs(userId: null, clubId: null);
         await using var context = fixture.CreateAdminContext();
-
-        NovaUserEntity[] users =
+        await using (context)
+        {
+            NovaUserEntity[] users =
         [
             new() { FirstName = "Alice", LastName = "A" },
             new() { FirstName = "Aaron", LastName = "A" },
             new() { FirstName = "Bob", LastName = "B" },
             new() { FirstName = "Nadia", LastName = "N" },
         ];
-        context.Users.AddRange(users);
-        await context.SaveChangesAsync();
+            context.Users.AddRange(users);
+            await context.SaveChangesAsync();
 
-        _clubAMember1Id = users[0].Id;
-        _clubAMember2Id = users[1].Id;
-        _clubBMemberId = users[2].Id;
-        _noClubUserId = users[3].Id;
+            _clubAMember1Id = users[0].Id;
+            _clubAMember2Id = users[1].Id;
+            _clubBMemberId = users[2].Id;
+            _noClubUserId = users[3].Id;
 
-        var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club A", City = "Austin", State = "TX", CreatedById = _noClubUserId };
-        var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club B", City = "Boston", State = "MA", CreatedById = _noClubUserId };
-        context.Clubs.AddRange(clubA, clubB);
-        await context.SaveChangesAsync();
+            var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club A", City = "Austin", State = "TX", CreatedById = _noClubUserId };
+            var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club B", City = "Boston", State = "MA", CreatedById = _noClubUserId };
+            context.Clubs.AddRange(clubA, clubB);
+            await context.SaveChangesAsync();
 
-        _clubAId = clubA.ClubId;
-        _clubBId = clubB.ClubId;
+            _clubAId = clubA.ClubId;
+            _clubBId = clubB.ClubId;
 
-        users[0].ClubId = _clubAId;
-        users[1].ClubId = _clubAId;
-        users[2].ClubId = _clubBId;
+            users[0].ClubId = _clubAId;
+            users[1].ClubId = _clubAId;
+            users[2].ClubId = _clubBId;
 
-        context.Players.AddRange(
-            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = _clubAId, CreatedById = _clubAMember1Id },
-            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = _clubAId, CreatedById = _clubAMember1Id },
-            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = _clubBId, CreatedById = _clubBMemberId });
+            context.Players.AddRange(
+                new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = _clubAId, CreatedById = _clubAMember1Id },
+                new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = _clubAId, CreatedById = _clubAMember1Id },
+                new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = _clubBId, CreatedById = _clubBMemberId });
 
-        // Pending request from the club-less user to join Club A.
-        context.ClubJoinRequests.Add(
-            new ClubJoinRequestEntity { ClubId = _clubAId, RequestingUserId = _noClubUserId, CreatedById = _noClubUserId });
+            // Pending request from the club-less user to join Club A.
+            context.ClubJoinRequests.Add(
+                new ClubJoinRequestEntity { ClubId = _clubAId, RequestingUserId = _noClubUserId, CreatedById = _noClubUserId });
 
-        await context.SaveChangesAsync();
+            await context.SaveChangesAsync();
+        }
     }
 
     /// <summary>
@@ -88,7 +90,7 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// the SQLite suite uses <c>EnsureCreated()</c> and never exercises the migrations.
     /// </summary>
     [Fact]
-    public async Task Database_HasNoPendingMigrations()
+    public async Task DatabaseHasNoPendingMigrationsAsync()
     {
         await using var context = fixture.CreateTenantContext();
 
@@ -101,7 +103,7 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// Verifies the generic tenant query filter translates and executes correctly as Postgres SQL.
     /// </summary>
     [Fact]
-    public async Task TenantContext_FiltersPlayersToCurrentClub()
+    public async Task TenantContextFiltersPlayersToCurrentClubAsync()
     {
         await SeedAsync();
         ActAs(_clubAMember1Id, _clubAId);
@@ -118,12 +120,14 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// target club admin sees their club's; everyone else sees none) translates on Postgres.
     /// </summary>
     [Fact]
-    public async Task JoinRequests_BespokeFilter_TranslatesOnPostgres()
+    public async Task JoinRequestsBespokeFilterTranslatesOnPostgresAsync()
     {
         await SeedAsync();
 
         ActAs(_noClubUserId, clubId: null);
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             var requests = await context.ClubJoinRequests.ToListAsync(TestContext.Current.CancellationToken);
             requests.Count.ShouldBe(1);
@@ -131,19 +135,25 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
         }
 
         ActAs(_clubAMember1Id, _clubAId, isClubAdmin: true);
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             (await context.ClubJoinRequests.CountAsync(r => r.ClubId == _clubAId, TestContext.Current.CancellationToken)).ShouldBe(1);
         }
 
         ActAs(_clubAMember2Id, _clubAId, isClubAdmin: false);
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             (await context.ClubJoinRequests.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
         }
 
         ActAs(_clubBMemberId, _clubBId, isClubAdmin: true);
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             (await context.ClubJoinRequests.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
         }
@@ -155,14 +165,16 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// round-trips through the Postgres <c>date</c> type.
     /// </summary>
     [Fact]
-    public async Task Interceptor_AuditStampsAndDateOnly_RoundTripThroughPostgres()
+    public async Task InterceptorAuditStampsAndDateOnlyRoundTripThroughPostgresAsync()
     {
         await SeedAsync();
         ActAs(_clubAMember1Id, _clubAId);
 
         var dateOfBirth = new DateOnly(2013, 4, 4);
         long playerId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             var player = new PlayerEntity
             {
@@ -179,7 +191,9 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
             playerId = player.PlayerId;
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var reloaded = await context.Players.SingleAsync(p => p.PlayerId == playerId, TestContext.Current.CancellationToken);
 
@@ -196,13 +210,15 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// tenant context.
     /// </summary>
     [Fact]
-    public async Task Interceptor_StampsModifiedFields_OnUpdate()
+    public async Task InterceptorStampsModifiedFieldsOnUpdateAsync()
     {
         await SeedAsync();
         ActAs(_clubAMember1Id, _clubAId);
 
         long playerId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             var player = await context.Players.OrderBy(p => p.PlayerId).FirstAsync(TestContext.Current.CancellationToken);
             player.JerseyNumber = 42;
@@ -210,7 +226,9 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
             playerId = player.PlayerId;
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var reloaded = await context.Players.SingleAsync(p => p.PlayerId == playerId, TestContext.Current.CancellationToken);
 
@@ -224,7 +242,7 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
     /// Verifies the interceptor blocks cross-tenant writes before they reach the real database.
     /// </summary>
     [Fact]
-    public async Task Interceptor_Throws_OnCrossTenantAdd()
+    public async Task InterceptorThrowsOnCrossTenantAddAsync()
     {
         await SeedAsync();
         ActAs(_clubAMember1Id, _clubAId);

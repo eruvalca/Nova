@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -12,7 +13,7 @@ public class CampaignTagApplicationRemovalReceiptEntity : BaseEntity, ITenantOwn
     /// <summary>
     /// Gets or sets the removal receipt identifier.
     /// </summary>
-    public long CampaignTagApplicationRemovalReceiptId { get; set; } = default;
+    public long CampaignTagApplicationRemovalReceiptId { get; set; }
 
     /// <summary>
     /// Gets or sets the stable identifier for the removal operation that wrote this receipt.

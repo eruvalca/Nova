@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Attention;
 
@@ -20,7 +20,7 @@ internal static class AttentionEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             endpoints.MapGroup(AttentionEndpoints.GroupPrefix)
-                .MapGet(AttentionEndpoints.GetClubAttentionRelative, GetClubAttentionHandler)
+                .MapGet(AttentionEndpoints.GetClubAttentionRelative, GetClubAttentionHandlerAsync)
                 .Produces<ClubAttentionResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -38,7 +38,7 @@ internal static class AttentionEndpointRouteBuilderExtensions
     /// <param name="clubAttentionQueryService">The club attention query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The attention projection or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetClubAttentionHandler(
+    private static async Task<IResult> GetClubAttentionHandlerAsync(
         IClubAttentionQueryService clubAttentionQueryService,
         CancellationToken cancellationToken)
     {

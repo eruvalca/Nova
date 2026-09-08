@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -39,7 +39,7 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies successful campaign creation posts to the shared route and deserializes the result.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_PostsToSharedRoute_AndReturnsResult()
+    public async Task CreateAsyncPostsToSharedRouteAndReturnsResultAsync()
     {
         var input = ValidInput();
         var expected = CreatedResult(input.OperationId);
@@ -47,7 +47,7 @@ public sealed class HttpCampaignCreationServiceTests
         {
             Content = JsonContent.Create(expected)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -65,7 +65,7 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies ProblemDetails responses retain their service problem kind and detail.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsConflict_FromProblemDetails()
+    public async Task CreateAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -76,7 +76,7 @@ public sealed class HttpCampaignCreationServiceTests
                 detail = "A campaign with that name already exists."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -92,13 +92,13 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies a successful response without the required payload becomes an explicit server error.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForEmptySuccessPayload()
+    public async Task CreateAsyncReturnsServerErrorForEmptySuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(string.Empty)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -113,13 +113,13 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies a successful JSON null response is rejected as an invalid payload.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForNullSuccessPayload()
+    public async Task CreateAsyncReturnsServerErrorForNullSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent("null", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -135,13 +135,13 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies a syntactically valid but incomplete success object is rejected.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForIncompleteSuccessPayload()
+    public async Task CreateAsyncReturnsServerErrorForIncompleteSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent("{}", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -155,14 +155,14 @@ public sealed class HttpCampaignCreationServiceTests
 
     /// <summary>Verifies stale Active creation responses are rejected.</summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForActiveSuccessPayload()
+    public async Task CreateAsyncReturnsServerErrorForActiveSuccessPayloadAsync()
     {
         var input = ValidInput();
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatedResult(input.OperationId) with { Status = CampaignStatus.Active })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -175,7 +175,7 @@ public sealed class HttpCampaignCreationServiceTests
 
     /// <summary>Verifies the removed enrollment-count response shape is rejected.</summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForRemovedEnrollmentField()
+    public async Task CreateAsyncReturnsServerErrorForRemovedEnrollmentFieldAsync()
     {
         var input = ValidInput();
         var payload = $$"""
@@ -188,7 +188,7 @@ public sealed class HttpCampaignCreationServiceTests
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
@@ -203,13 +203,13 @@ public sealed class HttpCampaignCreationServiceTests
     /// Verifies malformed success JSON becomes an explicit server error.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForMalformedSuccessPayload()
+    public async Task CreateAsyncReturnsServerErrorForMalformedSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent("{not-json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(

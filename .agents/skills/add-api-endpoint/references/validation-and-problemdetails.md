@@ -3,7 +3,7 @@
 Canonical Nova examples:
 
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
-- ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
+- ToHttpResult: `Nova\Features\Common\ServiceResultExtensions.cs`
 
 ## Validation Problem Details Structure
 
@@ -11,22 +11,17 @@ When a service returns `ServiceProblem.Validation(errors)`, the `ToHttpResult` e
 
 ```json
 {
-  "type": "https://tools.ietf.org/html/rfc7807",
-  "title": "One or more validation errors occurred.",
-  "status": 400,
-  "detail": null,
-  "errors": {
-    "email": [
-      "Email is required.",
-      "Email must be a valid email address."
-    ],
-    "password": [
-      "Password must be at least 8 characters long."
-    ]
-  },
-  "extensions": {
-    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
-  }
+    "type": "https://tools.ietf.org/html/rfc7807",
+    "title": "One or more validation errors occurred.",
+    "status": 400,
+    "detail": null,
+    "errors": {
+        "email": ["Email is required.", "Email must be a valid email address."],
+        "password": ["Password must be at least 8 characters long."]
+    },
+    "extensions": {
+        "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+    }
 }
 ```
 
@@ -42,11 +37,11 @@ In .NET 10, `builder.Services.AddValidation()` (registered globally in `Program.
 
 ### DataAnnotations on Input Records
 
-Annotate all input records in `Nova.Shared` with appropriate DataAnnotations. These drive both runtime enforcement and OpenAPI documentation:
+Annotate all input records in `Nova.SharedKernel` with appropriate DataAnnotations. These drive both runtime enforcement and OpenAPI documentation:
 
 ```csharp
-// Nova.Shared/Features/Clubs/CreateClubInput.cs
-using Nova.Shared.Validation;
+// Nova.SharedKernel/Features/Clubs/CreateClubInput.cs
+using Nova.SharedKernel.Validation;
 
 public sealed record CreateClubInput
 {
@@ -61,7 +56,7 @@ public sealed record CreateClubInput
 }
 ```
 
-Pair `[Required]` with `[NotWhitespace]` (defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`) on every string field that must contain non-blank text — `[Required]` alone treats `"   "` as valid. Use explicit init-only properties rather than positional constructor parameters so attributes land on the properties where `Validator.TryValidateObject` can reflect on them. The same attributes are re-run at the service layer via `InputValidator.Validate<T>`; see `.github/instructions/validation.instructions.md`.
+Pair `[Required]` with `[NotWhitespace]` (defined in `Nova.SharedKernel/Validation/NotWhitespaceAttribute.cs`) on every string field that must contain non-blank text — `[Required]` alone treats `"   "` as valid. Use explicit init-only properties rather than positional constructor parameters so attributes land on the properties where `Validator.TryValidateObject` can reflect on them. The same attributes are re-run at the service layer via `InputValidator.Validate<T>`; see `.github/instructions/validation.instructions.md`.
 
 When a request body fails DataAnnotations validation the framework returns an RFC 7807 `HttpValidationProblemDetails` (HTTP 400) **before the handler is invoked**. The `AddProblemDetails` customization in `Program.cs` injects the W3C `traceId` into all problem responses, including framework-generated ones.
 

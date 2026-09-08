@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -27,7 +27,9 @@ public sealed class TeamManagementServiceTests : IDisposable
     private readonly long _activeCampaignId;
     private readonly long _playerId;
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     public TeamManagementServiceTests()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
         db.Clubs.AddRange(
@@ -114,7 +116,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task Create_ReturnsActiveTeam_ForClubAdmin()
+    public async Task CreateReturnsActiveTeamForClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -128,7 +130,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsForbidden_ForNonAdmin()
+    public async Task CreateReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -141,7 +143,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsForbidden_ForNonAdmin()
+    public async Task UpdateReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -154,7 +156,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsNotFound_ForOtherClubTeam()
+    public async Task UpdateReturnsNotFoundForOtherClubTeamAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
 
@@ -167,7 +169,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflictWithBlockers_AndWritesNothing_WhenEligibilityWouldBreak()
+    public async Task UpdateReturnsConflictWithBlockersAndWritesNothingWhenEligibilityWouldBreakAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -183,17 +185,17 @@ public sealed class TeamManagementServiceTests : IDisposable
         blockers[0].PlayerGraduationYear.ShouldBe(2028);
 
         using var db = _harness.CreateAdminContext();
-        var team = db.Teams.Single(t => t.TeamId == _teamId);
+        var team = (await db.Teams.SingleAsync(t => t.TeamId == _teamId, TestContext.Current.CancellationToken));
         team.Name.ShouldBe("U16");
         team.GraduationYear.ShouldBe(2028);
-        db.PlayerCampaignAssignments.Any(a =>
+        (await db.PlayerCampaignAssignments.AnyAsync(a =>
             a.PlayerCampaignAssignmentId > 0
             && a.CampaignId == _activeCampaignId
-            && a.PlayerId == _playerId).ShouldBeTrue();
+            && a.PlayerId == _playerId, TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Update_Succeeds_ForActiveTeam()
+    public async Task UpdateSucceedsForActiveTeamAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -206,15 +208,15 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_ForArchivedTeam()
+    public async Task UpdateReturnsConflictForArchivedTeamAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
-            var team = db.Teams.Single(t => t.TeamId == _teamId);
+            var team = (await db.Teams.SingleAsync(t => t.TeamId == _teamId, TestContext.Current.CancellationToken));
             team.LifecycleStatus = LifecycleStatus.Archived;
             team.ArchivedAt = DateTimeOffset.UtcNow;
             team.ArchivedById = ClubAAdminId;
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
@@ -230,7 +232,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     /// Verifies a club cannot own two teams sharing a name and graduation year.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsConflict_ForDuplicateNameAndGraduationYear()
+    public async Task CreateReturnsConflictForDuplicateNameAndGraduationYearAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -242,14 +244,14 @@ public sealed class TeamManagementServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
 
         using var db = _harness.CreateAdminContext();
-        db.Teams.Count(team => team.ClubId == ClubAId && team.Name == "U16").ShouldBe(1);
+        (await db.Teams.CountAsync(team => team.ClubId == ClubAId && team.Name == "U16", TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>
     /// Verifies the same team name is allowed under a different graduation year.
     /// </summary>
     [Fact]
-    public async Task Create_Succeeds_ForSameNameUnderDifferentGraduationYear()
+    public async Task CreateSucceedsForSameNameUnderDifferentGraduationYearAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -265,7 +267,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     /// Verifies team-name uniqueness is scoped to the owning club rather than global.
     /// </summary>
     [Fact]
-    public async Task Create_Succeeds_ForSameNameInAnotherClub()
+    public async Task CreateSucceedsForSameNameInAnotherClubAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
 
@@ -281,7 +283,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     /// Verifies renaming a team onto an existing name and graduation year is rejected.
     /// </summary>
     [Fact]
-    public async Task Update_ReturnsConflict_WhenRenamingOntoExistingTeam()
+    public async Task UpdateReturnsConflictWhenRenamingOntoExistingTeamAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var service = CreateService();
@@ -299,7 +301,7 @@ public sealed class TeamManagementServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
 
         using var db = _harness.CreateAdminContext();
-        db.Teams.Single(team => team.TeamId == created.Value.TeamId).Name.ShouldBe("U18");
+        (await db.Teams.SingleAsync(team => team.TeamId == created.Value.TeamId, TestContext.Current.CancellationToken)).Name.ShouldBe("U18");
     }
 
     private TeamManagementService CreateService()
@@ -320,7 +322,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     {
         public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
-        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(harness.CreateTenantContext());
     }
 }

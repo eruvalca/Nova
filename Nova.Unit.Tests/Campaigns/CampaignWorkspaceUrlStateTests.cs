@@ -12,7 +12,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Round-trip ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void BuildQueryString_ThenParse_RoundTripsEveryField()
+    public void BuildQueryStringThenParseRoundTripsEveryField()
     {
         var state = new CampaignWorkspaceRosterState
         {
@@ -41,7 +41,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildQueryString_OmitsDefaults()
+    public void BuildQueryStringOmitsDefaults()
     {
         CampaignWorkspaceUrlState.BuildQueryString(new CampaignWorkspaceRosterState()).ShouldBeEmpty();
         CampaignWorkspaceUrlState.BuildQueryString(new CampaignWorkspaceRosterState { Page = 1 }).ShouldBeEmpty();
@@ -51,7 +51,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Defensive parsing ──────────────────────────────────────────────────────
 
     [Fact]
-    public void Parse_FallsBackToDefaults_ForInvalidValues()
+    public void ParseFallsBackToDefaultsForInvalidValues()
     {
         var parsed = CampaignWorkspaceUrlState.Parse(
             search: "   ",
@@ -74,7 +74,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void Parse_KeepsFirstSeenOrder_AndDeduplicatesLists()
+    public void ParseKeepsFirstSeenOrderAndDeduplicatesLists()
     {
         var parsed = CampaignWorkspaceUrlState.Parse(
             search: null,
@@ -91,7 +91,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void Parse_NormalizesTokens_CaseInsensitively()
+    public void ParseNormalizesTokensCaseInsensitively()
     {
         var parsed = CampaignWorkspaceUrlState.Parse(null, null, null, "ASSIGNED", null, "DisplayName", "DESC", 1);
 
@@ -109,7 +109,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     [InlineData(51, 50, 2)]
     [InlineData(120, 50, 3)]
     [InlineData(12, 0, 1)]
-    public void CalculatePageCount_ReturnsExpectedPages(int totalCount, int pageSize, int expected)
+    public void CalculatePageCountReturnsExpectedPages(int totalCount, int pageSize, int expected)
     {
         CampaignWorkspaceUrlState.CalculatePageCount(totalCount, pageSize).ShouldBe(expected);
     }
@@ -117,7 +117,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Workspace URL ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void BuildWorkspaceUrl_AlwaysIncludesTab_AndOmitsDefaults()
+    public void BuildWorkspaceUrlAlwaysIncludesTabAndOmitsDefaults()
     {
         CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState())
             .ShouldBe("/campaigns/10?tab=evaluate");
@@ -135,7 +135,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Filter detection ───────────────────────────────────────────────────────
 
     [Fact]
-    public void HasActiveFilters_AndClearFilters_TrackFilterPresence()
+    public void HasActiveFiltersAndClearFiltersTrackFilterPresence()
     {
         var state = new CampaignWorkspaceRosterState { Search = "ave", TeamId = 21, Page = 4 };
         CampaignWorkspaceUrlState.HasActiveFilters(state).ShouldBeTrue();
@@ -150,7 +150,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Participant selection ──────────────────────────────────────────────────
 
     [Fact]
-    public void ParseParticipant_ReturnsNull_ForMissingOrInvalidValues()
+    public void ParseParticipantReturnsNullForMissingOrInvalidValues()
     {
         CampaignWorkspaceUrlState.ParseParticipant(null).ShouldBeNull();
         CampaignWorkspaceUrlState.ParseParticipant("").ShouldBeNull();
@@ -161,13 +161,13 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void ParseParticipant_ReturnsPositiveLong_ForValidValues()
+    public void ParseParticipantReturnsPositiveLongForValidValues()
     {
         CampaignWorkspaceUrlState.ParseParticipant("301").ShouldBe(301L);
     }
 
     [Fact]
-    public void BuildWorkspaceUrl_AppendsParticipantAfterTab_WhenOpen()
+    public void BuildWorkspaceUrlAppendsParticipantAfterTabWhenOpen()
     {
         CampaignWorkspaceUrlState.BuildWorkspaceUrl(
                 10,
@@ -177,7 +177,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildWorkspaceUrl_OmitsParticipant_WhenClosed()
+    public void BuildWorkspaceUrlOmitsParticipantWhenClosed()
     {
         CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState())
             .ShouldBe("/campaigns/10?tab=evaluate");
@@ -196,7 +196,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     [InlineData("closeout", "closeout")]
     [InlineData("CLOSEOUT", "closeout")]
     [InlineData("garbage", "evaluate")]
-    public void NormalizeTab_ReturnsCanonicalToken_OrEvaluateFallback(string? raw, string expected)
+    public void NormalizeTabReturnsCanonicalTokenOrEvaluateFallback(string? raw, string expected)
     {
         CampaignWorkspaceUrlState.NormalizeTab(raw).ShouldBe(expected);
     }
@@ -204,7 +204,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Placement state ───────────────────────────────────────────────────────
 
     [Fact]
-    public void ParsePlacement_ThenBuild_RoundTripsEveryField()
+    public void ParsePlacementThenBuildRoundTripsEveryField()
     {
         var state = CampaignWorkspaceUrlState.ParsePlacement(2032, true, 3);
         state.GraduationYear.ShouldBe(2032);
@@ -216,7 +216,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void ParsePlacement_FallsBackToDefaults_ForInvalidValues()
+    public void ParsePlacementFallsBackToDefaultsForInvalidValues()
     {
         var state = CampaignWorkspaceUrlState.ParsePlacement(0, null, -3);
         state.GraduationYear.ShouldBeNull();
@@ -225,7 +225,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildPlacementQueryString_OmitsDefaults()
+    public void BuildPlacementQueryStringOmitsDefaults()
     {
         CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState()).ShouldBeEmpty();
         CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState { Page = 1 }).ShouldBeEmpty();
@@ -233,7 +233,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildPlacementsWorkspaceUrl_IsolatesPlacementParams_FromRosterParams()
+    public void BuildPlacementsWorkspaceUrlIsolatesPlacementParamsFromRosterParams()
     {
         CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(10, new CampaignWorkspacePlacementState())
             .ShouldBe("/campaigns/10?tab=placements");
@@ -245,7 +245,7 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildWorkspaceUrl_DoesNotEmitPlacementParams_ForRosterState()
+    public void BuildWorkspaceUrlDoesNotEmitPlacementParamsForRosterState()
     {
         CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState { Search = "ave" })
             .ShouldBe("/campaigns/10?search=ave&tab=evaluate");
@@ -254,28 +254,28 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Overview / closeout / review-unresolved URLs ──────────────────────────
 
     [Fact]
-    public void BuildOverviewWorkspaceUrl_EmitsOnlyOverviewTab()
+    public void BuildOverviewWorkspaceUrlEmitsOnlyOverviewTab()
     {
         CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(10)
             .ShouldBe("/campaigns/10?tab=overview");
     }
 
     [Fact]
-    public void BuildCloseoutWorkspaceUrl_EmitsOnlyCloseoutTab()
+    public void BuildCloseoutWorkspaceUrlEmitsOnlyCloseoutTab()
     {
         CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(10)
             .ShouldBe("/campaigns/10?tab=closeout");
     }
 
     [Fact]
-    public void BuildReviewUnresolvedUrl_EmitsUnresolvedOnly_AndPlacementsTab()
+    public void BuildReviewUnresolvedUrlEmitsUnresolvedOnlyAndPlacementsTab()
     {
         CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(10)
             .ShouldBe("/campaigns/10?unresolvedOnly=true&tab=placements");
     }
 
     [Fact]
-    public void OverviewAndCloseoutTabTokens_AreCanonicalAndNormalizeRoundTrip()
+    public void OverviewAndCloseoutTabTokensAreCanonicalAndNormalizeRoundTrip()
     {
         CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.OverviewTab).ShouldBe("overview");
         CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.CloseoutTab).ShouldBe("closeout");
@@ -292,7 +292,7 @@ public sealed class CampaignWorkspaceUrlStateTests
             foreach (var pair in query.Split('&'))
             {
                 var parts = pair.Split('=', 2);
-                if (parts[0] == key)
+                if (string.Equals(parts[0], key, StringComparison.Ordinal))
                 {
                     return Uri.UnescapeDataString(parts[1]);
                 }
@@ -301,8 +301,8 @@ public sealed class CampaignWorkspaceUrlStateTests
             return null;
         }
 
-        int? IntOf(string key) => int.TryParse(ValueOf(key), out var value) ? value : null;
-        long? LongOf(string key) => long.TryParse(ValueOf(key), out var value) ? value : null;
+        int? IntOf(string key) => int.TryParse(ValueOf(key), System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : null;
+        long? LongOf(string key) => long.TryParse(ValueOf(key), System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : null;
 
         return CampaignWorkspaceUrlState.Parse(
             ValueOf("search"),

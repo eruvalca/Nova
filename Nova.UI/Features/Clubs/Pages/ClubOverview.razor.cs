@@ -1,11 +1,12 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
@@ -134,7 +135,7 @@ public partial class ClubOverview(
         if (Initialized)
         {
             RestorePersistedState();
-            if (PersistedClubId is not null && PersistedClubId == _clubIdText)
+            if (PersistedClubId is not null && string.Equals(PersistedClubId, _clubIdText, StringComparison.Ordinal))
             {
                 return;
             }
@@ -381,7 +382,7 @@ public partial class ClubOverview(
         var state = await stateTask;
         var isClubAdmin = state.User.IsInRole(Roles.ClubAdmin);
         var clubIdText = state.User.FindFirst(NovaClaimTypes.ClubId)?.Value;
-        var clubChanged = clubIdText != _clubIdText;
+        var clubChanged = !string.Equals(clubIdText, _clubIdText, StringComparison.Ordinal);
         _isClubAdmin = isClubAdmin;
         _clubIdText = clubIdText;
         if (clubChanged)
@@ -465,3 +466,6 @@ public partial class ClubOverview(
         await base.DisposeAsyncCore();
     }
 }
+
+
+#pragma warning restore CA1849, S6966

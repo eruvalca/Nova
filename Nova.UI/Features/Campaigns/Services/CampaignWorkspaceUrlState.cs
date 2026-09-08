@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using System.Globalization;
 
 namespace Nova.UI.Features.Campaigns.Services;
 
@@ -97,22 +98,22 @@ public static class CampaignWorkspaceUrlState
     /// <summary>
     /// The contract-supported workspace tab tokens, in canonical lowercase form.
     /// </summary>
-    private static readonly string[] ValidTabs = [EvaluateTab, PlacementsTab, OverviewTab, CloseoutTab];
+    private static readonly string[] _validTabs = [EvaluateTab, PlacementsTab, OverviewTab, CloseoutTab];
 
     /// <summary>
     /// The contract-supported placement-outcome tokens, in canonical lowercase form.
     /// </summary>
-    private static readonly string[] ValidOutcomes = ["undecided", "assigned", "notselected", "withdrawn"];
+    private static readonly string[] _validOutcomes = ["undecided", "assigned", "notselected", "withdrawn"];
 
     /// <summary>
     /// The contract-supported sort-field tokens, in canonical camel-case form.
     /// </summary>
-    private static readonly string[] ValidSortFields = ["displayName", "graduationYear", "tryoutNumber", "outcome", "teamName"];
+    private static readonly string[] _validSortFields = ["displayName", "graduationYear", "tryoutNumber", "outcome", "teamName"];
 
     /// <summary>
     /// The contract-supported sort-direction tokens.
     /// </summary>
-    private static readonly string[] ValidDirections = ["asc", "desc"];
+    private static readonly string[] _validDirections = ["asc", "desc"];
 
     /// <summary>
     /// Parses raw query-parameter values into a defensive roster state, falling back to defaults for invalid values.
@@ -140,10 +141,10 @@ public static class CampaignWorkspaceUrlState
             Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
             GraduationYears = ParsePositiveInts(graduationYears),
             TagDefinitionIds = ParsePositiveLongs(tagDefinitionIds),
-            Outcome = NormalizeToken(outcome, ValidOutcomes),
+            Outcome = NormalizeToken(outcome, _validOutcomes),
             TeamId = teamId is > 0 ? teamId : null,
-            SortBy = NormalizeToken(sortBy, ValidSortFields),
-            SortDirection = NormalizeToken(sortDirection, ValidDirections),
+            SortBy = NormalizeToken(sortBy, _validSortFields),
+            SortDirection = NormalizeToken(sortDirection, _validDirections),
             Page = page is >= 1 ? page.Value : 1
         };
 
@@ -154,8 +155,8 @@ public static class CampaignWorkspaceUrlState
     /// <returns>The canonical query string without a leading question mark.</returns>
     public static string BuildQueryString(CampaignWorkspaceRosterState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
         var parts = new List<string>(8);
-
         if (state.Search is not null)
         {
             parts.Add($"search={Uri.EscapeDataString(state.Search)}");
@@ -243,7 +244,7 @@ public static class CampaignWorkspaceUrlState
     /// <param name="raw">The raw tab query value.</param>
     /// <returns>The canonical tab token: <c>evaluate</c>, <c>placements</c>, <c>overview</c>, or <c>closeout</c>; unknown values fall back to <c>evaluate</c>.</returns>
     public static string NormalizeTab(string? raw)
-        => NormalizeToken(raw, ValidTabs) ?? EvaluateTab;
+        => NormalizeToken(raw, _validTabs) ?? EvaluateTab;
 
     /// <summary>
     /// Parses raw placement query values into a defensive placement state, falling back to defaults for invalid values.
@@ -267,8 +268,8 @@ public static class CampaignWorkspaceUrlState
     /// <returns>The canonical query string without a leading question mark.</returns>
     public static string BuildPlacementQueryString(CampaignWorkspacePlacementState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
         var parts = new List<string>(3);
-
         if (state.GraduationYear is not null)
         {
             parts.Add($"placementGraduationYear={state.GraduationYear}");
@@ -339,11 +340,10 @@ public static class CampaignWorkspaceUrlState
     /// <param name="state">The roster state to inspect.</param>
     /// <returns><see langword="true"/> when at least one filter is active; otherwise <see langword="false"/>.</returns>
     public static bool HasActiveFilters(CampaignWorkspaceRosterState state)
-        => state.Search is not null
-            || state.GraduationYears.Count > 0
-            || state.TagDefinitionIds.Count > 0
-            || state.Outcome is not null
-            || state.TeamId is not null;
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state.Search is not null || state.GraduationYears.Count > 0 || state.TagDefinitionIds.Count > 0 || state.Outcome is not null || state.TeamId is not null;
+    }
 
     /// <summary>
     /// Returns a copy of the supplied state with all filters cleared and the page reset.
@@ -351,7 +351,18 @@ public static class CampaignWorkspaceUrlState
     /// <param name="state">The roster state to clear.</param>
     /// <returns>The cleared state.</returns>
     public static CampaignWorkspaceRosterState ClearFilters(CampaignWorkspaceRosterState state)
-        => state with { Search = null, GraduationYears = [], TagDefinitionIds = [], Outcome = null, TeamId = null, Page = 1 };
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state with
+        {
+            Search = null,
+            GraduationYears = [],
+            TagDefinitionIds = [],
+            Outcome = null,
+            TeamId = null,
+            Page = 1
+        };
+    }
 
     /// <summary>
     /// Computes the total page count for a bounded roster result.
@@ -374,7 +385,9 @@ public static class CampaignWorkspaceUrlState
     /// </summary>
     /// <param name="raw">The raw comma-separated value.</param>
     /// <returns>The parsed values in first-seen order.</returns>
+#pragma warning disable CA1859 // The helper returns both an empty array and a read-only list; the interface describes both results.
     private static IReadOnlyList<int> ParsePositiveInts(string? raw)
+#pragma warning restore CA1859
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
@@ -400,7 +413,9 @@ public static class CampaignWorkspaceUrlState
     /// </summary>
     /// <param name="raw">The raw comma-separated value.</param>
     /// <returns>The parsed identifiers in first-seen order.</returns>
+#pragma warning disable CA1859 // The helper returns both an empty array and a read-only list; the interface describes both results.
     private static IReadOnlyList<long> ParsePositiveLongs(string? raw)
+#pragma warning restore CA1859
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
@@ -430,3 +445,5 @@ public static class CampaignWorkspaceUrlState
     private static string? NormalizeToken(string? raw, string[] validTokens)
         => validTokens.FirstOrDefault(token => string.Equals(token, raw, StringComparison.OrdinalIgnoreCase));
 }
+
+#pragma warning restore CA1055, CA1056

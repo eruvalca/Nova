@@ -1,7 +1,7 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.UI.Features.Campaigns.Components;
 using Shouldly;
 
@@ -14,7 +14,7 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class CampaignMenuTests : BunitContext
 {
     [Fact]
-    public void Menu_Toggle_FlipsAriaExpanded()
+    public void MenuToggleFlipsAriaExpanded()
     {
         var cut = RenderMenu(isClubAdmin: true);
 
@@ -29,7 +29,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_RendersNothing_ForNonAdmin()
+    public void MenuRendersNothingForNonAdmin()
     {
         var cut = RenderMenu(isClubAdmin: false);
 
@@ -38,7 +38,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_ShowsEditAndClose_AndHidesReopen_WhenActive()
+    public void MenuShowsEditAndCloseAndHidesReopenWhenActive()
     {
         var cut = RenderMenu(isClubAdmin: true, isClosed: false);
         cut.Find("button[aria-haspopup='menu']").Click();
@@ -49,7 +49,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_ShowsReopen_AndHidesEditAndClose_WhenClosed()
+    public void MenuShowsReopenAndHidesEditAndCloseWhenClosed()
     {
         var cut = RenderMenu(isClubAdmin: true, isClosed: true);
         cut.Find("button[aria-haspopup='menu']").Click();
@@ -60,7 +60,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_Escape_ClosesDisclosure()
+    public void MenuEscapeClosesDisclosure()
     {
         var cut = RenderMenu(isClubAdmin: true);
         var button = cut.Find("button[aria-haspopup='menu']");
@@ -72,7 +72,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_ItemClick_ClosesDisclosure_AndInvokesCallback()
+    public void MenuItemClickClosesDisclosureAndInvokesCallback()
     {
         var editCount = 0;
         var closeCount = 0;
@@ -85,7 +85,7 @@ public sealed class CampaignMenuTests : BunitContext
         cut.Find("button[aria-haspopup='menu']").Click();
 
         cut.FindAll("button[role='menuitem']")
-            .Single(button => button.TextContent.Trim() == "Edit metadata")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit metadata", StringComparison.Ordinal))
             .Click();
         editCount.ShouldBe(1);
         closeCount.ShouldBe(0);
@@ -93,7 +93,7 @@ public sealed class CampaignMenuTests : BunitContext
 
         cut.Find("button[aria-haspopup='menu']").Click();
         cut.FindAll("button[role='menuitem']")
-            .Single(button => button.TextContent.Trim() == "Close campaign")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Close campaign", StringComparison.Ordinal))
             .Click();
         closeCount.ShouldBe(1);
         editCount.ShouldBe(1);
@@ -101,7 +101,7 @@ public sealed class CampaignMenuTests : BunitContext
     }
 
     [Fact]
-    public void Menu_ReopenItem_InvokesReopenCallback()
+    public void MenuReopenItemInvokesReopenCallback()
     {
         var reopenCount = 0;
 
@@ -112,7 +112,7 @@ public sealed class CampaignMenuTests : BunitContext
         cut.Find("button[aria-haspopup='menu']").Click();
 
         cut.FindAll("button[role='menuitem']")
-            .Single(button => button.TextContent.Trim() == "Reopen")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Reopen", StringComparison.Ordinal))
             .Click();
         reopenCount.ShouldBe(1);
         cut.FindAll("[role='menu']").ShouldBeEmpty();

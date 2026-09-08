@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -15,7 +15,7 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class HttpTeamManagementServiceTests
 {
     [Fact]
-    public async Task Create_SendsPostToTeamRoute_AndReadsDto()
+    public async Task CreateSendsPostToTeamRouteAndReadsDtoAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
@@ -25,10 +25,10 @@ public sealed class HttpTeamManagementServiceTests
                 ClubId = 42,
                 Name = "U16",
                 GraduationYear = 2028,
-                LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+                LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).CreateAsync(
@@ -41,7 +41,7 @@ public sealed class HttpTeamManagementServiceTests
     }
 
     [Fact]
-    public async Task Update_SendsPutToTeamRoute_AndReadsDto()
+    public async Task UpdateSendsPutToTeamRouteAndReadsDtoAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -51,10 +51,10 @@ public sealed class HttpTeamManagementServiceTests
                 ClubId = 42,
                 Name = "U16",
                 GraduationYear = 2028,
-                LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+                LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).UpdateAsync(
@@ -70,7 +70,7 @@ public sealed class HttpTeamManagementServiceTests
     /// Verifies update rejects a success payload for a different team.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_WhenResponseTeamIdDoesNotMatch()
+    public async Task UpdateAsyncReturnsServerErrorWhenResponseTeamIdDoesNotMatchAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -80,10 +80,10 @@ public sealed class HttpTeamManagementServiceTests
                 ClubId = 42,
                 Name = "U16",
                 GraduationYear = 2028,
-                LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+                LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).UpdateAsync(
@@ -102,13 +102,13 @@ public sealed class HttpTeamManagementServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task CreateAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task CreateAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).CreateAsync(
@@ -123,7 +123,7 @@ public sealed class HttpTeamManagementServiceTests
     /// Verifies create responses that violate portable team invariants are rejected.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_WhenTeamInvariantIsInvalid()
+    public async Task CreateAsyncReturnsServerErrorWhenTeamInvariantIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
@@ -133,10 +133,10 @@ public sealed class HttpTeamManagementServiceTests
                 ClubId = 42,
                 Name = "U16",
                 GraduationYear = 2028,
-                LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+                LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).CreateAsync(
@@ -155,7 +155,7 @@ public sealed class HttpTeamManagementServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
-    public async Task CreateAsync_ReturnsServerError_WhenTeamStateIsInvalid(
+    public async Task CreateAsyncReturnsServerErrorWhenTeamStateIsInvalidAsync(
         int graduationYear,
         LifecycleStatus lifecycleStatus)
     {
@@ -170,7 +170,7 @@ public sealed class HttpTeamManagementServiceTests
                 LifecycleStatus = lifecycleStatus
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamManagementService(http).CreateAsync(

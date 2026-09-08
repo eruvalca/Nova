@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Features.Account;
+﻿using Nova.SharedKernel.Features.Account;
 
 namespace Nova.Features.Account;
 

@@ -1,6 +1,6 @@
 @using Cropper.Blazor.Components
 @using Microsoft.AspNetCore.Components.Forms
-@using Nova.UI.Shared
+@using Nova.UI.Common
 
 <!--
 THESIS: The photo editor turns image selection and framing into one legible two-stop route.
@@ -71,12 +71,12 @@ FORM: Shared interactive editor; selection and crop states occupy one bounded wo
 
             <div class="profile-photo-cropper-frame">
                 <NovaCropperComponent @ref="_cropper" Class="profile-photo-cropper" Src="@ImageDataUrl"
-                                      Options="_cropperOptions" />
+                                      Options="_cropperOptions" OnReady="OnCropperReady" />
             </div>
         </section>
 
         <div class="photo-editor-actions">
-            <button type="button" class="btn btn-primary" @onclick="SavePhotoAsync" disabled="@IsBusy">
+            <button type="button" class="btn btn-primary" @onclick="SavePhotoAsync" disabled="@(IsBusy || !_cropperReady)">
                 @if (IsBusy)
                 {
                     <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>

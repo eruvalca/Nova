@@ -1,5 +1,6 @@
-﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -11,7 +12,7 @@ public class PlayerEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Player Id.
     /// </summary>
-    public long PlayerId { get; set; } = default;
+    public long PlayerId { get; set; }
     /// <summary>
     /// Gets or sets the First Name.
     /// </summary>
@@ -53,11 +54,15 @@ public class PlayerEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Campaign Assignments.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<PlayerCampaignAssignmentEntity> CampaignAssignments { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Photos.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<PlayerPhotoEntity> Photos { get; set; } = [];
+#pragma warning restore CA2227
 
     /// <summary>
     /// Gets or sets the Club Id.

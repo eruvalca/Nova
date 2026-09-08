@@ -3,10 +3,10 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -26,7 +26,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Loading state ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_ShowsLoadingState_WhileDetailRequestIsPending()
+    public void DrawerShowsLoadingStateWhileDetailRequestIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>();
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -48,7 +48,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Loaded detail ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_RendersLoadedDetail_WithPlayerCampaignNotesAndFooter()
+    public void DrawerRendersLoadedDetailWithPlayerCampaignNotesAndFooter()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -78,8 +78,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Markup.ShouldContain("Tryout number");
         cut.Markup.ShouldContain("14");
         var successBadges = cut.FindAll("span.badge.text-bg-success").Select(badge => badge.TextContent.Trim()).ToList();
-        successBadges.ShouldContain("Assigned");
-        successBadges.ShouldContain("Active");
+        successBadges.ShouldContain("Assigned", StringComparer.Ordinal);
+        successBadges.ShouldContain("Active", StringComparer.Ordinal);
         cut.Markup.ShouldContain("Blue");
         cut.Markup.ShouldContain("Active");
         cut.Markup.ShouldContain("Strong defensive player.");
@@ -90,7 +90,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_RendersTagMetadata_AndArchivedTagIndicators()
+    public void DrawerRendersTagMetadataAndArchivedTagIndicators()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -131,7 +131,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_RendersFallbacks_WhenOptionalFieldsAreMissing()
+    public void DrawerRendersFallbacksWhenOptionalFieldsAreMissing()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -149,7 +149,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No notes yet."));
 
-        cut.FindAll("dd").Count(dd => dd.TextContent.Trim() == "—").ShouldBe(2);
+        cut.FindAll("dd").Count(dd => string.Equals(dd.TextContent.Trim(), "—", StringComparison.Ordinal)).ShouldBe(2);
         cut.Markup.ShouldContain("No notes yet.");
         cut.Markup.ShouldContain("No tags applied.");
     }
@@ -157,7 +157,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Failure and retry ─────────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_ShowsErrorAndRetry_WhenDetailLoadFails()
+    public void DrawerShowsErrorAndRetryWhenDetailLoadFails()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -183,12 +183,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Graduation year"));
         cut.Markup.ShouldNotContain("Participant not found");
-        queryService.Received(2).GetParticipantDetailAsync(
+        _ = queryService.Received(2).GetParticipantDetailAsync(
             Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_UsesRosterItemNameForHeading_WhenDetailLoadFails()
+    public void DrawerUsesRosterItemNameForHeadingWhenDetailLoadFails()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -211,7 +211,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Parameter changes and stale responses ─────────────────────────────────
 
     [Fact]
-    public void Drawer_ReloadsDetail_WhenParticipantParameterChanges()
+    public void DrawerReloadsDetailWhenParticipantParameterChanges()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -235,18 +235,18 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
 
-        queryService.Received(1).GetParticipantDetailAsync(
+        _ = queryService.Received(1).GetParticipantDetailAsync(
             Arg.Is<GetCampaignParticipantDetailInput>(input =>
                 input.CampaignId == 10 && input.PlayerCampaignAssignmentId == 301),
             Arg.Any<CancellationToken>());
-        queryService.Received(1).GetParticipantDetailAsync(
+        _ = queryService.Received(1).GetParticipantDetailAsync(
             Arg.Is<GetCampaignParticipantDetailInput>(input =>
                 input.CampaignId == 10 && input.PlayerCampaignAssignmentId == 302),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_DiscardsStaleResponse_WhenParticipantChangesBeforeFirstLoadCompletes()
+    public void DrawerDiscardsStaleResponseWhenParticipantChangesBeforeFirstLoadCompletes()
     {
         var firstLoad = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>();
         var secondLoad = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>();
@@ -273,14 +273,14 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Jordan Lee"));
         cut.Markup.ShouldNotContain("Avery Johnson");
-        queryService.Received(2).GetParticipantDetailAsync(
+        _ = queryService.Received(2).GetParticipantDetailAsync(
             Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     // ── Close callbacks ───────────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_InvokesOnClose_WhenCloseButtonClicked()
+    public void DrawerInvokesOnCloseWhenCloseButtonClicked()
     {
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
@@ -304,7 +304,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_InvokesOnClose_WhenEscapePressed()
+    public void DrawerInvokesOnCloseWhenEscapePressed()
     {
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
@@ -329,7 +329,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_InvokesOnClose_WhenBackdropClicked()
+    public void DrawerInvokesOnCloseWhenBackdropClicked()
     {
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
@@ -355,7 +355,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Focus trap management ───────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_InstallsFocusTrap_OnFirstRender()
+    public void DrawerInstallsFocusTrapOnFirstRender()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -375,7 +375,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DoesNotReinstallFocusTrap_WhenParticipantParameterChanges()
+    public void DrawerDoesNotReinstallFocusTrapWhenParticipantParameterChanges()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -395,7 +395,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_RestoresFocusIntoDialog_WhenParticipantParameterChanges()
+    public void DrawerRestoresFocusIntoDialogWhenParticipantParameterChanges()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -420,7 +420,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DoesNotRestoreFocus_WhenParticipantParameterUnchanged()
+    public void DrawerDoesNotRestoreFocusWhenParticipantParameterUnchanged()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -441,7 +441,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public async Task Drawer_RestoresFocusToRosterRow_WhenDisposedWhileOpen_ForBrowserBack()
+    public async Task DrawerRestoresFocusToRosterRowWhenDisposedWhileOpenForBrowserBackAsync()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -466,7 +466,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public async Task Drawer_DoesNotRestoreFocusAgain_WhenDisposedAfterClose()
+    public async Task DrawerDoesNotRestoreFocusAgainWhenDisposedAfterCloseAsync()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -480,7 +480,9 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("#participant-drawer-close").Click();
+#pragma warning restore CA1849, S6966
         await ((IAsyncDisposable)cut.Instance).DisposeAsync();
 
         close.Invocations.Count.ShouldBe(1);
@@ -489,7 +491,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Sequence navigation ─────────────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_RendersPositionText_WhenSequenceParametersProvided()
+    public void DrawerRendersPositionTextWhenSequenceParametersProvided()
     {
         RegisterServices();
 
@@ -505,7 +507,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_InvokesNavigationCallbacks_WhenNavigationButtonsClicked()
+    public void DrawerInvokesNavigationCallbacksWhenNavigationButtonsClicked()
     {
         var previousCount = 0;
         var nextCount = 0;
@@ -529,7 +531,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DisablesNavigationButtons_AtSequenceEnds()
+    public void DrawerDisablesNavigationButtonsAtSequenceEnds()
     {
         RegisterServices();
 
@@ -554,7 +556,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_HidesPositionAndDisablesNavigation_WhenParticipantIsOffPage()
+    public void DrawerHidesPositionAndDisablesNavigationWhenParticipantIsOffPage()
     {
         RegisterServices();
 
@@ -572,7 +574,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Persisted-state restoration ───────────────────────────────────────────
 
     [Fact]
-    public void Drawer_RestoresPersistedDetail_WithoutRefetching()
+    public void DrawerRestoresPersistedDetailWithoutRefetching()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         RegisterServices(queryService);
@@ -584,12 +586,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Graduation year"));
 
-        queryService.DidNotReceive().GetParticipantDetailAsync(
+        _ = queryService.DidNotReceive().GetParticipantDetailAsync(
             Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_RestoresPersistedError_WithoutRefetching()
+    public void DrawerRestoresPersistedErrorWithoutRefetching()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         RegisterServices(queryService);
@@ -602,14 +604,14 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant not found"));
 
         cut.Find("#participant-drawer-retry").ShouldNotBeNull();
-        queryService.DidNotReceive().GetParticipantDetailAsync(
+        _ = queryService.DidNotReceive().GetParticipantDetailAsync(
             Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     // ── Evaluation mutations: read-only mode and infrastructure ─────────────
 
     [Fact]
-    public void Drawer_RendersNoReadOnlyIndicator_ForActiveCampaign()
+    public void DrawerRendersNoReadOnlyIndicatorForActiveCampaign()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -628,7 +630,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_RendersReadOnlyIndicator_AndHidesMutationControls_ForClosedCampaign()
+    public void DrawerRendersReadOnlyIndicatorAndHidesMutationControlsForClosedCampaign()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -655,7 +657,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_LoadsTagChoices_WhenDetailCanApplyTags()
+    public void DrawerLoadsTagChoicesWhenDetailCanApplyTags()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -671,14 +673,14 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
-        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty"));
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty", StringComparer.Ordinal));
 
-        tagDefinitionQueryService.Received(1).GetChoicesAsync(Arg.Any<CancellationToken>());
-        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Captain");
+        _ = tagDefinitionQueryService.Received(1).GetChoicesAsync(Arg.Any<CancellationToken>());
+        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Captain", StringComparer.Ordinal);
     }
 
     [Fact]
-    public void Drawer_ShowsTagChoicesError_WithRetry_WhenChoiceLoadFails()
+    public void DrawerShowsTagChoicesErrorWithRetryWhenChoiceLoadFails()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -706,15 +708,15 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Tag choices unavailable."));
         cut.Markup.ShouldContain("Graduation year");
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal)).Click();
 
-        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty"));
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty", StringComparer.Ordinal));
         cut.Markup.ShouldNotContain("Tag choices unavailable.");
-        tagDefinitionQueryService.Received(2).GetChoicesAsync(Arg.Any<CancellationToken>());
+        _ = tagDefinitionQueryService.Received(2).GetChoicesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_RestoresPersistedTagChoices_WithoutRefetching()
+    public void DrawerRestoresPersistedTagChoicesWithoutRefetching()
     {
         var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
 
@@ -727,13 +729,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                 capabilities: MutationCapabilities(canApplyTag: true)))
             .Add(component => component.SeedTagChoices, CreateTagChoices().ToList()));
 
-        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty"));
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Lefty", StringComparer.Ordinal));
 
-        tagDefinitionQueryService.DidNotReceive().GetChoicesAsync(Arg.Any<CancellationToken>());
+        _ = tagDefinitionQueryService.DidNotReceive().GetChoicesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_MovesFocusToMutationErrorSummary_WhenMutationFails()
+    public void DrawerMovesFocusToMutationErrorSummaryWhenMutationFails()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -761,7 +763,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DisablesMutationControls_WhileMutationIsPending()
+    public void DrawerDisablesMutationControlsWhileMutationIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -795,7 +797,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_AddNoteSuccess_RefreshesDetail_AndClearsStatusOnNextUserAction()
+    public void DrawerAddNoteSuccessRefreshesDetailAndClearsStatusOnNextUserAction()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -828,7 +830,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         // The refreshed detail renders the new note and the status message survives the refresh.
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note added."));
         cut.Markup.ShouldContain("New note");
-        noteService.Received(1).AddAsync(
+        _ = noteService.Received(1).AddAsync(
             Arg.Is<AddEvaluationNoteInput>(input =>
                 input.PlayerCampaignAssignmentId == 301 && input.Content == "New note"),
             Arg.Any<CancellationToken>());
@@ -841,7 +843,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Note mutation controls ───────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_DoesNotRenderAddNoteButton_WhenReadOnlyOrNotAllowed()
+    public void DrawerDoesNotRenderAddNoteButtonWhenReadOnlyOrNotAllowed()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -858,7 +860,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_AddNoteValidationFailure_RendersInlineError_AndDoesNotCallService()
+    public void DrawerAddNoteValidationFailureRendersInlineErrorAndDoesNotCallService()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -878,11 +880,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         FindButtonByText(cut, "Save note").Click();
 
         cut.WaitForAssertion(() => cut.Find(".invalid-feedback").TextContent.ShouldNotBeNullOrWhiteSpace());
-        noteService.DidNotReceive().AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>());
+        _ = noteService.DidNotReceive().AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_EditNote_SwapsContentForTextarea_SavesAndRefreshes()
+    public void DrawerEditNoteSwapsContentForTextareaSavesAndRefreshes()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -916,13 +918,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note updated."));
         cut.Markup.ShouldContain("Updated.");
         cut.Markup.ShouldContain("· edited");
-        noteService.Received(1).EditAsync(
+        _ = noteService.Received(1).EditAsync(
             Arg.Is<EditEvaluationNoteInput>(input => input.NoteId == 1 && input.Content == "Updated."),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_EditNoteCancel_RestoresRenderedText_WithoutServiceCall()
+    public void DrawerEditNoteCancelRestoresRenderedTextWithoutServiceCall()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -943,11 +945,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Original."));
         cut.Markup.ShouldNotContain("textarea");
-        noteService.DidNotReceive().EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>());
+        _ = noteService.DidNotReceive().EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_DeleteNote_ConfirmsAndDeletes()
+    public void DrawerDeleteNoteConfirmsAndDeletes()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -981,11 +983,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note deleted."));
         cut.Markup.ShouldContain("No notes yet.");
-        noteService.Received(1).DeleteAsync(1, Arg.Any<CancellationToken>());
+        _ = noteService.Received(1).DeleteAsync(1, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_HidesNoteCommands_WhenCannotEditOrDelete()
+    public void DrawerHidesNoteCommandsWhenCannotEditOrDelete()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1004,7 +1006,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_ServerValidationProblem_RendersDetailInErrorSummary()
+    public void DrawerServerValidationProblemRendersDetailInErrorSummary()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1027,11 +1029,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         FindButtonByText(cut, "Save note").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("The note is no longer available."));
-        queryService.Received(1).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
+        _ = queryService.Received(1).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_ResetsMutationForms_WhenParticipantChanges()
+    public void DrawerResetsMutationFormsWhenParticipantChanges()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1070,7 +1072,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DoesNotSurfaceMutationFeedback_WhenParticipantChangesMidMutation()
+    public void DrawerDoesNotSurfaceMutationFeedbackWhenParticipantChangesMidMutation()
     {
         var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1103,16 +1105,19 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
 
         pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99)));
-        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+        cut.WaitForAssertion(() =>
+        {
+            _ = queryService.Received(1).GetParticipantDetailAsync(
             Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
-            Arg.Any<CancellationToken>()));
+            Arg.Any<CancellationToken>());
+        });
 
         // The success message is not surfaced on the participant the mutation did not target.
         cut.Markup.ShouldNotContain("Note added.");
     }
 
     [Fact]
-    public void Drawer_DoesNotSurfaceProblemFeedback_WhenParticipantChangesMidMutation()
+    public void DrawerDoesNotSurfaceProblemFeedbackWhenParticipantChangesMidMutation()
     {
         var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1146,9 +1151,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(
             ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes.")));
-        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+        cut.WaitForAssertion(() =>
+        {
+            _ = queryService.Received(1).GetParticipantDetailAsync(
             Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
-            Arg.Any<CancellationToken>()));
+            Arg.Any<CancellationToken>());
+        });
 
         // The conflict message is not surfaced on the participant the mutation did not target,
         // and the drawer does not enter read-only mode for it.
@@ -1157,7 +1165,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_DoesNotSurfaceTransportFailureFeedback_WhenParticipantChangesMidMutation()
+    public void DrawerDoesNotSurfaceTransportFailureFeedbackWhenParticipantChangesMidMutation()
     {
         var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1190,9 +1198,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
 
         pending.SetException(new HttpRequestException("Connection refused."));
-        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+        cut.WaitForAssertion(() =>
+        {
+            _ = queryService.Received(1).GetParticipantDetailAsync(
             Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
-            Arg.Any<CancellationToken>()));
+            Arg.Any<CancellationToken>());
+        });
 
         // The transport-failure banner is not surfaced on the participant the mutation did not target.
         cut.Markup.ShouldNotContain("Could not reach the server.");
@@ -1201,7 +1212,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Tag apply/remove controls ────────────────────────────────────────────
 
     [Fact]
-    public void Drawer_ApplyControl_ExcludesAppliedAndArchivedDefinitions()
+    public void DrawerApplyControlExcludesAppliedAndArchivedDefinitions()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1228,13 +1239,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
-        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Strong arm"));
-        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldNotContain("Lefty");
-        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldNotContain("Captain");
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldContain("Strong arm", StringComparer.Ordinal));
+        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldNotContain("Lefty", StringComparer.Ordinal);
+        cut.FindAll("option").Select(option => option.TextContent.Trim()).ShouldNotContain("Captain", StringComparer.Ordinal);
     }
 
     [Fact]
-    public void Drawer_ApplyDisabled_UntilTagSelected()
+    public void DrawerApplyDisabledUntilTagSelected()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1257,7 +1268,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_ApplySuccess_CallsServiceAndRefreshesDetail()
+    public void DrawerApplySuccessCallsServiceAndRefreshesDetail()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1293,14 +1304,14 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Tag applied."));
         cut.Markup.ShouldContain("Lefty");
-        tagApplicationService.Received(1).ApplyAsync(
+        _ = tagApplicationService.Received(1).ApplyAsync(
             Arg.Is<ApplyCampaignTagApplicationInput>(input =>
                 input.PlayerCampaignAssignmentId == 301 && input.PlayerTagId == 11),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_RemoveTag_VisibleOnly_WhenCanRemove_AndNotArchived()
+    public void DrawerRemoveTagVisibleOnlyWhenCanRemoveAndNotArchived()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1321,13 +1332,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Lefty"));
 
         // Only the removable, non-archived application renders a Remove command.
-        cut.FindAll("button").Count(button => button.TextContent.Trim() == "Remove").ShouldBe(1);
+        cut.FindAll("button").Count(button => string.Equals(button.TextContent.Trim(), "Remove", StringComparison.Ordinal)).ShouldBe(1);
         // Archived application keeps the archived indicator and no Remove command is rendered for it.
         cut.Find(".participant-drawer-tag-archived").TextContent.Trim().ShouldBe("Veteran");
     }
 
     [Fact]
-    public void Drawer_RemoveTag_ConfirmsAndRemoves()
+    public void DrawerRemoveTagConfirmsAndRemoves()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1360,13 +1371,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Tag removed."));
         cut.Markup.ShouldContain("No tags applied.");
-        tagApplicationService.Received(1).RemoveAsync(
+        _ = tagApplicationService.Received(1).RemoveAsync(
             Arg.Is<RemoveCampaignTagApplicationInput>(input => input.CampaignTagApplicationId == 1),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_ArchivedApplication_NeverRendersRemove_EvenWithStaleCanRemove()
+    public void DrawerArchivedApplicationNeverRendersRemoveEvenWithStaleCanRemove()
     {
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
@@ -1389,7 +1400,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     // ── Stale Active→Closed conflict recovery ───────────────────────────────
 
     [Fact]
-    public void Drawer_ConflictRefresh_EntersReadOnly_WhenReloadIsClosed()
+    public void DrawerConflictRefreshEntersReadOnlyWhenReloadIsClosed()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1422,11 +1433,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Read-only — campaign is closed."));
         cut.Markup.ShouldNotContain("Add note");
         cut.Markup.ShouldNotContain("Note added.");
-        queryService.Received(2).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
+        _ = queryService.Received(2).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_ConflictReadOnlyTransition_ClosesOpenNoteEditor()
+    public void DrawerConflictReadOnlyTransitionClosesOpenNoteEditor()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1472,7 +1483,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void Drawer_ConflictRefresh_StaysEditable_WhenReloadIsActive()
+    public void DrawerConflictRefreshStaysEditableWhenReloadIsActive()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1505,11 +1516,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("The selected tag has already been applied to this participation."));
         cut.Markup.ShouldNotContain("Read-only — campaign is closed.");
         cut.Markup.ShouldContain("Select a tag…");
-        queryService.Received(2).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
+        _ = queryService.Received(2).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Drawer_ConflictRefreshFailure_KeepsMessage_AndDoesNotCrash()
+    public void DrawerConflictRefreshFailureKeepsMessageAndDoesNotCrash()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1653,7 +1664,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
     private static IElement FindButtonByText<T>(Bunit.IRenderedComponent<T> cut, string text)
         where T : class, IComponent
-        => cut.FindAll("button").Single(button => button.TextContent.Trim() == text);
+        => cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), text, StringComparison.Ordinal));
 
     private static CampaignParticipantRosterItem CreateRosterItem() => new(
         PlayerCampaignAssignmentId: 301,
@@ -1669,7 +1680,9 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     /// A test-only <see cref="CampaignParticipantDrawerComponent"/> subclass that seeds persisted
     /// prerender state before startup initialization runs.
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class RestoredDrawer(
+#pragma warning restore CA1812
         ICampaignParticipantQueryService participantQueryService,
         ICampaignEvaluationNoteService noteService,
         ICampaignTagApplicationService tagApplicationService,

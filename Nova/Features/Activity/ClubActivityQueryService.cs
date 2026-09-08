@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Activity;
 
@@ -18,7 +18,7 @@ namespace Nova.Features.Activity;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts.</param>
-public sealed partial class ClubActivityQueryService(
+internal sealed partial class ClubActivityQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<ClubActivityQueryService> logger) : IClubActivityQueryService
@@ -28,7 +28,7 @@ public sealed partial class ClubActivityQueryService(
     /// <see cref="ActivityEventWriter"/>; the polymorphic discriminator and property matching must
     /// therefore be case-insensitive.
     /// </summary>
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
@@ -95,7 +95,7 @@ public sealed partial class ClubActivityQueryService(
                 .ToListAsync(cancellationToken);
         }
 
-        return ClubActivityFeedPolicy.BuildPage(rows, isAdmin, cursor, JsonOptions);
+        return ClubActivityFeedPolicy.BuildPage(rows, isAdmin, cursor, _jsonOptions);
     }
 
     /// <summary>

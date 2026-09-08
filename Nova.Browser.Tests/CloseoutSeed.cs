@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -27,7 +27,7 @@ namespace Nova.Browser.Tests;
 /// <param name="ClosedCampaignId">The closed campaign identifier.</param>
 /// <param name="EligibleTeamId">An active team eligible for every seeded player.</param>
 /// <param name="EligibleTeamName">The eligible team's display name.</param>
-public sealed record SeededCloseoutWorkspace(
+internal sealed record SeededCloseoutWorkspace(
     long ClubId,
     long AdminUserId,
     string AdminEmail,
@@ -48,7 +48,7 @@ public sealed record SeededCloseoutWorkspace(
 /// team, a blocked campaign (one undecided, one ineligible, one archived-team assignment), a ready
 /// campaign, and a closed campaign carrying a real <c>Closed</c> lifecycle event.
 /// </summary>
-public static class CloseoutSeed
+internal static class CloseoutSeed
 {
     /// <summary>The password shared by every seeded user.</summary>
     public const string Password = "Test#Passw0rd!";
@@ -62,7 +62,9 @@ public static class CloseoutSeed
     /// <param name="fixture">The shared AppHost fixture.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The seeded closeout workspace.</returns>
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
     public static async Task<SeededCloseoutWorkspace> SeedAsync(
+#pragma warning restore MA0051
         NovaAppHostFixture fixture,
         CancellationToken cancellationToken)
     {
@@ -91,15 +93,23 @@ public static class CloseoutSeed
         long adminUserId;
         long secondAdminUserId;
         long evaluatorUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             secondAdminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == secondAdminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         using (var promotion = await adminClient.PostAsync(
-                   ClubEndpoints.PromoteMemberUrl(secondAdminUserId), null, cancellationToken))
+                   new Uri(ClubEndpoints.PromoteMemberUrl(secondAdminUserId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -204,7 +214,9 @@ public static class CloseoutSeed
     /// <param name="suffix">A stable name suffix.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The blocked campaign identifier and its participant assignment identifiers in tryout-number order.</returns>
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
     private static async Task<(long CampaignId, IReadOnlyList<long> AssignmentIds)> SeedBlockedCampaignAsync(
+#pragma warning restore MA0051
         NovaAppHostFixture fixture,
         long clubId,
         long adminUserId,

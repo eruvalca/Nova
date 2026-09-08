@@ -10,9 +10,9 @@ FORM: The send-code EditForm keeps its existing name, Input.Code binding, antifo
 
 <PageTitle>Configure authenticator app</PageTitle>
 
-@if (recoveryCodes is not null)
+@if (_recoveryCodes is not null)
 {
-    <ShowRecoveryCodes RecoveryCodes="recoveryCodes.ToArray()" StatusMessage="@message" />
+    <ShowRecoveryCodes RecoveryCodes="_recoveryCodes.ToArray()" StatusMessage="@_message" />
 }
 else
 {
@@ -22,7 +22,7 @@ else
             <p>Follow the three steps below to add a verification app to your account.</p>
         </header>
 
-        <StatusMessage Message="@message" />
+        <StatusMessage Message="@_message" />
         <ol class="manage-board manage-step-list">
             <li>
                 <h2>Download an authenticator app</h2>
@@ -36,9 +36,9 @@ else
             </li>
             <li>
                 <h2>Scan the QR code</h2>
-                <p>Scan the QR code or enter this key <kbd>@sharedKey</kbd> into your authenticator app. Spaces and casing do not matter.</p>
+                <p>Scan the QR code or enter this key <kbd>@_sharedKey</kbd> into your authenticator app. Spaces and casing do not matter.</p>
                 <div class="alert alert-info" role="note">Learn how to <a href="https://go.microsoft.com/fwlink/?Linkid=852423">enable QR code generation</a>.</div>
-                <div data-url="@authenticatorUri"></div>
+                <div data-url="@_authenticatorUri"></div>
             </li>
             <li>
                 <h2>Confirm the app code</h2>

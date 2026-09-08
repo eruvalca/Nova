@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Players;
 
@@ -13,7 +13,7 @@ namespace Nova.Features.Players;
 /// <param name="readDbContextFactory">The read-only context factory used for bounded projections.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization and tenancy context.</param>
 /// <param name="logger">The logger used for authorization and lookup failures.</param>
-public sealed partial class PlayerDetailQueryService(
+internal sealed partial class PlayerDetailQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<PlayerDetailQueryService> logger) : IPlayerDetailService
@@ -21,7 +21,9 @@ public sealed partial class PlayerDetailQueryService(
     private const string UnresolvedActorFallback = "Former member";
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<PlayerDetailDto>> GetPlayerDetailAsync(long playerId, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         if (currentUserProvider.UserId is not long
             || currentUserProvider.ClubId is not long clubId)
@@ -230,7 +232,7 @@ public sealed partial class PlayerDetailQueryService(
     /// <param name="actorDisplayNames">The actor display-name lookup dictionary.</param>
     /// <param name="actorUserId">The actor user identifier.</param>
     /// <returns>The resolved display name, or the stable fallback text when unavailable.</returns>
-    private static string ResolveActorDisplayName(IReadOnlyDictionary<long, string> actorDisplayNames, long actorUserId)
+    private static string ResolveActorDisplayName(Dictionary<long, string> actorDisplayNames, long actorUserId)
         => actorDisplayNames.TryGetValue(actorUserId, out var displayName)
             ? displayName
             : UnresolvedActorFallback;

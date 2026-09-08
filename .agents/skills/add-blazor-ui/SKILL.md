@@ -37,7 +37,7 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
 | Debounce + `DisposeAsyncCore` cleanup | `Nova.UI\Features\Clubs\Components\ClubSearchPanel.razor.cs` |
 | Collocated JS module + lazy import + module disposal | `Nova.UI\Features\Campaigns\Components\CampaignParticipantDrawer.razor(.js/.cs)` |
 | Listener attach/detach + replace-on-attach | `Nova.UI\Features\Campaigns\Pages\CampaignWorkspace.razor(.js/.cs)` |
-| Cross-feature shared component | `Nova.UI\Shared\ConfirmDeleteDialog.razor(.cs)` |
+| Cross-feature shared component | `Nova.UI\Common\ConfirmDeleteDialog.razor(.cs)` |
 | Per-instance interactive island on a static SSR page | `Nova\Components\Account\Pages\Manage\DeletePersonalData.razor` |
 
 `Nova.UI\_Imports.razor` already provides `@inherits Nova.UI.Components.NovaComponentBase` and

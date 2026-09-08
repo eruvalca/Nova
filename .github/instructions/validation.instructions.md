@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova.Shared/**/*Input.cs,Nova.Shared/Validation/**/*.cs,Nova/Features/**/*Service*.cs"
+applyTo: "Nova.SharedKernel/**/*Input.cs,Nova.SharedKernel/Validation/**/*.cs,Nova/Features/**/*Service*.cs"
 description: "Validation rules: DataAnnotations on input records as single source of truth, the [NotWhitespace] attribute, InputValidator.Validate<T>, dual-layer rationale, and the ProfilePhotoValidator exception."
 ---
 
@@ -11,24 +11,24 @@ description: "Validation rules: DataAnnotations on input records as single sourc
 
 ## Annotated input records are the single source of truth
 
-- Every input record lives in `Nova.Shared/{Feature}/{Name}Input.cs` and carries its validation rules
+- Every input record lives in `Nova.SharedKernel/{Feature}/{Name}Input.cs` and carries its validation rules
   as DataAnnotations. Services do not hand-roll field checks; they run the same attributes.
 - **Use explicit init-only properties, not positional constructor parameters.** Attributes on
-  positional record parameters land on the *constructor parameter*, which `Validator.TryValidateObject`
+  positional record parameters land on the _constructor parameter_, which `Validator.TryValidateObject`
   does not reflect on. The explicit property form is required.
 
 ## `[Required]` + `[NotWhitespace]`
 
 - `[Required]` rejects a missing value (`null`) but treats `"   "` as valid.
-- `[NotWhitespace]` (`Nova.Shared/Validation/NotWhitespaceAttribute.cs`) rejects empty/whitespace-only
+- `[NotWhitespace]` (`Nova.SharedKernel/Validation/NotWhitespaceAttribute.cs`) rejects empty/whitespace-only
   strings and passes `null` (so `[Required]` owns "missing", `[NotWhitespace]` owns "present but blank").
 - **Always pair them** (`[Required, NotWhitespace]`) on every string that must contain non-blank text.
 - Add `[MaxLength]`, `[Range]`, `[EmailAddress]`, etc. as appropriate.
 
 ## `InputValidator.Validate<T>`
 
-- `Nova.Shared/Validation/InputValidator.cs` runs `Validator.TryValidateObject(…,
-  validateAllProperties: true)` and projects results into the `Dictionary<string, string[]>` shape
+- `Nova.SharedKernel/Validation/InputValidator.cs` runs `Validator.TryValidateObject(…,
+validateAllProperties: true)` and projects results into the `Dictionary<string, string[]>` shape
   `ServiceProblem.Validation` consumes (empty = valid).
 - Call it at the top of the consuming service method and short-circuit with
   `ServiceProblem.Validation(errors)` when `errors.Count > 0`.
@@ -64,8 +64,8 @@ content sniffing, streaming) follows the same manual-validator approach — see
 ## Related
 
 - `.agents/skills/add-feature-slice/` — full input + validation recipe and examples.
-- `Nova.Shared/Validation/InputValidator.cs`, `Nova.Shared/Validation/NotWhitespaceAttribute.cs`.
-- `Nova.Shared/Results/ServiceProblem.cs`.
+- `Nova.SharedKernel/Validation/InputValidator.cs`, `Nova.SharedKernel/Validation/NotWhitespaceAttribute.cs`.
+- `Nova.SharedKernel/Results/ServiceProblem.cs`.
 - `Nova/Features/Photos/ProfilePhotoValidator.cs`.
 - `.github/instructions/service-layer.instructions.md`, `.github/instructions/api-endpoints.instructions.md`.
 - `.github/instructions/functional-core.instructions.md`.

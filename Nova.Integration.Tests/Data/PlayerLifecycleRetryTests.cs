@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -17,9 +17,13 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies a transient post-save failure rolls back and retries with database state loaded by a fresh context.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_RetriesWithFreshContext_AfterTransientSaveFailure()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task PlayerLifecycleRetriesWithFreshContextAfterTransientSaveFailureAsync()
+#pragma warning restore MA0051
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         long clubId;
         long playerId;
@@ -91,9 +95,11 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     /// reported as success rather than replayed into a spurious "already archived" conflict.
     /// </summary>
     [Fact]
-    public async Task PlayerArchive_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task PlayerArchiveReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, playerId) = await SeedClubAndPlayerAsync(actorUserId, suffix);
 
@@ -129,9 +135,11 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies the same ambiguous-commit protection applies to restore.
     /// </summary>
     [Fact]
-    public async Task PlayerRestore_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task PlayerRestoreReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, playerId) = await SeedClubAndPlayerAsync(actorUserId, suffix, archived: true);
 
@@ -179,34 +187,37 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Player Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Player Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Retry",
-            LastName = suffix,
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
-            ArchivedById = archived ? actorUserId : null
-        };
-        seed.Players.Add(player);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Retry",
+                LastName = suffix,
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
+                ArchivedById = archived ? actorUserId : null
+            };
+            seed.Players.Add(player);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return (club.ClubId, player.PlayerId);
+            return (club.ClubId, player.PlayerId);
+        }
     }
 }

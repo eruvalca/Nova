@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Entities.Base;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Data;
 
@@ -14,7 +14,7 @@ namespace Nova.Data;
 /// and the tenant global query filters. Do not use directly; use <see cref="NovaDbContext"/>,
 /// <see cref="NovaReadDbContext"/>, or <see cref="NovaAdminDbContext"/>.
 /// </summary>
-public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, IdentityRole<long>, long>
+internal abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, IdentityRole<long>, long>
 {
     /// <summary>
     /// The provider exposing the current user's id, club id, and roles.
@@ -118,20 +118,19 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     public DbSet<ClubCrestEntity> ClubCrests => Set<ClubCrestEntity>();
 
     /// <inheritdoc />
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
+    protected override void OnModelCreating(ModelBuilder builder)
+#pragma warning restore MA0051
     {
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
 
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
         // Generic tenant filter for all ITenantOwnedEntity types:
         //   e => _bypassTenantFilter || e.ClubId == _currentUser.ClubId
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var entityType in builder.Model.GetEntityTypes().Select(type => type.ClrType).Where(type => typeof(ITenantOwnedEntity).IsAssignableFrom(type)))
         {
-            if (typeof(ITenantOwnedEntity).IsAssignableFrom(entityType.ClrType))
-            {
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(BuildTenantFilter(entityType.ClrType));
-            }
+            builder.Entity(entityType).HasQueryFilter(BuildTenantFilter(entityType));
         }
 
         // Bespoke filters (HasQueryFilter replaces any previous filter, so these win).
@@ -139,48 +138,48 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
 
         // Draft campaigns are administrator-only preparation data. Keep this at the model boundary
         // so navigations, aggregate counts, searches, and deep links cannot disclose them to members.
-        modelBuilder.Entity<CampaignEntity>().HasQueryFilter(e =>
+        builder.Entity<CampaignEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId == _currentUser.ClubId
                 && (_currentUser.IsClubAdmin || e.Status != CampaignStatus.Draft)));
 
         // Draft visibility must flow through the full evaluation graph. Filtering only the
         // Campaign principal would still allow direct DbSet queries to disclose dependent rows.
-        modelBuilder.Entity<PlayerCampaignAssignmentEntity>().HasQueryFilter(e =>
+        builder.Entity<PlayerCampaignAssignmentEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId == _currentUser.ClubId
                 && (_currentUser.IsClubAdmin || e.Campaign.Status != CampaignStatus.Draft)));
-        modelBuilder.Entity<NoteEntity>().HasQueryFilter(e =>
+        builder.Entity<NoteEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId == _currentUser.ClubId
                 && (_currentUser.IsClubAdmin
                     || e.PlayerCampaignAssignment.Campaign.Status != CampaignStatus.Draft)));
-        modelBuilder.Entity<CampaignTagApplicationEntity>().HasQueryFilter(e =>
+        builder.Entity<CampaignTagApplicationEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId == _currentUser.ClubId
                 && (_currentUser.IsClubAdmin
                     || e.PlayerCampaignAssignment.Campaign.Status != CampaignStatus.Draft)));
 
         // Administrator-only activity follows the same visibility boundary as Draft campaigns.
-        modelBuilder.Entity<ActivityEventEntity>().HasQueryFilter(e =>
+        builder.Entity<ActivityEventEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId == _currentUser.ClubId
                 && (_currentUser.IsClubAdmin || !e.IsAdminOnly)));
 
         // Join requests: visible to the requester, and to ClubAdmins of the target club.
-        modelBuilder.Entity<ClubJoinRequestEntity>().HasQueryFilter(e =>
+        builder.Entity<ClubJoinRequestEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || e.RequestingUserId == _currentUser.UserId
             || (_currentUser.IsClubAdmin && e.ClubId == _currentUser.ClubId));
 
         // Users: visible to fellow club members; a user can always see themselves.
-        modelBuilder.Entity<NovaUserEntity>().HasQueryFilter(e =>
+        builder.Entity<NovaUserEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.ClubId != null && e.ClubId == _currentUser.ClubId)
             || e.Id == _currentUser.UserId);
 
         // User photos: mirror the user filter (required dependent of a filtered principal).
-        modelBuilder.Entity<NovaUserPhotoEntity>().HasQueryFilter(e =>
+        builder.Entity<NovaUserPhotoEntity>().HasQueryFilter(e =>
             _bypassTenantFilter
             || (e.NovaUser.ClubId != null && e.NovaUser.ClubId == _currentUser.ClubId)
             || e.NovaUserId == _currentUser.UserId);

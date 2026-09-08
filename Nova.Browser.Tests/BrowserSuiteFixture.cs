@@ -9,6 +9,7 @@ namespace Nova.Browser.Tests;
 /// shared Chromium instance, and exposes helpers that seed an authenticated browser session for
 /// a club member. Browser tests are local-only (CI runs build and unit tests only).
 /// </summary>
+#pragma warning disable CA1515 // xUnit constructs this public collection fixture and injects it into public test constructors.
 public sealed class BrowserSuiteFixture : IAsyncLifetime
 {
     private readonly NovaAppHostFixture _appHost = new();
@@ -26,7 +27,7 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     {
         await _appHost.InitializeAsync();
         _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        var headed = Environment.GetEnvironmentVariable("NOVA_BROWSER_HEADED") == "1";
+        var headed = string.Equals(Environment.GetEnvironmentVariable("NOVA_BROWSER_HEADED"), "1", StringComparison.Ordinal);
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = !headed });
     }
 
@@ -139,8 +140,10 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
 /// Collection definition that shares one AppHost + browser instance across all browser tests.
 /// </summary>
 [CollectionDefinition(Name)]
+#pragma warning disable CA1711 // This xUnit collection definition groups tests sharing the Aspire and browser fixture.
 public sealed class BrowserSuiteCollection : ICollectionFixture<BrowserSuiteFixture>
 {
     /// <summary>The collection name used by browser tests.</summary>
     public const string Name = "BrowserSuite";
+#pragma warning restore CA1711, CA1515
 }

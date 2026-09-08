@@ -14,7 +14,6 @@ namespace Nova.Browser.Tests;
 public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
 {
     private const string ExpectedPrimaryRgb = "rgb(14, 124, 123)";
-    private const string DefaultBootstrapBlueRgb = "rgb(13, 110, 253)";
 
     /// <summary>
     /// BT1: the kelp theme is compiled in and applied — the primary button is the kelp teal, the
@@ -22,7 +21,9 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
     /// the default Bootstrap blue.
     /// </summary>
     [Fact]
-    public async Task Theme_PrimaryButtonAndFocusRing_AreKelpTeal_WithNoBootstrapBlue()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task ThemePrimaryButtonAndFocusRingAreKelpTealWithNoBootstrapBlueAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -43,7 +44,7 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
         {
             backgroundColor = await primaryButton.EvaluateAsync<string>(
                 "(el) => getComputedStyle(el).backgroundColor");
-            if (backgroundColor == ExpectedPrimaryRgb)
+            if (string.Equals(backgroundColor, ExpectedPrimaryRgb, StringComparison.Ordinal))
             {
                 break;
             }
@@ -63,7 +64,7 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
         {
             focusRing = await select.EvaluateAsync<string>(
                 "(el) => { el.focus(); return getComputedStyle(el).boxShadow; }");
-            if (focusRing.Contains("rgba(14, 124, 123"))
+            if (focusRing.Contains("rgba(14, 124, 123", StringComparison.Ordinal))
             {
                 break;
             }
@@ -92,7 +93,7 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
     /// status badge, and a navigation link each measure at least 4.5:1 against their background.
     /// </summary>
     [Fact]
-    public async Task Theme_PrimaryButtonBadgeAndNavLink_MeetContrastThreshold()
+    public async Task ThemePrimaryButtonBadgeAndNavLinkMeetContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);

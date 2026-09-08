@@ -1,12 +1,13 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Components;
 using Nova.UI.Features.Campaigns.Services;
@@ -506,18 +507,12 @@ public partial class CampaignWorkspace(
             PlacementGraduationYearQuery,
             UnresolvedOnlyQuery,
             PlacementPageQuery);
-        if (placement != _placementState)
-        {
-            _placementState = placement;
-        }
+        _placementState = placement;
 
         // Participant selection lives outside the roster state so opening/closing the drawer
         // never triggers a roster reload.
         var participant = CampaignWorkspaceUrlState.ParseParticipant(ParticipantQuery);
-        if (participant != _selectedParticipantId)
-        {
-            _selectedParticipantId = participant;
-        }
+        _selectedParticipantId = participant;
 
         var incoming = CampaignWorkspaceUrlState.Parse(
             SearchQuery,
@@ -588,7 +583,7 @@ public partial class CampaignWorkspace(
         _isLoading = true;
         var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
         if (InitialDetail is { Status: CampaignStatus.Active or CampaignStatus.Closed } initial
-            && initial.CampaignId == CampaignId && InitialDetailScope == scope)
+            && initial.CampaignId == CampaignId && string.Equals(InitialDetailScope, scope, StringComparison.Ordinal))
         {
             _detail = initial;
             _isLoading = false;
@@ -637,6 +632,7 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
+        await base.DisposeAsyncCore();
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
@@ -646,7 +642,7 @@ public partial class CampaignWorkspace(
             try
             {
                 var module = await _moduleTask.Value;
-                await module.InvokeVoidAsync("detachRosterActivationSuppression");
+                await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
                 await module.DisposeAsync();
             }
             catch (JSDisconnectedException)
@@ -1080,15 +1076,7 @@ public partial class CampaignWorkspace(
     /// Cancels the closeout view and returns to the evaluate tab, preserving the current roster state.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnCancelCloseoutAsync()
-    {
-        if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
-        {
-            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
-        }
-
-        return Task.CompletedTask;
-    }
+    private Task OnCancelCloseoutAsync() => SelectEvaluateTabAsync();
 
     /// <summary>
     /// Applies a placement filter or page change raised by the placements panel and pushes the
@@ -1485,7 +1473,9 @@ public partial class CampaignWorkspace(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     protected override async Task OnAfterRenderAsync(bool firstRender)
+#pragma warning restore MA0051
     {
         // The roster region is only in the DOM when a loaded roster is rendered; keep the
         // pending scroll work until then so filter changes still scroll after a loading pass.
@@ -1497,7 +1487,7 @@ public partial class CampaignWorkspace(
             if (_moduleTask.IsValueCreated)
             {
                 var rosterModule = await _moduleTask.Value;
-                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression");
+                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
             }
 
             return;
@@ -1537,11 +1527,11 @@ public partial class CampaignWorkspace(
         // whose contains() check would throw on every keydown.
         if (_roster.TotalCount > 0)
         {
-            await module.InvokeVoidAsync("attachRosterActivationSuppression", _rosterScrollRegion);
+            await module.InvokeVoidAsync("attachRosterActivationSuppression", ComponentCancellationToken, _rosterScrollRegion);
         }
         else
         {
-            await module.InvokeVoidAsync("detachRosterActivationSuppression");
+            await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
         }
 
         if (_scrollToRosterTop)
@@ -1579,9 +1569,10 @@ public partial class CampaignWorkspace(
     /// <param name="detail">The campaign detail payload.</param>
     /// <returns>The formatted date range.</returns>
     protected static string FormatCampaignDates(CampaignDetailResult detail)
-        => detail.PlannedEndDate is null
-            ? $"Starts {detail.StartDate:MMM d, yyyy}"
-            : $"{detail.StartDate:MMM d, yyyy} – {detail.PlannedEndDate.Value:MMM d, yyyy}";
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return detail.PlannedEndDate is null ? $"Starts {detail.StartDate:MMM d, yyyy}" : $"{detail.StartDate:MMM d, yyyy} – {detail.PlannedEndDate.Value:MMM d, yyyy}";
+    }
 
     /// <summary>
     /// Maps a campaign lifecycle status to its Bootstrap badge class.
@@ -1642,3 +1633,6 @@ public partial class CampaignWorkspace(
         Last
     }
 }
+
+
+#pragma warning restore CA1849, S6966

@@ -4,9 +4,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 using static Nova.Integration.Tests.Http.SeedingHelpers;
 
@@ -25,19 +25,19 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies anonymous callers receive an unauthorized response for both lifecycle endpoints.
     /// </summary>
     [Fact]
-    public async Task CampaignLifecycle_ReturnsUnauthorized_ForAnonymousCaller()
+    public async Task CampaignLifecycleReturnsUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
 
         using var closeResponse = await anonymousClient.PostAsync(
-            CampaignEndpoints.CloseUrl(1),
+new Uri(CampaignEndpoints.CloseUrl(1), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         closeResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         using var reopenResponse = await anonymousClient.PostAsync(
-            CampaignEndpoints.ReopenUrl(1),
+new Uri(CampaignEndpoints.ReopenUrl(1), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         reopenResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -48,7 +48,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// for both lifecycle endpoints.
     /// </summary>
     [Fact]
-    public async Task CampaignLifecycle_ReturnsForbidden_ForClubMember()
+    public async Task CampaignLifecycleReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -73,13 +73,13 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         using var closeResponse = await memberClient.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         closeResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using var reopenResponse = await memberClient.PostAsync(
-            CampaignEndpoints.ReopenUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.ReopenUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         reopenResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -90,7 +90,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// and a Closed lifecycle event transactionally.
     /// </summary>
     [Fact]
-    public async Task CampaignClose_ReturnsNoContent_AndPersistsClosure_ForClubAdmin()
+    public async Task CampaignCloseReturnsNoContentAndPersistsClosureForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -108,7 +108,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         using var response = await client.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -136,7 +136,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// participants are undecided, ineligible, or assigned to an archived team.
     /// </summary>
     [Fact]
-    public async Task CampaignClose_ReturnsConflict_WithConditionKeyedBlockers()
+    public async Task CampaignCloseReturnsConflictWithConditionKeyedBlockersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -163,12 +163,12 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
                     TeamLifecycleStatus: LifecycleStatus.Archived)
             ],
             cancellationToken);
-        var undecidedId = seeded.Participants[0].AssignmentId;
+        _ = seeded.Participants[0].AssignmentId;
         var ineligibleId = seeded.Participants[1].AssignmentId;
         var archivedTeamId = seeded.Participants[2].AssignmentId;
 
         using var response = await client.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -178,8 +178,8 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         errors.ShouldContainKey("eligibility");
         errors.ShouldContainKey("archivedTeams");
         errors["outcomes"].Single().ShouldContain("1 undecided participation record");
-        errors["eligibility"].Single().ShouldContain(ineligibleId.ToString());
-        errors["archivedTeams"].Single().ShouldContain(archivedTeamId.ToString());
+        errors["eligibility"].Single().ShouldContain(ineligibleId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        errors["archivedTeams"].Single().ShouldContain(archivedTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         await using var context = fixture.CreateAdminContext();
         var campaign = await context.Campaigns
@@ -196,7 +196,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies another club's campaign is hidden behind a non-disclosing not-found response.
     /// </summary>
     [Fact]
-    public async Task CampaignClose_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task CampaignCloseReturnsNotFoundForCrossTenantCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -224,7 +224,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
         using var response = await otherClient.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -239,7 +239,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies closing an already-closed campaign and reopening an already-active campaign both conflict.
     /// </summary>
     [Fact]
-    public async Task CampaignLifecycle_ReturnsConflict_ForAlreadyTransitionedCampaign()
+    public async Task CampaignLifecycleReturnsConflictForAlreadyTransitionedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -258,7 +258,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             cancellationToken,
             closed: true);
         using var closeAgainResponse = await client.PostAsync(
-            CampaignEndpoints.CloseUrl(closedCampaign.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(closedCampaign.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         closeAgainResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -270,7 +270,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             [ReadyParticipant],
             cancellationToken);
         using var reopenActiveResponse = await client.PostAsync(
-            CampaignEndpoints.ReopenUrl(activeCampaign.CampaignId),
+new Uri(CampaignEndpoints.ReopenUrl(activeCampaign.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         reopenActiveResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -281,7 +281,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// persisting a Reopened lifecycle event.
     /// </summary>
     [Fact]
-    public async Task CampaignReopen_ReturnsNoContent_AndClearsClosure_ForClubAdmin()
+    public async Task CampaignReopenReturnsNoContentAndClearsClosureForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -300,7 +300,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             closed: true);
 
         using var response = await client.PostAsync(
-            CampaignEndpoints.ReopenUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.ReopenUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -330,7 +330,9 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// previously decided outcomes.
     /// </summary>
     [Fact]
-    public async Task CampaignReopen_RestoresEditing_WithoutDiscardingOutcomes()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CampaignReopenRestoresEditingWithoutDiscardingOutcomesAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -351,13 +353,13 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         using (var closeResponse = await client.PostAsync(
-                   CampaignEndpoints.CloseUrl(seeded.CampaignId), content: null, cancellationToken))
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             closeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         using (var reopenResponse = await client.PostAsync(
-                   CampaignEndpoints.ReopenUrl(seeded.CampaignId), content: null, cancellationToken))
+new Uri(CampaignEndpoints.ReopenUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             reopenResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -366,7 +368,9 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         var eligibleTeamId = seeded.Participants[0].TeamId!.Value;
 
         Guid expectedToken;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             expectedToken = await context.PlayerCampaignAssignments
                 .Where(assignment => assignment.PlayerCampaignAssignmentId == previouslyNotSelected.AssignmentId)
@@ -404,8 +408,8 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             .OrderBy(candidate => candidate.ActivityEventId)
             .Select(candidate => new { candidate.EventKind, candidate.CreatedById })
             .ToListAsync(cancellationToken);
-        reopenEvents.Last().EventKind.ShouldBe(ActivityEventKind.PlacementOutcomeReplaced);
-        reopenEvents.Last().CreatedById.ShouldBe(seeded.AdminUserId);
+        reopenEvents[^1].EventKind.ShouldBe(ActivityEventKind.PlacementOutcomeReplaced);
+        reopenEvents[^1].CreatedById.ShouldBe(seeded.AdminUserId);
         reopenEvents.ShouldContain(activityEvent => activityEvent.EventKind == ActivityEventKind.CampaignReopened
             && activityEvent.CreatedById == seeded.AdminUserId);
     }
@@ -415,7 +419,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// when a club administrator attempts to reopen it.
     /// </summary>
     [Fact]
-    public async Task CampaignReopen_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task CampaignReopenReturnsNotFoundForCrossTenantCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -444,7 +448,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
         using var response = await otherClient.PostAsync(
-            CampaignEndpoints.ReopenUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.ReopenUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 
@@ -503,7 +507,9 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <param name="closed">Whether the campaign should be seeded as closed.</param>
     /// <returns>The seeded campaign, admin user, and participant identifiers.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<CampaignSeed> SeedCampaignAsync(
+#pragma warning restore MA0051
         long clubId,
         string adminEmail,
         string namePrefix,
@@ -511,123 +517,126 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken,
         bool closed = false)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
 
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"{namePrefix} Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"{namePrefix} Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = closed ? user.Id : null,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        context.AddRange(season, campaign);
-        await context.SaveChangesAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(
-            candidate => candidate.ClubId == clubId,
-            cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await context.SaveChangesAsync(cancellationToken);
-
-        var players = new List<PlayerEntity>(participants.Count);
-        var teams = new List<TeamEntity?>(participants.Count);
-        for (var index = 0; index < participants.Count; index++)
-        {
-            var spec = participants[index];
-            players.Add(new PlayerEntity
+            var suffix = Guid.NewGuid().ToString("N");
+            var season = new SeasonEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                FirstName = namePrefix,
-                LastName = $"Player {index + 1:D2}",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = spec.PlayerGraduationYear,
-                LifecycleStatus = LifecycleStatus.Active,
+                Name = $"{namePrefix} Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = clubId,
                 CreatedById = user.Id
-            });
+            };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"{namePrefix} Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
+                ClosedAt = closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ClosedById = closed ? user.Id : null,
+                Season = season,
+                SeasonId = 0,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            context.AddRange(season, campaign);
+            await context.SaveChangesAsync(cancellationToken);
+            var club = await context.Clubs.SingleAsync(
+                candidate => candidate.ClubId == clubId,
+                cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
 
-            teams.Add(spec.TeamGraduationYear is int teamGraduationYear
-                ? new TeamEntity
+            var players = new List<PlayerEntity>(participants.Count);
+            var teams = new List<TeamEntity?>(participants.Count);
+            for (var index = 0; index < participants.Count; index++)
+            {
+                var spec = participants[index];
+                players.Add(new PlayerEntity
                 {
                     CreationOperationId = Guid.NewGuid(),
-                    Name = $"{namePrefix} Team {index + 1:D2} {suffix}",
-                    GraduationYear = teamGraduationYear,
-                    LifecycleStatus = spec.TeamLifecycleStatus ?? LifecycleStatus.Active,
-                    ArchivedAt = spec.TeamLifecycleStatus == LifecycleStatus.Archived
-                        ? DateTimeOffset.UtcNow.AddDays(-1)
-                        : null,
-                    ArchivedById = spec.TeamLifecycleStatus == LifecycleStatus.Archived ? user.Id : null,
+                    FirstName = namePrefix,
+                    LastName = $"Player {index + 1:D2}",
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = spec.PlayerGraduationYear,
+                    LifecycleStatus = LifecycleStatus.Active,
                     ClubId = clubId,
                     CreatedById = user.Id
-                }
-                : null);
-        }
+                });
 
-        context.AddRange(players);
-        context.AddRange(teams.Where(team => team is not null).Select(team => team!));
-        await context.SaveChangesAsync(cancellationToken);
+                var archivedAt = spec.TeamLifecycleStatus == LifecycleStatus.Archived ? (DateTimeOffset?)DateTimeOffset.UtcNow.AddDays(-1) : null;
+                long? archivedById = spec.TeamLifecycleStatus == LifecycleStatus.Archived ? user.Id : null;
+                teams.Add(spec.TeamGraduationYear is int teamGraduationYear
+                    ? new TeamEntity
+                    {
+                        CreationOperationId = Guid.NewGuid(),
+                        Name = $"{namePrefix} Team {index + 1:D2} {suffix}",
+                        GraduationYear = teamGraduationYear,
+                        LifecycleStatus = spec.TeamLifecycleStatus ?? LifecycleStatus.Active,
+                        ArchivedAt = archivedAt,
+                        ArchivedById = archivedById,
+                        ClubId = clubId,
+                        CreatedById = user.Id
+                    }
+                    : null);
+            }
 
-        var seededParticipants = new List<SeededParticipant>(participants.Count);
-        for (var index = 0; index < participants.Count; index++)
-        {
-            var spec = participants[index];
-            var teamId = teams[index]?.TeamId;
-            var assignment = new PlayerCampaignAssignmentEntity
-            {
-                PlayerId = players[index].PlayerId,
-                CampaignId = campaign.CampaignId,
-                ClubId = clubId,
-                CreatedById = user.Id,
-                PlacementOutcome = spec.Outcome,
-                TeamId = teamId,
-                TryoutNumber = index + 1
-            };
-            context.Add(assignment);
+            context.AddRange(players);
+            context.AddRange(teams.Where(team => team is not null).Select(team => team!));
             await context.SaveChangesAsync(cancellationToken);
-            seededParticipants.Add(new SeededParticipant(
-                assignment.PlayerCampaignAssignmentId,
-                spec.Outcome,
-                teamId));
-        }
 
-        if (closed)
-        {
-            context.ActivityEvents.Add(new ActivityEventEntity
+            var seededParticipants = new List<SeededParticipant>(participants.Count);
+            for (var index = 0; index < participants.Count; index++)
             {
-                CampaignId = campaign.CampaignId,
-                ClubId = clubId,
-                EventKind = ActivityEventKind.CampaignClosed,
-                ActorUserId = user.Id,
-                ActorDisplayName = $"{user.FirstName} {user.LastName}",
-                PayloadJson = JsonSerializer.Serialize(
-                    new CampaignLifecycleContext
+                var spec = participants[index];
+                var teamId = teams[index]?.TeamId;
+                var assignment = new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = players[index].PlayerId,
+                    CampaignId = campaign.CampaignId,
+                    ClubId = clubId,
+                    CreatedById = user.Id,
+                    PlacementOutcome = spec.Outcome,
+                    TeamId = teamId,
+                    TryoutNumber = index + 1
+                };
+                context.Add(assignment);
+                await context.SaveChangesAsync(cancellationToken);
+                seededParticipants.Add(new SeededParticipant(
+                    assignment.PlayerCampaignAssignmentId,
+                    spec.Outcome,
+                    teamId));
+            }
+
+            if (closed)
+            {
+                context.ActivityEvents.Add(new ActivityEventEntity
+                {
+                    CampaignId = campaign.CampaignId,
+                    ClubId = clubId,
+                    EventKind = ActivityEventKind.CampaignClosed,
+                    ActorUserId = user.Id,
+                    ActorDisplayName = $"{user.FirstName} {user.LastName}",
+                    PayloadJson = JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext
                     {
                         CampaignId = campaign.CampaignId,
                         CampaignName = campaign.Name
-                    },
-                    typeof(ClubActivityContext)),
-                CreatedById = user.Id
-            });
-            await context.SaveChangesAsync(cancellationToken);
-        }
+                    }),
+                    CreatedById = user.Id
+                });
+                await context.SaveChangesAsync(cancellationToken);
+            }
 
-        return new CampaignSeed(campaign.CampaignId, user.Id, seededParticipants);
+            return new CampaignSeed(campaign.CampaignId, user.Id, seededParticipants);
+        }
     }
 
     /// <summary>
@@ -646,6 +655,6 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 }

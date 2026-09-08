@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Campaigns;
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly client implementation of <see cref="ICampaignTagApplicationService"/> that calls campaign tag application endpoints.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignTagApplicationService(HttpClient http) : ICampaignTagApplicationService
+internal sealed class HttpCampaignTagApplicationService(HttpClient http) : ICampaignTagApplicationService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignTagApplicationMutationSuccess>> ApplyAsync(
@@ -37,7 +37,7 @@ public sealed class HttpCampaignTagApplicationService(HttpClient http) : ICampai
         CancellationToken cancellationToken = default)
     {
         using var response = await http.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(input.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(input.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

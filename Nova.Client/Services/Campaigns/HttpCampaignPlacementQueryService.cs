@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignPlacementQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampaignPlacementQueryService
+internal sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampaignPlacementQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PagedResult<CampaignPlacementRosterItem>>> GetPlacementRosterAsync(
@@ -27,7 +27,7 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
         var unresolvedOnly = input.UnresolvedOnly == true;
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(input),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(input), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -52,7 +52,7 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(input.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(input.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

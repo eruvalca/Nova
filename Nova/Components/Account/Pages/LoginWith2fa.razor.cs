@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -17,12 +18,12 @@ public partial class LoginWith2fa(
     /// <summary>
     /// Stores the error message to display to the user.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Caches the currently authenticating user entity.
     /// </summary>
-    private NovaUserEntity user = default!;
+    private NovaUserEntity _user = default!;
 
     /// <summary>
     /// Gets or sets the 2FA form input model supplied from the form post.
@@ -51,7 +52,7 @@ public partial class LoginWith2fa(
         Input ??= new();
 
         // Ensure the user has gone through the username & password screen first
-        user = await signInManager.GetTwoFactorAuthenticationUserAsync() ??
+        _user = await signInManager.GetTwoFactorAuthenticationUserAsync() ??
             throw new InvalidOperationException("Unable to load two-factor authentication user.");
     }
 
@@ -61,10 +62,10 @@ public partial class LoginWith2fa(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        var authenticatorCode = Input.TwoFactorCode!.Replace(" ", string.Empty).Replace("-", string.Empty);
+        var authenticatorCode = Input.TwoFactorCode!.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
         var result = await signInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, RememberMe,
 Input.RememberMachine);
-        var userId = await userManager.GetUserIdAsync(user);
+        var userId = await userManager.GetUserIdAsync(_user);
 
         if (result.Succeeded)
         {
@@ -79,7 +80,7 @@ Input.RememberMachine);
         else
         {
             LogInvalidAuthenticatorCodeEntered(userId);
-            message = "Error: Invalid authenticator code.";
+            _message = "Error: Invalid authenticator code.";
         }
     }
 

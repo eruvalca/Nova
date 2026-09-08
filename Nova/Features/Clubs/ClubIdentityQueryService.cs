@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Clubs;
 
@@ -10,7 +10,7 @@ namespace Nova.Features.Clubs;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
 /// <param name="logger">The logger for club identity read failures.</param>
-public sealed partial class ClubIdentityQueryService(
+internal sealed partial class ClubIdentityQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<ClubIdentityQueryService> logger) : IClubIdentityQueryService

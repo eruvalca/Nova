@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddPlayerCreationIdempotency : Migration
+internal partial class AddPlayerCreationIdempotency : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

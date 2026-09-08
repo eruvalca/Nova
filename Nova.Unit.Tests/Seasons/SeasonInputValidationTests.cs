@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Seasons;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Seasons;
@@ -9,7 +9,7 @@ public sealed class SeasonInputValidationTests
 {
     /// <summary>Verifies empty operation IDs and blank names are rejected.</summary>
     [Fact]
-    public void CreateSeasonInput_RejectsInvalidFields()
+    public void CreateSeasonInputRejectsInvalidFields()
     {
         var errors = InputValidator.Validate(new CreateSeasonInput
         {
@@ -24,7 +24,7 @@ public sealed class SeasonInputValidationTests
 
     /// <summary>Verifies an end date before the start date is rejected.</summary>
     [Fact]
-    public void CreateSeasonInput_RejectsInvertedDateRange()
+    public void CreateSeasonInputRejectsInvertedDateRange()
     {
         var errors = InputValidator.Validate(new CreateSeasonInput
         {
@@ -39,7 +39,7 @@ public sealed class SeasonInputValidationTests
 
     /// <summary>Verifies paging accepts defaults but rejects values outside the documented bounds.</summary>
     [Fact]
-    public void Paging_UsesOptionalDefaults_AndRejectsOversizedPage()
+    public void PagingUsesOptionalDefaultsAndRejectsOversizedPage()
     {
         InputValidator.Validate(new GetSeasonListInput()).ShouldBeEmpty();
         var errors = InputValidator.Validate(new GetSeasonListInput
@@ -53,7 +53,7 @@ public sealed class SeasonInputValidationTests
 
     /// <summary>Verifies update and advancement inputs enforce tokens, IDs, names, and date ranges.</summary>
     [Fact]
-    public void UpdateAndStartNextInputs_RejectInvalidFields()
+    public void UpdateAndStartNextInputsRejectInvalidFields()
     {
         var updateErrors = InputValidator.Validate(new UpdateSeasonInput
         {
@@ -86,12 +86,12 @@ public sealed class SeasonInputValidationTests
             EndDate = new DateOnly(2026, 1, 31)
         });
 
-        updateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.ExpectedConcurrencyToken));
-        updateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.Name));
-        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.OperationId));
-        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.ExpectedCurrentSeasonId));
-        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.Name));
-        updateDateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.EndDate));
-        startDateErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.EndDate));
+        updateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.ExpectedConcurrencyToken), StringComparer.Ordinal);
+        updateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.Name), StringComparer.Ordinal);
+        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.OperationId), StringComparer.Ordinal);
+        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.ExpectedCurrentSeasonId), StringComparer.Ordinal);
+        startErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.Name), StringComparer.Ordinal);
+        updateDateErrors.Keys.ShouldContain(nameof(UpdateSeasonInput.EndDate), StringComparer.Ordinal);
+        startDateErrors.Keys.ShouldContain(nameof(StartNextSeasonInput.EndDate), StringComparer.Ordinal);
     }
 }

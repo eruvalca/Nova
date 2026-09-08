@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -17,13 +17,13 @@ public sealed class HttpProfilePhotoServiceTests
     /// Verifies a valid photo response may omit its content type.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPhotoAsync_ReturnsPhotoInfo_WhenContentTypeIsNull()
+    public async Task GetCurrentUserPhotoAsyncReturnsPhotoInfoWhenContentTypeIsNullAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new ProfilePhotoInfo(42, null))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpProfilePhotoService(http).GetCurrentUserPhotoAsync(
@@ -42,13 +42,13 @@ public sealed class HttpProfilePhotoServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetCurrentUserPhotoAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetCurrentUserPhotoAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpProfilePhotoService(http).GetCurrentUserPhotoAsync(
@@ -62,13 +62,13 @@ public sealed class HttpProfilePhotoServiceTests
     /// Verifies a photo response with a non-positive user identifier is rejected.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPhotoAsync_ReturnsServerError_WhenPhotoInvariantIsInvalid()
+    public async Task GetCurrentUserPhotoAsyncReturnsServerErrorWhenPhotoInvariantIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new ProfilePhotoInfo(0, "image/png"))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpProfilePhotoService(http).GetCurrentUserPhotoAsync(

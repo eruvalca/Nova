@@ -1,12 +1,12 @@
 ---
 name: add-api-endpoint
 description: >-
-  Add, change, debug, review, or remove Nova minimal-API endpoints and HTTP client contracts.
-  Covers shared routes, static handlers, ServiceResult conversion, validation, ProblemDetails,
-  authorization, antiforgery, OpenAPI metadata, query binding, CreatedAtRoute, polymorphic JSON,
-  and producer-to-client contract fidelity. Use for duplicate mutation routes or malformed success
-  payloads. Full cross-tier features use add-feature-slice; persistence-only work uses
-  add-domain-persistence; tests-only work uses nova-testing.
+    Add, change, debug, review, or remove Nova minimal-API endpoints and HTTP client contracts.
+    Covers shared routes, static handlers, ServiceResult conversion, validation, ProblemDetails,
+    authorization, antiforgery, OpenAPI metadata, query binding, CreatedAtRoute, polymorphic JSON,
+    and producer-to-client contract fidelity. Use for duplicate mutation routes or malformed success
+    payloads. Full cross-tier features use add-feature-slice; persistence-only work uses
+    add-domain-persistence; tests-only work uses nova-testing.
 ---
 
 # Add API Endpoint
@@ -17,11 +17,11 @@ checklist steps without recreating unrelated endpoint structure.
 
 ## Canonical Nova examples
 
-- Routes: `Nova.Shared\Features\Clubs\ClubEndpoints.cs`
+- Routes: `Nova.SharedKernel\Features\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
 - WASM client: `Nova.Client\Services\Clubs\HttpClubService.cs`
-- ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
-- Created resource contract: `Nova.Shared\Features\Teams\TeamEndpoints.cs`,
+- ToHttpResult: `Nova\Features\Common\ServiceResultExtensions.cs`
+- Created resource contract: `Nova.SharedKernel\Features\Teams\TeamEndpoints.cs`,
   `Nova\Features\Teams\TeamManagementEndpointRouteBuilderExtensions.cs`,
   `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs`
 - Dead endpoint removal: the removed team graduation-year route, which duplicated normal team update.
@@ -31,7 +31,7 @@ checklist steps without recreating unrelated endpoint structure.
 1. **Prove the endpoint is needed** — search existing mutations, routes, clients, callers, and tests.
    Do not create a duplicate mutation surface. For removal, use the end-to-end cleanup checklist in
    [route-constants.md](references/route-constants.md).
-2. Define shared route constants and URL builders in `Nova.Shared` — see [route-constants.md](references/route-constants.md).
+2. Define shared route constants and URL builders in `Nova.SharedKernel` — see [route-constants.md](references/route-constants.md).
 3. Map endpoints with `MapGroup`, static handlers, DI parameters, `ToHttpResult`, and `WithName` — see [handlers-and-results.md](references/handlers-and-results.md).
 4. Add response metadata, authorization, and antiforgery handling — see [metadata-auth-antiforgery.md](references/metadata-auth-antiforgery.md).
 5. Apply endpoint-layer validation, validation ProblemDetails rules, optional `[AsParameters]` query

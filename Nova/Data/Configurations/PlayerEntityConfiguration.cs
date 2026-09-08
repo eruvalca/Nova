@@ -1,14 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Data.Configurations;
 
 /// <summary>
 /// Configures EF Core mapping for Player Entity Configuration.
 /// </summary>
-public class PlayerEntityConfiguration : IEntityTypeConfiguration<PlayerEntity>
+internal class PlayerEntityConfiguration : IEntityTypeConfiguration<PlayerEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

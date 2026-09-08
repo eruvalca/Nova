@@ -94,7 +94,7 @@ When a page loads independent regions, start their loaders together but keep eac
 data, empty, and error state separate. Persist every region's startup result or error plus the shared
 initialization flag. A local retry reloads and re-persists only its region; it must not clear or
 relabel successful neighbors. Pair `ClubOverview.razor.cs` with
-`ClubOverviewComponentTests.RetryIdentity_ReloadsOnlyIdentity_AndPreservesSuccessfulRegions`.
+`ClubOverviewComponentTests.RetryIdentityReloadsOnlyIdentityAndPreservesSuccessfulRegions`.
 
 ## Cancellation
 

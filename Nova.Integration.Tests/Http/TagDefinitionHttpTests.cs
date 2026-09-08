@@ -2,9 +2,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Tags;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Tags;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -26,7 +26,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// returns a null location.
     /// </summary>
     [Fact]
-    public async Task CreateTagDefinition_ReturnsCreated_ForClubAdmin()
+    public async Task CreateTagDefinitionReturnsCreatedForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -53,7 +53,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies the create endpoint rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task CreateTagDefinition_ReturnsUnauthorized_ForAnonymous()
+    public async Task CreateTagDefinitionReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -71,7 +71,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// the case-insensitive <c>(ClubId, NormalizedName)</c> unique index.
     /// </summary>
     [Fact]
-    public async Task CreateTagDefinition_ReturnsConflict_ForDuplicateNameIgnoringCase()
+    public async Task CreateTagDefinitionReturnsConflictForDuplicateNameIgnoringCaseAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -90,7 +90,9 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
 
         await using var verify = fixture.CreateAdminContext();
         var count = await verify.PlayerTags
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .CountAsync(tag => tag.ClubId == club.ClubId && tag.NormalizedName == name.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
         count.ShouldBe(1);
     }
 
@@ -99,7 +101,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// proving automatic endpoint validation runs before the handler.
     /// </summary>
     [Fact]
-    public async Task CreateTagDefinition_ReturnsValidationProblem_ForInvalidBody()
+    public async Task CreateTagDefinitionReturnsValidationProblemForInvalidBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -121,7 +123,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies updating a tag definition returns 200 with the replacement name and normalized color.
     /// </summary>
     [Fact]
-    public async Task UpdateTagDefinition_ReturnsOk_ForClubAdmin()
+    public async Task UpdateTagDefinitionReturnsOkForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -150,7 +152,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies a route/body tag identifier mismatch is rejected before any persistence.
     /// </summary>
     [Fact]
-    public async Task UpdateTagDefinition_ReturnsBadRequest_ForRouteBodyMismatch()
+    public async Task UpdateTagDefinitionReturnsBadRequestForRouteBodyMismatchAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -172,7 +174,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// proving automatic endpoint validation runs before the handler's route/body mismatch check.
     /// </summary>
     [Fact]
-    public async Task UpdateTagDefinition_ReturnsValidationProblem_ForInvalidBody()
+    public async Task UpdateTagDefinitionReturnsValidationProblemForInvalidBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -195,7 +197,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies archiving and restoring a tag definition round-trips through the lifecycle states.
     /// </summary>
     [Fact]
-    public async Task ArchiveThenRestoreTagDefinition_ReturnsNoContent_AndFlipsLifecycle()
+    public async Task ArchiveThenRestoreTagDefinitionReturnsNoContentAndFlipsLifecycleAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -204,7 +206,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
 
         var created = await CreateTagAsync(client, $"Lifecycle-{Guid.CreateVersion7():N}", "#333333", cancellationToken);
 
-        using (var archive = await client.PostAsync(TagEndpoints.ArchiveUrl(created.PlayerTagId), null, cancellationToken))
+        using (var archive = await client.PostAsync(new Uri(TagEndpoints.ArchiveUrl(created.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -212,7 +214,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         var archived = await ListTagsAsync(client, lifecycleStatus: "archived", cancellationToken: cancellationToken);
         archived.ShouldContain(tag => tag.PlayerTagId == created.PlayerTagId);
 
-        using (var restore = await client.PostAsync(TagEndpoints.RestoreUrl(created.PlayerTagId), null, cancellationToken))
+        using (var restore = await client.PostAsync(new Uri(TagEndpoints.RestoreUrl(created.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -225,7 +227,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies the management list honors lifecycle and search filters and returns the matching set.
     /// </summary>
     [Fact]
-    public async Task GetTagDefinitions_ReturnsFilteredList_ForClubAdmin()
+    public async Task GetTagDefinitionsReturnsFilteredListForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -236,9 +238,8 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         var beta = await CreateTagAsync(client, $"Beta-{Guid.CreateVersion7():N}", "#BBBBBB", cancellationToken);
         var gamma = await CreateTagAsync(client, $"Gamma-{Guid.CreateVersion7():N}", "#CCCCCC", cancellationToken);
 
-        using (await client.PostAsync(TagEndpoints.ArchiveUrl(gamma.PlayerTagId), null, cancellationToken))
-        {
-        }
+        using var archiveResponse = await client.PostAsync(new Uri(TagEndpoints.ArchiveUrl(gamma.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken);
+        archiveResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var active = await ListTagsAsync(client, lifecycleStatus: "active", cancellationToken: cancellationToken);
         active.Select(tag => tag.PlayerTagId).ShouldBe([alpha.PlayerTagId, beta.PlayerTagId], ignoreOrder: true);
@@ -255,7 +256,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// proving automatic query validation runs before the handler.
     /// </summary>
     [Fact]
-    public async Task GetTagDefinitions_ReturnsValidationProblem_ForInvalidLifecycleStatus()
+    public async Task GetTagDefinitionsReturnsValidationProblemForInvalidLifecycleStatusAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -263,7 +264,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         await RegisterClubAdminAsync(client, "tag-list-invalid-admin", "Invalid List Club", cancellationToken);
 
         using var response = await client.GetAsync(
-            $"{TagEndpoints.GetListTemplate}?lifecycleStatus=bogus",
+new Uri($"{TagEndpoints.GetListTemplate}?lifecycleStatus=bogus", UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -277,7 +278,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// archived ones, even when the caller is also a club administrator.
     /// </summary>
     [Fact]
-    public async Task GetTagDefinitionChoices_ReturnsOnlyActive_ForClubAdmin()
+    public async Task GetTagDefinitionChoicesReturnsOnlyActiveForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -288,11 +289,10 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         var activeTwo = await CreateTagAsync(client, $"Choice-Two-{Guid.CreateVersion7():N}", "#222222", cancellationToken);
         var archived = await CreateTagAsync(client, $"Choice-Archived-{Guid.CreateVersion7():N}", "#333333", cancellationToken);
 
-        using (await client.PostAsync(TagEndpoints.ArchiveUrl(archived.PlayerTagId), null, cancellationToken))
-        {
-        }
+        using var archiveResponse = await client.PostAsync(new Uri(TagEndpoints.ArchiveUrl(archived.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken);
+        archiveResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        using var response = await client.GetAsync(TagEndpoints.GetChoicesUrl(), cancellationToken);
+        using var response = await client.GetAsync(new Uri(TagEndpoints.GetChoicesUrl(), UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var choices = await response.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
@@ -308,7 +308,9 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// management list.
     /// </summary>
     [Fact]
-    public async Task NonAdminClubMember_CanReadChoicesAndCreate_ButCannotAdminister()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task NonAdminClubMemberCanReadChoicesAndCreateButCannotAdministerAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -322,7 +324,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         await AssignClubMembershipAsync(memberEmail, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using (var choices = await memberClient.GetAsync(TagEndpoints.GetChoicesUrl(), cancellationToken))
+        using (var choices = await memberClient.GetAsync(new Uri(TagEndpoints.GetChoicesUrl(), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             choices.StatusCode.ShouldBe(HttpStatusCode.OK);
             var rows = await choices.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
@@ -341,7 +343,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
             createdTag.Name.ShouldNotBeNullOrEmpty();
         }
 
-        using (var archive = await memberClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        using (var archive = await memberClient.PostAsync(new Uri(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -359,19 +361,19 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
             update.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var list = await memberClient.GetAsync(TagEndpoints.GetListUrl(), cancellationToken))
+        using (var list = await memberClient.GetAsync(new Uri(TagEndpoints.GetListUrl(), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             list.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
         // Archive as the administrator so the member's restore attempt is denied purely by
         // authorization rather than a 404 for an active definition.
-        using (var adminArchive = await adminClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        using (var adminArchive = await adminClient.PostAsync(new Uri(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             adminArchive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var restore = await memberClient.PostAsync(TagEndpoints.RestoreUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        using (var restore = await memberClient.PostAsync(new Uri(TagEndpoints.RestoreUrl(adminCreated.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             restore.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -381,7 +383,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies updating another club's tag identifier is non-disclosing (404) and leaves it unchanged.
     /// </summary>
     [Fact]
-    public async Task UpdateTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    public async Task UpdateTagDefinitionReturnsNotFoundForCrossTenantTagAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -408,7 +410,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies archiving another club's tag identifier is non-disclosing (404) and leaves it active.
     /// </summary>
     [Fact]
-    public async Task ArchiveTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    public async Task ArchiveTagDefinitionReturnsNotFoundForCrossTenantTagAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -419,7 +421,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
 
         _ = await RegisterClubAdminAsync(clubBClient, "tag-archive-cross-b", "Archive Cross B", cancellationToken);
 
-        using var response = await clubBClient.PostAsync(TagEndpoints.ArchiveUrl(tagA.PlayerTagId), null, cancellationToken);
+        using var response = await clubBClient.PostAsync(new Uri(TagEndpoints.ArchiveUrl(tagA.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         await using var db = fixture.CreateAdminContext();
@@ -431,7 +433,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Verifies restoring another club's tag identifier is non-disclosing (404) and leaves it active.
     /// </summary>
     [Fact]
-    public async Task RestoreTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    public async Task RestoreTagDefinitionReturnsNotFoundForCrossTenantTagAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -442,7 +444,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
 
         _ = await RegisterClubAdminAsync(clubBClient, "tag-restore-cross-b", "Restore Cross B", cancellationToken);
 
-        using var response = await clubBClient.PostAsync(TagEndpoints.RestoreUrl(tagA.PlayerTagId), null, cancellationToken);
+        using var response = await clubBClient.PostAsync(new Uri(TagEndpoints.RestoreUrl(tagA.PlayerTagId), UriKind.RelativeOrAbsolute), null, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         await using var db = fixture.CreateAdminContext();
@@ -453,7 +455,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Creates a tag definition through the HTTP API and returns its DTO.
     /// </summary>
-    private async Task<TagDefinitionDto> CreateTagAsync(
+    private static async Task<TagDefinitionDto> CreateTagAsync(
         HttpClient client,
         string name,
         string color,
@@ -474,13 +476,13 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Retrieves the management list with the supplied filters.
     /// </summary>
-    private async Task<List<TagDefinitionDto>> ListTagsAsync(
+    private static async Task<List<TagDefinitionDto>> ListTagsAsync(
         HttpClient client,
         string? search = null,
         string? lifecycleStatus = null,
         CancellationToken cancellationToken = default)
     {
-        using var response = await client.GetAsync(TagEndpoints.GetListUrl(search, lifecycleStatus), cancellationToken);
+        using var response = await client.GetAsync(new Uri(TagEndpoints.GetListUrl(search, lifecycleStatus), UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var result = await response.Content.ReadFromJsonAsync<TagDefinitionListResult>(cancellationToken);
@@ -502,16 +504,17 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "Club", "Admin", cancellationToken);
 
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
 
-        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var refresh = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
 
         return club;
@@ -526,14 +529,17 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         string lastName,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = null;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = null;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -544,12 +550,17 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         long clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             candidate => candidate.NormalizedEmail == email.ToUpperInvariant(),
+#pragma warning restore CA1862
             cancellationToken);
-        user.ClubId = clubId;
-        await context.SaveChangesAsync(cancellationToken);
+            user.ClubId = clubId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -557,7 +568,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// </summary>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -582,6 +593,6 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 }

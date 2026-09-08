@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Teams;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -10,7 +10,7 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class TeamRosterContractTests
 {
     [Fact]
-    public void GetRosterUrl_BuildsExpectedUrl()
+    public void GetRosterUrlBuildsExpectedUrl()
     {
         var url = TeamRosterEndpoints.GetRosterUrl(" U16 ", "ARCHIVED", 2032);
 
@@ -18,7 +18,7 @@ public sealed class TeamRosterContractTests
     }
 
     [Fact]
-    public void GetTeamRosterInput_DefaultsToActiveWhenStatusIsOmitted()
+    public void GetTeamRosterInputDefaultsToActiveWhenStatusIsOmitted()
     {
         var errors = InputValidator.Validate(new GetTeamRosterInput());
 
@@ -26,7 +26,7 @@ public sealed class TeamRosterContractTests
     }
 
     [Fact]
-    public void GetTeamRosterInput_RejectsUnsupportedLifecycleStatus()
+    public void GetTeamRosterInputRejectsUnsupportedLifecycleStatus()
     {
         var errors = InputValidator.Validate(new GetTeamRosterInput { LifecycleStatus = "retired" });
 
@@ -37,7 +37,7 @@ public sealed class TeamRosterContractTests
     /// Verifies an explicitly blank lifecycle status is not treated as omitted.
     /// </summary>
     [Fact]
-    public void GetTeamRosterInput_RejectsBlankLifecycleStatus()
+    public void GetTeamRosterInputRejectsBlankLifecycleStatus()
     {
         var errors = InputValidator.Validate(new GetTeamRosterInput { LifecycleStatus = string.Empty });
 
@@ -45,7 +45,7 @@ public sealed class TeamRosterContractTests
     }
 
     [Fact]
-    public void GetRosterUrl_OmitsInvalidOptionalValues()
+    public void GetRosterUrlOmitsInvalidOptionalValues()
     {
         var url = TeamRosterEndpoints.GetRosterUrl(" ", "retired", 2200);
 
@@ -53,7 +53,7 @@ public sealed class TeamRosterContractTests
     }
 
     [Fact]
-    public void GetRosterUrl_IncludesBoundedLimit()
+    public void GetRosterUrlIncludesBoundedLimit()
     {
         var url = TeamRosterEndpoints.GetRosterUrl(limit: 200);
 
@@ -61,7 +61,7 @@ public sealed class TeamRosterContractTests
     }
 
     [Fact]
-    public void GetRosterUrl_OmitsOutOfRangeLimit()
+    public void GetRosterUrlOmitsOutOfRangeLimit()
     {
         var url = TeamRosterEndpoints.GetRosterUrl(limit: 201);
 
@@ -75,7 +75,7 @@ public sealed class TeamRosterContractTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(201)]
-    public void GetTeamRosterInput_RejectsOutOfRangeLimit(int limit)
+    public void GetTeamRosterInputRejectsOutOfRangeLimit(int limit)
     {
         var errors = InputValidator.Validate(new GetTeamRosterInput { Limit = limit });
 
@@ -89,7 +89,7 @@ public sealed class TeamRosterContractTests
     [InlineData(null)]
     [InlineData(1)]
     [InlineData(200)]
-    public void GetTeamRosterInput_AcceptsValidLimit(int? limit)
+    public void GetTeamRosterInputAcceptsValidLimit(int? limit)
     {
         var errors = InputValidator.Validate(new GetTeamRosterInput { Limit = limit });
 

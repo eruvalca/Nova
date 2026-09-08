@@ -1,5 +1,6 @@
-﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -11,7 +12,7 @@ public class ClubJoinRequestEntity : BaseEntity
     /// <summary>
     /// Gets or sets the Club Join Request Id.
     /// </summary>
-    public long ClubJoinRequestId { get; set; } = default;
+    public long ClubJoinRequestId { get; set; }
 
     /// <summary>
     /// Gets or sets the Club Id.

@@ -2,14 +2,14 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
+using Nova.Features.Common;
 using Nova.Features.Players;
-using Nova.Features.Shared;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using OneOf;
@@ -52,7 +52,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies player archive provenance is stamped and restore clears it without changing placement history.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_ArchivesAndRestores_WithoutRewritingHistory()
+    public async Task PlayerLifecycleArchivesAndRestoresWithoutRewritingHistoryAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreatePlayerService();
@@ -98,7 +98,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies an undecided active-campaign participation blocks player archival without changing its outcome.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_ReturnsConflict_ForUndecidedActiveCampaignParticipation()
+    public async Task PlayerLifecycleReturnsConflictForUndecidedActiveCampaignParticipationAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreatePlayerService();
@@ -130,7 +130,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies active placements block team archival while historical placements do not.
     /// </summary>
     [Fact]
-    public async Task TeamLifecycle_ArchivesOnly_WhenNoActiveCampaignPlacementExists()
+    public async Task TeamLifecycleArchivesOnlyWhenNoActiveCampaignPlacementExistsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateTeamService();
@@ -169,7 +169,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies tag-definition archival preserves prior campaign tag applications and restore clears provenance.
     /// </summary>
     [Fact]
-    public async Task TagDefinitionLifecycle_ArchivesAndRestores_WhilePreservingAssociations()
+    public async Task TagDefinitionLifecycleArchivesAndRestoresWhilePreservingAssociationsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateTagService();
@@ -206,7 +206,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
-    public async Task LifecycleMutation_ReturnsForbidden_WhenCallerIsNotClubAdmin(LifecycleTarget target)
+    public async Task LifecycleMutationReturnsForbiddenWhenCallerIsNotClubAdminAsync(LifecycleTarget target)
     {
         ActAs(ClubAMemberId, ClubAId);
 
@@ -222,7 +222,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
-    public async Task LifecycleMutation_ReturnsNotFound_ForCrossTenantRecord(LifecycleTarget target)
+    public async Task LifecycleMutationReturnsNotFoundForCrossTenantRecordAsync(LifecycleTarget target)
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
 
@@ -235,7 +235,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies redundant lifecycle transitions return a conflict rather than silently succeeding.
     /// </summary>
     [Fact]
-    public async Task LifecycleMutation_ReturnsConflict_WhenRecordAlreadyHasTargetStatus()
+    public async Task LifecycleMutationReturnsConflictWhenRecordAlreadyHasTargetStatusAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateTagService();
@@ -252,7 +252,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies archived records remain visible to tenant-scoped historical queries.
     /// </summary>
     [Fact]
-    public async Task TenantQueries_IncludeArchivedLifecycleRecords_ForHistory()
+    public async Task TenantQueriesIncludeArchivedLifecycleRecordsForHistoryAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         (await CreatePlayerService().ArchiveAsync(
@@ -282,7 +282,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies player archive is forbidden for a signed-in non-admin club member.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task PlayerLifecycleReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var result = await CreatePlayerService().ArchiveAsync(
@@ -296,7 +296,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies cross-tenant player archive attempts return not-found without data disclosure.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_ReturnsNotFound_ForCrossTenantRecord()
+    public async Task PlayerLifecycleReturnsNotFoundForCrossTenantRecordAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var result = await CreatePlayerService().ArchiveAsync(
@@ -310,7 +310,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies restoring an archived player does not create campaign assignments for campaigns that started while archived.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycle_Restore_DoesNotRetroactivelyEnrollMissedCampaigns()
+    public async Task PlayerLifecycleRestoreDoesNotRetroactivelyEnrollMissedCampaignsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreatePlayerService();
@@ -443,7 +443,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Creates a tenant-scoped context factory for lifecycle services.
     /// </summary>
     /// <returns>A context factory backed by the shared SQLite connection.</returns>
-    private IDbContextFactory<NovaDbContext> CreateDbContextFactory()
+    private TestDbContextFactory<NovaDbContext> CreateDbContextFactory()
         => new TestDbContextFactory<NovaDbContext>(_harness.CreateTenantContext);
 
     /// <summary>
@@ -462,7 +462,9 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// <summary>
     /// Seeds lifecycle records, active and historical campaigns, placements, and a historical tag association.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 
@@ -690,7 +692,9 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// <summary>
     /// Identifies which lifecycle-managed entity a matrix test targets.
     /// </summary>
+#pragma warning disable CA1515 // This enum appears in public xUnit theory signatures.
     public enum LifecycleTarget
+#pragma warning restore CA1515
     {
         /// <summary>
         /// Targets a player.

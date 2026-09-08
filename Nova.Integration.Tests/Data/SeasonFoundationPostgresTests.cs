@@ -4,10 +4,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Seasons;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -19,7 +19,7 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 {
     /// <summary>Verifies the incremental season foundation migration is applied.</summary>
     [Fact]
-    public async Task Migration_AppliesCurrentSeasonFoundation()
+    public async Task MigrationAppliesCurrentSeasonFoundationAsync()
     {
         await using var db = fixture.CreateAdminContext();
         var migrations = await db.Database.GetAppliedMigrationsAsync(
@@ -31,12 +31,14 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies a club cannot point at another club's season.</summary>
     [Fact]
-    public async Task CurrentSeasonForeignKey_RejectsCrossClubPointer()
+    public async Task CurrentSeasonForeignKeyRejectsCrossClubPointerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var clubA = NewClub($"Season FK A {suffix}", actorId);
         var clubB = NewClub($"Season FK B {suffix}", actorId);
         db.Clubs.AddRange(clubA, clubB);
@@ -54,12 +56,14 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies an advancement predecessor cannot reference another club's season.</summary>
     [Fact]
-    public async Task CreationPredecessorForeignKey_RejectsCrossClubSeason()
+    public async Task CreationPredecessorForeignKeyRejectsCrossClubSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var clubA = NewClub($"Predecessor FK A {suffix}", actorId);
         var clubB = NewClub($"Predecessor FK B {suffix}", actorId);
         db.Clubs.AddRange(clubA, clubB);
@@ -77,12 +81,14 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies adding history cannot create another current-season marker.</summary>
     [Fact]
-    public async Task AddingHistoricalSeason_DoesNotChangePointer()
+    public async Task AddingHistoricalSeasonDoesNotChangePointerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var club = NewClub($"Season Pointer {suffix}", actorId);
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
@@ -103,10 +109,12 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies ambiguous commits recover only a season installed as current.</summary>
     [Fact]
-    public async Task CreateSeason_RecoversCommittedCurrentSeason_AfterAmbiguousCommitFailure()
+    public async Task CreateSeasonRecoversCommittedCurrentSeasonAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         await using var seed = fixture.CreateAdminContext();
         var club = NewClub($"Season Retry {Guid.NewGuid():N}", actorId);
         seed.Clubs.Add(club);
@@ -148,10 +156,12 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies a transient save failure retries advancement with a fresh transaction.</summary>
     [Fact]
-    public async Task StartNextSeason_RetriesTransientSaveFailure_WithoutDuplicateSeason()
+    public async Task StartNextSeasonRetriesTransientSaveFailureWithoutDuplicateSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         await using var seed = fixture.CreateAdminContext();
         var club = NewClub($"Season Advance Retry {Guid.NewGuid():N}", actorId);
         seed.Clubs.Add(club);
@@ -202,7 +212,9 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
     /// update waiting behind it observes the committed campaign dates and rejects an invalid window.
     /// </summary>
     [Fact]
-    public async Task CampaignMetadataAndSeasonUpdate_PreserveCampaignWindow_WhenMetadataWinsSeasonLock()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CampaignMetadataAndSeasonUpdatePreserveCampaignWindowWhenMetadataWinsSeasonLockAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedMutationRaceAsync(closedCampaign: false, cancellationToken);
@@ -280,7 +292,9 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
     /// behind it observes the Active campaign and cannot make that campaign historical.
     /// </summary>
     [Fact]
-    public async Task CampaignReopenAndAdvancement_RejectAdvancement_WhenReopenWinsSeasonLock()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CampaignReopenAndAdvancementRejectAdvancementWhenReopenWinsSeasonLockAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedMutationRaceAsync(closedCampaign: true, cancellationToken);
@@ -357,41 +371,46 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var club = NewClub($"Season Mutation Race {suffix}", actorUserId);
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-        var season = NewSeason($"Season {suffix}", club.ClubId, actorUserId);
-        season.EndDate = new DateOnly(2026, 12, 31);
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        var campaign = new CampaignEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            EndDate = new DateOnly(2026, 6, 15),
-            Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closedCampaign ? DateTimeOffset.UtcNow : null,
-            ClosedById = closedCampaign ? actorUserId : null,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(cancellationToken);
-        return new SeasonMutationRaceSeed(
-            club.ClubId,
-            season.SeasonId,
-            campaign.CampaignId,
-            actorUserId,
-            suffix,
-            season.Name,
-            campaign.Name,
-            season.ConcurrencyToken);
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var club = NewClub($"Season Mutation Race {suffix}", actorUserId);
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+            var season = NewSeason($"Season {suffix}", club.ClubId, actorUserId);
+            season.EndDate = new DateOnly(2026, 12, 31);
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 6, 15),
+                Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
+                ClosedAt = closedCampaign ? DateTimeOffset.UtcNow : null,
+                ClosedById = closedCampaign ? actorUserId : null,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(cancellationToken);
+            return new SeasonMutationRaceSeed(
+                club.ClubId,
+                season.SeasonId,
+                campaign.CampaignId,
+                actorUserId,
+                suffix,
+                season.Name,
+                campaign.Name,
+                season.ConcurrencyToken);
+        }
     }
 
     private static long ClubSeasonLockKey(long clubId) => (long.MinValue / 16) + clubId;

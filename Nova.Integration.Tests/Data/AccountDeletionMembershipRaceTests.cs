@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -6,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -18,7 +19,7 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
 {
     /// <summary>Verifies account deletion retries atomically after a pre-commit transient failure.</summary>
     [Fact]
-    public async Task DeleteAccount_Retries_AfterTransientSaveFailure()
+    public async Task DeleteAccountRetriesAfterTransientSaveFailureAsync()
     {
         var interceptor = new FailFirstSaveChangesInterceptor();
 
@@ -27,7 +28,7 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
 
     /// <summary>Verifies account deletion recovers success after a lost commit acknowledgement.</summary>
     [Fact]
-    public async Task DeleteAccount_VerifiesSuccess_AfterAmbiguousCommitFailure()
+    public async Task DeleteAccountVerifiesSuccessAfterAmbiguousCommitFailureAsync()
     {
         var interceptor = new FailFirstCommittedTransactionInterceptor();
 
@@ -39,14 +40,15 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
     /// and refuses to orphan members when a competing demotion leaves the actor as sole admin.
     /// </summary>
     [Fact]
-    public async Task DeleteAccount_RejectsSoleAdministrator_WhenDemotionCommitsWhileWaiting()
+    public async Task DeleteAccountRejectsSoleAdministratorWhenDemotionCommitsWhileWaitingAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
         fixture.CurrentUser.UserId = seed.DeletingAdminUserId;
         fixture.CurrentUser.ClubId = seed.ClubId;
         fixture.CurrentUser.IsClubAdmin = true;
-        var userManager = CreateUserManager();
+        using var userManager = CreateUserManager();
+        using var deletionUserManager = CreateUserManager();
         var service = new AccountDeletionService(
             new PostgresAdminContextFactory(fixture),
             new PostgresReadContextFactory(fixture),
@@ -67,7 +69,9 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
             lockKey,
             cancellationToken);
         var administratorRoleId = await holdDb.Roles
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => role.Id)
             .SingleAsync(cancellationToken);
         var competingAdminRole = await holdDb.UserRoles.SingleAsync(
@@ -100,7 +104,8 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
         long userId;
-        await using (var seed = fixture.CreateAdminContext())
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
             var user = new NovaUserEntity
             {
@@ -117,18 +122,22 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
             fixture.ConnectionString,
             fixture.CurrentUser,
             interceptor);
+        using var deletionUserManager = CreateUserManager();
         var service = new AccountDeletionService(
             factory,
             new PostgresReadContextFactory(fixture),
-            CreateUserManager(),
+            deletionUserManager,
             fixture.CurrentUser,
             NullLogger<AccountDeletionService>.Instance);
 
         await service.DeleteAccountAsync(cancellationToken);
 
         failureCount().ShouldBe(1);
-        await using var verify = fixture.CreateAdminContext();
-        (await verify.Users.CountAsync(user => user.Id == userId, cancellationToken)).ShouldBe(0);
+        var verify = fixture.CreateAdminContext();
+        await using (verify)
+        {
+            (await verify.Users.CountAsync(user => user.Id == userId, cancellationToken)).ShouldBe(0);
+        }
     }
 
     /// <summary>Seeds a club with two administrators for the serialized deletion race.</summary>
@@ -139,34 +148,39 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var deletingAdmin = new NovaUserEntity { FirstName = "Deleting", LastName = $"Admin {suffix}" };
-        var competingAdmin = new NovaUserEntity { FirstName = "Competing", LastName = $"Admin {suffix}" };
-        db.Users.AddRange(deletingAdmin, competingAdmin);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Account Deletion Race Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = deletingAdmin.Id,
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-        deletingAdmin.ClubId = club.ClubId;
-        competingAdmin.ClubId = club.ClubId;
-        var administratorRoleId = await db.Roles
-            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
-            .Select(role => role.Id)
-            .SingleAsync(cancellationToken);
-        db.UserRoles.AddRange(
-            new IdentityUserRole<long> { UserId = deletingAdmin.Id, RoleId = administratorRoleId },
-            new IdentityUserRole<long> { UserId = competingAdmin.Id, RoleId = administratorRoleId });
-        await db.SaveChangesAsync(cancellationToken);
-        return new Seed(club.ClubId, deletingAdmin.Id, competingAdmin.Id);
+            var suffix = Guid.NewGuid().ToString("N");
+            var deletingAdmin = new NovaUserEntity { FirstName = "Deleting", LastName = $"Admin {suffix}" };
+            var competingAdmin = new NovaUserEntity { FirstName = "Competing", LastName = $"Admin {suffix}" };
+            db.Users.AddRange(deletingAdmin, competingAdmin);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Account Deletion Race Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = deletingAdmin.Id,
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+            deletingAdmin.ClubId = club.ClubId;
+            competingAdmin.ClubId = club.ClubId;
+            var administratorRoleId = await db.Roles
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+                .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
+                .Select(role => role.Id)
+                .SingleAsync(cancellationToken);
+            db.UserRoles.AddRange(
+                new IdentityUserRole<long> { UserId = deletingAdmin.Id, RoleId = administratorRoleId },
+                new IdentityUserRole<long> { UserId = competingAdmin.Id, RoleId = administratorRoleId });
+            await db.SaveChangesAsync(cancellationToken);
+            return new Seed(club.ClubId, deletingAdmin.Id, competingAdmin.Id);
+        }
     }
 
     /// <summary>Creates the Identity manager retained by the account deletion service.</summary>
@@ -187,5 +201,6 @@ public sealed class AccountDeletionMembershipRaceTests(NovaAppHostFixture fixtur
     /// <param name="ClubId">The club identifier.</param>
     /// <param name="DeletingAdminUserId">The account attempting deletion.</param>
     /// <param name="CompetingAdminUserId">The administrator demoted by the competing transaction.</param>
+    [StructLayout(LayoutKind.Auto)]
     private readonly record struct Seed(long ClubId, long DeletingAdminUserId, long CompetingAdminUserId);
 }

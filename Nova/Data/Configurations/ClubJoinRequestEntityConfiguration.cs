@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for Club Join Request Entity Configuration.
 /// </summary>
-public class ClubJoinRequestEntityConfiguration : IEntityTypeConfiguration<ClubJoinRequestEntity>
+internal class ClubJoinRequestEntityConfiguration : IEntityTypeConfiguration<ClubJoinRequestEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

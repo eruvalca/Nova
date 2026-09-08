@@ -3,10 +3,10 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -23,7 +23,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Loading state ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsLoadingState_WhileDetailRequestIsPending()
+    public void PlayerDetailShowsLoadingStateWhileDetailRequestIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
         var detailService = Substitute.For<IPlayerDetailService>();
@@ -42,7 +42,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Not-found state ───────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsNotFoundState_WhenServiceReturnsNotFound()
+    public void PlayerDetailShowsNotFoundStateWhenServiceReturnsNotFound()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -57,7 +57,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayerDetail_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
+    public void PlayerDetailRedirectsToAccessDeniedWhenServiceReturnsForbidden()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -74,7 +74,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Transport error with retry ────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsErrorAndRetry_WhenTransportFails()
+    public void PlayerDetailShowsErrorAndRetryWhenTransportFails()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -93,7 +93,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Profile fields ────────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_DisplaysProfileFields()
+    public void PlayerDetailDisplaysProfileFields()
     {
         RegisterServices();
 
@@ -103,14 +103,14 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             cut.Markup.ShouldContain("Avery Johnson");
             cut.Markup.ShouldContain("2032");
             cut.Markup.ShouldContain("Active");
-            cut.Markup.ShouldContain(new DateOnly(2012, 4, 1).ToString("MMMM d, yyyy"));
+            cut.Markup.ShouldContain(new DateOnly(2012, 4, 1).ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture));
             cut.Markup.ShouldContain("Female");
             cut.Markup.ShouldContain("12");
         });
     }
 
     [Fact]
-    public void PlayerDetail_ShowsArchivedLifecycleBadge_WhenPlayerIsArchived()
+    public void PlayerDetailShowsArchivedLifecycleBadgeWhenPlayerIsArchived()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -127,7 +127,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Campaign history grouping and ordering ────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_RendersGroupsNewestFirst()
+    public void PlayerDetailRendersGroupsNewestFirst()
     {
         var history = new List<PlayerCampaignHistoryDto>
         {
@@ -154,7 +154,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Empty campaign history ────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsEmptyHistoryMessage_WhenNoCampaigns()
+    public void PlayerDetailShowsEmptyHistoryMessageWhenNoCampaigns()
     {
         RegisterServices();
 
@@ -165,7 +165,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Closed campaign rendering ─────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsClosedCampaignWithStatus()
+    public void PlayerDetailShowsClosedCampaignWithStatus()
     {
         var history = new List<PlayerCampaignHistoryDto>
         {
@@ -189,7 +189,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Note attribution ──────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsNoteContentAndAttribution_InCampaignHistory()
+    public void PlayerDetailShowsNoteContentAndAttributionInCampaignHistory()
     {
         var note = new PlayerEvaluationNoteDto(
             NoteId: 1,
@@ -220,7 +220,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Tag attribution ───────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsTagNameAndAttribution_InCampaignHistory()
+    public void PlayerDetailShowsTagNameAndAttributionInCampaignHistory()
     {
         var tagApplication = new PlayerTagApplicationDto(
             CampaignTagApplicationId: 1,
@@ -254,7 +254,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Archived tag definition ───────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsArchivedIndicator_WhenTagDefinitionIsArchived()
+    public void PlayerDetailShowsArchivedIndicatorWhenTagDefinitionIsArchived()
     {
         var archivedTag = new PlayerTagApplicationDto(
             CampaignTagApplicationId: 2,
@@ -288,7 +288,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Role matrix: admin sees actions ──────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsAdminActions_ForClubAdmin()
+    public void PlayerDetailShowsAdminActionsForClubAdmin()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -301,7 +301,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayerDetail_ShowsRestoreButton_ForArchivedPlayerAndAdmin()
+    public void PlayerDetailShowsRestoreButtonForArchivedPlayerAndAdmin()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -321,7 +321,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Role matrix: evaluator is read-only ───────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_HidesAdminActions_ForEvaluator()
+    public void PlayerDetailHidesAdminActionsForEvaluator()
     {
         RegisterServices(isClubAdmin: false);
 
@@ -337,7 +337,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Edit mutation with refresh ────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_RefreshesDetail_AfterSuccessfulEdit()
+    public void PlayerDetailRefreshesDetailAfterSuccessfulEdit()
     {
         var managementService = Substitute.For<IPlayerManagementService>();
         managementService.UpdateAsync(Arg.Any<UpdatePlayerInput>(), Arg.Any<CancellationToken>())
@@ -367,7 +367,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Archive mutation with refresh ─────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_RefreshesDetail_AfterSuccessfulArchive()
+    public void PlayerDetailRefreshesDetailAfterSuccessfulArchive()
     {
         var lifecycleService = Substitute.For<IPlayerLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -390,7 +390,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Archive blockers displayed ────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_ShowsArchiveBlockers_WhenArchiveReturnsConflict()
+    public void PlayerDetailShowsArchiveBlockersWhenArchiveReturnsConflict()
     {
         var lifecycleService = Substitute.For<IPlayerLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -428,7 +428,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Restore mutation ──────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_RefreshesDetail_AfterSuccessfulRestore()
+    public void PlayerDetailRefreshesDetailAfterSuccessfulRestore()
     {
         var lifecycleService = Substitute.For<IPlayerLifecycleService>();
         lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
@@ -451,7 +451,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Return URL ────────────────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_UsesFallbackReturnUrl_WhenReturnUrlIsExternal()
+    public void PlayerDetailUsesFallbackReturnUrlWhenReturnUrlIsExternal()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -463,7 +463,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayerDetail_PreservesSafeRelativeReturnUrl_InBackLink()
+    public void PlayerDetailPreservesSafeRelativeReturnUrlInBackLink()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -478,7 +478,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Tag color sanitization ────────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetail_UsesFallbackColor_WhenTraitColorContainsInjection()
+    public void PlayerDetailUsesFallbackColorWhenTraitColorContainsInjection()
     {
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())

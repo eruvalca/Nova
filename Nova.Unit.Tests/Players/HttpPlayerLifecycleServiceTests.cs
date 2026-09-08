@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -37,10 +37,10 @@ public class HttpPlayerLifecycleServiceTests
     /// Verifies archive posts to the shared archive URL and returns success for 204 responses.
     /// </summary>
     [Fact]
-    public async Task ArchiveAsync_ReturnsSuccess_OnNoContent()
+    public async Task ArchiveAsyncReturnsSuccessOnNoContentAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerLifecycleService(httpClient);
 
@@ -56,10 +56,10 @@ public class HttpPlayerLifecycleServiceTests
     /// Verifies restore posts to the shared restore URL and returns success for 204 responses.
     /// </summary>
     [Fact]
-    public async Task RestoreAsync_ReturnsSuccess_OnNoContent()
+    public async Task RestoreAsyncReturnsSuccessOnNoContentAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerLifecycleService(httpClient);
 
@@ -75,7 +75,7 @@ public class HttpPlayerLifecycleServiceTests
     /// Verifies conflict responses preserve structured archive blockers on the reconstructed service problem.
     /// </summary>
     [Fact]
-    public async Task ArchiveAsync_ReturnsConflict_WithStructuredBlockers()
+    public async Task ArchiveAsyncReturnsConflictWithStructuredBlockersAsync()
     {
         var blocker = new PlayerArchiveBlocker
         {
@@ -93,7 +93,7 @@ public class HttpPlayerLifecycleServiceTests
             })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerLifecycleService(httpClient);
 

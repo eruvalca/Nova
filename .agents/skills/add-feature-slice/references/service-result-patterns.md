@@ -1,7 +1,7 @@
 # Service Result Patterns Recipe
 
 Use this reference while implementing the shared interface and server service for a feature slice.
-Canonical examples: `Nova.Shared\Features\Clubs\IClubService.cs`, `Nova.Shared\Features\Clubs\ClubDto.cs`, and
+Canonical examples: `Nova.SharedKernel\Features\Clubs\IClubService.cs`, `Nova.SharedKernel\Features\Clubs\ClubDto.cs`, and
 `Nova\Features\Clubs\ClubService.cs`.
 
 Validation must occur at both the endpoint layer and the service layer. See
@@ -9,7 +9,7 @@ Validation must occur at both the endpoint layer and the service layer. See
 caller/service table. See `add-api-endpoint/references/validation-and-problemdetails.md` for
 the endpoint-side rules.
 
-`ServiceResult<T>`, `ServiceProblem`, and `ServiceProblemKind` are defined in `Nova.Shared/Results/`.
+`ServiceResult<T>`, `ServiceProblem`, and `ServiceProblemKind` are defined in `Nova.SharedKernel/Results/`.
 
 ## OneOf Preference Rule
 

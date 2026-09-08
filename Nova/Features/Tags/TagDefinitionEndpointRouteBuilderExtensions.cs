@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Tags;
 
@@ -17,7 +17,9 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
         /// restore, and the management list.
         /// </summary>
         /// <returns>The endpoint route builder, for chaining.</returns>
+#pragma warning disable MA0051 // Keep the endpoint group registration and its metadata together; request handlers are separate.
         public IEndpointRouteBuilder MapTagDefinitionEndpoints()
+#pragma warning restore MA0051
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
@@ -25,7 +27,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .MapGroup(TagEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            managementGroup.MapPut(TagEndpoints.UpdateRelative, UpdateTagDefinitionHandler)
+            managementGroup.MapPut(TagEndpoints.UpdateRelative, UpdateTagDefinitionHandlerAsync)
                 .Produces<TagDefinitionDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -36,7 +38,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("UpdateTagDefinition");
 
-            managementGroup.MapPost(TagEndpoints.ArchiveRelative, ArchiveTagDefinitionHandler)
+            managementGroup.MapPost(TagEndpoints.ArchiveRelative, ArchiveTagDefinitionHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -46,7 +48,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("ArchiveTagDefinition");
 
-            managementGroup.MapPost(TagEndpoints.RestoreRelative, RestoreTagDefinitionHandler)
+            managementGroup.MapPost(TagEndpoints.RestoreRelative, RestoreTagDefinitionHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -56,7 +58,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("RestoreTagDefinition");
 
-            managementGroup.MapGet(TagEndpoints.GetListRelative, GetTagDefinitionsHandler)
+            managementGroup.MapGet(TagEndpoints.GetListRelative, GetTagDefinitionsHandlerAsync)
                 .Produces<TagDefinitionListResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -66,7 +68,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
 
             endpoints.MapGroup(TagEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember)
-                .MapPost(TagEndpoints.CreateRelative, CreateTagDefinitionHandler)
+                .MapPost(TagEndpoints.CreateRelative, CreateTagDefinitionHandlerAsync)
                 .Produces<TagDefinitionDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -78,7 +80,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
 
             endpoints.MapGroup(TagEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember)
-                .MapGet(TagEndpoints.GetChoicesRelative, GetTagDefinitionChoicesHandler)
+                .MapGet(TagEndpoints.GetChoicesRelative, GetTagDefinitionChoicesHandlerAsync)
                 .Produces<IReadOnlyList<TagDefinitionDto>>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -96,7 +98,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionService">The tag-definition management service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The created tag definition or a ProblemDetails response.</returns>
-    private static async Task<IResult> CreateTagDefinitionHandler(
+    private static async Task<IResult> CreateTagDefinitionHandlerAsync(
         CreateTagDefinitionInput input,
         ITagDefinitionService tagDefinitionService,
         CancellationToken cancellationToken)
@@ -113,7 +115,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionService">The tag-definition management service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The updated tag definition or a ProblemDetails response.</returns>
-    private static async Task<IResult> UpdateTagDefinitionHandler(
+    private static async Task<IResult> UpdateTagDefinitionHandlerAsync(
         long tagId,
         UpdateTagDefinitionInput input,
         ITagDefinitionService tagDefinitionService,
@@ -121,7 +123,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     {
         if (tagId != input.TagId)
         {
-            return Nova.Shared.Results.ServiceProblem.BadRequest(
+            return Nova.SharedKernel.Results.ServiceProblem.BadRequest(
                     "The tag identifier in the route does not match the request body.")
                 .ToHttpResult();
         }
@@ -137,7 +139,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionLifecycleService">The tag-definition lifecycle service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> ArchiveTagDefinitionHandler(
+    private static async Task<IResult> ArchiveTagDefinitionHandlerAsync(
         long tagId,
         ITagDefinitionLifecycleService tagDefinitionLifecycleService,
         CancellationToken cancellationToken)
@@ -153,7 +155,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionLifecycleService">The tag-definition lifecycle service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> RestoreTagDefinitionHandler(
+    private static async Task<IResult> RestoreTagDefinitionHandlerAsync(
         long tagId,
         ITagDefinitionLifecycleService tagDefinitionLifecycleService,
         CancellationToken cancellationToken)
@@ -169,7 +171,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionQueryService">The tag-definition query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The matching tag definitions or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetTagDefinitionsHandler(
+    private static async Task<IResult> GetTagDefinitionsHandlerAsync(
         [AsParameters] GetTagDefinitionsInput input,
         ITagDefinitionQueryService tagDefinitionQueryService,
         CancellationToken cancellationToken)
@@ -184,7 +186,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     /// <param name="tagDefinitionQueryService">The tag-definition query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The active tag-definition choices or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetTagDefinitionChoicesHandler(
+    private static async Task<IResult> GetTagDefinitionChoicesHandlerAsync(
         ITagDefinitionQueryService tagDefinitionQueryService,
         CancellationToken cancellationToken)
     {

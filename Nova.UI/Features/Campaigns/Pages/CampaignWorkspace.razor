@@ -1,8 +1,8 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
-@using Nova.Shared.Enums
-@using Nova.Shared.Security
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Security
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
@@ -64,10 +64,8 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
-                        <CampaignMenu IsClubAdmin="@_isClubAdmin"
-                                      IsClosed="@(_detail.Status == CampaignStatus.Closed)"
-                                      OnEditMetadata="BeginEditMetadataAsync"
-                                      OnCloseCampaign="SelectCloseoutTabAsync"
+                        <CampaignMenu IsClubAdmin="@_isClubAdmin" IsClosed="@(_detail.Status == CampaignStatus.Closed)"
+                                      OnEditMetadata="BeginEditMetadataAsync" OnCloseCampaign="SelectCloseoutTabAsync"
                                       OnReopen="SelectCloseoutTabAsync" />
                     </div>
                 </div>
@@ -82,14 +80,9 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
         @if (_editCampaignForm is not null)
         {
             <div class="mb-3">
-                <CampaignMetadataForm Heading="Edit campaign metadata"
-                                      Model="_editCampaignForm"
-                                      Seasons="_editFormSeasonChoices"
-                                      TotalSeasonCount="_seasonChoiceTotalCount"
-                                      SubmitButtonText="Save changes"
-                                      IsSubmitting="_isMutating"
-                                      ErrorMessage="@_mutationError"
-                                      OnValidSubmit="UpdateMetadataAsync"
+                <CampaignMetadataForm Heading="Edit campaign metadata" Model="_editCampaignForm"
+                                      Seasons="_editFormSeasonChoices" TotalSeasonCount="_seasonChoiceTotalCount" SubmitButtonText="Save changes"
+                                      IsSubmitting="_isMutating" ErrorMessage="@_mutationError" OnValidSubmit="UpdateMetadataAsync"
                                       OnCancel="CancelMutationForm" />
             </div>
         }
@@ -103,171 +96,163 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
 
         @if (_mutationConflict)
         {
-            <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
-                <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying again.</span>
-                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
-            </div>
-        }
-
-        @if (!IsRosterLanding)
-        {
-        <div class="campaign-route">
-        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
-            <li class="nav-item" role="presentation">
-                <button type="button" class="nav-link @(_activeTab == EvaluateTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == EvaluateTabName ? "true" : "false")" @onclick="SelectEvaluateTabAsync">
-                    Evaluate
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button type="button" class="nav-link @(_activeTab == PlacementsTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == PlacementsTabName ? "true" : "false")" @onclick="SelectPlacementsTabAsync">
-                    Placements
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button type="button" class="nav-link @(_activeTab == OverviewTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == OverviewTabName ? "true" : "false")" @onclick="SelectOverviewTabAsync">
-                    Overview
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button type="button" class="nav-link @(_activeTab == CloseoutTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == CloseoutTabName ? "true" : "false")" @onclick="SelectCloseoutTabAsync">
-                    Closeout
-                </button>
-            </li>
-        </ul>
-        </div>
-        }
-
-        @if (_activeTab == EvaluateTabName)
-        {
-            <section class="workspace-board" aria-labelledby="roster-region-heading">
-                <div class="workspace-board-heading">
-                    <div>
-                        <h2 id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">@(IsRosterLanding ? "Roster" : "Evaluate roster")</h2>
-                        @if (IsRosterLanding)
-                        {
-                            <p><a href="@($"/campaigns/{CampaignId}?tab=evaluate")">Continue to evaluation</a></p>
-                            @if (_openingReceiptMessage is not null) { <p role="status">@_openingReceiptMessage</p> }
-                        }
-                        else { <p>Filter the player field, then open a participant to record observations.</p> }
-                    </div>
-                </div>
-                <div class="workspace-board-body">
-
-                @if (_choicesLoadFailed)
-                {
-                    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
-                        <span>Couldn't load filter options.</span>
-                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryChoicesAsync">Retry</button>
+            <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"
+                 role="alert">
+                <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying
+                    again.</span>
+                    <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
                     </div>
                 }
 
-                <CampaignRosterFilters SearchText="@_searchDraft"
-                                       GraduationYearChoices="@_availableGraduationYears"
-                                       SelectedGraduationYears="@_filters.GraduationYears"
-                                       TagChoices="@_availableTags"
-                                       SelectedTagDefinitionIds="@_filters.TagDefinitionIds"
-                                       Outcome="@_filters.Outcome"
-                                       TeamChoices="@_availableTeams"
-                                       TeamId="@_filters.TeamId"
-                                       TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)"
-                                       HasActiveFilters="@HasActiveFilters"
-                                       OnSearchTextChanged="OnSearchInputChangedAsync"
-                                       OnGraduationYearToggled="OnGraduationYearToggledAsync"
-                                       OnTagToggled="OnTagToggledAsync"
-                                       OnOutcomeChanged="OnOutcomeChangedAsync"
-                                       OnTeamChanged="OnTeamChangedAsync"
-                                       OnClearFilters="OnClearFiltersAsync" />
+                @if (!IsRosterLanding)
+                {
+                    <div class="campaign-route">
+                        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
+                            <li class="nav-item" role="presentation">
+                                <button type="button" class="nav-link @(_activeTab == EvaluateTabName ? "active" : null)" role="tab"
+                                        aria-selected="@(_activeTab == EvaluateTabName ? "true" : "false")"
+                                        @onclick="SelectEvaluateTabAsync">
+                                    Evaluate
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button type="button" class="nav-link @(_activeTab == PlacementsTabName ? "active" : null)" role="tab"
+                                        aria-selected="@(_activeTab == PlacementsTabName ? "true" : "false")"
+                                        @onclick="SelectPlacementsTabAsync">
+                                    Placements
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button type="button" class="nav-link @(_activeTab == OverviewTabName ? "active" : null)" role="tab"
+                                        aria-selected="@(_activeTab == OverviewTabName ? "true" : "false")"
+                                        @onclick="SelectOverviewTabAsync">
+                                    Overview
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button type="button" class="nav-link @(_activeTab == CloseoutTabName ? "active" : null)" role="tab"
+                                        aria-selected="@(_activeTab == CloseoutTabName ? "true" : "false")"
+                                        @onclick="SelectCloseoutTabAsync">
+                                    Closeout
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                }
 
-                @if (_rosterLoading)
+                @if (_activeTab == EvaluateTabName)
                 {
-                    <div class="d-flex align-items-center gap-2 mt-3">
-                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                        <span>Loading roster...</span>
-                    </div>
-                }
-                else if (!string.IsNullOrWhiteSpace(_rosterError))
-                {
-                    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" role="alert">
-                        <span>@_rosterError</span>
-                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryRosterAsync">Retry</button>
-                    </div>
-                }
-                else if (_roster is not null)
-                {
-                    @if (_roster.TotalCount == 0)
-                    {
-                        <div class="text-center py-5 mt-3">
-                            @if (HasActiveFilters)
-                            {
-                                <p class="text-muted mb-3">No participants match the current filters.</p>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear filters</button>
-                            }
+                    <section class="workspace-board" aria-labelledby="roster-region-heading">
+                        <div class="workspace-board-heading">
+                            <div>
+                                <h2 id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">@(IsRosterLanding ? "Roster" :
+                                                    "Evaluate roster")</h2>
+                                    @if (IsRosterLanding)
+                                    {
+                                        <p><a href="@($"/campaigns/{CampaignId}?tab=evaluate")">Continue to evaluation</a></p>
+                                        @if (_openingReceiptMessage is not null)
+                                        {
+                                            <p role="status">@_openingReceiptMessage</p>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <p>Filter the player field, then open a participant to record observations.</p>
+                                    }
+                                </div>
+                            </div>
+                            <div class="workspace-board-body">
+
+                                @if (_choicesLoadFailed)
+                                {
+                                    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2"
+                                         role="alert">
+                                        <span>Couldn't load filter options.</span>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryChoicesAsync">Retry</button>
+                                    </div>
+                                }
+
+                                <CampaignRosterFilters SearchText="@_searchDraft" GraduationYearChoices="@_availableGraduationYears"
+                                                       SelectedGraduationYears="@_filters.GraduationYears" TagChoices="@_availableTags"
+                                                       SelectedTagDefinitionIds="@_filters.TagDefinitionIds" Outcome="@_filters.Outcome"
+                                                       TeamChoices="@_availableTeams" TeamId="@_filters.TeamId"
+                                                       TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)" HasActiveFilters="@HasActiveFilters"
+                                                       OnSearchTextChanged="OnSearchInputChangedAsync" OnGraduationYearToggled="OnGraduationYearToggledAsync"
+                                                       OnTagToggled="OnTagToggledAsync" OnOutcomeChanged="OnOutcomeChangedAsync"
+                                                       OnTeamChanged="OnTeamChangedAsync" OnClearFilters="OnClearFiltersAsync" />
+
+                                @if (_rosterLoading)
+                                {
+                                    <div class="d-flex align-items-center gap-2 mt-3">
+                                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                        <span>Loading roster...</span>
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(_rosterError))
+                                {
+                                    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"
+                                         role="alert">
+                                        <span>@_rosterError</span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryRosterAsync">Retry</button>
+                                    </div>
+                                }
+                                else if (_roster is not null)
+                                {
+                                    @if (_roster.TotalCount == 0)
+                                    {
+                                        <div class="text-center py-5 mt-3">
+                                            @if (HasActiveFilters)
+                                            {
+                                                <p class="text-muted mb-3">No participants match the current filters.</p>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear
+                                                    filters</button>
+                                                }
                             else
-                            {
-                                <p class="text-muted mb-0">No participants in this campaign yet.</p>
-                            }
-                        </div>
-                    }
+                                                {
+                                                    <p class="text-muted mb-0">No participants in this campaign yet.</p>
+                                                }
+                                            </div>
+                                        }
                     else
-                    {
-                        <div class="roster-scroll-region" @ref="_rosterScrollRegion" tabindex="-1">
-                            <CampaignRosterTable Items="@_roster.Items"
-                                                 SortBy="@_filters.SortBy"
-                                                 SortDirection="@_filters.SortDirection"
-                                                 SelectedParticipantId="@_selectedParticipantId"
-                                                 OnParticipantSelected="OnParticipantSelectedAsync"
-                                                 OnSortChanged="OnSortChangedAsync" />
-                            <CampaignRosterCards Items="@_roster.Items"
-                                                 SelectedParticipantId="@_selectedParticipantId"
-                                                 OnParticipantSelected="OnParticipantSelectedAsync" />
-                        </div>
-                        <CampaignRosterPager Page="@_roster.Page"
-                                             PageSize="@_roster.PageSize"
-                                             TotalCount="@_roster.TotalCount"
-                                             OnPageChanged="OnPageChangedAsync" />
-                    }
-                }
-            </div>
-        </section>
-        }
+                                        {
+                                            <div class="roster-scroll-region" @ref="_rosterScrollRegion" tabindex="-1">
+                                                <CampaignRosterTable Items="@_roster.Items" SortBy="@_filters.SortBy"
+                                                                     SortDirection="@_filters.SortDirection" SelectedParticipantId="@_selectedParticipantId"
+                                                                     OnParticipantSelected="OnParticipantSelectedAsync" OnSortChanged="OnSortChangedAsync" />
+                                                <CampaignRosterCards Items="@_roster.Items" SelectedParticipantId="@_selectedParticipantId"
+                                                                     OnParticipantSelected="OnParticipantSelectedAsync" />
+                                            </div>
+                                            <CampaignRosterPager Page="@_roster.Page" PageSize="@_roster.PageSize" TotalCount="@_roster.TotalCount"
+                                                                 OnPageChanged="OnPageChangedAsync" />
+                                        }
+                                    }
+                                </div>
+                            </section>
+                        }
         else if (_activeTab == PlacementsTabName)
-        {
-            <CampaignPlacementsPanel CampaignId="@CampaignId"
-                                     CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
-                                     CanEditPlacements="@_canEditPlacements"
-                                     State="@_placementState"
-                                     OnStateChanged="OnPlacementStateChangedAsync"
-                                     OnReloadRequested="OnCampaignReloadRequestedAsync" />
-        }
-        else if (_activeTab == OverviewTabName)
-        {
-            <CampaignOverviewPanel CampaignId="@CampaignId"
-                                   Detail="@_detail"
-                                   IsClubAdmin="@_isClubAdmin"
-                                   OnOpenCloseout="OnOpenCloseoutAsync" />
-        }
-        else if (_activeTab == CloseoutTabName)
-        {
-            <CampaignCloseoutPanel CampaignId="@CampaignId"
-                                   Detail="@_detail"
-                                   IsClubAdmin="@_isClubAdmin"
-                                   OnReviewUnresolved="OnReviewUnresolvedAsync"
-                                   OnCancel="OnCancelCloseoutAsync"
-                                   OnReloadRequested="OnCampaignReloadRequestedAsync" />
-        }
+                        {
+                            <CampaignPlacementsPanel CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
+                                                     CanEditPlacements="@_canEditPlacements" State="@_placementState" OnStateChanged="OnPlacementStateChangedAsync"
+                                                     OnReloadRequested="OnCampaignReloadRequestedAsync" />
+                        }
+                        else if (_activeTab == OverviewTabName)
+                        {
+                            <CampaignOverviewPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
+                                                   OnOpenCloseout="OnOpenCloseoutAsync" />
+                        }
+                        else if (_activeTab == CloseoutTabName)
+                        {
+                            <CampaignCloseoutPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
+                                                   OnReviewUnresolved="OnReviewUnresolvedAsync" OnCancel="OnCancelCloseoutAsync"
+                                                   OnReloadRequested="OnCampaignReloadRequestedAsync" />
+                        }
 
-        @if (_selectedParticipantId is not null)
-        {
-            <CampaignParticipantDrawer CampaignId="@CampaignId"
-                                       ParticipantId="_selectedParticipantId.Value"
-                                       RosterItem="@SelectedRosterItem"
-                                       Position="@SelectedParticipantPosition"
-                                       TotalCount="@ParticipantSequenceCount"
-                                       HasPrevious="@HasPreviousParticipant"
-                                       HasNext="@HasNextParticipant"
-                                       OnPrevious="OnPreviousParticipantAsync"
-                                       OnNext="OnNextParticipantAsync"
-                                       OnClose="OnCloseParticipantAsync" />
-        }
-    }
-</div>
+                        @if (_selectedParticipantId is not null)
+                        {
+                            <CampaignParticipantDrawer CampaignId="@CampaignId" ParticipantId="_selectedParticipantId.Value"
+                                                       RosterItem="@SelectedRosterItem" Position="@SelectedParticipantPosition" TotalCount="@ParticipantSequenceCount"
+                                                       HasPrevious="@HasPreviousParticipant" HasNext="@HasNextParticipant" OnPrevious="OnPreviousParticipantAsync"
+                                                       OnNext="OnNextParticipantAsync" OnClose="OnCloseParticipantAsync" />
+                        }
+                    }
+                </div>

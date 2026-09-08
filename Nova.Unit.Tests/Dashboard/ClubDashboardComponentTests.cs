@@ -5,12 +5,12 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 using ClubDashboardPage = Nova.UI.Features.Dashboard.Pages.ClubDashboard;
@@ -24,11 +24,11 @@ namespace Nova.Unit.Tests.Dashboard;
 /// </summary>
 public sealed class ClubDashboardComponentTests : BunitContext
 {
-    private static readonly DateTimeOffset ActivityAt = new(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset _activityAt = new(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>Verifies the dashboard page declares an interactive-auto render mode.</summary>
     [Fact]
-    public void ClubDashboard_DeclaresInteractiveAutoRenderMode()
+    public void ClubDashboardDeclaresInteractiveAutoRenderMode()
     {
         var attribute = typeof(ClubDashboardPage)
             .GetCustomAttributes(inherit: false)
@@ -41,19 +41,19 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies the dashboard page is routed at the authenticated dashboard path.</summary>
     [Fact]
-    public void ClubDashboard_DeclaresDashboardRoute()
+    public void ClubDashboardDeclaresDashboardRoute()
     {
         var attribute = typeof(ClubDashboardPage)
             .GetCustomAttributes(inherit: false)
             .OfType<RouteAttribute>()
-            .SingleOrDefault(route => route.Template == "/dashboard");
+            .SingleOrDefault(route => string.Equals(route.Template, "/dashboard", StringComparison.Ordinal));
 
         attribute.ShouldNotBeNull();
     }
 
     /// <summary>Verifies the dashboard razor source declares an interactive-auto render mode.</summary>
     [Fact]
-    public void ClubDashboardRazor_DeclaresInteractiveAutoRenderMode()
+    public void ClubDashboardRazorDeclaresInteractiveAutoRenderMode()
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Dashboard", "Pages", "ClubDashboard.razor");
         File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
@@ -61,7 +61,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies the dashboard razor source is routed at the dashboard path.</summary>
     [Fact]
-    public void ClubDashboardRazor_DeclaresDashboardRoute()
+    public void ClubDashboardRazorDeclaresDashboardRoute()
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Dashboard", "Pages", "ClubDashboard.razor");
         File.ReadAllText(razorPath).ShouldContain("@page \"/dashboard\"");
@@ -69,7 +69,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies a populated summary renders all regions: campaigns, counts, and activity.</summary>
     [Fact]
-    public void ClubDashboard_RendersAllRegions_WhenPopulated()
+    public void ClubDashboardRendersAllRegionsWhenPopulated()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -96,7 +96,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies an administrator sees the attention card with both counts and links.</summary>
     [Fact]
-    public void ClubDashboard_ShowsAdminAttention_ForClubAdmin()
+    public void ClubDashboardShowsAdminAttentionForClubAdmin()
     {
         var attention = new ClubAttentionResult
         {
@@ -132,8 +132,8 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var attentionItems = cut.FindAll(".attention-panel p")
             .Select(item => item.TextContent.Trim())
             .ToArray();
-        attentionItems.ShouldContain("3 pending join requests");
-        attentionItems.ShouldContain("5 unresolved placements");
+        attentionItems.ShouldContain("3 pending join requests", StringComparer.Ordinal);
+        attentionItems.ShouldContain("5 unresolved placements", StringComparer.Ordinal);
 
         var reviewRequestsLink = cut.FindAll("a")
             .Single(a => a.TextContent.Contains("Review requests", StringComparison.Ordinal));
@@ -146,7 +146,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies an evaluator does not see the administrator attention card.</summary>
     [Fact]
-    public void ClubDashboard_HidesAdminAttention_ForEvaluator()
+    public void ClubDashboardHidesAdminAttentionForEvaluator()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -167,7 +167,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies the placement review link falls back to the campaign list when no campaign has unresolved placements.</summary>
     [Fact]
-    public void ClubDashboard_FallsBackToCampaignList_WhenNoUnresolvedCampaign()
+    public void ClubDashboardFallsBackToCampaignListWhenNoUnresolvedCampaign()
     {
         var attention = new ClubAttentionResult
         {
@@ -207,7 +207,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies an administrator with no active campaigns sees the create-campaign call to action.</summary>
     [Fact]
-    public void ClubDashboard_ShowsAdminEmptyState_WhenNoActiveCampaigns()
+    public void ClubDashboardShowsAdminEmptyStateWhenNoActiveCampaigns()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -222,13 +222,13 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Create campaign"));
 
         cut.Markup.ShouldContain("Create your first campaign");
-        var createLink = cut.FindAll("a").Single(a => a.TextContent.Trim() == "Create campaign");
+        var createLink = cut.FindAll("a").Single(a => string.Equals(a.TextContent.Trim(), "Create campaign", StringComparison.Ordinal));
         createLink.GetAttribute("href").ShouldBe("campaigns/new");
     }
 
     /// <summary>Verifies an evaluator with no active campaigns sees the neutral empty message and no call to action.</summary>
     [Fact]
-    public void ClubDashboard_ShowsNeutralEmptyState_ForEvaluator()
+    public void ClubDashboardShowsNeutralEmptyStateForEvaluator()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -247,7 +247,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies an empty activity feed renders the muted empty message.</summary>
     [Fact]
-    public void ClubDashboard_ShowsNoActivity_WhenFeedEmpty()
+    public void ClubDashboardShowsNoActivityWhenFeedEmpty()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -266,7 +266,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies every activity kind renders its expected verb phrase with kind-specific context.</summary>
     [Fact]
-    public void ClubDashboard_RendersEachActivityKind_WithVerb()
+    public void ClubDashboardRendersEachActivityKindWithVerb()
     {
         var events = new List<ClubActivityItemDto>
         {
@@ -289,7 +289,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recent activity"));
 
         cut.FindAll("ul li").Count.ShouldBe(5);
-        cut.Markup.ShouldContain(ActivityAt.ToString("MMM d, yyyy"));
+        cut.Markup.ShouldContain(_activityAt.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture));
         cut.Markup.ShouldContain("closed Campaign A");
         cut.Markup.ShouldContain("reopened Campaign A");
         cut.Markup.ShouldContain("requested to join the club");
@@ -299,7 +299,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies the dashboard shows an accessible loading state while the request is pending.</summary>
     [Fact]
-    public void ClubDashboard_ShowsLoadingState_WhileRequestIsPending()
+    public void ClubDashboardShowsLoadingStateWhileRequestIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<ClubDashboardResult>>();
         var dashboardService = Substitute.For<IDashboardQueryService>();
@@ -321,7 +321,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies a load error surfaces a role=alert message and Retry re-invokes the service.</summary>
     [Fact]
-    public void ClubDashboard_ShowsErrorAndRetries_WhenInitialLoadFails()
+    public void ClubDashboardShowsErrorAndRetriesWhenInitialLoadFails()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -344,7 +344,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
     /// <summary>Verifies a user without a club id claim sees the friendly error and no dashboard payload is fetched.</summary>
     [Fact]
-    public void ClubDashboard_ShowsFriendlyError_WhenClubIdClaimMissing()
+    public void ClubDashboardShowsFriendlyErrorWhenClubIdClaimMissing()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         var activityService = Substitute.For<IClubActivityQueryService>();
@@ -357,13 +357,13 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldContain("role=\"alert\"");
         cut.Markup.ShouldNotContain("Active campaigns");
         cut.Markup.ShouldNotContain("Admin attention");
-        dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
-        activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
+        _ = dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
+        _ = activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Verifies seeded persisted state is restored without re-fetching either dashboard payload.</summary>
     [Fact]
-    public void ClubDashboard_RestoresPersistedState_WithoutRefetching()
+    public void ClubDashboardRestoresPersistedStateWithoutRefetching()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         var activityService = Substitute.For<IClubActivityQueryService>();
@@ -402,12 +402,12 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var attentionItems = cut.FindAll(".attention-panel p")
             .Select(item => item.TextContent.Trim())
             .ToArray();
-        attentionItems.ShouldContain("2 pending join requests");
-        attentionItems.ShouldContain("3 unresolved placements");
+        attentionItems.ShouldContain("2 pending join requests", StringComparer.Ordinal);
+        attentionItems.ShouldContain("3 unresolved placements", StringComparer.Ordinal);
 
-        dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
-        activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
-        attentionService.DidNotReceive().GetClubAttentionAsync(Arg.Any<CancellationToken>());
+        _ = dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
+        _ = activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
+        _ = attentionService.DidNotReceive().GetClubAttentionAsync(Arg.Any<CancellationToken>());
     }
 
     private void RegisterServices(
@@ -494,7 +494,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         {
             Kind = kind,
             ActivityEventId = eventId,
-            OccurredAt = ActivityAt,
+            OccurredAt = _activityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
             Context = new CampaignLifecycleContext { CampaignId = 42, CampaignName = campaignName }
@@ -505,7 +505,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         {
             Kind = ActivityEventKind.JoinRequestSubmitted,
             ActivityEventId = eventId,
-            OccurredAt = ActivityAt,
+            OccurredAt = _activityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
             Context = new JoinRequestContext { JoinRequestId = 7, RequesterDisplayName = "Noter" }
@@ -516,7 +516,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         {
             Kind = ActivityEventKind.MemberJoined,
             ActivityEventId = eventId,
-            OccurredAt = ActivityAt,
+            OccurredAt = _activityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
             Context = new MembershipContext { MemberUserId = 99, MemberDisplayName = "Noter", ApprovedByActorName = null }
@@ -527,7 +527,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         {
             Kind = ActivityEventKind.MemberPromoted,
             ActivityEventId = eventId,
-            OccurredAt = ActivityAt,
+            OccurredAt = _activityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
             Context = new MemberRoleContext { MemberUserId = 1, MemberDisplayName = "Noter", Role = "Team Lead" }
@@ -584,7 +584,9 @@ public sealed class ClubDashboardComponentTests : BunitContext
     /// <summary>
     /// A test-only <see cref="ClubDashboardPage"/> subclass that seeds persisted prerender state.
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedStateClubDashboard(
+#pragma warning restore CA1812
         IDashboardQueryService dashboardQueryService,
         IClubActivityQueryService activityQueryService,
         IClubAttentionQueryService attentionQueryService,

@@ -10,7 +10,7 @@
 - The server/host project is `Nova/Nova.csproj`.
 - The Blazor WebAssembly project for interactive components is `Nova.Client/Nova.Client.csproj`.
 - The shared UI library is `Nova.UI/Nova.UI.csproj`.
-- The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.Shared/Nova.Shared.csproj`.
+- The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.SharedKernel/Nova.SharedKernel.csproj`.
 - The automated browser workflow suite (Playwright, local-only) is `Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
 - Aspire instrumentation is configured in `Nova.AppHost/Nova.AppHost.csproj` and `Nova.ServiceDefaults/Nova.ServiceDefaults.csproj`.
 
@@ -62,20 +62,20 @@ tests using EF or `TenancyTestHarness` need tenancy rules; HTTP serialization an
 API rules; components handling validation need validation rules. A pure policy or documentation
 change does not by itself require a visual-design workflow.
 
-| Concern | Rules in `.github/instructions/` | Recipe in `.agents/skills/` |
-| --- | --- | --- |
-| C# style, OneOf, documentation, logging | `csharp-conventions.instructions.md` | Relevant feature recipe |
-| Blazor forms, state, navigation, authentication, recovery | `blazor-architecture.instructions.md` | `add-blazor-ui` |
-| UI design and Sass theme | `ui-design.instructions.md`, `bootstrap-theme.instructions.md` | `impeccable` when design work is needed |
-| Service or complete HTTP/WASM feature | `service-layer.instructions.md`, `validation.instructions.md` | `add-feature-slice` |
-| Endpoints, wire contracts, HTTP clients | `api-endpoints.instructions.md` | `add-api-endpoint` |
-| EF, tenancy, schema, persistence helpers | `ef-core-tenancy.instructions.md` | `add-domain-persistence` |
-| Season/campaign lifecycle | `season-lifecycle.instructions.md` | `add-domain-persistence` |
-| Participation and saved placement decisions | `placement-decisions.instructions.md` | Relevant feature recipe |
-| Deterministic policy extraction | `functional-core.instructions.md` | `extract-functional-core` |
-| Durable activity feed and attention projections | Tenancy, service, and API rules above | `add-activity-feed` |
-| Tests and behavioral verification | `testing.instructions.md` | `nova-testing`; `aspire-playwright-validation` for one-off browser acceptance |
-| Telemetry and correlation | `observability.instructions.md` | Relevant feature recipe |
+| Concern                                                   | Rules in `.github/instructions/`                               | Recipe in `.agents/skills/`                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| C# style, OneOf, documentation, logging                   | `csharp-conventions.instructions.md`                           | Relevant feature recipe                                                       |
+| Blazor forms, state, navigation, authentication, recovery | `blazor-architecture.instructions.md`                          | `add-blazor-ui`                                                               |
+| UI design and Sass theme                                  | `ui-design.instructions.md`, `bootstrap-theme.instructions.md` | `impeccable` when design work is needed                                       |
+| Service or complete HTTP/WASM feature                     | `service-layer.instructions.md`, `validation.instructions.md`  | `add-feature-slice`                                                           |
+| Endpoints, wire contracts, HTTP clients                   | `api-endpoints.instructions.md`                                | `add-api-endpoint`                                                            |
+| EF, tenancy, schema, persistence helpers                  | `ef-core-tenancy.instructions.md`                              | `add-domain-persistence`                                                      |
+| Season/campaign lifecycle                                 | `season-lifecycle.instructions.md`                             | `add-domain-persistence`                                                      |
+| Participation and saved placement decisions               | `placement-decisions.instructions.md`                          | Relevant feature recipe                                                       |
+| Deterministic policy extraction                           | `functional-core.instructions.md`                              | `extract-functional-core`                                                     |
+| Durable activity feed and attention projections           | Tenancy, service, and API rules above                          | `add-activity-feed`                                                           |
+| Tests and behavioral verification                         | `testing.instructions.md`                                      | `nova-testing`; `aspire-playwright-validation` for one-off browser acceptance |
+| Telemetry and correlation                                 | `observability.instructions.md`                                | Relevant feature recipe                                                       |
 
 Before implementation or review recommendations, read the selected recipe's `SKILL.md` and its
 applicable references, including for existing behavior. Record the sources actually read with

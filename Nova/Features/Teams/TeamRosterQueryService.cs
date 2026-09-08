@@ -2,11 +2,11 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Teams;
 
@@ -16,13 +16,15 @@ namespace Nova.Features.Teams;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts.</param>
-public sealed partial class TeamRosterQueryService(
+internal sealed partial class TeamRosterQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamRosterQueryService> logger) : ITeamRosterService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<IReadOnlyList<TeamRosterItem>>> GetRosterAsync(
+#pragma warning restore MA0051
         GetTeamRosterInput input,
         CancellationToken cancellationToken = default)
     {
@@ -52,7 +54,9 @@ public sealed partial class TeamRosterQueryService(
             var escapedSearch = LikePatternEscaper.EscapeLikePattern(search);
             query = db.Database.IsNpgsql()
                 ? query.Where(team => EF.Functions.ILike(team.Name, $"%{escapedSearch}%", @"\"))
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                 : query.Where(team => team.Name.ToUpper().Contains(uppercaseSearch));
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
         }
 
         if (input.GraduationYear is int graduationYear)

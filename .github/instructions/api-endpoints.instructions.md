@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/**/*Endpoint*.cs,Nova/Features/Shared/ServiceResultExtensions.cs,Nova/Features/Shared/BadHttpRequestExceptionHandler.cs,Nova/Program.cs,Nova.Shared/Features/**/*Endpoints.cs,Nova.Shared/Features/**/*Input.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
+applyTo: "Nova/**/*Endpoint*.cs,Nova/Features/Common/ServiceResultExtensions.cs,Nova/Features/Common/BadHttpRequestExceptionHandler.cs,Nova/Program.cs,Nova.SharedKernel/Features/**/*Endpoints.cs,Nova.SharedKernel/Features/**/*Input.cs,Nova.SharedKernel/Results/**/*.cs,Nova.Client/Services/**/*.cs"
 description: "HTTP endpoint and WASM client rules: routes, handlers, contract fidelity, ProblemDetails, validation, metadata, authorization, antiforgery, and query binding."
 ---
 
@@ -14,8 +14,8 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
   clients, UI callers, and HTTP tests. Do not add a specialized endpoint when an existing command
   already owns the same mutation and invariant unless a distinct external contract is intentional.
   Every endpoint needs an intended caller or an explicit external-consumer justification.
-- **All route strings must be constants in a static `*Endpoints` class in `Nova.Shared`** (one per
-  feature folder, e.g. `Nova.Shared/Features/Clubs/ClubEndpoints.cs`). Never write inline route literals in
+- **All route strings must be constants in a static `*Endpoints` class in `Nova.SharedKernel`** (one per
+  feature folder, e.g. `Nova.SharedKernel/Features/Clubs/ClubEndpoints.cs`). Never write inline route literals in
   the mapping code or in WASM client services — server and client must consume the same constants.
 - For routes with dynamic segments, expose a URL-builder static method rather than the raw template.
 - Compose URL builders from the feature's existing route constants (especially `GroupPrefix`) instead
@@ -31,7 +31,7 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 - Use **static handler methods** declared in the same file as the mapping extension; inject
   dependencies as handler parameters.
 - Convert service results with the `ToHttpResult` extensions in
-  `Nova.Features.Shared.ServiceResultExtensions`. Prefer returning `IResult`; use `Results<T1, T2, …>`
+  `Nova.Features.Common.ServiceResultExtensions`. Prefer returning `IResult`; use `Results<T1, T2, …>`
   only when OpenAPI needs precise success-type information.
 - Keep endpoint metadata aligned with every status the handler can return (conflicts, not-found, 500s; the single 400 contract on body endpoints is `.ProducesValidationProblem()` — see **ProblemDetails and trace IDs**). Client or service unit tests do not prove route registration, middleware, metadata, and status mapping agree.
 - ⚠️ `TypedResults.CreatedAtRoute<TValue>` takes the **value first**:
@@ -57,7 +57,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 - Treat both 400 and 422 responses containing an `errors` payload as validation failures in WASM
   clients. Do not misclassify .NET 10 automatic-validation 422 responses as server errors.
 - Framework-generated `BadHttpRequestException` (e.g. a malformed JSON body) is mapped once at the
-  foundation by `BadHttpRequestExceptionHandler` (`Nova/Features/Shared/BadHttpRequestExceptionHandler.cs`,
+  foundation by `BadHttpRequestExceptionHandler` (`Nova/Features/Common/BadHttpRequestExceptionHandler.cs`,
   registered via `AddExceptionHandler<T>()` in `Program.cs`); it returns a `ProblemDetails` carrying the
   exception's status code and detail plus `traceId`. Endpoints must not add per-endpoint handling for
   body-binding failures, and must not declare a second `.ProducesProblem(400)` on body endpoints:
@@ -81,7 +81,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 - Validation is **dual-layer** (endpoint + service); both are always required — see `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
 - `builder.Services.AddValidation()` (global in `Program.cs`) makes parameter validation automatic and opt-out. Use `DisableValidation()` on endpoints where model binding does not apply (streaming/multipart).
-- Annotate input records in `Nova.Shared` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`); the single-400 rationale is in **ProblemDetails and trace IDs**.
+- Annotate input records in `Nova.SharedKernel` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`); the single-400 rationale is in **ProblemDetails and trace IDs**.
 - For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
 - Treat multipart filenames and content types as untrusted metadata and validate them before opening
   or buffering the stream. When the original filename is not part of the contract, have the WASM
@@ -112,7 +112,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 - When a DTO carries one of several family-specific payloads (e.g. the activity feed's
   `ClubActivityContext`), mark the abstract base with `[JsonPolymorphic(TypeDiscriminatorPropertyName
-  = "type")]` and one `[JsonDerivedType(typeof(…), "…")]` per derived type. Serialize through the
+= "type")]` and one `[JsonDerivedType(typeof(…), "…")]` per derived type. Serialize through the
   abstract base type (`JsonSerializer.Serialize(value, typeof(Base))`) so the discriminator is
   emitted; deserialize through the base with `PropertyNameCaseInsensitive = true` (payloads are
   written camelCase).
@@ -123,6 +123,6 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 ## Related
 
 - `.agents/skills/add-api-endpoint/` — full endpoint recipe and examples.
-- `Nova/Features/Shared/ServiceResultExtensions.cs` — `ToHttpResult` conversions.
+- `Nova/Features/Common/ServiceResultExtensions.cs` — `ToHttpResult` conversions.
 - `.github/instructions/service-layer.instructions.md`, `.github/instructions/validation.instructions.md`.
-- `Nova.Shared/Results/` — `ServiceProblem`, `ServiceResult`, `HttpResponseMessageExtensions`.
+- `Nova.SharedKernel/Results/` — `ServiceProblem`, `ServiceResult`, `HttpResponseMessageExtensions`.

@@ -5,8 +5,8 @@ using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -42,7 +42,7 @@ public sealed class ClubAdminServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetClubAdminSummaryAsync_ReturnsCountsMetadataAndSoleAdminProjection()
+    public async Task GetClubAdminSummaryAsyncReturnsCountsMetadataAndSoleAdminProjectionAsync()
     {
         var service = CreateService([new NovaUserEntity { Id = 10, FirstName = "Alice", LastName = "Admin", ClubId = 1 }]);
 
@@ -62,7 +62,7 @@ public sealed class ClubAdminServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubRosterAsync_ReturnsClubMembers()
+    public async Task GetClubRosterAsyncReturnsClubMembersAsync()
     {
         var service = CreateService([new NovaUserEntity { Id = 10, FirstName = "Alice", LastName = "Admin", ClubId = 1 }]);
 
@@ -74,7 +74,7 @@ public sealed class ClubAdminServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubRosterAsync_ReturnsForbiddenForNonAdministrator()
+    public async Task GetClubRosterAsyncReturnsForbiddenForNonAdministratorAsync()
     {
         _harness.CurrentUser.IsClubAdmin = false;
 

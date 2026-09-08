@@ -5,9 +5,9 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using Shouldly;
 using SixLabors.ImageSharp;
 
@@ -30,7 +30,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// creates no club (the crest is a required part of the multipart payload).
     /// </summary>
     [Fact]
-    public async Task CreateClub_WithoutCrest_ReturnsValidationProblem()
+    public async Task CreateClubWithoutCrestReturnsValidationProblemAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -38,11 +38,17 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
             client, SeedingHelpers.UniqueEmail("crest-nofile"), Password, cancellationToken);
 
         using var form = new MultipartFormDataContent();
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent("No Crest Club"), "name");
+#pragma warning restore CA2000
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent("Austin"), "city");
+#pragma warning restore CA2000
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent("TX"), "state");
+#pragma warning restore CA2000
 
-        using var response = await client.PostAsync(ClubEndpoints.Create, form, cancellationToken);
+        using var response = await client.PostAsync(new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problem = await response.ToServiceProblemAsync(cancellationToken);
@@ -56,18 +62,19 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// so the first administrator request succeeds without the separate completion hop.
     /// </summary>
     [Fact]
-    public async Task CreateClub_ReissuesCookieBeforeResponse_AndGrantsImmediateAdminAccess()
+    public async Task CreateClubReissuesCookieBeforeResponseAndGrantsImmediateAdminAccessAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
             client, SeedingHelpers.UniqueEmail("crest-cookie"), Password, cancellationToken);
 
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(
+                $"Immediate Claims Club {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(
-                $"Immediate Claims Club {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         response.Headers.TryGetValues("Set-Cookie", out var setCookieValues).ShouldBeTrue();
@@ -78,7 +85,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         club.ShouldNotBeNull();
 
         using var adminResponse = await client.GetAsync(
-            ClubEndpoints.AdminJoinRequestsUrl(club.ClubId), cancellationToken);
+new Uri(ClubEndpoints.AdminJoinRequestsUrl(club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken);
         adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -88,7 +95,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// conditional request).
     /// </summary>
     [Fact]
-    public async Task CreateClub_WithCrest_PersistsRowAndServesVariants()
+    public async Task CreateClubWithCrestPersistsRowAndServesVariantsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -100,13 +107,17 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         // The crest row is persisted with all four blob names and the original content type.
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             // Creation-time blob names are keyed by clubs/{userId}/{batchId} — stable across
             // retried inserts that can get a different club id (see ClubService.CreateClubAsync) —
             // so look the acting user up through the admin context before asserting the prefix.
             var userId = (await db.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
             var crest = await db.ClubCrests.SingleAsync(
                 candidate => candidate.ClubId == club.ClubId, cancellationToken);
             crest.OriginalBlobName.ShouldStartWith($"clubs/{userId}/");
@@ -125,7 +136,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         foreach (var size in new[] { ProfilePhotoSize.Small, ProfilePhotoSize.Medium, ProfilePhotoSize.Large })
         {
             using var variant = await client.GetAsync(
-                ClubCrestEndpoints.GetCrestUrl(club.ClubId, size), cancellationToken);
+new Uri(ClubCrestEndpoints.GetCrestUrl(club.ClubId, size), UriKind.RelativeOrAbsolute), cancellationToken);
             variant.StatusCode.ShouldBe(HttpStatusCode.OK);
             variant.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
             variant.Headers.CacheControl?.NoCache.ShouldBeTrue($"the {size} variant must be revalidated");
@@ -148,7 +159,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// size value falls back to the medium WebP variant rather than the original.
     /// </summary>
     [Fact]
-    public async Task GetCrest_OriginalIsRejected_AndUndefinedSizeFallsBackToMedium()
+    public async Task GetCrestOriginalIsRejectedAndUndefinedSizeFallsBackToMediumAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -159,7 +170,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using (var original = await client.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Original), cancellationToken))
+new Uri(ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Original), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             original.StatusCode.ShouldBe(HttpStatusCode.NotFound);
             var problem = await original.ToServiceProblemAsync(cancellationToken);
@@ -167,7 +178,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         }
 
         using var fallback = await client.GetAsync(
-            $"/api/clubs/{club.ClubId}/crest?size=99", cancellationToken);
+new Uri($"/api/clubs/{club.ClubId}/crest?size=99", UriKind.RelativeOrAbsolute), cancellationToken);
         fallback.StatusCode.ShouldBe(HttpStatusCode.OK);
         fallback.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
     }
@@ -177,13 +188,13 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// not inside a group that would redirect anonymous callers).
     /// </summary>
     [Fact]
-    public async Task GetCrest_ReturnsUnauthorized_ForAnonymous()
+    public async Task GetCrestReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
 
         using var response = await client.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(long.MaxValue, ProfilePhotoSize.Medium), cancellationToken);
+new Uri(ClubCrestEndpoints.GetCrestUrl(long.MaxValue, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -193,7 +204,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// authenticated user of another club cannot read this club's crest either.
     /// </summary>
     [Fact]
-    public async Task GetCrest_ReturnsNotFound_ForOutOfTenantUsers()
+    public async Task GetCrestReturnsNotFoundForOutOfTenantUsersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var ownerClient = fixture.CreateNovaHttpClient();
@@ -208,7 +219,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
             foreignClient, SeedingHelpers.UniqueEmail("crest-tenant-b"), Password, cancellationToken);
         using (var clubless = await foreignClient.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Medium), cancellationToken))
+new Uri(ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             clubless.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
@@ -218,7 +229,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(foreignClient, cancellationToken);
         foreignClub.ClubId.ShouldNotBe(club.ClubId);
         using (var crossClub = await foreignClient.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Medium), cancellationToken))
+new Uri(ClubCrestEndpoints.GetCrestUrl(club.ClubId, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             crossClub.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
@@ -230,7 +241,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// the admin's authentication cookie so the HasClubCrest claim updates immediately.
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_ReturnsNoContent_ReplacesBlobs_AndRefreshesCookie()
+    public async Task ChangeCrestReturnsNoContentReplacesBlobsAndRefreshesCookieAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -240,7 +251,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
 
         using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes(width: 300, height: 200));
         using var response = await adminClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken);
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         // Set-Cookie proves the immediate cookie refresh hop reissued the auth cookie.
@@ -271,28 +282,28 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// source aspect ratio and never exceed their maximum bound.
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_NonSquareSource_ServesAspectPreservingVariants()
+    public async Task ChangeCrestNonSquareSourceServesAspectPreservingVariantsAsync()
     {
-        const int sourceWidth = 300;
-        const int sourceHeight = 200;
-        const double sourceAspect = (double)sourceWidth / sourceHeight;
-        const double aspectTolerance = 0.02;
+        const int SourceWidth = 300;
+        const int SourceHeight = 200;
+        const double SourceAspect = (double)SourceWidth / SourceHeight;
+        const double AspectTolerance = 0.02;
 
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
 
         var admin = await RegisterClubAdminAsync(adminClient, "crest-aspect", "Aspect Crest Club", cancellationToken);
 
-        using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes(width: sourceWidth, height: sourceHeight));
+        using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes(width: SourceWidth, height: SourceHeight));
         using (var response = await adminClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken))
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), content, cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         // The small variant is a 64×64 center-cropped square.
         using (var small = await adminClient.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, ProfilePhotoSize.Small), cancellationToken))
+new Uri(ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, ProfilePhotoSize.Small), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             small.StatusCode.ShouldBe(HttpStatusCode.OK);
             small.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
@@ -309,7 +320,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         })
         {
             using var variant = await adminClient.GetAsync(
-                ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, size), cancellationToken);
+new Uri(ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, size), UriKind.RelativeOrAbsolute), cancellationToken);
             variant.StatusCode.ShouldBe(HttpStatusCode.OK);
             variant.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
 
@@ -317,7 +328,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
             image.Width.ShouldBeLessThanOrEqualTo(maxDimension);
             image.Height.ShouldBeLessThanOrEqualTo(maxDimension);
             image.Width.ShouldNotBe(image.Height, "a non-square source must not produce a square variant");
-            (image.Width / (double)image.Height).ShouldBe(sourceAspect, aspectTolerance);
+            (image.Width / (double)image.Height).ShouldBe(SourceAspect, AspectTolerance);
         }
     }
 
@@ -325,7 +336,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// Verifies the change endpoint rejects a missing crest file (400 validation, not a 500).
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_WithoutFile_ReturnsValidationProblem()
+    public async Task ChangeCrestWithoutFileReturnsValidationProblemAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -335,7 +346,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent("ignored"), "name");
         using var response = await adminClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), form, cancellationToken);
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problem = await response.ToServiceProblemAsync(cancellationToken);
@@ -350,7 +361,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// which 415s JSON requests before the handler runs.
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_WithJsonContentType_ReturnsUnsupportedMediaType()
+    public async Task ChangeCrestWithJsonContentTypeReturnsUnsupportedMediaTypeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -359,7 +370,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
 
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         using var response = await adminClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken);
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnsupportedMediaType);
     }
@@ -368,7 +379,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-admin club member cannot change the crest (403).
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_ReturnsForbidden_ForClubMember()
+    public async Task ChangeCrestReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -379,7 +390,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
 
         using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes());
         using var response = await memberClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken);
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -389,7 +400,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// boundary, after the global ClubAdmin role policy passes).
     /// </summary>
     [Fact]
-    public async Task ChangeCrest_ReturnsForbidden_ForCrossClubAdmin()
+    public async Task ChangeCrestReturnsForbiddenForCrossClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -400,7 +411,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
 
         using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes());
         using var response = await clubBClient.PostAsync(
-            ClubCrestEndpoints.ChangeCrestUrl(clubA.Club.ClubId), content, cancellationToken);
+new Uri(ClubCrestEndpoints.ChangeCrestUrl(clubA.Club.ClubId), UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -410,7 +421,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// the GET endpoint returns 404 afterwards.
     /// </summary>
     [Fact]
-    public async Task RemoveCrest_ReturnsNoContent_DeletesRowAndBlobs()
+    public async Task RemoveCrestReturnsNoContentDeletesRowAndBlobsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -419,7 +430,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         var blobNames = await GetCrestBlobNamesAsync(admin.Club.ClubId, cancellationToken);
 
         using (var response = await adminClient.DeleteAsync(
-            ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), cancellationToken))
+new Uri(ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
             response.Headers.TryGetValues("Set-Cookie", out var cookies).ShouldBeTrue(
@@ -427,7 +438,9 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
             cookies.ShouldContain(cookie => cookie.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal));
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var crestCount = await db.ClubCrests.CountAsync(candidate => candidate.ClubId == admin.Club.ClubId, cancellationToken);
             crestCount.ShouldBe(0, "the crest row must be deleted");
@@ -440,7 +453,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         }
 
         using (var after = await adminClient.GetAsync(
-            ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, ProfilePhotoSize.Medium), cancellationToken))
+new Uri(ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             after.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
@@ -450,7 +463,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-admin club member cannot remove the crest (403).
     /// </summary>
     [Fact]
-    public async Task RemoveCrest_ReturnsForbidden_ForClubMember()
+    public async Task RemoveCrestReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -460,7 +473,7 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         await RegisterUserAsync(memberClient, "crest-rm-member", "Member", "Remover", admin.Club.ClubId, cancellationToken);
 
         using var response = await memberClient.DeleteAsync(
-            ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), cancellationToken);
+new Uri(ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -469,20 +482,20 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// Verifies removing a crest that does not exist is a non-disclosing 404.
     /// </summary>
     [Fact]
-    public async Task RemoveCrest_ReturnsNotFound_WhenClubHasNoCrest()
+    public async Task RemoveCrestReturnsNotFoundWhenClubHasNoCrestAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
 
         var admin = await RegisterClubAdminAsync(adminClient, "crest-rm-missing", "Missing Crest Club", cancellationToken);
         using (await adminClient.DeleteAsync(
-            ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), cancellationToken))
+new Uri(ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             // First remove deletes the seeded crest.
         }
 
         using var response = await adminClient.DeleteAsync(
-            ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), cancellationToken);
+new Uri(ClubCrestEndpoints.RemoveCrestUrl(admin.Club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         var problem = await response.ToServiceProblemAsync(cancellationToken);
@@ -497,12 +510,13 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         string clubName,
         CancellationToken cancellationToken)
     {
-        var (email, userId) = await RegisterUserAsync(client, emailPrefix, "Club", "Admin", clubId: null, cancellationToken);
+        var (_, userId) = await RegisterUserAsync(client, emailPrefix, "Club", "Admin", clubId: null, cancellationToken);
 
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
@@ -522,15 +536,20 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         var email = SeedingHelpers.UniqueEmail(emailPrefix);
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
 
-        await using var db = fixture.CreateAdminContext();
-        var user = await db.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        await db.SaveChangesAsync(cancellationToken);
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await db.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            await db.SaveChangesAsync(cancellationToken);
 
-        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
-        return (email, user.Id);
+            await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
+            return (email, user.Id);
+        }
     }
 
     /// <summary>
@@ -541,9 +560,12 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// <returns>The four blob names in original/small/medium/large order.</returns>
     private async Task<List<string>> GetCrestBlobNamesAsync(long clubId, CancellationToken cancellationToken)
     {
-        await using var db = fixture.CreateAdminContext();
-        var crest = await db.ClubCrests.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
-        return [crest.OriginalBlobName, crest.SmallBlobName!, crest.MediumBlobName!, crest.LargeBlobName!];
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var crest = await db.ClubCrests.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+            return [crest.OriginalBlobName, crest.SmallBlobName!, crest.MediumBlobName!, crest.LargeBlobName!];
+        }
     }
 
     /// <summary>
@@ -553,7 +575,9 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     /// <returns>The multipart content.</returns>
     private static MultipartFormDataContent CreateCrestContent(byte[] bytes)
     {
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var fileContent = new ByteArrayContent(bytes);
+#pragma warning restore CA2000
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         return new MultipartFormDataContent { { fileContent, "crest", "crest.jpg" } };
     }

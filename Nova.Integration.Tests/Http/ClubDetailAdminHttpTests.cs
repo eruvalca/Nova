@@ -1,9 +1,9 @@
 ﻿using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -21,7 +21,9 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies login-vs-access-denied distinctions and member/admin access on the club detail page.
     /// </summary>
     [Fact]
-    public async Task ClubDetailRoute_UsesLoginOrAccessDeniedAndAllowsMembersAsync()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ClubDetailRouteUsesLoginOrAccessDeniedAndAllowsMembersAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -53,29 +55,29 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
 
         var detailRoute = $"/Clubs/{club.ClubId}";
 
-        using (var anonymousResponse = await anonymousClient.GetAsync(detailRoute, cancellationToken))
+        using (var anonymousResponse = await anonymousClient.GetAsync(new Uri(detailRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             anonymousResponse.Headers.Location.ShouldNotBeNull();
             anonymousResponse.Headers.Location.OriginalString.ShouldContain("/Account/Login");
         }
 
-        using (var noClubResponse = await noClubClient.GetAsync(detailRoute, cancellationToken))
+        using (var noClubResponse = await noClubClient.GetAsync(new Uri(detailRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             noClubResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             noClubResponse.Headers.Location.ShouldNotBeNull();
             noClubResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
         }
 
-        using var memberResponse = await memberClient.GetAsync(detailRoute, cancellationToken);
+        using var memberResponse = await memberClient.GetAsync(new Uri(detailRoute, UriKind.RelativeOrAbsolute), cancellationToken);
         memberResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
         memberResponse.Headers.Location!.AbsolutePath.ShouldBe("/club");
 
-        using var adminResponse = await clubAdminClient.GetAsync(detailRoute, cancellationToken);
+        using var adminResponse = await clubAdminClient.GetAsync(new Uri(detailRoute, UriKind.RelativeOrAbsolute), cancellationToken);
         adminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
         adminResponse.Headers.Location!.AbsolutePath.ShouldBe("/club");
 
-        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(detailRoute, cancellationToken);
+        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(new Uri(detailRoute, UriKind.RelativeOrAbsolute), cancellationToken);
         otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
         otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
         otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
@@ -85,7 +87,9 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies login, non-member denial, member recovery, and ClubAdmin-only access on the admin page.
     /// </summary>
     [Fact]
-    public async Task ClubAdminRoute_RecoversMembersToOverviewAndAllowsOnlyClubAdminsAsync()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ClubAdminRouteRecoversMembersToOverviewAndAllowsOnlyClubAdminsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -117,21 +121,21 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
 
         var adminRoute = $"/Clubs/{club.ClubId}/admin";
 
-        using (var anonymousResponse = await anonymousClient.GetAsync(adminRoute, cancellationToken))
+        using (var anonymousResponse = await anonymousClient.GetAsync(new Uri(adminRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             anonymousResponse.Headers.Location.ShouldNotBeNull();
             anonymousResponse.Headers.Location.OriginalString.ShouldContain("/Account/Login");
         }
 
-        using (var noClubResponse = await noClubClient.GetAsync(adminRoute, cancellationToken))
+        using (var noClubResponse = await noClubClient.GetAsync(new Uri(adminRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             noClubResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             noClubResponse.Headers.Location.ShouldNotBeNull();
             noClubResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
         }
 
-        using (var memberResponse = await memberClient.GetAsync(adminRoute, cancellationToken))
+        using (var memberResponse = await memberClient.GetAsync(new Uri(adminRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             memberResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             memberResponse.Headers.Location.ShouldNotBeNull();
@@ -139,12 +143,12 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
                 .ShouldBe(ClubRoutes.OverviewWithPermissionsChanged);
         }
 
-        using (var adminResponse = await clubAdminClient.GetAsync(adminRoute, cancellationToken))
+        using (var adminResponse = await clubAdminClient.GetAsync(new Uri(adminRoute, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(adminRoute, cancellationToken);
+        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(new Uri(adminRoute, UriKind.RelativeOrAbsolute), cancellationToken);
         otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
         otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
         otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
@@ -154,7 +158,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies the matching legacy member route redirects to the canonical current-club overview.
     /// </summary>
     [Fact]
-    public async Task ClubDetailPage_ForMember_RedirectsToCanonicalOverviewAsync()
+    public async Task ClubDetailPageForMemberRedirectsToCanonicalOverviewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -171,7 +175,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(memberEmail, "Megan", "Member", club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using var response = await memberClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri($"/Clubs/{club.ClubId}", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
         response.Headers.Location.ShouldNotBeNull();
         response.Headers.Location.AbsolutePath.ShouldBe("/club");
@@ -181,7 +185,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies the matching legacy administrator route also redirects to the canonical overview.
     /// </summary>
     [Fact]
-    public async Task ClubDetailPage_ForClubAdmin_RedirectsToCanonicalOverviewAsync()
+    public async Task ClubDetailPageForClubAdminRedirectsToCanonicalOverviewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -198,7 +202,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(memberEmail, "Rita", "Roster", club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using var response = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken);
+        using var response = await clubAdminClient.GetAsync(new Uri($"/Clubs/{club.ClubId}", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
         response.Headers.Location.ShouldNotBeNull();
         response.Headers.Location.AbsolutePath.ShouldBe("/club");
@@ -208,7 +212,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies admin-page join-request UI content and retired route not-found behavior.
     /// </summary>
     [Fact]
-    public async Task ClubAdminPage_ShowsPendingJoinRequestUi_AndRetiredRouteReturnsNotFoundAsync()
+    public async Task ClubAdminPageShowsPendingJoinRequestUiAndRetiredRouteReturnsNotFoundAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -225,7 +229,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(joinerEmail, "Jordan", "Joiner", clubId: null, cancellationToken);
         _ = await CreateJoinRequestAsync(joinerClient, club.ClubId, cancellationToken);
 
-        using (var adminPageResponse = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}/admin", cancellationToken))
+        using (var adminPageResponse = await clubAdminClient.GetAsync(new Uri($"/Clubs/{club.ClubId}/admin", UriKind.RelativeOrAbsolute), cancellationToken))
         {
             adminPageResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await adminPageResponse.Content.ReadAsStringAsync(cancellationToken);
@@ -235,7 +239,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             body.ShouldContain("Reject");
         }
 
-        using var retiredRouteResponse = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}/admin/join-requests", cancellationToken);
+        using var retiredRouteResponse = await clubAdminClient.GetAsync(new Uri($"/Clubs/{club.ClubId}/admin/join-requests", UriKind.RelativeOrAbsolute), cancellationToken);
         retiredRouteResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         retiredRouteResponse.Headers.Location.ShouldBeNull();
         retiredRouteResponse.Content.Headers.ContentType?.MediaType.ShouldBe("text/html");
@@ -245,7 +249,9 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies approving and rejecting pending requests updates both admin and detail pages.
     /// </summary>
     [Fact]
-    public async Task ClubAdminPage_ApproveRejectRoundTrip_UpdatesPendingListAndDetailRosterAsync()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ClubAdminPageApproveRejectRoundTripUpdatesPendingListAndDetailRosterAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -268,7 +274,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(rejectedEmail, "Rex", "PendingReject", clubId: null, cancellationToken);
         var rejectedRequest = await CreateJoinRequestAsync(rejectedJoinerClient, club.ClubId, cancellationToken);
 
-        using (var pendingBefore = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}/admin", cancellationToken))
+        using (var pendingBefore = await clubAdminClient.GetAsync(new Uri($"/Clubs/{club.ClubId}/admin", UriKind.RelativeOrAbsolute), cancellationToken))
         {
             pendingBefore.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await pendingBefore.Content.ReadAsStringAsync(cancellationToken);
@@ -278,17 +284,17 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             body.ShouldContain("Reject");
         }
 
-        using (var approve = await clubAdminClient.PostAsync(ClubEndpoints.ApproveJoinRequestUrl(approvedRequest.ClubJoinRequestId), content: null, cancellationToken))
+        using (var approve = await clubAdminClient.PostAsync(new Uri(ClubEndpoints.ApproveJoinRequestUrl(approvedRequest.ClubJoinRequestId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             approve.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var reject = await clubAdminClient.PostAsync(ClubEndpoints.RejectJoinRequestUrl(rejectedRequest.ClubJoinRequestId), content: null, cancellationToken))
+        using (var reject = await clubAdminClient.PostAsync(new Uri(ClubEndpoints.RejectJoinRequestUrl(rejectedRequest.ClubJoinRequestId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             reject.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var pendingAfter = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}/admin", cancellationToken))
+        using (var pendingAfter = await clubAdminClient.GetAsync(new Uri($"/Clubs/{club.ClubId}/admin", UriKind.RelativeOrAbsolute), cancellationToken))
         {
             pendingAfter.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await pendingAfter.Content.ReadAsStringAsync(cancellationToken);
@@ -301,7 +307,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
 
         await RefreshClubMembershipCookieAsync(approvedJoinerClient, cancellationToken);
 
-        using (var approvedDetail = await approvedJoinerClient.GetAsync(ClubEndpoints.GetCurrent, cancellationToken))
+        using (var approvedDetail = await approvedJoinerClient.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             approvedDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await approvedDetail.Content.ReadAsStringAsync(cancellationToken);
@@ -309,7 +315,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             body.ShouldNotContain("Rex PendingReject");
         }
 
-        using (var adminDetail = await clubAdminClient.GetAsync(ClubEndpoints.GetCurrent, cancellationToken))
+        using (var adminDetail = await clubAdminClient.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             adminDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await adminDetail.Content.ReadAsStringAsync(cancellationToken);
@@ -322,7 +328,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies the admin join-requests API route still behaves as a JSON API endpoint.
     /// </summary>
     [Fact]
-    public async Task AdminJoinRequestsApi_RemainsJsonEndpointAfterUiRouteRemovalAsync()
+    public async Task AdminJoinRequestsApiRemainsJsonEndpointAfterUiRouteRemovalAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -339,7 +345,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(joinerEmail, "Jamie", "JsonJoiner", clubId: null, cancellationToken);
         var request = await CreateJoinRequestAsync(joinerClient, club.ClubId, cancellationToken);
 
-        using var response = await clubAdminClient.GetAsync(ClubEndpoints.AdminJoinRequestsUrl(club.ClubId), cancellationToken);
+        using var response = await clubAdminClient.GetAsync(new Uri(ClubEndpoints.AdminJoinRequestsUrl(club.ClubId), UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/json");
 
@@ -354,13 +360,13 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies the player-roster API rejects anonymous requests.
     /// </summary>
     [Fact]
-    public async Task PlayerRosterApi_ReturnsUnauthorized_ForAnonymousUserAsync()
+    public async Task PlayerRosterApiReturnsUnauthorizedForAnonymousUserAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
         var rosterUrl = GetPlayerRosterEndpoints.GetRosterUrl(clubId: 1);
 
-        using var response = await anonymousClient.GetAsync(rosterUrl, cancellationToken);
+        using var response = await anonymousClient.GetAsync(new Uri(rosterUrl, UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -369,7 +375,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies a member of another club receives forbidden ProblemDetails from the player-roster API.
     /// </summary>
     [Fact]
-    public async Task PlayerRosterApi_ReturnsForbidden_ForCrossClubMemberAsync()
+    public async Task PlayerRosterApiReturnsForbiddenForCrossClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var targetClubAdminClient = fixture.CreateNovaHttpClient();
@@ -394,7 +400,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         using var response = await otherClubAdminClient.GetAsync(
-            GetPlayerRosterEndpoints.GetRosterUrl(targetClub.ClubId),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(targetClub.ClubId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -406,7 +412,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// Verifies a same-club member receives the default first roster page.
     /// </summary>
     [Fact]
-    public async Task PlayerRosterApi_ReturnsDefaultPage_ForSameClubMemberAsync()
+    public async Task PlayerRosterApiReturnsDefaultPageForSameClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -429,7 +435,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         using var response = await memberClient.GetAsync(
-            GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -509,10 +515,11 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(name, city, state);
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(name, city, state),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
@@ -532,7 +539,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         long clubId,
         CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsync(ClubEndpoints.CreateJoinRequestUrl(clubId), content: null, cancellationToken);
+        using var response = await client.PostAsync(new Uri(ClubEndpoints.CreateJoinRequestUrl(clubId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var request = await response.Content.ReadFromJsonAsync<ClubJoinRequestDto>(cancellationToken);
         request.ShouldNotBeNull();
@@ -547,7 +554,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes once the refresh hop returns.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -567,14 +574,17 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>

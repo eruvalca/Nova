@@ -1,11 +1,12 @@
-﻿using Cropper.Blazor.Models;
+﻿
+using Cropper.Blazor.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
+using Nova.UI.Common;
 using Nova.UI.Components;
-using Nova.UI.Shared;
 using OneOf.Types;
 
 namespace Nova.UI.Features.Clubs.Components;
@@ -181,7 +182,9 @@ public partial class ClubCrestManager(
 
         try
         {
+#pragma warning disable S5693 // OpenReadStream enforces the shared MaxBytes limit; client metadata is also checked before reading.
             await using var stream = file.OpenReadStream(ProfilePhotoConstraints.MaxBytes, ComponentCancellationToken);
+#pragma warning restore S5693
             using var buffer = new MemoryStream((int)file.Size);
             await stream.CopyToAsync(buffer, ComponentCancellationToken);
             _crestPreviewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
@@ -222,14 +225,16 @@ public partial class ClubCrestManager(
     /// Exports the cropped canvas and uploads the JPEG bytes, replacing any existing crest.
     /// </summary>
     /// <returns>A task that completes when the mutation has finished.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task SaveCrestAsync()
+#pragma warning restore MA0051
     {
         if (_crestFile is null)
         {
             return;
         }
 
-        if (CanSubmit is false)
+        if (!CanSubmit)
         {
             return;
         }
@@ -249,7 +254,9 @@ public partial class ClubCrestManager(
             _isMutating = false;
             return;
         }
+#pragma warning disable CA1031 // The cropper boundary translates third-party export failures into retryable UI feedback; owned cancellation is handled separately.
         catch (Exception)
+#pragma warning restore CA1031
         {
             _crestErrors.Add("The cropped image could not be processed. Please try again.");
             _isMutating = false;

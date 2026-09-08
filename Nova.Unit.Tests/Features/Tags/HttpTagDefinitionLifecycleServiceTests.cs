@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services.Tags;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Tags;
@@ -26,10 +26,10 @@ public sealed class HttpTagDefinitionLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ArchiveAsync_PostsToSharedRoute()
+    public async Task ArchiveAsyncPostsToSharedRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTagDefinitionLifecycleService(httpClient);
 
@@ -41,10 +41,10 @@ public sealed class HttpTagDefinitionLifecycleServiceTests
     }
 
     [Fact]
-    public async Task RestoreAsync_PostsToSharedRoute()
+    public async Task RestoreAsyncPostsToSharedRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTagDefinitionLifecycleService(httpClient);
 
@@ -56,13 +56,13 @@ public sealed class HttpTagDefinitionLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsStructuredConflict()
+    public async Task ArchiveAsyncReturnsStructuredConflictAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
             Content = JsonContent.Create(new { detail = "Resolve active player associations first." })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTagDefinitionLifecycleService(httpClient);
 

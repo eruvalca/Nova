@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -23,7 +23,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club admin can archive and restore through HTTP without rewriting assignment history.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycleEndpoints_ArchiveRestoreRoundTrip_PreservesAssignmentHistoryAsync()
+    public async Task PlayerLifecycleEndpointsArchiveRestoreRoundTripPreservesAssignmentHistoryAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -36,12 +36,12 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var (playerId, teamId, activeCampaignId, historicalCampaignId) = await SeedResolvedPlayerAsync(club.ClubId, cancellationToken);
 
-        using (var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(playerId), content: null, cancellationToken))
+        using (var archive = await adminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(playerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var restore = await adminClient.PostAsync(PlayerEndpoints.RestoreUrl(playerId), content: null, cancellationToken))
+        using (var restore = await adminClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(playerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -72,7 +72,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies archive conflicts return structured blocker payloads grouped by campaign.
     /// </summary>
     [Fact]
-    public async Task ArchiveEndpoint_ReturnsStructuredBlockers_ForUndecidedActiveParticipationAsync()
+    public async Task ArchiveEndpointReturnsStructuredBlockersForUndecidedActiveParticipationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -85,7 +85,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var (playerId, campaignId, participationId) = await SeedBlockedPlayerAsync(club.ClubId, cancellationToken);
 
-        using var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(playerId), content: null, cancellationToken);
+        using var archive = await adminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(playerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         archive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         var problem = await archive.ToServiceProblemAsync(cancellationToken);
@@ -101,7 +101,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies non-admin callers are forbidden and cross-tenant ids are not disclosed.
     /// </summary>
     [Fact]
-    public async Task ArchiveEndpoint_ReturnsForbiddenForNonAdmin_AndNotFoundForCrossTenantAsync()
+    public async Task ArchiveEndpointReturnsForbiddenForNonAdminAndNotFoundForCrossTenantAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAAdminClient = fixture.CreateNovaHttpClient();
@@ -128,12 +128,12 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         var clubAPlayerId = await SeedSimplePlayerAsync(clubA.ClubId, cancellationToken);
         var clubBPlayerId = await SeedSimplePlayerAsync(clubB.ClubId, cancellationToken);
 
-        using (var forbidden = await clubAMemberClient.PostAsync(PlayerEndpoints.ArchiveUrl(clubAPlayerId), content: null, cancellationToken))
+        using (var forbidden = await clubAMemberClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(clubAPlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using var notFound = await clubAAdminClient.PostAsync(PlayerEndpoints.ArchiveUrl(clubBPlayerId), content: null, cancellationToken);
+        using var notFound = await clubAAdminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(clubBPlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
@@ -153,10 +153,11 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(name, city, state);
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(name, city, state),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
@@ -172,7 +173,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes once refresh is confirmed.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -192,14 +193,17 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -208,94 +212,99 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>Identifiers used by assertions.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long PlayerId, long TeamId, long ActiveCampaignId, long HistoricalCampaignId)> SeedResolvedPlayerAsync(
+#pragma warning restore MA0051
         long clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
-
-        var season = new SeasonEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season-{Guid.CreateVersion7():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Seasons.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
+            var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
 
-        var activeCampaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Active History Campaign",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        var historicalCampaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Historical Closed Campaign",
-            StartDate = new DateOnly(2025, 6, 1),
-            EndDate = new DateOnly(2025, 7, 1),
-            Status = CampaignStatus.Closed,
-            ClosedAt = DateTimeOffset.UtcNow,
-            ClosedById = actorUserId,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Campaigns.AddRange(activeCampaign, historicalCampaign);
-
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team-{Guid.CreateVersion7():N}",
-            GraduationYear = 2030,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Teams.Add(team);
-
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Resolved",
-            LastName = "History",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Players.Add(player);
-        await context.SaveChangesAsync(cancellationToken);
-
-        context.PlayerCampaignAssignments.AddRange(
-            new PlayerCampaignAssignmentEntity
+            var season = new SeasonEntity
             {
-                PlayerId = player.PlayerId,
-                CampaignId = activeCampaign.CampaignId,
-                TeamId = team.TeamId,
-                PlacementOutcome = PlacementOutcome.Assigned,
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season-{Guid.CreateVersion7():N}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = clubId,
                 CreatedById = actorUserId
-            },
-            new PlayerCampaignAssignmentEntity
+            };
+            context.Seasons.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
+
+            var activeCampaign = new CampaignEntity
             {
-                PlayerId = player.PlayerId,
-                CampaignId = historicalCampaign.CampaignId,
-                TeamId = team.TeamId,
-                PlacementOutcome = PlacementOutcome.Assigned,
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Active History Campaign",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
                 ClubId = clubId,
                 CreatedById = actorUserId
-            });
-        await context.SaveChangesAsync(cancellationToken);
+            };
+            var historicalCampaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Historical Closed Campaign",
+                StartDate = new DateOnly(2025, 6, 1),
+                EndDate = new DateOnly(2025, 7, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow,
+                ClosedById = actorUserId,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Campaigns.AddRange(activeCampaign, historicalCampaign);
 
-        return (player.PlayerId, team.TeamId, activeCampaign.CampaignId, historicalCampaign.CampaignId);
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team-{Guid.CreateVersion7():N}",
+                GraduationYear = 2030,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Teams.Add(team);
+
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Resolved",
+                LastName = "History",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Players.Add(player);
+            await context.SaveChangesAsync(cancellationToken);
+
+            context.PlayerCampaignAssignments.AddRange(
+                new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = player.PlayerId,
+                    CampaignId = activeCampaign.CampaignId,
+                    TeamId = team.TeamId,
+                    PlacementOutcome = PlacementOutcome.Assigned,
+                    ClubId = clubId,
+                    CreatedById = actorUserId
+                },
+                new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = player.PlayerId,
+                    CampaignId = historicalCampaign.CampaignId,
+                    TeamId = team.TeamId,
+                    PlacementOutcome = PlacementOutcome.Assigned,
+                    ClubId = clubId,
+                    CreatedById = actorUserId
+                });
+            await context.SaveChangesAsync(cancellationToken);
+
+            return (player.PlayerId, team.TeamId, activeCampaign.CampaignId, historicalCampaign.CampaignId);
+        }
     }
 
     /// <summary>
@@ -308,57 +317,60 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         long clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
-
-        var season = new SeasonEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season-{Guid.CreateVersion7():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Seasons.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
+            var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Active Blocker Campaign",
-            StartDate = new DateOnly(2026, 8, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Campaigns.Add(campaign);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season-{Guid.CreateVersion7():N}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Seasons.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Blocked",
-            LastName = "Player",
-            DateOfBirth = new DateOnly(2013, 2, 2),
-            GraduationYear = 2031,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Players.Add(player);
-        await context.SaveChangesAsync(cancellationToken);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Active Blocker Campaign",
+                StartDate = new DateOnly(2026, 8, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Campaigns.Add(campaign);
 
-        var participation = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.PlayerCampaignAssignments.Add(participation);
-        await context.SaveChangesAsync(cancellationToken);
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Blocked",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2013, 2, 2),
+                GraduationYear = 2031,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Players.Add(player);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (player.PlayerId, campaign.CampaignId, participation.PlayerCampaignAssignmentId);
+            var participation = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.PlayerCampaignAssignments.Add(participation);
+            await context.SaveChangesAsync(cancellationToken);
+
+            return (player.PlayerId, campaign.CampaignId, participation.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>
@@ -369,22 +381,25 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     /// <returns>The seeded player identifier.</returns>
     private async Task<long> SeedSimplePlayerAsync(long clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
-
-        var player = new PlayerEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Simple",
-            LastName = Guid.CreateVersion7().ToString("N"),
-            DateOfBirth = new DateOnly(2011, 1, 1),
-            GraduationYear = 2029,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        context.Players.Add(player);
-        await context.SaveChangesAsync(cancellationToken);
-        return player.PlayerId;
+            var actorUserId = await context.Users.Where(u => u.ClubId == clubId).Select(u => u.Id).FirstAsync(cancellationToken);
+
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Simple",
+                LastName = Guid.CreateVersion7().ToString("N"),
+                DateOfBirth = new DateOnly(2011, 1, 1),
+                GraduationYear = 2029,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            context.Players.Add(player);
+            await context.SaveChangesAsync(cancellationToken);
+            return player.PlayerId;
+        }
     }
 
     /// <summary>

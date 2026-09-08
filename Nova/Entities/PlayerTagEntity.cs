@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Player Tag Id.
     /// </summary>
-    public long PlayerTagId { get; set; } = default;
+    public long PlayerTagId { get; set; }
     /// <summary>
     /// Gets or sets the Name.
     /// </summary>
@@ -40,5 +41,7 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the campaign tag applications using this definition.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
+#pragma warning restore CA2227
 }

@@ -3,9 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -26,7 +26,7 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     /// events with a continuation, page two returns the remainder with no overlap.
     /// </summary>
     [Fact]
-    public async Task GetActivity_PagesWithKeysetCursor_OverHttp()
+    public async Task GetActivityPagesWithKeysetCursorOverHttpAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -35,17 +35,17 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
 
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 21, cancellationToken);
 
-        using var firstResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var firstResponse = await memberClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var first = await firstResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         first.ShouldNotBeNull();
         first.Events.Count.ShouldBe(20);
         first.HasMore.ShouldBeTrue();
         first.NextCursor.ShouldNotBeNull();
 
-        using var secondResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivityUrl(first.NextCursor), cancellationToken);
+        using var secondResponse = await memberClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivityUrl(first.NextCursor), UriKind.RelativeOrAbsolute), cancellationToken);
         secondResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var second = await secondResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var second = await secondResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         second.ShouldNotBeNull();
         second.Events.Count.ShouldBe(1);
         second.HasMore.ShouldBeFalse();
@@ -68,7 +68,7 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     /// and served, rather than rejected by Npgsql's offset-zero-only timestamptz binding.
     /// </summary>
     [Fact]
-    public async Task GetActivity_AcceptsNonZeroOffsetCursor_OverHttp()
+    public async Task GetActivityAcceptsNonZeroOffsetCursorOverHttpAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -77,9 +77,9 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
 
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 21, cancellationToken);
 
-        using var firstResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var firstResponse = await memberClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var first = await firstResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         first.ShouldNotBeNull();
         var cursor = first.NextCursor.ShouldNotBeNull();
 
@@ -89,10 +89,10 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         var offsetOccurredAt = cursor.OccurredAt.ToOffset(TimeSpan.FromHours(2));
         var url = $"{ActivityEndpoints.GetClubActivity}?beforeActivityEventId={cursor.ActivityEventId}&beforeOccurredAt={Uri.EscapeDataString(offsetOccurredAt.ToString("O"))}";
 
-        using var offsetResponse = await memberClient.GetAsync(url, cancellationToken);
+        using var offsetResponse = await memberClient.GetAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         offsetResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var second = await offsetResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var second = await offsetResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         second.ShouldNotBeNull();
         second.Events.Count.ShouldBe(1);
         second.HasMore.ShouldBeFalse();
@@ -103,21 +103,19 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     /// no approving actor name while an administrator sees the stored approving actor name.
     /// </summary>
     [Fact]
-    public async Task GetActivity_ShapesMemberJoinedByRole_OverHttp()
+    public async Task GetActivityShapesMemberJoinedByRoleOverHttpAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         var (club, adminUserId) = await CreateClubWithAdminAsync(adminClient, cancellationToken);
         using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
 
-        var payload = JsonSerializer.Serialize(
-            new MembershipContext { MemberUserId = 99, MemberDisplayName = "Jordan Lee", ApprovedByActorName = "Club Admin" },
-            typeof(ClubActivityContext));
+        var payload = JsonSerializer.Serialize<ClubActivityContext>(new MembershipContext { MemberUserId = 99, MemberDisplayName = "Jordan Lee", ApprovedByActorName = "Club Admin" });
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.MemberJoined, payloadJson: payload);
 
-        using var memberResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var memberResponse = await memberClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var memberResult = await memberResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var memberResult = await memberResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         memberResult.ShouldNotBeNull();
         var memberContext = memberResult.Events.Single().Context.ShouldBeOfType<MembershipContext>();
         memberContext.MemberDisplayName.ShouldBe("Jordan Lee");
@@ -125,9 +123,9 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         memberResult.Events.Single().ActorUserId.ShouldBeNull();
         memberResult.Events.Single().ActorDisplayName.ShouldBeNull();
 
-        using var adminResponse = await adminClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var adminResponse = await adminClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var adminResult = await adminResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var adminResult = await adminResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         adminResult.ShouldNotBeNull();
         var adminContext = adminResult.Events.Single().Context.ShouldBeOfType<MembershipContext>();
         adminContext.MemberDisplayName.ShouldBe("Jordan Lee");
@@ -139,35 +137,33 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     /// administrator over HTTP.
     /// </summary>
     [Fact]
-    public async Task GetActivity_HidesAdminOnlyKindsFromMembers_OverHttp()
+    public async Task GetActivityHidesAdminOnlyKindsFromMembersOverHttpAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         var (club, adminUserId) = await CreateClubWithAdminAsync(adminClient, cancellationToken);
         using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
 
-        var joinRequestPayload = JsonSerializer.Serialize(
-            new JoinRequestContext { JoinRequestId = 1, RequesterDisplayName = "New Member" },
-            typeof(ClubActivityContext));
+        var joinRequestPayload = JsonSerializer.Serialize<ClubActivityContext>(new JoinRequestContext { JoinRequestId = 1, RequesterDisplayName = "New Member" });
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.JoinRequestSubmitted, payloadJson: joinRequestPayload);
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.CampaignOpened);
 
-        using var memberResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var memberResponse = await memberClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var memberResult = await memberResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var memberResult = await memberResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         memberResult.ShouldNotBeNull();
         memberResult.Events.Select(item => item.Kind).ShouldNotContain(ActivityEventKind.JoinRequestSubmitted);
         memberResult.Events.Select(item => item.Kind).ShouldBe([ActivityEventKind.CampaignOpened]);
 
-        using var adminResponse = await adminClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        using var adminResponse = await adminClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken);
         adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var adminResult = await adminResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        var adminResult = await adminResponse.Content.ReadFromJsonAsync<ClubActivityResult>(_webJsonOptions, cancellationToken);
         adminResult.ShouldNotBeNull();
         adminResult.Events.Select(item => item.Kind).ShouldBe([ActivityEventKind.CampaignOpened, ActivityEventKind.JoinRequestSubmitted]);
     }
 
     /// <summary>The web-default JSON options used by the ASP.NET Core serializers for response reads.</summary>
-    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions _webJsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>Registers a new administrator, creates a club, and refreshes the membership cookie.</summary>
     /// <param name="adminClient">The client authenticated as the future club administrator.</param>
@@ -182,10 +178,13 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         long adminUserId;
-        await using (var context = fixture.CreateAdminContext())
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
             adminUserId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
         }
@@ -222,29 +221,30 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         ActivityEventKind kind = ActivityEventKind.CampaignOpened,
         string? payloadJson = null)
     {
-        await using var context = fixture.CreateAdminContext();
-        var payload = payloadJson ?? JsonSerializer.Serialize(
-            new CampaignLifecycleContext { CampaignId = 1, CampaignName = "Campaign" },
-            typeof(ClubActivityContext));
-        for (var index = 0; index < count; index++)
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            context.ActivityEvents.Add(new ActivityEventEntity
+            var payload = payloadJson ?? JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext { CampaignId = 1, CampaignName = "Campaign" });
+            for (var index = 0; index < count; index++)
             {
-                ClubId = clubId,
-                EventKind = kind,
-                IsAdminOnly = kind is ActivityEventKind.JoinRequestSubmitted
-                    or ActivityEventKind.JoinRequestCancelled
-                    or ActivityEventKind.JoinRequestRejected
-                    or ActivityEventKind.CampaignDraftCreated
-                    or ActivityEventKind.CampaignDraftDeleted,
-                CampaignId = kind == ActivityEventKind.CampaignOpened ? 1 : null,
-                ActorUserId = createdById,
-                ActorDisplayName = "Actor",
-                PayloadJson = payload,
-                CreatedById = createdById,
-            });
-        }
+                context.ActivityEvents.Add(new ActivityEventEntity
+                {
+                    ClubId = clubId,
+                    EventKind = kind,
+                    IsAdminOnly = kind is ActivityEventKind.JoinRequestSubmitted
+                        or ActivityEventKind.JoinRequestCancelled
+                        or ActivityEventKind.JoinRequestRejected
+                        or ActivityEventKind.CampaignDraftCreated
+                        or ActivityEventKind.CampaignDraftDeleted,
+                    CampaignId = kind == ActivityEventKind.CampaignOpened ? 1 : null,
+                    ActorUserId = createdById,
+                    ActorDisplayName = "Actor",
+                    PayloadJson = payload,
+                    CreatedById = createdById,
+                });
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

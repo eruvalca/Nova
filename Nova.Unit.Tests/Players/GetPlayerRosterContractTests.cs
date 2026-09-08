@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Players;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -10,11 +10,11 @@ namespace Nova.Unit.Tests.Players;
 public sealed class GetPlayerRosterContractTests
 {
     [Fact]
-    public void GetRosterTemplate_HasExpectedValue() =>
+    public void GetRosterTemplateHasExpectedValue() =>
         GetPlayerRosterEndpoints.GetRosterTemplate.ShouldBe("/api/clubs/{clubId:long}/players/roster");
 
     [Fact]
-    public void GetRosterUrl_BuildsExpectedUrl_WithAllQueryParameters()
+    public void GetRosterUrlBuildsExpectedUrlWithAllQueryParameters()
     {
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             clubId: 42,
@@ -31,7 +31,7 @@ public sealed class GetPlayerRosterContractTests
     }
 
     [Fact]
-    public void GetPlayerRosterInput_DefaultsToConfiguredPagingValues()
+    public void GetPlayerRosterInputDefaultsToConfiguredPagingValues()
     {
         var input = new GetPlayerRosterInput { ClubId = 42 };
 
@@ -40,7 +40,7 @@ public sealed class GetPlayerRosterContractTests
     }
 
     [Fact]
-    public void GetPlayerRosterInput_ReturnsValidationError_ForInvalidSortBy()
+    public void GetPlayerRosterInputReturnsValidationErrorForInvalidSortBy()
     {
         var input = new GetPlayerRosterInput { ClubId = 42, SortBy = "height" };
 
@@ -50,7 +50,7 @@ public sealed class GetPlayerRosterContractTests
     }
 
     [Fact]
-    public void GetPlayerRosterInput_ReturnsValidationError_ForInvalidLifecycleStatus()
+    public void GetPlayerRosterInputReturnsValidationErrorForInvalidLifecycleStatus()
     {
         var input = new GetPlayerRosterInput { ClubId = 42, LifecycleStatus = "retired" };
 
@@ -67,7 +67,7 @@ public sealed class GetPlayerRosterContractTests
     [InlineData(nameof(GetPlayerRosterInput.LifecycleStatus))]
     [InlineData(nameof(GetPlayerRosterInput.SortBy))]
     [InlineData(nameof(GetPlayerRosterInput.SortDirection))]
-    public void GetPlayerRosterInput_ReturnsValidationError_ForBlankOption(string propertyName)
+    public void GetPlayerRosterInputReturnsValidationErrorForBlankOption(string propertyName)
     {
         var input = propertyName switch
         {
@@ -92,7 +92,7 @@ public sealed class GetPlayerRosterContractTests
     }
 
     [Fact]
-    public void GetRosterUrl_OmitsGraduationYear_WhenOutsideAllowedRange()
+    public void GetRosterUrlOmitsGraduationYearWhenOutsideAllowedRange()
     {
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             clubId: 42,
@@ -103,7 +103,7 @@ public sealed class GetPlayerRosterContractTests
     }
 
     [Fact]
-    public void GetRosterUrl_OmitsLifecycleStatus_WhenOutsideAllowedValues()
+    public void GetRosterUrlOmitsLifecycleStatusWhenOutsideAllowedValues()
     {
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             clubId: 42,

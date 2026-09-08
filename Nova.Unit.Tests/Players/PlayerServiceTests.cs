@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -33,7 +33,7 @@ public sealed class PlayerServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsForbidden_WhenCurrentUserDoesNotBelongToRequestedClub()
+    public async Task GetPlayerRosterAsyncReturnsForbiddenWhenCurrentUserDoesNotBelongToRequestedClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -48,7 +48,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsOnlyActiveClubPlayers_OrderedByDisplayNameByDefault()
+    public async Task GetPlayerRosterAsyncReturnsOnlyActiveClubPlayersOrderedByDisplayNameByDefaultAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -63,12 +63,12 @@ public sealed class PlayerServiceTests : IDisposable
         result.Value.Items.Select(player => player.DisplayName).ToList()
             .ShouldBe(["Amy Adams", "Bobby Brown", "Casey Clark"]);
         result.Value.Items[1].GraduationYear.ShouldBe(2029);
-        result.Value.Items[1].ActiveCampaigns.ShouldContain("Summer Tryouts");
+        result.Value.Items[1].ActiveCampaigns.ShouldContain("Summer Tryouts", StringComparer.Ordinal);
         result.Value.Items[1].CurrentTags.Select(tag => tag.Name).ShouldBe(["Keeper"]);
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_AppliesCaseInsensitiveContainsSearch()
+    public async Task GetPlayerRosterAsyncAppliesCaseInsensitiveContainsSearchAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -84,7 +84,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_AppliesTryoutNumberSearch()
+    public async Task GetPlayerRosterAsyncAppliesTryoutNumberSearchAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -100,7 +100,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_SortsByJoinedAtDescending_WhenRequested()
+    public async Task GetPlayerRosterAsyncSortsByJoinedAtDescendingWhenRequestedAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -116,7 +116,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_AppliesPagination()
+    public async Task GetPlayerRosterAsyncAppliesPaginationAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -135,7 +135,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsArchivedRoster_WhenLifecycleStatusIsArchived()
+    public async Task GetPlayerRosterAsyncReturnsArchivedRosterWhenLifecycleStatusIsArchivedAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -152,7 +152,7 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_AppliesGraduationYearFilter()
+    public async Task GetPlayerRosterAsyncAppliesGraduationYearFilterAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -168,16 +168,15 @@ public sealed class PlayerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_AppliesTagFilter()
+    public async Task GetPlayerRosterAsyncAppliesTagFilterAsync()
     {
         _harness.CurrentUser.UserId = ClubAUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
         using var db = _harness.CreateAdminContext();
-        var keeperTagId = db.PlayerTags
-            .Where(tag => tag.ClubId == ClubAId && tag.Name == "Keeper")
-            .Select(tag => tag.PlayerTagId)
-            .Single();
+        var keeperTagId = (await db.PlayerTags
+            .Where(tag => tag.ClubId == ClubAId && tag.Name == "Keeper").Select(tag => tag.PlayerTagId)
+            .SingleAsync(TestContext.Current.CancellationToken));
 
         var service = CreateService();
         var result = await service.GetPlayerRosterAsync(
@@ -196,7 +195,9 @@ public sealed class PlayerServiceTests : IDisposable
         return new PlayerService(readDbFactory, _harness.CurrentUser, NullLogger<PlayerService>.Instance);
     }
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
         db.Clubs.AddRange(

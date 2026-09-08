@@ -1,7 +1,7 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -24,7 +24,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapGet(CampaignEndpoints.GetCampaignParticipantRosterRelative, GetParticipantRosterHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignParticipantRosterRelative, GetParticipantRosterHandlerAsync)
                 .Produces<PagedResult<CampaignParticipantRosterItem>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -33,7 +33,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCampaignParticipantRosterRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignParticipantDetailRelative, GetParticipantDetailHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignParticipantDetailRelative, GetParticipantDetailHandlerAsync)
                 .Produces<CampaignParticipantDetailDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -42,7 +42,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCampaignParticipantDetailRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignParticipantGraduationYearsRelative, GetParticipantGraduationYearsHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignParticipantGraduationYearsRelative, GetParticipantGraduationYearsHandlerAsync)
                 .Produces<IReadOnlyList<int>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -62,7 +62,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
     /// <param name="campaignParticipantQueryService">The service that resolves the roster query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the roster page.</returns>
-    private static async Task<IResult> GetParticipantRosterHandler(
+    private static async Task<IResult> GetParticipantRosterHandlerAsync(
         [AsParameters] GetCampaignParticipantRosterInput input,
         ICampaignParticipantQueryService campaignParticipantQueryService,
         CancellationToken cancellationToken)
@@ -78,7 +78,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
     /// <param name="campaignParticipantQueryService">The service that resolves the detail query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the participant detail.</returns>
-    private static async Task<IResult> GetParticipantDetailHandler(
+    private static async Task<IResult> GetParticipantDetailHandlerAsync(
         [AsParameters] GetCampaignParticipantDetailInput input,
         ICampaignParticipantQueryService campaignParticipantQueryService,
         CancellationToken cancellationToken)
@@ -94,7 +94,7 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
     /// <param name="campaignParticipantQueryService">The service that resolves the graduation-years query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the graduation-years list.</returns>
-    private static async Task<IResult> GetParticipantGraduationYearsHandler(
+    private static async Task<IResult> GetParticipantGraduationYearsHandlerAsync(
         [AsParameters] GetCampaignParticipantGraduationYearsInput input,
         ICampaignParticipantQueryService campaignParticipantQueryService,
         CancellationToken cancellationToken)

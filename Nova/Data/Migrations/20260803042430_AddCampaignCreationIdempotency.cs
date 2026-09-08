@@ -5,10 +5,12 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCampaignCreationIdempotency : Migration
+internal partial class AddCampaignCreationIdempotency : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the generated migration operations ordered within their Up/Down method.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.DropForeignKey(
             name: "FK_Campaigns_Seasons_SeasonId",

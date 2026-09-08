@@ -1,11 +1,12 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Campaigns.Components;
@@ -351,7 +352,7 @@ public partial class CampaignParticipantDrawer(
     /// Gets the tag definitions that can still be applied: active choices minus already-applied
     /// definitions, ordered by name.
     /// </summary>
-    private IReadOnlyList<TagDefinitionDto> RemainingTagChoices =>
+    private List<TagDefinitionDto> GetRemainingTagChoices() =>
         _tagChoices is null
             ? []
             : _tagChoices
@@ -436,11 +437,12 @@ public partial class CampaignParticipantDrawer(
         _loadedParticipantId = ParticipantId;
         _tagChoices = PersistedTagChoices;
         _tagChoicesLoaded = PersistedTagChoices is not null;
-        _detailState = PersistedDetailError is not null
-            ? DetailLoadState.Failed
-            : PersistedDetail is not null
-                ? DetailLoadState.Loaded
-                : DetailLoadState.Loading;
+        _detailState = (PersistedDetailError, PersistedDetail) switch
+        {
+            (not null, _) => DetailLoadState.Failed,
+            (_, not null) => DetailLoadState.Loaded,
+            _ => DetailLoadState.Loading
+        };
 
         if (_detailState == DetailLoadState.Loading)
         {
@@ -602,6 +604,7 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the trap is removed.</returns>
     protected override async ValueTask DisposeAsyncCore()
     {
+        await base.DisposeAsyncCore();
         if (!_moduleTask.IsValueCreated)
         {
             return;
@@ -657,7 +660,7 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     /// <param name="value">The timestamp to format.</param>
     /// <returns>The display timestamp.</returns>
-    private static string FormatTimestamp(DateTimeOffset value) => value.ToString("MMM d, yyyy h:mm tt");
+    private static string FormatTimestamp(DateTimeOffset value) => value.ToString("MMM d, yyyy h:mm tt", System.Globalization.CultureInfo.CurrentCulture);
 
     /// <summary>
     /// Returns the first non-blank message from the supplied candidates.
@@ -744,13 +747,11 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     /// <typeparam name="T">The mutation result payload type.</typeparam>
     /// <param name="result">The service result.</param>
-    /// <param name="kind">The mutation kind for pending state.</param>
     /// <param name="successMessage">The status message shown on success.</param>
     /// <param name="onSuccess">The action to run on success before the detail refreshes.</param>
     /// <returns>A task that completes when result handling finishes.</returns>
     private async Task HandleMutationResultAsync<T>(
         ServiceResult<T> result,
-        MutationKind kind,
         string successMessage,
         Action onSuccess)
     {
@@ -878,7 +879,6 @@ public partial class CampaignParticipantDrawer(
                 var result = await noteService.AddAsync(input, ComponentCancellationToken);
                 await HandleMutationResultAsync(
                     result,
-                    MutationKind.AddNote,
                     "Note added.",
                     () =>
                     {
@@ -946,7 +946,6 @@ public partial class CampaignParticipantDrawer(
                 var result = await noteService.EditAsync(input, ComponentCancellationToken);
                 await HandleMutationResultAsync(
                     result,
-                    MutationKind.EditNote,
                     "Note updated.",
                     () =>
                     {
@@ -998,7 +997,6 @@ public partial class CampaignParticipantDrawer(
                 var result = await noteService.DeleteAsync(note.NoteId, ComponentCancellationToken);
                 await HandleMutationResultAsync(
                     result,
-                    MutationKind.DeleteNote,
                     "Note deleted.",
                     () =>
                     {
@@ -1032,7 +1030,6 @@ public partial class CampaignParticipantDrawer(
                 var result = await tagApplicationService.ApplyAsync(input, ComponentCancellationToken);
                 await HandleMutationResultAsync(
                     result,
-                    MutationKind.ApplyTag,
                     "Tag applied.",
                     () => _selectedTagId = null);
             });
@@ -1079,7 +1076,6 @@ public partial class CampaignParticipantDrawer(
                     ComponentCancellationToken);
                 await HandleMutationResultAsync(
                     result,
-                    MutationKind.RemoveTag,
                     "Tag removed.",
                     () =>
                     {

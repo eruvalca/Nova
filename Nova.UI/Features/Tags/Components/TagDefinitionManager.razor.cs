@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Nova.UI.Components;
 using OneOf.Types;
 
@@ -92,7 +93,9 @@ public partial class TagDefinitionManager(
     /// Loads tag definitions matching the current view and search filters.
     /// </summary>
     /// <returns>A task that completes when the list has been refreshed.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task LoadTagsAsync()
+#pragma warning restore MA0051
     {
         // Cancel any in-flight load and bump a monotonic version so a slower earlier request cannot
         // overwrite rows for filters that are no longer selected.
@@ -163,7 +166,7 @@ public partial class TagDefinitionManager(
     /// <returns>A task that completes when the list has been reloaded.</returns>
     private async Task ApplyViewAsync(string view)
     {
-        if (LifecycleView == view)
+        if (string.Equals(LifecycleView, view, StringComparison.Ordinal))
         {
             return;
         }
@@ -230,7 +233,9 @@ public partial class TagDefinitionManager(
     /// Creates or updates a tag definition from the submitted form, then reloads the list.
     /// </summary>
     /// <returns>A task that completes when the mutation and reload have finished.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task SubmitFormAsync()
+#pragma warning restore MA0051
     {
         if (_form is null)
         {
@@ -539,6 +544,9 @@ public partial class TagDefinitionManager(
         _loadSource?.Cancel();
         _loadSource?.Dispose();
         _loadSource = null;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 }
+
+
+#pragma warning restore CA1849, S6966

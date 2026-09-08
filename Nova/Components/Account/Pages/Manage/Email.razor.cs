@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Components;
@@ -20,22 +21,22 @@ public partial class Email(
     /// <summary>
     /// Stores the status message to display after form submission.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the current email address of the user.
     /// </summary>
-    private string? email;
+    private string? _email;
 
     /// <summary>
     /// Indicates whether the current email address is confirmed.
     /// </summary>
-    private bool isEmailConfirmed;
+    private bool _isEmailConfirmed;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -57,17 +58,17 @@ public partial class Email(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        email = await userManager.GetEmailAsync(user);
-        isEmailConfirmed = await userManager.IsEmailConfirmedAsync(user);
+        _email = await userManager.GetEmailAsync(_user);
+        _isEmailConfirmed = await userManager.IsEmailConfirmedAsync(_user);
 
-        Input.NewEmail ??= email;
+        Input.NewEmail ??= _email;
     }
 
     /// <summary>
@@ -76,28 +77,28 @@ public partial class Email(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (Input.NewEmail is null || Input.NewEmail == email)
+        if (Input.NewEmail is null || string.Equals(Input.NewEmail, _email, StringComparison.Ordinal))
         {
-            message = "Your email is unchanged.";
+            _message = "Your email is unchanged.";
             return;
         }
 
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var userId = await userManager.GetUserIdAsync(user);
-        var code = await userManager.GenerateChangeEmailTokenAsync(user, Input.NewEmail);
+        var userId = await userManager.GetUserIdAsync(_user);
+        var code = await userManager.GenerateChangeEmailTokenAsync(_user, Input.NewEmail);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = navigationManager.GetUriWithQueryParameters(
             navigationManager.ToAbsoluteUri("Account/ConfirmEmailChange").AbsoluteUri,
-            new Dictionary<string, object?> { ["userId"] = userId, ["email"] = Input.NewEmail, ["code"] = code });
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["email"] = Input.NewEmail, ["code"] = code });
 
-        await emailSender.SendConfirmationLinkAsync(user, Input.NewEmail, HtmlEncoder.Default.Encode(callbackUrl));
+        await emailSender.SendConfirmationLinkAsync(_user, Input.NewEmail, HtmlEncoder.Default.Encode(callbackUrl));
 
-        message = "Confirmation link to change email sent. Please check your email.";
+        _message = "Confirmation link to change email sent. Please check your email.";
     }
 
     /// <summary>
@@ -106,27 +107,27 @@ public partial class Email(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnSendEmailVerificationAsync()
     {
-        if (email is null)
+        if (_email is null)
         {
             return;
         }
 
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var userId = await userManager.GetUserIdAsync(user);
-        var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
+        var userId = await userManager.GetUserIdAsync(_user);
+        var code = await userManager.GenerateEmailConfirmationTokenAsync(_user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = navigationManager.GetUriWithQueryParameters(
             navigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["code"] = code });
 
-        await emailSender.SendConfirmationLinkAsync(user, email, HtmlEncoder.Default.Encode(callbackUrl));
+        await emailSender.SendConfirmationLinkAsync(_user, _email, HtmlEncoder.Default.Encode(callbackUrl));
 
-        message = "Verification email sent. Please check your email.";
+        _message = "Verification email sent. Please check your email.";
     }
 
     /// <summary>

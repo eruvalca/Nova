@@ -2,7 +2,7 @@
 
 Canonical Nova examples:
 
-- Routes: `Nova.Shared\Features\Clubs\ClubEndpoints.cs`
+- Routes: `Nova.SharedKernel\Features\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
 - WASM client: `Nova.Client\Services\Clubs\HttpClubService.cs`
 - Endpoint removal: the team graduation-year route removed in PR #53 because normal team update
@@ -19,14 +19,14 @@ command path.
 
 ## Route Constants
 
-**All route strings must be defined as constants in a static `*Endpoints` class in `Nova.Shared`**, never as inline string literals in the endpoint mapping code. This ensures the server and the WASM client always agree on routes, and gives a single place to update a route.
+**All route strings must be defined as constants in a static `*Endpoints` class in `Nova.SharedKernel`**, never as inline string literals in the endpoint mapping code. This ensures the server and the WASM client always agree on routes, and gives a single place to update a route.
 
 ### Structure
 
-Each feature gets one `*Endpoints` class in the matching `Nova.Shared/Features/{Feature}/` folder:
+Each feature gets one `*Endpoints` class in the matching `Nova.SharedKernel/Features/{Feature}/` folder:
 
 ```
-Nova.Shared/
+Nova.SharedKernel/
   Features/
     Clubs/
       ClubEndpoints.cs       ← GroupPrefix, per-route absolute constants, Relative siblings, URL builder methods
@@ -36,13 +36,13 @@ Nova.Shared/
 
 ### Naming Conventions
 
-| Constant | What it holds | Example value |
-|---|---|---|
-| `GroupPrefix` | Full absolute prefix passed to `MapGroup` | `"/api/clubs"` |
-| `{Verb}` | Full absolute URL for simple routes | `"/api/clubs/search"` |
-| `{Verb}Relative` | Relative path passed to `Map*` inside a group | `"search"` |
-| `{Verb}Template` | Full absolute URL template with `{param}` tokens | `"/api/clubs/{clubId:long}/join-requests"` |
-| `{Verb}Relative` | Relative template for parameterised routes inside a group | `"{clubId:long}/join-requests"` |
+| Constant         | What it holds                                             | Example value                              |
+| ---------------- | --------------------------------------------------------- | ------------------------------------------ |
+| `GroupPrefix`    | Full absolute prefix passed to `MapGroup`                 | `"/api/clubs"`                             |
+| `{Verb}`         | Full absolute URL for simple routes                       | `"/api/clubs/search"`                      |
+| `{Verb}Relative` | Relative path passed to `Map*` inside a group             | `"search"`                                 |
+| `{Verb}Template` | Full absolute URL template with `{param}` tokens          | `"/api/clubs/{clubId:long}/join-requests"` |
+| `{Verb}Relative` | Relative template for parameterised routes inside a group | `"{clubId:long}/join-requests"`            |
 
 For routes with dynamic segments, add a URL-builder static method rather than exposing the template
 directly to callers. Compose the builder from `GroupPrefix` and other existing route constants so a

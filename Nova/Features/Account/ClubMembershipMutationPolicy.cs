@@ -34,11 +34,14 @@ internal static class ClubMembershipMutationPolicy
     internal static OneOf<MembershipMutationMayApply, MembershipMutationNoOp, SoleAdministratorConflict, FinalMemberConflict, UseLeaveEndpointConflict> Demote(
         bool targetIsAdministrator,
         int administratorCount)
-        => !targetIsAdministrator
-            ? new MembershipMutationNoOp()
-            : administratorCount <= 1
-                ? new SoleAdministratorConflict()
-                : new MembershipMutationMayApply();
+    {
+        if (!targetIsAdministrator)
+        {
+            return new MembershipMutationNoOp();
+        }
+
+        return administratorCount <= 1 ? new SoleAdministratorConflict() : new MembershipMutationMayApply();
+    }
 
     /// <summary>Decides whether an administrator may remove the target member.</summary>
     /// <param name="actorUserId">The acting administrator's user identifier.</param>
@@ -58,9 +61,12 @@ internal static class ClubMembershipMutationPolicy
         bool actorIsAdministrator,
         int administratorCount,
         int memberCount)
-        => memberCount <= 1
-            ? new FinalMemberConflict()
-            : actorIsAdministrator && administratorCount <= 1
-                ? new SoleAdministratorConflict()
-                : new MembershipMutationMayApply();
+    {
+        if (memberCount <= 1)
+        {
+            return new FinalMemberConflict();
+        }
+
+        return actorIsAdministrator && administratorCount <= 1 ? new SoleAdministratorConflict() : new MembershipMutationMayApply();
+    }
 }

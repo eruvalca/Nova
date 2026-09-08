@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -8,7 +8,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignPlacementService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignPlacementService(HttpClient http) : ICampaignPlacementService
+internal sealed class HttpCampaignPlacementService(HttpClient http) : ICampaignPlacementService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PlacementMutationSuccess>> UpdatePlacementAsync(

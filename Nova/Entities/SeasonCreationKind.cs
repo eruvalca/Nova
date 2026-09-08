@@ -1,4 +1,5 @@
-﻿namespace Nova.Entities;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+namespace Nova.Entities;
 
 /// <summary>Identifies the command path that originally created a season.</summary>
 public enum SeasonCreationKind

@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services.Clubs;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -19,10 +19,10 @@ public class HttpClubCrestServiceTests
     /// returns success on a 204 response.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsSuccess_OnNoContent()
+    public async Task ChangeClubCrestAsyncReturnsSuccessOnNoContentAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).ChangeClubCrestAsync(
@@ -32,8 +32,8 @@ public class HttpClubCrestServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Post);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/42/crest");
-        handler.LastRequest!.Content.ShouldBeOfType<MultipartFormDataContent>();
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/42/crest");
+        handler.LastRequest.Content.ShouldBeOfType<MultipartFormDataContent>();
         handler.LastMultipartPartNames.ShouldBe(["crest"]);
     }
 
@@ -41,13 +41,13 @@ public class HttpClubCrestServiceTests
     /// ChangeClubCrestAsync maps a validation problem body to a validation ServiceProblem.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsValidationProblem_OnBadRequest()
+    public async Task ChangeClubCrestAsyncReturnsValidationProblemOnBadRequestAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
-            Content = JsonContent.Create(new { errors = new Dictionary<string, string[]> { ["crest"] = ["A club crest is required."] } })
+            Content = JsonContent.Create(new { errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["crest"] = ["A club crest is required."] } })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).ChangeClubCrestAsync(
@@ -65,10 +65,10 @@ public class HttpClubCrestServiceTests
     /// ChangeClubCrestAsync surfaces a 403 response as a Forbidden problem.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsForbidden_OnForbidden()
+    public async Task ChangeClubCrestAsyncReturnsForbiddenOnForbiddenAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).ChangeClubCrestAsync(
@@ -84,10 +84,10 @@ public class HttpClubCrestServiceTests
     /// RemoveClubCrestAsync sends a DELETE to the crest route and returns success on 204.
     /// </summary>
     [Fact]
-    public async Task RemoveClubCrestAsync_ReturnsSuccess_OnNoContent()
+    public async Task RemoveClubCrestAsyncReturnsSuccessOnNoContentAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).RemoveClubCrestAsync(
@@ -96,17 +96,17 @@ public class HttpClubCrestServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Delete);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/42/crest");
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/42/crest");
     }
 
     /// <summary>
     /// RemoveClubCrestAsync maps a 404 response to a NotFound problem (the crest is gone).
     /// </summary>
     [Fact]
-    public async Task RemoveClubCrestAsync_ReturnsNotFound_OnNotFound()
+    public async Task RemoveClubCrestAsyncReturnsNotFoundOnNotFoundAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).RemoveClubCrestAsync(
@@ -121,10 +121,10 @@ public class HttpClubCrestServiceTests
     /// RemoveClubCrestAsync maps a 403 response to a Forbidden problem.
     /// </summary>
     [Fact]
-    public async Task RemoveClubCrestAsync_ReturnsForbidden_OnForbidden()
+    public async Task RemoveClubCrestAsyncReturnsForbiddenOnForbiddenAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubCrestService(http).RemoveClubCrestAsync(

@@ -4,8 +4,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Features.Shared;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Results;
@@ -19,9 +19,10 @@ public sealed class ServiceResultExtensionsTests
     /// Verifies a forbidden service problem executes as HTTP 403 and survives the client round trip.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ExecutesForbiddenProblemDetails_WithTraceId()
+    public async Task ToHttpResultExecutesForbiddenProblemDetailsWithTraceIdAsync()
     {
-        using var activity = new System.Diagnostics.Activity(nameof(ToHttpResult_ExecutesForbiddenProblemDetails_WithTraceId)).Start();
+        using var activity = new System.Diagnostics.Activity(nameof(ToHttpResultExecutesForbiddenProblemDetailsWithTraceIdAsync));
+        activity.Start();
         using var services = new ServiceCollection()
             .AddLogging()
             .BuildServiceProvider();

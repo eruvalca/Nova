@@ -18,7 +18,7 @@ public sealed class TagDefinitionPostgresTests(NovaAppHostFixture fixture)
     /// the filtered unique index used to enforce case-insensitive per-club name uniqueness.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesTagDefinitionUniquenessSchema()
+    public async Task MigrationAppliesTagDefinitionUniquenessSchemaAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var db = fixture.CreateTenantContext();
@@ -46,10 +46,12 @@ public sealed class TagDefinitionPostgresTests(NovaAppHostFixture fixture)
     /// by case, because their normalized names collide on the filtered unique index.
     /// </summary>
     [Fact]
-    public async Task NormalizedName_RejectsCaseInsensitiveDuplicateWithinClub()
+    public async Task NormalizedNameRejectsCaseInsensitiveDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
 
         ActAs(userId: null, clubId: null);
@@ -68,10 +70,12 @@ public sealed class TagDefinitionPostgresTests(NovaAppHostFixture fixture)
     /// uniqueness constraint is scoped per club rather than global.
     /// </summary>
     [Fact]
-    public async Task NormalizedName_AllowsSameNameInDifferentClubs()
+    public async Task NormalizedNameAllowsSameNameInDifferentClubsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
 
         ActAs(userId: null, clubId: null);
@@ -83,7 +87,7 @@ public sealed class TagDefinitionPostgresTests(NovaAppHostFixture fixture)
             CreateTag($"Shared {suffix}", "SHARED", clubAId, actorUserId, Guid.CreateVersion7()),
             CreateTag($"Shared {suffix}", "SHARED", clubBId, actorUserId, Guid.CreateVersion7()));
 
-        await db.SaveChangesAsync(cancellationToken);
+        await Should.NotThrowAsync(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>
@@ -91,10 +95,12 @@ public sealed class TagDefinitionPostgresTests(NovaAppHostFixture fixture)
     /// creation-operation identifier, preserving create idempotency under ambiguous commits.
     /// </summary>
     [Fact]
-    public async Task CreationOperationId_RejectsDuplicateWithinClub()
+    public async Task CreationOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var creationOperationId = Guid.CreateVersion7();
 

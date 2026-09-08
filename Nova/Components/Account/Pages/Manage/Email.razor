@@ -16,7 +16,7 @@ FORM: Two static-SSR posts retain their existing names, antiforgery tokens, vali
         <p>Keep the address on your account current and confirm changes through the existing email flow.</p>
     </header>
 
-    <StatusMessage Message="@message" />
+    <StatusMessage Message="@_message" />
     <section class="manage-board manage-email-board" aria-labelledby="email-details-heading">
         <h2 id="email-details-heading">Email details</h2>
         <form @onsubmit="OnSendEmailVerificationAsync" @formname="send-verification" id="send-verification-form"
@@ -26,11 +26,11 @@ FORM: Two static-SSR posts retain their existing names, antiforgery tokens, vali
         <EditForm class="manage-page-form" Model="Input" FormName="change-email" OnValidSubmit="OnValidSubmitAsync" method="post">
             <DataAnnotationsValidator />
             <ValidationSummary class="alert alert-danger" role="alert" />
-            @if (isEmailConfirmed)
+            @if (_isEmailConfirmed)
             {
                 <div class="account-identity-field mb-3">
                     <AccountFormLabel For="email" Text="Email" />
-                    <input type="text" value="@email" id="email" class="form-control" placeholder="Enter your email"
+                    <input type="text" value="@_email" id="email" class="form-control" placeholder="Enter your email"
                            disabled />
                     <div class="form-text text-success-emphasis">Confirmed email address.</div>
                 </div>
@@ -39,7 +39,7 @@ FORM: Two static-SSR posts retain their existing names, antiforgery tokens, vali
             {
                 <div class="account-identity-field mb-3">
                     <AccountFormLabel For="email" Text="Email" />
-                    <input type="text" value="@email" id="email" class="form-control" placeholder="Enter your email"
+                    <input type="text" value="@_email" id="email" class="form-control" placeholder="Enter your email"
                            disabled />
                     <div class="manage-inline-action">
                         <button type="submit" class="btn btn-outline-secondary" form="send-verification-form">Send verification email</button>

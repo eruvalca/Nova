@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Tags;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Tags;
 /// WebAssembly client implementation of <see cref="ITagDefinitionQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinitionQueryService
+internal sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinitionQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<TagDefinitionListResult>> GetManagementListAsync(
@@ -23,7 +23,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
         }
 
         using var response = await http.GetAsync(
-            TagEndpoints.GetListUrl(input.Search, input.LifecycleStatus),
+new Uri(TagEndpoints.GetListUrl(input.Search, input.LifecycleStatus), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -46,7 +46,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
     public async Task<ServiceResult<IReadOnlyList<TagDefinitionDto>>> GetChoicesAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(TagEndpoints.GetChoicesUrl(), cancellationToken);
+        using var response = await http.GetAsync(new Uri(TagEndpoints.GetChoicesUrl(), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -110,10 +110,10 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
             return false;
         }
 
-        return lifecycleStatus?.Trim().ToLowerInvariant() switch
+        return lifecycleStatus?.Trim().ToUpperInvariant() switch
         {
-            "active" => dto.LifecycleStatus == LifecycleStatus.Active,
-            "archived" => dto.LifecycleStatus == LifecycleStatus.Archived,
+            "ACTIVE" => dto.LifecycleStatus == LifecycleStatus.Active,
+            "ARCHIVED" => dto.LifecycleStatus == LifecycleStatus.Archived,
             _ => true
         };
     }

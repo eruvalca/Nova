@@ -93,14 +93,16 @@ internal static class AccountManageBrowserHelpers
             counter >>= 8;
         }
 
+#pragma warning disable CA5350 // ASP.NET Core Identity authenticator tokens use RFC 6238 HMAC-SHA1; this test must generate that protocol.
         using var hmac = new HMACSHA1(key);
+#pragma warning restore CA5350
         var hash = hmac.ComputeHash(counterBytes.ToArray());
         var offset = hash[^1] & 0x0f;
         var binary = ((hash[offset] & 0x7f) << 24)
             | (hash[offset + 1] << 16)
             | (hash[offset + 2] << 8)
             | hash[offset + 3];
-        return (binary % 1_000_000).ToString("D6");
+        return (binary % 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -110,7 +112,7 @@ internal static class AccountManageBrowserHelpers
     /// <returns>The decoded authenticator secret.</returns>
     private static byte[] DecodeBase32(string formattedKey)
     {
-        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        const string Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         var normalized = formattedKey.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
         var bytes = new List<byte>(normalized.Length * 5 / 8);
         var buffer = 0;
@@ -118,7 +120,7 @@ internal static class AccountManageBrowserHelpers
 
         foreach (var character in normalized)
         {
-            var value = alphabet.IndexOf(character);
+            var value = Alphabet.IndexOf(character, StringComparison.Ordinal);
             if (value < 0)
             {
                 throw new FormatException($"Authenticator key contains an invalid Base32 character: {character}.");

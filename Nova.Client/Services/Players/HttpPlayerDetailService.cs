@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Players;
 
@@ -7,12 +7,12 @@ namespace Nova.Client.Services.Players;
 /// WebAssembly HTTP implementation of <see cref="IPlayerDetailService"/>.
 /// </summary>
 /// <param name="http">The configured HTTP client.</param>
-public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailService
+internal sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerDetailDto>> GetPlayerDetailAsync(long playerId, CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(PlayerEndpoints.GetDetailUrl(playerId), cancellationToken);
+        using var response = await http.GetAsync(new Uri(PlayerEndpoints.GetDetailUrl(playerId), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -39,11 +39,11 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
             && detail.GraduationYear is >= 2000 and <= 2100
             && detail.JerseyNumber is null or >= 0 and <= 9999
             && detail.Gender is null
-                or Nova.Shared.Enums.Gender.Male
-                or Nova.Shared.Enums.Gender.Female
-                or Nova.Shared.Enums.Gender.Other
-            && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
-                or Nova.Shared.Enums.LifecycleStatus.Archived
+                or Nova.SharedKernel.Enums.Gender.Male
+                or Nova.SharedKernel.Enums.Gender.Female
+                or Nova.SharedKernel.Enums.Gender.Other
+            && detail.LifecycleStatus is Nova.SharedKernel.Enums.LifecycleStatus.Active
+                or Nova.SharedKernel.Enums.LifecycleStatus.Archived
             && detail.CurrentTraits is not null
             && detail.CampaignHistory is not null
             && detail.CurrentTraits.All(trait => trait is not null
@@ -54,9 +54,9 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
                 && history.PlayerCampaignAssignmentId > 0
                 && history.CampaignId > 0
                 && !string.IsNullOrWhiteSpace(history.CampaignName)
-                && history.CampaignStatus is Nova.Shared.Enums.CampaignStatus.Active
-                    or Nova.Shared.Enums.CampaignStatus.Draft
-                    or Nova.Shared.Enums.CampaignStatus.Closed
+                && history.CampaignStatus is Nova.SharedKernel.Enums.CampaignStatus.Active
+                    or Nova.SharedKernel.Enums.CampaignStatus.Draft
+                    or Nova.SharedKernel.Enums.CampaignStatus.Closed
                 && history.CampaignStartDate != default
                 && IsValidPlacementRelationship(history)
                 && history.Notes is not null
@@ -76,7 +76,7 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
     private static bool AreCurrentTraitsConsistent(PlayerDetailDto detail)
     {
         var expectedTraits = detail.CampaignHistory
-            .Where(history => history.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active)
+            .Where(history => history.CampaignStatus == Nova.SharedKernel.Enums.CampaignStatus.Active)
             .SelectMany(history => history.TagApplications)
             .Select(application => new PlayerCurrentTraitDto(
                 application.PlayerTagId,
@@ -108,16 +108,16 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
     private static bool IsValidPlacementRelationship(PlayerCampaignHistoryDto history)
         => history.PlacementOutcome switch
         {
-            Nova.Shared.Enums.PlacementOutcome.Assigned =>
+            Nova.SharedKernel.Enums.PlacementOutcome.Assigned =>
                    history.Team is not null
                    && history.Team.TeamId > 0
                    && !string.IsNullOrWhiteSpace(history.Team.Name)
                    && history.Team.GraduationYear is >= 2000 and <= 2100
-                   && history.Team.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
-                       or Nova.Shared.Enums.LifecycleStatus.Archived,
-            Nova.Shared.Enums.PlacementOutcome.Undecided
-                   or Nova.Shared.Enums.PlacementOutcome.NotSelected
-                   or Nova.Shared.Enums.PlacementOutcome.Withdrawn => history.Team is null,
+                   && history.Team.LifecycleStatus is Nova.SharedKernel.Enums.LifecycleStatus.Active
+                       or Nova.SharedKernel.Enums.LifecycleStatus.Archived,
+            Nova.SharedKernel.Enums.PlacementOutcome.Undecided
+                   or Nova.SharedKernel.Enums.PlacementOutcome.NotSelected
+                   or Nova.SharedKernel.Enums.PlacementOutcome.Withdrawn => history.Team is null,
             _ => false
         };
 

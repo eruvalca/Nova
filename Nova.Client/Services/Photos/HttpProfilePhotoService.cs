@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Photos;
@@ -12,7 +12,7 @@ namespace Nova.Client.Services.Photos;
 /// <see cref="HttpClient"/>).
 /// </summary>
 /// <param name="httpClient">The DI-registered HTTP client with the app base address and trace propagation.</param>
-public sealed class HttpProfilePhotoService(HttpClient httpClient) : IProfilePhotoService
+internal sealed class HttpProfilePhotoService(HttpClient httpClient) : IProfilePhotoService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> SaveProfilePhotoAsync(ProfilePhotoUpload upload, CancellationToken cancellationToken = default)
@@ -22,7 +22,7 @@ public sealed class HttpProfilePhotoService(HttpClient httpClient) : IProfilePho
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(upload.ContentType);
         form.Add(fileContent, "file", upload.FileName);
 
-        using var response = await httpClient.PostAsync(PhotoEndpoints.Upload, form, cancellationToken);
+        using var response = await httpClient.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), form, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
             return new Success();
@@ -35,7 +35,7 @@ public sealed class HttpProfilePhotoService(HttpClient httpClient) : IProfilePho
     /// <inheritdoc />
     public async Task<ServiceResult<ProfilePhotoInfo>> GetCurrentUserPhotoAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync(PhotoEndpoints.Status, cancellationToken);
+        using var response = await httpClient.GetAsync(new Uri(PhotoEndpoints.Status, UriKind.RelativeOrAbsolute), cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return ServiceProblem.NotFound();

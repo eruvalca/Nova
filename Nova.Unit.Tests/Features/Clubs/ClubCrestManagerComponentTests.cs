@@ -4,11 +4,11 @@ using Cropper.Blazor.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
+using Nova.UI.Common;
 using Nova.UI.Features.Clubs.Components;
-using Nova.UI.Shared;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -25,12 +25,12 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     private const long ClubId = 42;
 
     [Fact]
-    public void Render_ShowsPlaceholder_WhenClubHasNoCrest()
+    public void RenderShowsPlaceholderWhenClubHasNoCrest()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         cut.Markup.ShouldContain("club-crest-placeholder");
         cut.Markup.ShouldContain("This club does not have a crest yet.");
@@ -40,12 +40,12 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_ShowsCurrentCrest_WhenClubHasCrest()
+    public void RenderShowsCurrentCrestWhenClubHasCrest()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: true);
+        var cut = RenderClubCrestManager(hasCrest: true);
 
         cut.Find("img.club-crest-preview").GetAttribute("src")
             .ShouldBe($"/api/clubs/{ClubId}/crest?size=medium");
@@ -56,12 +56,12 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void FileSelection_ValidatesSize_AndShowsError()
+    public void FileSelectionValidatesSizeAndShowsError()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var oversized = InputFileContent.CreateFromBinary(
             new byte[ProfilePhotoConstraints.MaxBytes + 1],
@@ -76,12 +76,12 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void FileSelection_EntersCropStep_WithFreeFormCropper()
+    public void FileSelectionEntersCropStepWithFreeFormCropper()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
@@ -95,16 +95,16 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public async Task Save_IsDisabled_UntilCropperReady()
+    public async Task SaveIsDisabledUntilCropperReadyAsync()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         // The Cropper.js instance boots asynchronously after the image loads; saving before the
         // ready signal would export against a not-yet-initialized instance, so the button stays
@@ -114,33 +114,33 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
 
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse(
                 "Save crest must be enabled once the cropper reports ready"));
     }
 
     [Fact]
-    public void Save_CropStep_ChooseDifferentImage_ClearsSelection()
+    public void SaveCropStepChooseDifferentImageClearsSelection()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-cropper"));
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Choose a different image").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Choose a different image", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Save crest"));
         cut.Markup.ShouldNotContain("club-crest-cropper");
         cut.FindComponent<InputFile>().ShouldNotBeNull();
-        crestService.DidNotReceive().ChangeClubCrestAsync(Arg.Any<long>(), Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>());
+        _ = crestService.DidNotReceive().ChangeClubCrestAsync(Arg.Any<long>(), Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Change_UploadsValidFile_CallsServiceAndFlipsToPreview()
+    public async Task ChangeUploadsValidFileCallsServiceAndFlipsToPreviewAsync()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.ChangeClubCrestAsync(ClubId, Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>())
@@ -148,20 +148,22 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
         Services.AddSingleton(crestService);
 
         var exporterBytes = TestImages.CreateJpeg();
-        var cut = RenderClubCrestManager(crestService, hasCrest: false, exporterBytes);
+        var cut = RenderClubCrestManager(hasCrest: false, exporterBytes);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         var cropper = cut.FindComponent<NovaCropperComponent>();
         await cut.InvokeAsync(() => cropper.Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='button'].btn-primary").Click();
+#pragma warning restore CA1849, S6966
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest updated."));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Club crest updated."));
         cut.Find("img.club-crest-preview").GetAttribute("src")
             .ShouldBe($"/api/clubs/{ClubId}/crest?size=medium");
         await crestService.Received(1).ChangeClubCrestAsync(
@@ -171,27 +173,29 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public async Task Change_ShowsValidationProblem_WhenServiceRejectsCrest()
+    public async Task ChangeShowsValidationProblemWhenServiceRejectsCrestAsync()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.ChangeClubCrestAsync(ClubId, Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(
-                ServiceProblem.Validation("crest", ["Only JPEG, PNG, and WebP images are allowed."]))));
+                ServiceProblem.Validation("crest", "Only JPEG, PNG, and WebP images are allowed."))));
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='button'].btn-primary").Click();
+#pragma warning restore CA1849, S6966
 
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Markup.ShouldContain("Only JPEG, PNG, and WebP images are allowed."));
         // The rejected crop is not lost; the user stays in the crop step to retry or re-choose.
         cut.Markup.ShouldContain("Save crest");
@@ -199,16 +203,16 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void Remove_ConfirmsThenCallsServiceAndFlipsToPlaceholder()
+    public void RemoveConfirmsThenCallsServiceAndFlipsToPlaceholder()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.RemoveClubCrestAsync(ClubId, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: true);
+        var cut = RenderClubCrestManager(hasCrest: true);
 
-        var removeButton = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Remove crest");
+        var removeButton = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Remove crest", StringComparison.Ordinal));
         removeButton.Click();
         cut.Markup.ShouldContain("Remove the club crest?");
 
@@ -216,18 +220,18 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest removed."));
         cut.Markup.ShouldContain("club-crest-placeholder");
-        crestService.Received(1).RemoveClubCrestAsync(ClubId, Arg.Any<CancellationToken>());
+        _ = crestService.Received(1).RemoveClubCrestAsync(ClubId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ParameterUpdate_FlipsFromFalseToTrue_ResyncsIslandToCrest()
+    public void ParameterUpdateFlipsFromFalseToTrueResyncsIslandToCrest()
     {
         var crestService = Substitute.For<IClubCrestService>();
         Services.AddSingleton(crestService);
 
-        // The host page can render the island before its summary loads (HasCrest == false);
+        // The host page can render the island before its summary loads while the crest flag is false;
         // when the summary later arrives the parameter changes and the island must re-sync.
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
         cut.Markup.ShouldContain("club-crest-placeholder");
         cut.Markup.ShouldNotContain("Remove crest");
 
@@ -240,25 +244,27 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public async Task ParameterUpdate_StaleAfterLocalSave_DoesNotRevertCrestPresence()
+    public async Task ParameterUpdateStaleAfterLocalSaveDoesNotRevertCrestPresenceAsync()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.ChangeClubCrestAsync(ClubId, Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='button'].btn-primary").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest updated."));
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Club crest updated."));
 
         // A stale parameter re-render (HasCrest == false) must not revert the locally approved
         // crest back to the placeholder.
@@ -271,16 +277,16 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void ParameterUpdate_StaleAfterLocalRemove_DoesNotRevertPlaceholder()
+    public void ParameterUpdateStaleAfterLocalRemoveDoesNotRevertPlaceholder()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.RemoveClubCrestAsync(ClubId, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: true);
+        var cut = RenderClubCrestManager(hasCrest: true);
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Remove crest").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Remove crest", StringComparison.Ordinal)).Click();
         cut.Find("button.btn-danger").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest removed."));
 
@@ -293,7 +299,7 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void CrestMutatedLocally_IsPersistentState_ToSurviveCircuitReattach()
+    public void CrestMutatedLocallyIsPersistentStateToSurviveCircuitReattach()
     {
         // The guard must survive circuit re-attach like HasCrestInitialized/CrestPresent:
         // a re-attach after a local save with a still-loading host summary (stale
@@ -301,36 +307,38 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
         var property = typeof(ClubCrestManager).GetProperty(nameof(ClubCrestManager.CrestMutatedLocally));
 
         var isPersistentState = property?.GetCustomAttributes(
-            typeof(PersistentStateAttribute), inherit: false).Any() ?? false;
+            typeof(PersistentStateAttribute), inherit: false).Length > 0;
 
         isPersistentState.ShouldBeTrue(
             "CrestMutatedLocally must be [PersistentState] so the mutated guard survives circuit re-attach");
     }
 
     [Fact]
-    public async Task Change_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
+    public async Task ChangeRedirectsToAccessDeniedWhenServiceReturnsForbiddenAsync()
     {
         var crestService = Substitute.For<IClubCrestService>();
         crestService.ChangeClubCrestAsync(ClubId, Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(ServiceProblem.Forbidden())));
         Services.AddSingleton(crestService);
 
-        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        var cut = RenderClubCrestManager(hasCrest: false);
 
         var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
         cut.FindComponent<InputFile>().UploadFiles(jpeg);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='button'].btn-primary").Click();
+#pragma warning restore CA1849, S6966
 
         // bUnit wires the NavigationManager through its own proxy; assert the navigation target
         // landed on the access-denied URL via the (real) registered manager.
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             navigationManager.Uri.ShouldBe("http://localhost/Account/AccessDenied"));
     }
 
@@ -338,12 +346,10 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     /// Renders the crest manager with the club crest service plus the cropper interop and canvas
     /// exporter substitutes required by the crop step.
     /// </summary>
-    /// <param name="crestService">The club crest service substitute.</param>
     /// <param name="hasCrest">Whether the club currently has a crest.</param>
     /// <param name="exporterBytes">The bytes the canvas exporter should return, or <see langword="null"/> to use a default JPEG.</param>
     /// <returns>The rendered component.</returns>
     private IRenderedComponent<ClubCrestManager> RenderClubCrestManager(
-        IClubCrestService crestService,
         bool hasCrest,
         byte[]? exporterBytes = null)
     {

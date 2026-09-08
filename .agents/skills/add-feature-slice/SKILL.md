@@ -1,10 +1,10 @@
 ---
 name: add-feature-slice
 description: >-
-  Build, change, debug, or review a complete Nova feature across input/query contracts, services, HTTP endpoints, WASM clients, and tests.
-  USE FOR: end-to-end features, cross-tier behavior changes, bounded read-only query APIs, shared input and service contracts, and consistent server/client behavior.
-  DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), UI-only work such as adding a page or component (use add-blazor-ui), only writing/running tests (use nova-testing).
-  INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), add-blazor-ui (UI step), nova-testing (test step).
+    Build, change, debug, or review a complete Nova feature across input/query contracts, services, HTTP endpoints, WASM clients, and tests.
+    USE FOR: end-to-end features, cross-tier behavior changes, bounded read-only query APIs, shared input and service contracts, and consistent server/client behavior.
+    DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), UI-only work such as adding a page or component (use add-blazor-ui), only writing/running tests (use nova-testing).
+    INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), add-blazor-ui (UI step), nova-testing (test step).
 ---
 
 # Add Feature Slice
@@ -30,8 +30,8 @@ Structural examples: Clubs for mutations and
 1. **Domain/persistence or decision policy, when needed** — invoke `add-domain-persistence` for entity,
    EF configuration, migration, tenancy, lifecycle, concurrency, or a non-trivial deterministic
    business-rule matrix. Logic-only policy work does not require entity or migration changes.
-2. **Input record + validation** — create `Nova.Shared\Features\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
-3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\Features\{Feature}\` and implement
+2. **Input record + validation** — create `Nova.SharedKernel\Features\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
+3. **Shared contract + server service** — add DTOs/interfaces in `Nova.SharedKernel\Features\{Feature}\` and implement
    `Nova\Features\{Feature}\{Feature}Service.cs`; follow
    [service-result-patterns.md](references/service-result-patterns.md). Keep authorization, EF,
    locking, persistence, and logging in the service; compose a feature-local pure policy when the

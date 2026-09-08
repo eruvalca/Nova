@@ -3,7 +3,7 @@
 Canonical Nova examples:
 
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
-- ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
+- ToHttpResult: `Nova\Features\Common\ServiceResultExtensions.cs`
 - Created resource: `Nova\Features\Teams\TeamManagementEndpointRouteBuilderExtensions.cs`
 - HTTP contract: `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs`
 
@@ -33,7 +33,7 @@ private static async Task<IResult> GetUserHandler(
 
 ## ServiceResult to HTTP Conversion
 
-Use the `ToHttpResult` extension methods in `Nova.Features.Shared.ServiceResultExtensions` to convert ServiceResult to typed HTTP responses:
+Use the `ToHttpResult` extension methods in `Nova.Features.Common.ServiceResultExtensions` to convert ServiceResult to typed HTTP responses:
 
 ```csharp
 // Success with default OK response
@@ -46,6 +46,7 @@ return result.ToHttpResult(userDto => TypedResults.Created($"/api/users/{userDto
 ```
 
 The extension automatically:
+
 1. Maps ServiceProblemKind to HTTP status code (404, 403, 409, 400, 500)
 2. Converts Validation problems to RFC 7807 ValidationProblemDetails with structured errors
 3. **Inserts the W3C trace ID** from `Activity.Current?.TraceId` into the extensions dictionary
@@ -63,6 +64,7 @@ group.MapGet("{userId:long}", GetUserHandler)
 ```
 
 Then use the named route in redirection:
+
 ```csharp
 return TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id });
 ```
@@ -88,11 +90,11 @@ Use a shared route-name constant for the target GET. Then add a real HTTP test t
 3. Asserts the exact `Location` generated from the shared URL builder.
 4. Follows `Location` and asserts the canonical GET succeeds.
 
-`TeamManagementHttpTests.CreateTeam_ReturnsCreatedWithLocationHeader_ForClubAdmin` is the canonical
+`TeamManagementHttpTests.CreateTeamReturnsCreatedWithLocationHeaderForClubAdminAsync` is the canonical
 test. Endpoint metadata tests cannot prove the route name and route values generate a usable URL.
 
 ## Related Files
 
-- `Nova.Features.Shared.ServiceResultExtensions.cs` — Extension methods for converting ServiceResult to HTTP responses
+- `Nova.Features.Common.ServiceResultExtensions.cs` — Extension methods for converting ServiceResult to HTTP responses
 - `.github/instructions/service-layer.instructions.md` — Service-layer result patterns and conventions
-- `Nova.Shared/Results/` — ServiceProblem, ServiceResult, and HttpResponseMessageExtensions definitions
+- `Nova.SharedKernel/Results/` — ServiceProblem, ServiceResult, and HttpResponseMessageExtensions definitions

@@ -2,8 +2,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -19,9 +19,11 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies a transient post-save failure rolls back and retries with database state loaded by a fresh context.
     /// </summary>
     [Fact]
-    public async Task TeamArchive_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task TeamArchiveRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix);
 
@@ -61,9 +63,11 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies a restore replayed by the execution strategy leaves the team active exactly once.
     /// </summary>
     [Fact]
-    public async Task TeamRestore_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task TeamRestoreRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix, archived: true);
 
@@ -101,9 +105,11 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
     /// reported as success rather than replayed into a spurious "already archived" conflict.
     /// </summary>
     [Fact]
-    public async Task TeamArchive_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task TeamArchiveReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix);
 
@@ -139,9 +145,11 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies the same ambiguous-commit protection applies to restore.
     /// </summary>
     [Fact]
-    public async Task TeamRestore_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task TeamRestoreReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix, archived: true);
 
@@ -183,9 +191,11 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
     /// status belongs to an earlier request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task TeamArchive_ReportsConflict_WhenTransientFailurePrecedesCommitOnArchivedTeam()
+    public async Task TeamArchiveReportsConflictWhenTransientFailurePrecedesCommitOnArchivedTeamAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix, archived: true);
 
@@ -226,32 +236,35 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Retry Team {suffix}",
-            GraduationYear = 2030,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
-            ArchivedById = archived ? actorUserId : null
-        };
-        seed.Teams.Add(team);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Retry Team {suffix}",
+                GraduationYear = 2030,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
+                ArchivedById = archived ? actorUserId : null
+            };
+            seed.Teams.Add(team);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return (club.ClubId, team.TeamId);
+            return (club.ClubId, team.TeamId);
+        }
     }
 }

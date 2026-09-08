@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using OneOf;
 
 namespace Nova.Features.Campaigns;

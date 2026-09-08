@@ -8,11 +8,11 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -44,7 +44,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetClubMembersAsync_ReturnsOtherMembersOnly()
+    public async Task GetClubMembersAsyncReturnsOtherMembersOnlyAsync()
     {
         var result = await CreateService().GetClubMembersAsync(TestContext.Current.CancellationToken);
 
@@ -53,30 +53,32 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PromoteMemberAsync_PersistsRoleStampAndActivityAtomically()
+    public async Task PromoteMemberAsyncPersistsRoleStampAndActivityAtomicallyAsync()
     {
         string? oldStamp;
         using (var before = _harness.CreateAdminContext())
         {
-            oldStamp = before.Users.Single(user => user.Id == MemberId).SecurityStamp;
+            oldStamp = (await before.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken)).SecurityStamp;
         }
 
         var result = await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+        var roleId = (await db.Roles.SingleAsync(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant(), TestContext.Current.CancellationToken)).Id;
+#pragma warning restore CA1862
         db.UserRoles.ShouldContain(role => role.UserId == MemberId && role.RoleId == roleId);
-        db.Users.Single(user => user.Id == MemberId).SecurityStamp.ShouldNotBe(oldStamp);
-        db.ClubMembershipMutationReceipts.Count(receipt => receipt.MemberUserId == MemberId).ShouldBe(1);
-        var activity = db.ActivityEvents.Single(activity => activity.EventKind == ActivityEventKind.MemberPromoted);
+        (await db.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken)).SecurityStamp.ShouldNotBe(oldStamp, StringComparer.Ordinal);
+        (await db.ClubMembershipMutationReceipts.CountAsync(receipt => receipt.MemberUserId == MemberId, TestContext.Current.CancellationToken)).ShouldBe(1);
+        var activity = (await db.ActivityEvents.SingleAsync(activity => activity.EventKind == ActivityEventKind.MemberPromoted, TestContext.Current.CancellationToken));
         var context = JsonSerializer.Deserialize<MemberRoleContext>(activity.PayloadJson, JsonOptions());
         context!.MemberUserId.ShouldBe(MemberId);
         context.MemberDisplayName.ShouldBe("Member One");
     }
 
     [Fact]
-    public async Task PromoteMemberAsync_ReturnsValidationForInvalidMemberId()
+    public async Task PromoteMemberAsyncReturnsValidationForInvalidMemberIdAsync()
     {
         var result = await CreateService().PromoteMemberAsync(MemberInput(0), TestContext.Current.CancellationToken);
 
@@ -87,26 +89,26 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PromoteMemberAsync_IsIdempotentWithoutAnotherEventOrStampChange()
+    public async Task PromoteMemberAsyncIsIdempotentWithoutAnotherEventOrStampChangeAsync()
     {
         await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
         string? stamp;
         using (var db = _harness.CreateAdminContext())
         {
-            stamp = db.Users.Single(user => user.Id == MemberId).SecurityStamp;
+            stamp = (await db.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken)).SecurityStamp;
         }
 
         var result = await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var after = _harness.CreateAdminContext();
-        after.Users.Single(user => user.Id == MemberId).SecurityStamp.ShouldBe(stamp);
-        after.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberPromoted).ShouldBe(1);
+        (await after.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken)).SecurityStamp.ShouldBe(stamp);
+        (await after.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberPromoted, TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies one membership mutation prunes expired receipts from every club scope.</summary>
     [Fact]
-    public async Task PromoteMemberAsync_PrunesExpiredReceiptsGlobally()
+    public async Task PromoteMemberAsyncPrunesExpiredReceiptsGloballyAsync()
     {
         var currentClubReceiptOperationId = Guid.NewGuid();
         var otherClubReceiptOperationId = Guid.NewGuid();
@@ -132,14 +134,14 @@ public sealed class ClubMemberServiceTests : IDisposable
                     CreatedAt = expiredAt,
                     CreatedById = OtherClubMemberId,
                 });
-            setup.SaveChanges();
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             foreach (var receipt in setup.ClubMembershipMutationReceipts.Local)
             {
                 receipt.CreatedAt = expiredAt;
             }
 
-            setup.SaveChanges();
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().PromoteMemberAsync(
@@ -155,13 +157,15 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DemoteMemberAsync_RejectsSoleAdministrator()
+    public async Task DemoteMemberAsyncRejectsSoleAdministratorAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
-            var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
-            db.UserRoles.Remove(db.UserRoles.Single(role => role.UserId == SecondAdminId && role.RoleId == roleId));
-            db.SaveChanges();
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var roleId = (await db.Roles.SingleAsync(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant(), TestContext.Current.CancellationToken)).Id;
+#pragma warning restore CA1862
+            db.UserRoles.Remove((await db.UserRoles.SingleAsync(role => role.UserId == SecondAdminId && role.RoleId == roleId, TestContext.Current.CancellationToken)));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
@@ -171,19 +175,19 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DemoteMemberAsync_AllowsSelfDemotionAndRefreshesSignIn()
+    public async Task DemoteMemberAsyncAllowsSelfDemotionAndRefreshesSignInAsync()
     {
         var result = await CreateService().DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
         db.UserRoles.ShouldNotContain(role => role.UserId == AdminId);
-        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberDemoted).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberDemoted, TestContext.Current.CancellationToken)).ShouldBe(1);
         await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == AdminId));
     }
 
     [Fact]
-    public async Task DemoteMemberAsync_IdempotentSelfRetryRefreshesSignInWithoutDuplicateEvent()
+    public async Task DemoteMemberAsyncIdempotentSelfRetryRefreshesSignInWithoutDuplicateEventAsync()
     {
         var service = CreateService();
         await service.DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
@@ -192,12 +196,12 @@ public sealed class ClubMemberServiceTests : IDisposable
 
         retry.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberDemoted).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberDemoted, TestContext.Current.CancellationToken)).ShouldBe(1);
         await _signInManager.Received(2).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == AdminId));
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_ClearsMembershipAndWritesOnlyRemovedEvent()
+    public async Task RemoveMemberAsyncClearsMembershipAndWritesOnlyRemovedEventAsync()
     {
         using (var setup = _harness.CreateAdminContext())
         {
@@ -208,25 +212,25 @@ public sealed class ClubMemberServiceTests : IDisposable
                 Status = RequestStatus.Approved,
                 CreatedById = SecondAdminId,
             });
-            setup.SaveChanges();
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().RemoveMemberAsync(MemberInput(SecondAdminId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.Users.Single(user => user.Id == SecondAdminId).ClubId.ShouldBeNull();
+        (await db.Users.SingleAsync(user => user.Id == SecondAdminId, TestContext.Current.CancellationToken)).ClubId.ShouldBeNull();
         db.UserRoles.ShouldNotContain(role => role.UserId == SecondAdminId);
         db.ClubJoinRequests.ShouldNotContain(request => request.RequestingUserId == SecondAdminId);
-        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberRemoved).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberRemoved, TestContext.Current.CancellationToken)).ShouldBe(1);
         db.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberDemoted);
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_RotatesConcurrencyStampAndRejectsStaleIdentityWrite()
+    public async Task RemoveMemberAsyncRotatesConcurrencyStampAndRejectsStaleIdentityWriteAsync()
     {
         using var staleDb = _harness.CreateAdminContext();
-        var staleMember = staleDb.Users.Single(user => user.Id == MemberId);
+        var staleMember = (await staleDb.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken));
         var originalConcurrencyStamp = staleMember.ConcurrencyStamp;
 
         var result = await CreateService().RemoveMemberAsync(
@@ -236,8 +240,8 @@ public sealed class ClubMemberServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         using (var verify = _harness.CreateAdminContext())
         {
-            verify.Users.Single(user => user.Id == MemberId).ConcurrencyStamp
-                .ShouldNotBe(originalConcurrencyStamp);
+            (await verify.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken)).ConcurrencyStamp
+                .ShouldNotBe(originalConcurrencyStamp, StringComparer.Ordinal);
         }
 
         staleMember.SecurityStamp = "stale-identity-write";
@@ -246,7 +250,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_PreservesResolvedJoinRequestOwnedByAnotherClub()
+    public async Task RemoveMemberAsyncPreservesResolvedJoinRequestOwnedByAnotherClubAsync()
     {
         long joinRequestId;
         using (var setup = _harness.CreateAdminContext())
@@ -259,7 +263,7 @@ public sealed class ClubMemberServiceTests : IDisposable
                 CreatedById = MemberId,
             };
             setup.ClubJoinRequests.Add(request);
-            setup.SaveChanges();
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
             joinRequestId = request.ClubJoinRequestId;
         }
 
@@ -273,7 +277,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_UsesNonDisclosingNotFoundForCrossClubTarget()
+    public async Task RemoveMemberAsyncUsesNonDisclosingNotFoundForCrossClubTargetAsync()
     {
         var result = await CreateService().RemoveMemberAsync(MemberInput(OtherClubMemberId), TestContext.Current.CancellationToken);
 
@@ -282,25 +286,24 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_RejectsSelfRemoval()
+    public async Task RemoveMemberAsyncRejectsSelfRemovalAsync()
     {
         var result = await CreateService().RemoveMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         result.Problem.Detail.ShouldNotBeNull();
-        result.Problem.Detail!.ShouldContain("leave-club");
+        result.Problem.Detail.ShouldContain("leave-club");
     }
 
     [Fact]
-    public async Task LeaveClubAsync_RejectsFinalMemberWithDeletionGuidance()
+    public async Task LeaveClubAsyncRejectsFinalMemberWithDeletionGuidanceAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
-            db.Users.Where(user => user.ClubId == ClubId && user.Id != AdminId)
-                .ToList()
+            (await db.Users.Where(user => user.ClubId == ClubId && user.Id != AdminId).ToListAsync(TestContext.Current.CancellationToken))
                 .ForEach(user => user.ClubId = null);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
@@ -311,7 +314,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LeaveClubAsync_ClearsMembershipWritesLeftEventAndRefreshesSignIn()
+    public async Task LeaveClubAsyncClearsMembershipWritesLeftEventAndRefreshesSignInAsync()
     {
         _harness.CurrentUser.UserId = MemberId;
         _harness.CurrentUser.IsClubAdmin = false;
@@ -324,17 +327,17 @@ public sealed class ClubMemberServiceTests : IDisposable
                 Status = RequestStatus.Approved,
                 CreatedById = MemberId,
             });
-            setup.SaveChanges();
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        var departedMember = db.Users.Single(user => user.Id == MemberId);
+        var departedMember = (await db.Users.SingleAsync(user => user.Id == MemberId, TestContext.Current.CancellationToken));
         departedMember.ClubId.ShouldBeNull();
         db.ClubJoinRequests.ShouldNotContain(request => request.RequestingUserId == MemberId);
-        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberLeft, TestContext.Current.CancellationToken)).ShouldBe(1);
         await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user =>
             user.Id == MemberId
             && user.ClubId == null
@@ -342,7 +345,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LeaveClubAsync_IsIdempotentForStaleMemberCookie()
+    public async Task LeaveClubAsyncIsIdempotentForStaleMemberCookieAsync()
     {
         _harness.CurrentUser.UserId = MemberId;
         _harness.CurrentUser.IsClubAdmin = false;
@@ -353,18 +356,20 @@ public sealed class ClubMemberServiceTests : IDisposable
 
         retry.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(activity => activity.EventKind == ActivityEventKind.MemberLeft, TestContext.Current.CancellationToken)).ShouldBe(1);
         await _signInManager.Received(2).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == MemberId));
     }
 
     [Fact]
-    public async Task LeaveClubAsync_RejectsSoleAdministratorWhenOtherMembersRemain()
+    public async Task LeaveClubAsyncRejectsSoleAdministratorWhenOtherMembersRemainAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
-            var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
-            db.UserRoles.Remove(db.UserRoles.Single(role => role.UserId == SecondAdminId && role.RoleId == roleId));
-            db.SaveChanges();
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var roleId = (await db.Roles.SingleAsync(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant(), TestContext.Current.CancellationToken)).Id;
+#pragma warning restore CA1862
+            db.UserRoles.Remove((await db.UserRoles.SingleAsync(role => role.UserId == SecondAdminId && role.RoleId == roleId, TestContext.Current.CancellationToken)));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
@@ -400,7 +405,7 @@ public sealed class ClubMemberServiceTests : IDisposable
         manager.FindByIdAsync(Arg.Any<string>()).Returns(call =>
         {
             using var db = _harness.CreateAdminContext();
-            var id = long.Parse(call.Arg<string>());
+            var id = long.Parse(call.Arg<string>(), System.Globalization.CultureInfo.InvariantCulture);
             return Task.FromResult(db.Users.SingleOrDefault(user => user.Id == id));
         });
 

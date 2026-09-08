@@ -1,10 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using OneOf;
 
 namespace Nova.Features.Campaigns;
@@ -16,14 +16,16 @@ namespace Nova.Features.Campaigns;
 /// <param name="currentUserProvider">The current user provider used for authorization checks.</param>
 /// <param name="placementQueryService">The composed placement summary query service.</param>
 /// <param name="logger">The logger for expected authorization failures.</param>
-public sealed partial class CampaignCloseoutQueryService(
+internal sealed partial class CampaignCloseoutQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ICampaignPlacementQueryService placementQueryService,
     ILogger<CampaignCloseoutQueryService> logger) : ICampaignCloseoutQueryService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignCloseoutReadinessDto>> GetCloseoutReadinessAsync(
+#pragma warning restore MA0051
         GetCampaignCloseoutReadinessInput input,
         CancellationToken cancellationToken = default)
     {
@@ -89,7 +91,9 @@ public sealed partial class CampaignCloseoutQueryService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignActivityResult>> GetActivityAsync(
+#pragma warning restore MA0051
         GetCampaignActivityInput input,
         CancellationToken cancellationToken = default)
     {

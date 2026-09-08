@@ -2,10 +2,10 @@
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -24,7 +24,9 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
     /// Verifies two administrators using the same expected token yield one winner and one conflict.
     /// </summary>
     [Fact]
-    public async Task ConcurrentAdminUpdates_SameExpectedToken_YieldOneSuccessOneConflict_WithWinnerPersisted()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ConcurrentAdminUpdatesSameExpectedTokenYieldOneSuccessOneConflictWithWinnerPersistedAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var firstClient = fixture.CreateNovaHttpClient();
@@ -49,16 +51,20 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
         await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);
 
         long secondUserId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             secondUserId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == secondEmail.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
         }
 
         using (var promotion = await firstClient.PostAsync(
-                   ClubEndpoints.PromoteMemberUrl(secondUserId), null, cancellationToken))
+new Uri(ClubEndpoints.PromoteMemberUrl(secondUserId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -81,7 +87,9 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
             cancellationToken);
 
         Guid expectedToken;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             expectedToken = await context.PlayerCampaignAssignments
                 .Where(assignment => assignment.PlayerCampaignAssignmentId == seeded.AssignmentIds[0])
@@ -89,7 +97,9 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
                 .SingleAsync(cancellationToken);
         }
 
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var firstRequest = firstClient.PutAsJsonAsync(
+#pragma warning restore CA2025
             CampaignEndpoints.UpdateCampaignPlacementUrl(seeded.AssignmentIds[0]),
             new UpdateCampaignPlacementInput(
                 seeded.AssignmentIds[0],
@@ -97,7 +107,9 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
                 teamId,
                 expectedToken),
             cancellationToken);
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var secondRequest = secondClient.PutAsJsonAsync(
+#pragma warning restore CA2025
             CampaignEndpoints.UpdateCampaignPlacementUrl(seeded.AssignmentIds[0]),
             new UpdateCampaignPlacementInput(
                 seeded.AssignmentIds[0],
@@ -105,6 +117,24 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
                 teamId: null,
                 expectedToken),
             cancellationToken);
+
+        try
+        {
+            await Task.WhenAll(firstRequest, secondRequest);
+        }
+        catch
+        {
+            // Both requests have finished; dispose any successful response before propagating the failure.
+            if (firstRequest.IsCompletedSuccessfully)
+            {
+                (await firstRequest).Dispose();
+            }
+            if (secondRequest.IsCompletedSuccessfully)
+            {
+                (await secondRequest).Dispose();
+            }
+            throw;
+        }
 
         using var firstResponse = await firstRequest;
         using var secondResponse = await secondRequest;

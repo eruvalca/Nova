@@ -64,17 +64,17 @@ queries are not converted by #213; #214 owns those consumers and their query/pro
 
 | Requirement | Tests |
 | --- | --- |
-| Complete eligibility/outcome matrix and resolved versus optional work | `Evaluate_AllowsEverySavedOutcome_ForEligibleDecisionHistory`, `Evaluate_EnforcesWithdrawalMatrix_ForEveryRequestedOutcome`, `GetEligibility_ClassifiesLatestDecision` |
-| New-season reset and non-current rejection | `UpdatePlacementAsync_ResetsEligibility_WhenWithdrawalBelongsToPreviousSeason`, `UpdatePlacementAsync_RejectsNonCurrentSeason_WithoutWrites` |
-| Immutable Closed source and no historical fallback | `UpdatePlacementAsync_SupersedesPriorDecision_AndPreservesClosedHistory`, `UpdatePlacementAsync_UsesLatestDecisionBeforeTeamValidity_WithoutHistoricalFallback` |
-| Participation versus decision attribution and response contracts | `UpdatePlacementAsync_RecordsDecisionAttribution_WithoutReplacingEnrollmentAuthor`, `GetPlacementRosterAsync_RejectsMalformedSavedDecision` |
-| No-op, stale token, and terminal withdrawal | `UpdatePlacement_IdenticalSavePreservesDecision_AndStaleIdenticalSaveConflicts`, `UpdatePlacementAsync_RejectsReplacementOfLocalWithdrawal_WithoutWrites` |
-| Withdrawal override authorization | `UpdatePlacementAsync_ForbidsMemberPriorWithdrawalOverride_WithoutWrites` |
-| Tenant isolation and immutable receipt integrity | `PlacementMutationReceipts_FilterByOwningTenant`, `PlacementMutationReceipts_RejectCrossTenantWrites`, `PlacementMutationReceipts_RejectChangesToCommittedReceipt`, `PlacementReceipt_EnforcesTenantScopedOperationUniqueness` |
-| Receipt retention, including deleted tenants | `PlacementMutationReceipts_PruneExpiredReceipts_WithinCurrentTenantOnly`, `PlacementMutationReceipts_GlobalCleanupRemovesExpiredDeletedClubEvidence` |
-| Atomic writes and retry proof despite later mutations | `UpdatePlacement_RetriesFailedCommit_AndPersistsReplacementToken`, `UpdatePlacement_RecoversOriginalToken_WhenLaterSavePrecedesCommitVerification`, `UpdatePlacement_RecoversOriginalSuccess_WhenClubDeletionPrecedesCommitVerification` |
-| Contended season/opening/team locks | `UpdatePlacement_RejectsNonCurrentSeason_AfterWaitingForSeasonLock`, `UpdatePlacement_SerializesCompetingOpening_WithoutCreatingAnotherDecision`, `UpdatePlacement_RejectsArchivedTarget_AfterWaitingForTeamLock`, `UpdatePlacement_LocksPriorTeam_AndSupersedesItsDecisionAfterArchival` |
-| WASM no-op success | `UpdatePlacementAsync_ReturnsSuccess_WhenNoOpPreservesSubmittedToken` |
-| Enrollment display without a clearing action | `OutcomeOptions_DisableUndecided_ForEnrollmentAndSavedDecision`, `OutcomeChange_ClearsTeam_AndDisablesTeamSelect_WhenLeavingAssigned` |
-| Strict supersession feed contract | `GetClubActivityAsync_AcceptsSupersession_ForSavedOutcomes`, `GetClubActivityAsync_RejectsSupersession_ForMalformedDecision` |
-| Required saved-decision attribution in JSON and persistence | `GetPlacementRosterAsync_RejectsMissingDecisionAttribution`, `GetPlacementRosterAsync_RejectsMalformedSavedDecision`, `PlacementDecision_RejectsInvalidAttribution_AtDatabaseBoundary` |
+| Complete eligibility/outcome matrix and resolved versus optional work | `EvaluateAllowsEverySavedOutcomeForEligibleDecisionHistory`, `EvaluateEnforcesWithdrawalMatrixForEveryRequestedOutcome`, `GetEligibilityClassifiesLatestDecision` |
+| New-season reset and non-current rejection | `UpdatePlacementAsyncResetsEligibilityWhenWithdrawalBelongsToPreviousSeasonAsync`, `UpdatePlacementAsyncRejectsNonCurrentSeasonWithoutWritesAsync` |
+| Immutable Closed source and no historical fallback | `UpdatePlacementAsyncSupersedesPriorDecisionAndPreservesClosedHistoryAsync`, `UpdatePlacementAsyncUsesLatestDecisionBeforeTeamValidityWithoutHistoricalFallbackAsync` |
+| Participation versus decision attribution and response contracts | `UpdatePlacementAsyncRecordsDecisionAttributionWithoutReplacingEnrollmentAuthorAsync`, `GetPlacementRosterAsyncRejectsMalformedSavedDecisionAsync` |
+| No-op, stale token, and terminal withdrawal | `UpdatePlacementIdenticalSavePreservesDecisionAndStaleIdenticalSaveConflictsAsync`, `UpdatePlacementAsyncRejectsReplacementOfLocalWithdrawalWithoutWritesAsync` |
+| Withdrawal override authorization | `UpdatePlacementAsyncForbidsMemberPriorWithdrawalOverrideWithoutWritesAsync` |
+| Tenant isolation and immutable receipt integrity | `PlacementMutationReceiptsFilterByOwningTenant`, `PlacementMutationReceiptsRejectCrossTenantWrites`, `PlacementMutationReceiptsRejectChangesToCommittedReceiptAsync`, `PlacementReceiptEnforcesTenantScopedOperationUniquenessAsync` |
+| Receipt retention, including deleted tenants | `PlacementMutationReceiptsPruneExpiredReceiptsWithinCurrentTenantOnlyAsync`, `PlacementMutationReceiptsGlobalCleanupRemovesExpiredDeletedClubEvidenceAsync` |
+| Atomic writes and retry proof despite later mutations | `UpdatePlacementRetriesFailedCommitAndPersistsReplacementTokenAsync`, `UpdatePlacementRecoversOriginalTokenWhenLaterSavePrecedesCommitVerificationAsync`, `UpdatePlacementRecoversOriginalSuccessWhenClubDeletionPrecedesCommitVerificationAsync` |
+| Contended season/opening/team locks | `UpdatePlacementRejectsNonCurrentSeasonAfterWaitingForSeasonLockAsync`, `UpdatePlacementSerializesCompetingOpeningWithoutCreatingAnotherDecisionAsync`, `UpdatePlacementRejectsArchivedTargetAfterWaitingForTeamLockAsync`, `UpdatePlacementLocksPriorTeamAndSupersedesItsDecisionAfterArchivalAsync` |
+| WASM no-op success | `UpdatePlacementAsyncReturnsSuccessWhenNoOpPreservesSubmittedTokenAsync` |
+| Enrollment display without a clearing action | `OutcomeOptionsDisableUndecidedForEnrollmentAndSavedDecision`, `OutcomeChangeClearsTeamAndDisablesTeamSelectWhenLeavingAssigned` |
+| Strict supersession feed contract | `GetClubActivityAsyncAcceptsSupersessionForSavedOutcomesAsync`, `GetClubActivityAsyncRejectsSupersessionForMalformedDecisionAsync` |
+| Required saved-decision attribution in JSON and persistence | `GetPlacementRosterAsyncRejectsMissingDecisionAttributionAsync`, `GetPlacementRosterAsyncRejectsMalformedSavedDecisionAsync`, `PlacementDecisionRejectsInvalidAttributionAtDatabaseBoundaryAsync` |

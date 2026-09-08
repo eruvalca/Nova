@@ -16,7 +16,7 @@ namespace Nova.Browser.Tests;
 public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
-    public async Task Workspace_LoadsCampaignAndRoster_ForApprovedMember()
+    public async Task WorkspaceLoadsCampaignAndRosterForApprovedMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -33,7 +33,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Drawer_HappyPath_AddsNoteAndAppliesTag_WithActorMetadata()
+    public async Task DrawerHappyPathAddsNoteAndAppliesTagWithActorMetadataAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -80,7 +80,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task SharedState_RefreshesAcrossTwoUsers_WithActorMetadata()
+    public async Task SharedStateRefreshesAcrossTwoUsersWithActorMetadataAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -123,7 +123,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task RestrictedCommands_AreScopedToAuthorAndAdmin()
+    public async Task RestrictedCommandsAreScopedToAuthorAndAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -166,7 +166,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task StaleClose_RejectsWrite_AndEntersReadOnly_PreservingContext()
+    public async Task StaleCloseRejectsWriteAndEntersReadOnlyPreservingContextAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -199,7 +199,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task UrlState_SurvivesReload_AndBackForward_RestoresDrawer()
+    public async Task UrlStateSurvivesReloadAndBackForwardRestoresDrawerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -250,7 +250,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task DrawerNavigation_CrossesPageBoundary_PreservingSequence()
+    public async Task DrawerNavigationCrossesPageBoundaryPreservingSequenceAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -289,7 +289,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task DuplicateTagRace_YieldsSingleChip_AfterRefresh()
+    public async Task DuplicateTagRaceYieldsSingleChipAfterRefreshAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -335,7 +335,6 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // After a refresh exactly one tag chip renders: no duplicate UI state.
         await firstPage.ReloadAsync();
         await Expect(firstPage.Locator("li.participant-drawer-tag-item")).ToHaveCountAsync(1);
-
         await using var db = fixture.AppHost.CreateAdminContext();
         var durableRows = await db.CampaignTagApplications
             .Where(candidate => candidate.PlayerCampaignAssignmentId == targetAssignmentId)
@@ -344,14 +343,12 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task ResponsiveLayouts_PreserveRosterAndDrawer_AcrossViewports()
+    public async Task ResponsiveLayoutsPreserveRosterAndDrawerAcrossViewportsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
-
-        // Narrow viewport: the card list replaces the table and the drawer still opens/closes.
         await using var narrowContext = await fixture.NewSignedInContextAsync(
-            seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 480, Height = 800 });
+                    seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 480, Height = 800 });
         var narrowPage = narrowContext.Pages[0];
         await OpenWorkspaceAsync(narrowPage, seed.CampaignId);
         await Expect(narrowPage.Locator(".table-responsive")).ToBeHiddenAsync();
@@ -361,10 +358,8 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.Locator("aside.participant-drawer")).ToBeVisibleAsync();
         await CloseDrawerAsync(narrowPage);
         await Expect(narrowPage.Locator("#roster-card-" + seed.AssignmentIds[0])).ToBeFocusedAsync();
-
-        // Tablet viewport: the table is visible and the card list is not.
         await using var tabletContext = await fixture.NewSignedInContextAsync(
-            seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 820, Height = 1024 });
+                    seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 820, Height = 1024 });
         var tabletPage = tabletContext.Pages[0];
         await OpenWorkspaceAsync(tabletPage, seed.CampaignId);
         await Expect(tabletPage.Locator(".table-responsive")).ToBeVisibleAsync();
@@ -373,7 +368,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task ArchivedTagDefinition_StaysVisible_ButIsNotApplicableOrRemovable()
+    public async Task ArchivedTagDefinitionStaysVisibleButIsNotApplicableOrRemovableAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -400,13 +395,13 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
         await OpenParticipantAsync(page, page.Locator($"#roster-row-{seed.AssignmentIds[1]}"));
         var options = await page.Locator("select[aria-label=\"Tag to apply\"] option").AllTextContentsAsync();
-        options.ShouldContain(seed.ActiveTagName);
-        options.ShouldContain(seed.SecondActiveTagName);
-        options.ShouldNotContain(seed.ArchivedTagName);
+        options.ShouldContain(seed.ActiveTagName, StringComparer.Ordinal);
+        options.ShouldContain(seed.SecondActiveTagName, StringComparer.Ordinal);
+        options.ShouldNotContain(seed.ArchivedTagName, StringComparer.Ordinal);
     }
 
     [Fact]
-    public async Task Drawer_IsKeyboardAccessible_TrapEscapeAndFocusReturn()
+    public async Task DrawerIsKeyboardAccessibleTrapEscapeAndFocusReturnAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -442,7 +437,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task NoteFlow_IsKeyboardOperable_WithLabelsAndStatusAnnouncements()
+    public async Task NoteFlowIsKeyboardOperableWithLabelsAndStatusAnnouncementsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -473,9 +468,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task A11yManualChecklist_CapturesContrastAndTouchTargetEvidence()
+    public async Task A11yManualChecklistCapturesContrastAndTouchTargetEvidenceAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture accessibility evidence.");
         }
@@ -487,7 +482,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         var measurements = new List<string>();
 
         // Wide viewport: workspace with the drawer open on the first participant.
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, EvaluationSeed.Password))
+#pragma warning restore MA0004
         {
             var page = wideContext.Pages[0];
             await OpenWorkspaceAsync(page, seed.CampaignId);
@@ -499,7 +496,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         }
 
         // Narrow viewport: card list and the full-screen drawer.
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var narrowContext = await fixture.NewSignedInContextAsync(
+#pragma warning restore MA0004
             seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 480, Height = 800 }))
         {
             var page = narrowContext.Pages[0];
@@ -515,7 +514,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Roster_EmptySearch_ShowsNoResults_WithZeroCountAnnouncement()
+    public async Task RosterEmptySearchShowsNoResultsWithZeroCountAnnouncementAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -535,7 +534,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Drawer_NoteValidation_RejectsWhitespaceContent()
+    public async Task DrawerNoteValidationRejectsWhitespaceContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -550,13 +549,13 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await page.GetByRole(AriaRole.Button, new() { Name = "Save note" }).ClickAsync();
 
         // The inline validation error renders, no success alert appears, and the note list is unchanged.
-        await Expect(page.Locator("#participant-drawer-note-content")).ToHaveClassAsync(new Regex("is-invalid"));
+        await Expect(page.Locator("#participant-drawer-note-content")).ToHaveClassAsync(new Regex("is-invalid", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
         await Expect(page.Locator("li.participant-drawer-note")).ToHaveCountAsync(0);
     }
 
     [Fact]
-    public async Task Roster_AssignedOutcomeBadge_MeetsContrastThreshold()
+    public async Task RosterAssignedOutcomeBadgeMeetsContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -567,7 +566,6 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         var teamId = await SeedingHelpers.InsertTeamAsync(
             fixture.AppHost, seed.ClubId, seed.AdminEmail, $"Assigned Team {suffix}", 2030, cancellationToken);
         await SeedingHelpers.AssignPlacementAsync(fixture.AppHost, seed.AssignmentIds[0], teamId, cancellationToken);
-
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
         var page = context.Pages[0];
         await OpenWorkspaceAsync(page, seed.CampaignId);
@@ -578,7 +576,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Roster_Loading_ShowsIndicator_ThenRendersRows()
+    public async Task RosterLoadingShowsIndicatorThenRendersRowsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -617,7 +615,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Roster_Failure_ShowsRetry_AndRetryRecovers()
+    public async Task RosterFailureShowsRetryAndRetryRecoversAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -648,7 +646,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Drawer_DetailFailure_ShowsRetry_AndRetryRecovers()
+    public async Task DrawerDetailFailureShowsRetryAndRetryRecoversAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -777,7 +775,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     private static async Task<long> ReadAssignmentIdAsync(ILocator row)
     {
         var id = await row.GetAttributeAsync("id");
-        return long.Parse(id!["roster-row-".Length..]);
+        return long.Parse(id!["roster-row-".Length..], System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task<bool> IsFocusInsideDrawerAsync(IPage page) =>

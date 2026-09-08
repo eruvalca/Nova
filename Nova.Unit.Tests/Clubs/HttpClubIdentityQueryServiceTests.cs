@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Clubs;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -11,7 +11,7 @@ namespace Nova.Unit.Tests.Clubs;
 public sealed class HttpClubIdentityQueryServiceTests
 {
     [Fact]
-    public async Task GetCurrentAsync_UsesCanonicalRoute_AndReturnsValidatedIdentity()
+    public async Task GetCurrentAsyncUsesCanonicalRouteAndReturnsValidatedIdentityAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -24,7 +24,7 @@ public sealed class HttpClubIdentityQueryServiceTests
                 HasCrest = true
             })
         };
-        var handler = new CaptureHandler(response);
+        using var handler = new CaptureHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubIdentityQueryService(http).GetCurrentAsync(TestContext.Current.CancellationToken);
@@ -42,13 +42,14 @@ public sealed class HttpClubIdentityQueryServiceTests
     [InlineData("{\"clubId\":0,\"name\":\"Club\",\"city\":\"Erie\",\"state\":\"PA\",\"hasCrest\":false}")]
     [InlineData("{\"clubId\":1,\"name\":\"   \",\"city\":\"Erie\",\"state\":\"PA\",\"hasCrest\":false}")]
     [InlineData("{\"clubId\":1,\"name\":\"Club\",\"city\":\"Erie\",\"state\":\"PA\",\"hasCrest\":\"yes\"}")]
-    public async Task GetCurrentAsync_ReturnsServerError_ForMalformedOrInvalidSuccessPayload(string body)
+    public async Task GetCurrentAsyncReturnsServerErrorForMalformedOrInvalidSuccessPayloadAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        using var http = new HttpClient(new CaptureHandler(response)) { BaseAddress = new Uri("https://localhost/") };
+        using var httpHandler = new CaptureHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubIdentityQueryService(http).GetCurrentAsync(TestContext.Current.CancellationToken);
 
@@ -66,13 +67,16 @@ public sealed class HttpClubIdentityQueryServiceTests
 
     [Theory]
     [MemberData(nameof(OverlengthPayloads))]
-    public async Task GetCurrentAsync_ReturnsServerError_ForOverlengthSuccessPayload(string body)
+#pragma warning disable S4144 // Each theory names a distinct category and owns different test data; the shared assertion is intentional.
+    public async Task GetCurrentAsyncReturnsServerErrorForOverlengthSuccessPayloadAsync(string body)
+#pragma warning restore S4144
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        using var http = new HttpClient(new CaptureHandler(response)) { BaseAddress = new Uri("https://localhost/") };
+        using var httpHandler = new CaptureHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubIdentityQueryService(http).GetCurrentAsync(TestContext.Current.CancellationToken);
 

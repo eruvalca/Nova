@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Components;
@@ -22,7 +23,7 @@ public partial class ResendEmailConfirmation(
     /// <summary>
     /// Stores the message to display to the user regarding resend confirmation status.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Gets or sets the form input data containing the user's email address.
@@ -41,10 +42,10 @@ public partial class ResendEmailConfirmation(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        var user = await userManager.FindByEmailAsync(Input.Email!);
+        var user = await userManager.FindByEmailAsync(Input.Email);
         if (user is null)
         {
-            message = "Verification email sent. Please check your email.";
+            _message = "Verification email sent. Please check your email.";
             return;
         }
 
@@ -53,10 +54,10 @@ public partial class ResendEmailConfirmation(
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = navigationManager.GetUriWithQueryParameters(
             navigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["code"] = code });
         await emailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
 
-        message = "Verification email sent. Please check your email.";
+        _message = "Verification email sent. Please check your email.";
     }
 
     /// <summary>

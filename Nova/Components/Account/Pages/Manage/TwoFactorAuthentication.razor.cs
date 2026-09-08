@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -16,27 +17,27 @@ public partial class TwoFactorAuthentication(
     /// <summary>
     /// Indicates whether the browser can track the user.
     /// </summary>
-    private bool canTrack;
+    private bool _canTrack;
 
     /// <summary>
     /// Indicates whether the user has an authenticator configured.
     /// </summary>
-    private bool hasAuthenticator;
+    private bool _hasAuthenticator;
 
     /// <summary>
     /// Stores the number of remaining recovery codes.
     /// </summary>
-    private int recoveryCodesLeft;
+    private int _recoveryCodesLeft;
 
     /// <summary>
     /// Indicates whether two-factor authentication is enabled.
     /// </summary>
-    private bool is2faEnabled;
+    private bool _is2faEnabled;
 
     /// <summary>
     /// Indicates whether the current machine is remembered for 2FA.
     /// </summary>
-    private bool isMachineRemembered;
+    private bool _isMachineRemembered;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -57,11 +58,11 @@ public partial class TwoFactorAuthentication(
             return;
         }
 
-        canTrack = HttpContext.Features.Get<ITrackingConsentFeature>()?.CanTrack ?? true;
-        hasAuthenticator = await userManager.GetAuthenticatorKeyAsync(user) is not null;
-        is2faEnabled = await userManager.GetTwoFactorEnabledAsync(user);
-        isMachineRemembered = await signInManager.IsTwoFactorClientRememberedAsync(user);
-        recoveryCodesLeft = await userManager.CountRecoveryCodesAsync(user);
+        _canTrack = HttpContext.Features.Get<ITrackingConsentFeature>()?.CanTrack ?? true;
+        _hasAuthenticator = await userManager.GetAuthenticatorKeyAsync(user) is not null;
+        _is2faEnabled = await userManager.GetTwoFactorEnabledAsync(user);
+        _isMachineRemembered = await signInManager.IsTwoFactorClientRememberedAsync(user);
+        _recoveryCodesLeft = await userManager.CountRecoveryCodesAsync(user);
     }
 
     /// <summary>

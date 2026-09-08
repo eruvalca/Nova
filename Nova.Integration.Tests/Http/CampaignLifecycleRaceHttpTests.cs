@@ -2,11 +2,11 @@
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -27,7 +27,9 @@ public sealed class CampaignLifecycleRaceHttpTests(NovaAppHostFixture fixture)
     /// persisted closure provenance matches the winner.
     /// </summary>
     [Fact]
-    public async Task ConcurrentAdminCloses_YieldOneSuccessOneConflict_WithWinnerPersisted()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ConcurrentAdminClosesYieldOneSuccessOneConflictWithWinnerPersistedAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -48,16 +50,22 @@ public sealed class CampaignLifecycleRaceHttpTests(NovaAppHostFixture fixture)
 
         long firstUserId;
         long secondUserId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             firstUserId = (await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 user => user.NormalizedEmail == firstEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
             secondUserId = (await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 user => user.NormalizedEmail == secondEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         using (var promotion = await firstClient.PostAsync(
-                   ClubEndpoints.PromoteMemberUrl(secondUserId), null, cancellationToken))
+new Uri(ClubEndpoints.PromoteMemberUrl(secondUserId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -74,11 +82,11 @@ public sealed class CampaignLifecycleRaceHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         var firstRequest = firstClient.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         var secondRequest = secondClient.PostAsync(
-            CampaignEndpoints.CloseUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.CloseUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
 

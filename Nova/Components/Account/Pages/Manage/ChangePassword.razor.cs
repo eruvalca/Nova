@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -17,17 +18,17 @@ public partial class ChangePassword(
     /// <summary>
     /// Stores the status message to display after form submission.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Indicates whether the user has a password set.
     /// </summary>
-    private bool hasPassword;
+    private bool _hasPassword;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -49,15 +50,15 @@ public partial class ChangePassword(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        hasPassword = await userManager.HasPasswordAsync(user);
-        if (!hasPassword)
+        _hasPassword = await userManager.HasPasswordAsync(_user);
+        if (!_hasPassword)
         {
             redirectManager.RedirectTo("Account/Manage/SetPassword");
         }
@@ -69,20 +70,20 @@ public partial class ChangePassword(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var changePasswordResult = await userManager.ChangePasswordAsync(user, Input.OldPassword, Input.NewPassword);
+        var changePasswordResult = await userManager.ChangePasswordAsync(_user, Input.OldPassword, Input.NewPassword);
         if (!changePasswordResult.Succeeded)
         {
-            message = $"Error: {string.Join(",", changePasswordResult.Errors.Select(error => error.Description))}";
+            _message = $"Error: {string.Join(",", changePasswordResult.Errors.Select(error => error.Description))}";
             return;
         }
 
-        await signInManager.RefreshSignInAsync(user);
+        await signInManager.RefreshSignInAsync(_user);
         LogPasswordChanged();
 
         redirectManager.RedirectToCurrentPageWithStatus("Your password has been changed", HttpContext);

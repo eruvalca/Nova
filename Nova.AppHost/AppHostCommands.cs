@@ -71,34 +71,36 @@ internal static class AppHostCommands
             Pooling = false,
         }.ConnectionString;
 
-        await using var connection = new NpgsqlConnection(maintenanceConnectionString);
-        await connection.OpenAsync(context.CancellationToken);
-
-        var quotedDatabaseName = QuoteIdentifier(databaseName);
-        await ExecuteDatabaseCommandAsync(
-            connection,
-            $"DROP DATABASE {quotedDatabaseName} WITH (FORCE);",
-            context.CancellationToken);
-        await ExecuteDatabaseCommandAsync(
-            connection,
-            $"CREATE DATABASE {quotedDatabaseName};",
-            context.CancellationToken);
-
-        var commandService = context.Services.GetRequiredService<ResourceCommandService>();
-        var restartResult = await commandService.ExecuteCommandAsync(
-            novaResource,
-            KnownResourceCommands.RestartCommand,
-            context.CancellationToken);
-
-        if (!restartResult.Success)
+        await using (var connection = new NpgsqlConnection(maintenanceConnectionString))
         {
-            var restartError = restartResult.Message ?? "Unknown restart failure.";
-            return CommandResults.Failure(
-                $"The database was reset, but Nova could not be restarted: {restartError} Restart Nova manually.");
-        }
+            await connection.OpenAsync(context.CancellationToken);
 
-        return CommandResults.Success(
-            "The Nova database was reset and Nova was restarted so migrations can run again.");
+            var quotedDatabaseName = QuoteIdentifier(databaseName);
+            await ExecuteDatabaseCommandAsync(
+                connection,
+                $"DROP DATABASE {quotedDatabaseName} WITH (FORCE);",
+                context.CancellationToken);
+            await ExecuteDatabaseCommandAsync(
+                connection,
+                $"CREATE DATABASE {quotedDatabaseName};",
+                context.CancellationToken);
+
+            var commandService = context.Services.GetRequiredService<ResourceCommandService>();
+            var restartResult = await commandService.ExecuteCommandAsync(
+                novaResource,
+                KnownResourceCommands.RestartCommand,
+                context.CancellationToken);
+
+            if (!restartResult.Success)
+            {
+                var restartError = restartResult.Message ?? "Unknown restart failure.";
+                return CommandResults.Failure(
+                    $"The database was reset, but Nova could not be restarted: {restartError} Restart Nova manually.");
+            }
+
+            return CommandResults.Success(
+                "The Nova database was reset and Nova was restarted so migrations can run again.");
+        }
     }
 
     /// <summary>
@@ -222,8 +224,12 @@ internal static class AppHostCommands
         string commandText,
         CancellationToken cancellationToken)
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await using (var command = connection.CreateCommand())
+        {
+#pragma warning disable CA2100 // Only the fixed DROP/CREATE DATABASE templates above call this helper; QuoteIdentifier escapes the identifier.
+            command.CommandText = commandText;
+#pragma warning restore CA2100
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 }

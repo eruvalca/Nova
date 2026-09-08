@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -14,29 +14,29 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task GetCurrent_ReturnsUnauthorized_ForAnonymous()
+    public async Task GetCurrentReturnsUnauthorizedForAnonymousAsync()
     {
         using var client = fixture.CreateNovaHttpClient();
 
-        using var response = await client.GetAsync(ClubEndpoints.GetCurrent, TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task GetCurrent_ReturnsForbidden_ForAuthenticatedUserWithoutMembership()
+    public async Task GetCurrentReturnsForbiddenForAuthenticatedUserWithoutMembershipAsync()
     {
         using var client = fixture.CreateNovaHttpClient();
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
             client, SeedingHelpers.UniqueEmail("club-identity-clubless"), Password, TestContext.Current.CancellationToken);
 
-        using var response = await client.GetAsync(ClubEndpoints.GetCurrent, TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]
-    public async Task GetCurrent_ReturnsCurrentTenantIdentity_ForAdministrator()
+    public async Task GetCurrentReturnsCurrentTenantIdentityForAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -45,7 +45,7 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
         var club = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync(ClubEndpoints.GetCurrent, cancellationToken);
+        using var response = await client.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken);
         var identity = await response.Content.ReadFromJsonAsync<ClubIdentityResult>(cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -58,7 +58,7 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task GetCurrent_ReturnsCurrentTenantIdentity_ForMember()
+    public async Task GetCurrentReturnsCurrentTenantIdentityForMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var administrator = fixture.CreateNovaHttpClient();
@@ -70,7 +70,9 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
         var memberEmail = SeedingHelpers.UniqueEmail("club-identity-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
             member, memberEmail, Password, cancellationToken);
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var normalizedEmail = memberEmail.ToUpperInvariant();
             var user = await context.Users.SingleAsync(item => item.NormalizedEmail == normalizedEmail, cancellationToken);
@@ -79,7 +81,7 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
         }
         await SeedingHelpers.RefreshClubMembershipCookieAsync(member, cancellationToken);
 
-        using var response = await member.GetAsync(ClubEndpoints.GetCurrent, cancellationToken);
+        using var response = await member.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken);
         var identity = await response.Content.ReadFromJsonAsync<ClubIdentityResult>(cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -92,7 +94,7 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task GetCurrent_ReturnsNotFoundProblemDetails_ForStaleClubMembership()
+    public async Task GetCurrentReturnsNotFoundProblemDetailsForStaleClubMembershipAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -105,14 +107,16 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
         // The cookie carries a valid ClubId claim, then the club is deleted directly in the
         // database (the FK is SetNull, so the user's club id is nulled but the already-issued
         // cookie is not). The next club-identity read therefore sees a stale membership.
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var clubRow = await context.Clubs.SingleAsync(item => item.ClubId == club.ClubId, cancellationToken);
             context.Clubs.Remove(clubRow);
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using var current = await client.GetAsync(ClubEndpoints.GetCurrent, cancellationToken);
+        using var current = await client.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken);
         var problem = await current.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
 
         current.StatusCode.ShouldBe(HttpStatusCode.NotFound);

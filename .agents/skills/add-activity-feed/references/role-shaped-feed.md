@@ -4,7 +4,7 @@ Canonical Nova examples:
 
 - `Nova\Features\Activity\ClubActivityFeedPolicy.cs`
 - `Nova\Features\Activity\ClubActivityQueryService.cs`
-- `Nova.Shared\Features\Activity\ClubActivityContexts.cs` (the `MembershipContext.ApprovedByActorName`
+- `Nova.SharedKernel\Features\Activity\ClubActivityContexts.cs` (the `MembershipContext.ApprovedByActorName`
   member/admin shape split)
 
 ## Role visibility filtering
@@ -25,10 +25,10 @@ and the payload's `ApprovedByActorName`) rather than selecting a different row.
 
 ## Projection-cursor interaction
 
-Role visibility filtering happens *before* paging (`isAdmin || !row.IsAdminOnly`), so member pages are
-never padded with hidden rows. Projection runs *after* paging and only skips malformed or
+Role visibility filtering happens _before_ paging (`isAdmin || !row.IsAdminOnly`), so member pages are
+never padded with hidden rows. Projection runs _after_ paging and only skips malformed or
 kind/context-mismatched payloads — not administrator-only rows. The keyset cursor is computed from the
-final raw page row *before* projection, which may be malformed and absent from the returned DTOs, so
+final raw page row _before_ projection, which may be malformed and absent from the returned DTOs, so
 it marks the **page boundary**, not the oldest returned DTO, and a skipped row does not strand the
 following pages. See
 [query-construction.md](../../add-domain-persistence/references/query-construction.md) for the keyset

@@ -1,6 +1,6 @@
 ﻿using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -16,7 +16,7 @@ public sealed partial class CampaignPlacementPolicyTests
     [InlineData(PlacementOutcome.Assigned, true)]
     [InlineData(PlacementOutcome.NotSelected, false)]
     [InlineData(PlacementOutcome.NotSelected, true)]
-    public void Evaluate_AllowsEverySavedOutcome_ForEligibleDecisionHistory(PlacementOutcome prior, bool local)
+    public void EvaluateAllowsEverySavedOutcomeForEligibleDecisionHistory(PlacementOutcome prior, bool local)
     {
         foreach (var requested in new[] { PlacementOutcome.Assigned, PlacementOutcome.NotSelected, PlacementOutcome.Withdrawn })
         {
@@ -35,7 +35,7 @@ public sealed partial class CampaignPlacementPolicyTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void Evaluate_EnforcesWithdrawalMatrix_ForEveryRequestedOutcome(bool local, bool admin)
+    public void EvaluateEnforcesWithdrawalMatrixForEveryRequestedOutcome(bool local, bool admin)
     {
         foreach (var requested in new[] { PlacementOutcome.Assigned, PlacementOutcome.NotSelected, PlacementOutcome.Withdrawn })
         {
@@ -75,7 +75,7 @@ public sealed partial class CampaignPlacementPolicyTests
     [InlineData(PlacementOutcome.NotSelected, false, false, (int)PlacementEligibility.NeedsDecision)]
     [InlineData(PlacementOutcome.Withdrawn, true, false, (int)PlacementEligibility.Unavailable)]
     [InlineData(PlacementOutcome.Withdrawn, false, false, (int)PlacementEligibility.Unavailable)]
-    public void GetEligibility_ClassifiesLatestDecision(PlacementOutcome outcome, bool local, bool validTeam, int expected)
+    public void GetEligibilityClassifiesLatestDecision(PlacementOutcome outcome, bool local, bool validTeam, int expected)
     {
         var facts = DecisionFacts(outcome, local, PlacementOutcome.NotSelected) with { EffectiveTeamIsValid = validTeam };
         CampaignPlacementPolicy.GetEligibility(facts).ShouldBe((PlacementEligibility)expected);
@@ -83,7 +83,7 @@ public sealed partial class CampaignPlacementPolicyTests
 
     /// <summary>Checks prior season history cannot impose withdrawal restrictions.</summary>
     [Fact]
-    public void Evaluate_IgnoresPreviousSeasonWithdrawal()
+    public void EvaluateIgnoresPreviousSeasonWithdrawal()
     {
         var facts = DecisionFacts(PlacementOutcome.Withdrawn, false, PlacementOutcome.Assigned);
         facts = facts with { LatestDecision = facts.LatestDecision! with { SeasonId = 99 } };
@@ -98,7 +98,7 @@ public sealed partial class CampaignPlacementPolicyTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(10L)]
     [InlineData(11L)]
-    public void Evaluate_RejectsNonLaterSupersession(long sourceSequence)
+    public void EvaluateRejectsNonLaterSupersession(long sourceSequence)
     {
         var facts = DecisionFacts(PlacementOutcome.Assigned, false, PlacementOutcome.NotSelected);
         facts = facts with { LatestDecision = facts.LatestDecision! with { SeasonOpeningSequence = sourceSequence } };
@@ -107,7 +107,7 @@ public sealed partial class CampaignPlacementPolicyTests
 
     /// <summary>Checks a non-current season rejects mutation and ordinary placement eligibility.</summary>
     [Fact]
-    public void Evaluate_RejectsNonCurrentSeason()
+    public void EvaluateRejectsNonCurrentSeason()
     {
         var facts = DecisionFacts(PlacementOutcome.Undecided, false, PlacementOutcome.Assigned) with { IsCurrentSeason = false };
         CampaignPlacementPolicy.Evaluate(facts).Value.ShouldBeOfType<PlacementSeasonConflict>();
@@ -120,7 +120,11 @@ public sealed partial class CampaignPlacementPolicyTests
     /// <param name="requested">The new outcome.</param>
     /// <returns>A self-contained policy context.</returns>
     private static PlacementDecisionContext DecisionFacts(PlacementOutcome prior, bool local, PlacementOutcome requested)
-        => new(CampaignStatus.Active, LifecycleStatus.Active, 2030, requested == PlacementOutcome.Assigned,
+    {
+        var campaignId = local ? 100 : 101;
+        var openingSequence = local ? 10 : 9;
+        long? teamId = prior == PlacementOutcome.Assigned ? 400 : null;
+        return new(CampaignStatus.Active, LifecycleStatus.Active, 2030, requested == PlacementOutcome.Assigned,
             true, LifecycleStatus.Active, 2029)
         {
             CampaignId = 100,
@@ -129,8 +133,9 @@ public sealed partial class CampaignPlacementPolicyTests
             RequestedOutcome = requested,
             RequestedTeamId = requested == PlacementOutcome.Assigned ? 400 : null,
             LatestDecision = prior == PlacementOutcome.Undecided ? null : new CampaignSavedPlacementDecision(
-                300, 500, local ? 100 : 101, 200, local ? 10 : 9, prior,
-                prior == PlacementOutcome.Assigned ? 400 : null,
+                300, 500, campaignId, 200, openingSequence, prior,
+                teamId,
                 DateTimeOffset.UnixEpoch, 600, "Member", Guid.Parse("2ba6aefa-c6e8-4892-bd4f-85fbd0c54122"))
         };
+    }
 }

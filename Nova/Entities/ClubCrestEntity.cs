@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class ClubCrestEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Club Crest Id.
     /// </summary>
-    public long ClubCrestId { get; set; } = default;
+    public long ClubCrestId { get; set; }
     /// <summary>
     /// Gets or sets the Original Blob Name.
     /// </summary>

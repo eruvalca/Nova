@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCampaignDraftLifecycle : Migration
+internal partial class AddCampaignDraftLifecycle : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

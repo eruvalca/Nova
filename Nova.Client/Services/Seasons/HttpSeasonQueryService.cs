@@ -1,14 +1,14 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Seasons;
 
 /// <summary>Calls the server's season query endpoints over HTTP.</summary>
 /// <param name="http">The application HTTP client.</param>
-public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryService
+internal sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<SeasonPageResult>> ListAsync(
@@ -23,7 +23,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
 
         var expectedPage = input.Page ?? GetSeasonListInput.DefaultPage;
         var expectedPageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
-        using var response = await http.GetAsync(SeasonEndpoints.ListUrl(input), cancellationToken);
+        using var response = await http.GetAsync(new Uri(SeasonEndpoints.ListUrl(input), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -48,7 +48,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
 
         var expectedCampaignPage = input.CampaignPage ?? GetSeasonListInput.DefaultPage;
         var expectedCampaignPageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
-        using var response = await http.GetAsync(SeasonEndpoints.DetailUrl(input), cancellationToken);
+        using var response = await http.GetAsync(new Uri(SeasonEndpoints.DetailUrl(input), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

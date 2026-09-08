@@ -1,5 +1,5 @@
 ﻿using Nova.Entities;
-using Nova.Shared.Features.Account;
+using Nova.SharedKernel.Features.Account;
 
 namespace Nova.Extensions.Account;
 

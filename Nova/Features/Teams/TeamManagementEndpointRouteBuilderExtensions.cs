@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Teams;
 
@@ -23,7 +23,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
                 .MapGroup(TeamEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPost(TeamEndpoints.CreateRelative, CreateTeamHandler)
+            group.MapPost(TeamEndpoints.CreateRelative, CreateTeamHandlerAsync)
                 .Produces<TeamDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -32,7 +32,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("CreateTeam");
 
-            group.MapPut(TeamEndpoints.UpdateRelative, UpdateTeamHandler)
+            group.MapPut(TeamEndpoints.UpdateRelative, UpdateTeamHandlerAsync)
                 .Produces<TeamDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -53,7 +53,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
     /// <param name="teamManagementService">The team management service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The created team or a ProblemDetails response.</returns>
-    private static async Task<IResult> CreateTeamHandler(
+    private static async Task<IResult> CreateTeamHandlerAsync(
         CreateTeamInput input,
         ITeamManagementService teamManagementService,
         CancellationToken cancellationToken)
@@ -73,7 +73,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
     /// <param name="teamManagementService">The team management service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The updated team or a ProblemDetails response.</returns>
-    private static async Task<IResult> UpdateTeamHandler(
+    private static async Task<IResult> UpdateTeamHandlerAsync(
         long teamId,
         UpdateTeamInput input,
         ITeamManagementService teamManagementService,
@@ -81,7 +81,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
     {
         if (teamId != input.TeamId)
         {
-            return Nova.Shared.Results.ServiceProblem.BadRequest(
+            return Nova.SharedKernel.Results.ServiceProblem.BadRequest(
                     "The team identifier in the route does not match the request body.")
                 .ToHttpResult();
         }

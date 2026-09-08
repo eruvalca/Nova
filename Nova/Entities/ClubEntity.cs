@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class ClubEntity : BaseEntity
     /// <summary>
     /// Gets or sets the Club Id.
     /// </summary>
-    public long ClubId { get; set; } = default;
+    public long ClubId { get; set; }
     /// <summary>
     /// Gets or sets the Name.
     /// </summary>
@@ -45,39 +46,57 @@ public class ClubEntity : BaseEntity
     /// <summary>
     /// Gets or sets the Nova Users.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<NovaUserEntity> NovaUsers { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Campaigns.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignEntity> Campaigns { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Seasons.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<SeasonEntity> Seasons { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Teams.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<TeamEntity> Teams { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Players.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<PlayerEntity> Players { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Player Tags.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<PlayerTagEntity> PlayerTags { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the campaign tag applications.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the campaign tag application removal receipts.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Join Requests.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<ClubJoinRequestEntity> JoinRequests { get; set; } = [];
+#pragma warning restore CA2227
     /// <summary>
     /// Gets or sets the Club Crest.
     /// </summary>
@@ -85,5 +104,7 @@ public class ClubEntity : BaseEntity
     /// <summary>
     /// Gets or sets the Activity Events.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<ActivityEventEntity> ActivityEvents { get; set; } = [];
+#pragma warning restore CA2227
 }

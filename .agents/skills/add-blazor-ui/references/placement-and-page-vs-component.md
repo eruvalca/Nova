@@ -4,19 +4,19 @@ Answer these in order. Each answer constrains the next.
 
 ## 1. Which project?
 
-| Question | Answer |
-| --- | --- |
-| Default for anything new | **`Nova.UI`** |
-| Needs request-bound `HttpContext`, cookie, or `SignInManager` request/response operations | `Nova` as static SSR |
-| Needs other server-only services with no client abstraction | `Nova`; use the [render-mode decision](render-mode-decision.md) to choose static SSR or, when required, `InteractiveServer` |
-| Exclusively client-side, WASM-only bootstrap concerns | `Nova.Client` — keep it thin (today it holds only `Auth.razor` and `RedirectToLogin.razor`) |
+| Question                                                                                  | Answer                                                                                                                      |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Default for anything new                                                                  | **`Nova.UI`**                                                                                                               |
+| Needs request-bound `HttpContext`, cookie, or `SignInManager` request/response operations | `Nova` as static SSR                                                                                                        |
+| Needs other server-only services with no client abstraction                               | `Nova`; use the [render-mode decision](render-mode-decision.md) to choose static SSR or, when required, `InteractiveServer` |
+| Exclusively client-side, WASM-only bootstrap concerns                                     | `Nova.Client` — keep it thin (today it holds only `Auth.razor` and `RedirectToLogin.razor`)                                 |
 
 Hard constraints:
 
 - **Interactive (`InteractiveAuto` / `InteractiveWebAssembly`) components must live in a project
   referenced by `Nova.Client`** — that is `Nova.UI` or `Nova.Client`, never `Nova`. A component in
   `Nova` can only be static SSR or `InteractiveServer`.
-- `Nova.UI`, `Nova.Client`, and `Nova.Shared` are all downloadable to the browser. No secrets,
+- `Nova.UI`, `Nova.Client`, and `Nova.SharedKernel` are all downloadable to the browser. No secrets,
   connection strings, or server-only logic in any of them.
 - Identity/Account pages stay in `Nova` as static SSR. That area sets
   `@attribute [ExcludeFromInteractiveRouting]` in its `_Imports.razor`.
@@ -66,7 +66,7 @@ Nova.UI/
   needs it** — not in anticipation. `ConfirmDeleteDialog` earned `Shared/` because the Account area
   and club deletion both use it.
 - Mirror the same feature layout for server services in `Nova/Features/{Feature}/` and contracts in
-  `Nova.Shared/Features/{Feature}/`.
+  `Nova.SharedKernel/Features/{Feature}/`.
 - A new feature means a new `Features/{Feature}/` folder with `Pages/` and `Components/`.
 
 ## 4. File set to create
@@ -86,18 +86,19 @@ Features/{Feature}/Pages/{Name}.razor.css    # optional, component-scoped styles
   components; be consistent within a file.
 - Inject services via a **primary constructor** on the partial class, with `<param>` XML docs:
 
-  ```csharp
-  /// <summary>
-  /// Redirects a tenant-matching legacy Club detail route to the canonical Club overview.
-  /// </summary>
-  /// <param name="authenticationStateProvider">The provider for the caller's current membership claims.</param>
-  /// <param name="navigationManager">The navigation manager used to replace or deny the legacy route.</param>
-  public partial class ClubDetail(
-      AuthenticationStateProvider authenticationStateProvider,
-      NavigationManager navigationManager)
-  ```
+    ```csharp
+    /// <summary>
+    /// Redirects a tenant-matching legacy Club detail route to the canonical Club overview.
+    /// </summary>
+    /// <param name="authenticationStateProvider">The provider for the caller's current membership claims.</param>
+    /// <param name="navigationManager">The navigation manager used to replace or deny the legacy route.</param>
+    public partial class ClubDetail(
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+    ```
 
-  Use `[Inject]` properties only when constructor injection is not viable.
+    Use `[Inject]` properties only when constructor injection is not viable.
+
 - Never use an `@code` block in the `.razor`.
 
 ## 5. Data access
@@ -107,6 +108,6 @@ Request-bound static SSR Identity handling in `Nova` may use `HttpContext`; inte
 (including server circuits) and components in `Nova.UI`/`Nova.Client` must not. Flow user/tenant state
 in those components through `AuthenticationStateProvider` or `CurrentUserState`.
 
-Service contracts live in `Nova.Shared`; a server implementation lives in `Nova` and an HTTP
+Service contracts live in `Nova.SharedKernel`; a server implementation lives in `Nova` and an HTTP
 implementation in `Nova.Client`. Both must be registered — see the render-mode reference for why
 `InteractiveAuto` depends on this.

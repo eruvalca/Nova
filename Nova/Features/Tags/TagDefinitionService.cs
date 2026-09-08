@@ -4,12 +4,12 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Tags;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Tags;
 
@@ -20,7 +20,7 @@ namespace Nova.Features.Tags;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for operation outcomes.</param>
-public sealed partial class TagDefinitionService(
+internal sealed partial class TagDefinitionService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionService> logger) : ITagDefinitionService
@@ -249,7 +249,9 @@ public sealed partial class TagDefinitionService(
     /// <param name="commitAttempted">Tracks whether this attempt reached its commit.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The updated tag definition or a ProblemDetails-mappable failure.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<TagDefinitionDto>> UpdateTagDefinitionAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         UpdateTagDefinitionInput input,
         long actorUserId,

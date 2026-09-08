@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class PreserveMembershipReceiptsAfterClubDeletion : Migration
+internal partial class PreserveMembershipReceiptsAfterClubDeletion : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

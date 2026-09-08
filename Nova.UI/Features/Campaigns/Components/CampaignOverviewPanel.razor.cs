@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+﻿
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Campaigns.Components;
@@ -180,7 +181,7 @@ public partial class CampaignOverviewPanel(
     /// <param name="createdAt">The event timestamp.</param>
     /// <returns>The formatted timestamp.</returns>
     private static string FormatActivityDate(DateTimeOffset createdAt)
-        => createdAt.ToString("MMM d, yyyy");
+        => createdAt.ToString("MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
 
     /// <summary>
     /// Maps a lifecycle event type to its display verb phrase.

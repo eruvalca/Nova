@@ -4,11 +4,11 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Clubs;
 
@@ -19,7 +19,7 @@ namespace Nova.Features.Clubs;
 /// <param name="userManager">The identity user manager for club-admin role membership checks.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization checks and user context.</param>
 /// <param name="logger">The logger used for warning-level access failures.</param>
-public sealed partial class ClubAdminService(
+internal sealed partial class ClubAdminService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     UserManager<NovaUserEntity> userManager,
     ICurrentUserProvider currentUserProvider,

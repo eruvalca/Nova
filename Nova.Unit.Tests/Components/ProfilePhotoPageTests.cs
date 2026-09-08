@@ -3,8 +3,8 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using NSubstitute;
 using Shouldly;
 using OnboardingProfilePhoto = Nova.UI.Features.Account.Pages.ProfilePhoto;
@@ -20,7 +20,7 @@ public class ProfilePhotoPageTests : BunitContext
     /// Verifies that the onboarding gate renders the focused account setup board and shared editor.
     /// </summary>
     [Fact]
-    public void Render_ShowsAccountSetupBoard_WithSharedPhotoEditor()
+    public void RenderShowsAccountSetupBoardWithSharedPhotoEditor()
     {
         var photoService = Substitute.For<IProfilePhotoService>();
         photoService.GetCurrentUserPhotoAsync(Arg.Any<CancellationToken>())
@@ -41,7 +41,7 @@ public class ProfilePhotoPageTests : BunitContext
     /// require browser event handling and JavaScript interop.
     /// </summary>
     [Fact]
-    public void ProfilePhoto_DeclaresInteractiveAutoRenderMode()
+    public void ProfilePhotoDeclaresInteractiveAutoRenderMode()
     {
         var attribute = typeof(OnboardingProfilePhoto)
             .GetCustomAttributes(inherit: false)

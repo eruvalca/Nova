@@ -15,9 +15,9 @@ description: "Blazor architecture: placement, SSR-first render modes, persisted 
 - `Nova.UI` (Razor class library) is the default home for pages and components. New UI goes here unless a rule below requires otherwise.
 - `Nova` (server host) composes the app: `App.razor`, `Routes.razor`, layouts, Identity/Account UI, and anything that requires `HttpContext` or server-only services.
 - `Nova.Client` (WebAssembly host) contains only the WASM bootstrap (`Program.cs`, client DI registrations) and components that are exclusively client-side. It should stay thin.
-- `Nova.Shared` holds the contracts that let `Nova.UI` stay host-agnostic: service interfaces, DTOs, OneOf result types, validation, and endpoint route constants.
+- `Nova.SharedKernel` holds the contracts that let `Nova.UI` stay host-agnostic: service interfaces, DTOs, OneOf result types, validation, and endpoint route constants.
 
-Everything in `Nova.UI`, `Nova.Client`, and `Nova.Shared` can be downloaded to the browser. Never place secrets, connection strings, or server-only logic in these projects.
+Everything in `Nova.UI`, `Nova.Client`, and `Nova.SharedKernel` can be downloaded to the browser. Never place secrets, connection strings, or server-only logic in these projects.
 
 ## SSR-First Render Modes
 
@@ -75,9 +75,9 @@ Nova.UI/
 
 - Routable pages go in `{Feature}/Pages`; non-routable components in `{Feature}/Components`.
 - Promote a component to `Shared/` only when a second feature actually needs it.
-- Mirror the same feature-based layout for server-side services in `Nova` and contracts in `Nova.Shared`:
-  use `Nova/Features/{Feature}/` and `Nova.Shared/Features/{Feature}/` respectively.
-  `Nova.Shared` keeps non-feature concerns (`Results/`, `Security/`, `Validation/`, `Enums/`) at the
+- Mirror the same feature-based layout for server-side services in `Nova` and contracts in `Nova.SharedKernel`:
+  use `Nova/Features/{Feature}/` and `Nova.SharedKernel/Features/{Feature}/` respectively.
+  `Nova.SharedKernel` keeps non-feature concerns (`Results/`, `Security/`, `Validation/`, `Enums/`) at the
   top level alongside `Features/`.
 - `Nova.Client/Services/` organizes HTTP client services by feature subfolder (`Nova.Client/Services/{Feature}/Http{Feature}Service.cs`).
 
@@ -177,8 +177,8 @@ Nova.UI/
 ## Data Access and Services from Components
 
 - Components never touch `DbContext` types directly. UI calls feature services; services own data access. See `.github/instructions/ef-core-tenancy.instructions.md` for context selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`).
-- Define service contracts in `Nova.Shared` (interfaces + DTOs + OneOf results). Provide a server implementation in `Nova` (static SSR + InteractiveServer) and an HTTP-based implementation in `Nova.Client` (WASM), both registered so `InteractiveAuto` resolves the right one wherever it renders.
-- `HttpContext` is only available during static SSR in `Nova`. Never use it from interactive components or from `Nova.UI`/`Nova.Client`; flow user/tenant state through abstractions (e.g., `AuthenticationStateProvider`, `CurrentUserState` in `Nova.Shared`) instead.
+- Define service contracts in `Nova.SharedKernel` (interfaces + DTOs + OneOf results). Provide a server implementation in `Nova` (static SSR + InteractiveServer) and an HTTP-based implementation in `Nova.Client` (WASM), both registered so `InteractiveAuto` resolves the right one wherever it renders.
+- `HttpContext` is only available during static SSR in `Nova`. Never use it from interactive components or from `Nova.UI`/`Nova.Client`; flow user/tenant state through abstractions (e.g., `AuthenticationStateProvider`, `CurrentUserState` in `Nova.SharedKernel`) instead.
 - Claims serialized into interactive/WASM authentication state are browser-visible. Serialize only claims required by the UI; if `SerializeAllClaims` is the only mechanism, document why and do not treat the claims as secrets or as a replacement for server authorization.
 - Keep Identity/Account pages in `Nova` as static SSR — they depend on `HttpContext`, cookies, and `SignInManager`.
 

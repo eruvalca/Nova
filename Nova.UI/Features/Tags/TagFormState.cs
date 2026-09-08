@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Tags;
 
@@ -45,13 +45,17 @@ public sealed class TagFormState : IValidatableObject
     /// </summary>
     /// <param name="tag">The tag definition to edit.</param>
     /// <returns>An edit-mode form state.</returns>
-    public static TagFormState FromDto(TagDefinitionDto tag) => new()
+    public static TagFormState FromDto(TagDefinitionDto tag)
     {
-        IsEdit = true,
-        TagId = tag.PlayerTagId,
-        Name = tag.Name,
-        Color = tag.Color
-    };
+        ArgumentNullException.ThrowIfNull(tag);
+        return new()
+        {
+            IsEdit = true,
+            TagId = tag.PlayerTagId,
+            Name = tag.Name,
+            Color = tag.Color
+        };
+    }
 
     /// <summary>
     /// Converts this state to a create-tag-definition input payload.

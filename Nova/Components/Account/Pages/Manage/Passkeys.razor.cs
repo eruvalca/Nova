@@ -1,4 +1,5 @@
-﻿using System.Buffers.Text;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Buffers.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -21,12 +22,12 @@ public partial class Passkeys(
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the list of passkeys currently registered for the user.
     /// </summary>
-    private IList<UserPasskeyInfo>? currentPasskeys;
+    private IList<UserPasskeyInfo>? _currentPasskeys;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -60,22 +61,22 @@ public partial class Passkeys(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
-        currentPasskeys = await userManager.GetPasskeysAsync(user);
+        _currentPasskeys = await userManager.GetPasskeysAsync(_user);
     }
 
     /// <summary>
     /// Handles the form submission to add a new passkey to the user account.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task AddPasskey()
+    private async Task AddPasskeyAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
@@ -93,7 +94,7 @@ public partial class Passkeys(
             return;
         }
 
-        if (currentPasskeys!.Count >= MaxPasskeyCount)
+        if (_currentPasskeys!.Count >= MaxPasskeyCount)
         {
             redirectManager.RedirectToCurrentPageWithStatus($"Error: You have reached the maximum number of allowed passkeys.",
                 HttpContext);
@@ -107,7 +108,7 @@ public partial class Passkeys(
             return;
         }
 
-        var addPasskeyResult = await userManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
+        var addPasskeyResult = await userManager.AddOrUpdatePasskeyAsync(_user, attestationResult.Passkey);
         if (!addPasskeyResult.Succeeded)
         {
             redirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be added to your account.", HttpContext);
@@ -123,7 +124,7 @@ public partial class Passkeys(
     /// Handles the form submission to update a passkey (either rename or delete based on the action).
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task UpdatePasskey()
+    private async Task UpdatePasskeyAsync()
     {
         switch (Action)
         {
@@ -131,7 +132,7 @@ public partial class Passkeys(
                 redirectManager.RedirectTo($"Account/Manage/RenamePasskey/{CredentialId}");
                 break;
             case "delete":
-                await DeletePasskey();
+                await DeletePasskeyAsync();
                 break;
             default:
                 redirectManager.RedirectToCurrentPageWithStatus($"Error: Unknown action '{Action}'.", HttpContext);
@@ -143,9 +144,9 @@ public partial class Passkeys(
     /// Handles the deletion of a passkey from the user account.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task DeletePasskey()
+    private async Task DeletePasskeyAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
@@ -162,7 +163,7 @@ public partial class Passkeys(
             return;
         }
 
-        var result = await userManager.RemovePasskeyAsync(user, credentialId);
+        var result = await userManager.RemovePasskeyAsync(_user, credentialId);
         if (!result.Succeeded)
         {
             redirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be deleted.", HttpContext);

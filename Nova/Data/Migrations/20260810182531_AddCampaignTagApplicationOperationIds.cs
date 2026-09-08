@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCampaignTagApplicationOperationIds : Migration
+internal partial class AddCampaignTagApplicationOperationIds : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -46,7 +46,9 @@ public partial class AddCampaignTagApplicationOperationIds : Migration
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_ClubId_CreationOperationId",
             table: "CampaignTagApplications",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 

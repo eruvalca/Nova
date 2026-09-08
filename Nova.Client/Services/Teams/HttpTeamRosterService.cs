@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Teams;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Teams;
 /// WebAssembly client implementation of <see cref="ITeamRosterService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
+internal sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<IReadOnlyList<TeamRosterItem>>> GetRosterAsync(
@@ -29,7 +29,7 @@ public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
                 ? LifecycleStatus.Archived
                 : LifecycleStatus.Active;
         using var response = await http.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear, input.Limit),
+new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear, input.Limit), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

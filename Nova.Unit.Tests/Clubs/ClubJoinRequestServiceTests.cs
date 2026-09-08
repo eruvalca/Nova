@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -18,7 +18,7 @@ namespace Nova.Unit.Tests.Clubs;
 /// new <see cref="ClubJoinRequestService.ApproveJoinRequestAsync"/>,
 /// and new <see cref="ClubJoinRequestService.RejectJoinRequestAsync"/>.
 /// </summary>
-public class ClubJoinRequestServiceTests : IDisposable
+public sealed class ClubJoinRequestServiceTests : IDisposable
 {
     // Test data constants
     private const long ClubAId = 100;
@@ -47,7 +47,11 @@ public class ClubJoinRequestServiceTests : IDisposable
         Seed();
     }
 
-    public void Dispose() => _harness.Dispose();
+    public void Dispose()
+    {
+        _userManager.Dispose();
+        _harness.Dispose();
+    }
 
     private void Seed()
     {
@@ -72,10 +76,10 @@ public class ClubJoinRequestServiceTests : IDisposable
             },
             new NovaUserEntity { Id = OtherClubAdminId, FirstName = "Admin", LastName = "B", ClubId = ClubBId });
 
-        var administratorRole = new IdentityRole<long>(Nova.Shared.Security.Roles.ClubAdmin)
+        var administratorRole = new IdentityRole<long>(Nova.SharedKernel.Security.Roles.ClubAdmin)
         {
             Id = 10,
-            NormalizedName = Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant(),
+            NormalizedName = Nova.SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant(),
         };
         context.Roles.Add(administratorRole);
         context.UserRoles.AddRange(
@@ -114,7 +118,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     #region CreateJoinRequestAsync Tests
 
     [Fact]
-    public async Task CreateJoinRequestAsync_ReturnsForbidden_WhenNoSignedInUser()
+    public async Task CreateJoinRequestAsyncReturnsForbiddenWhenNoSignedInUserAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = null;
@@ -130,7 +134,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenUserAlreadyHasClub()
+    public async Task CreateJoinRequestAsyncReturnsConflictWhenUserAlreadyHasClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -146,7 +150,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenPendingRequestAlreadyExists()
+    public async Task CreateJoinRequestAsyncReturnsConflictWhenPendingRequestAlreadyExistsAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -162,7 +166,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 Status = RequestStatus.Pending,
                 CreatedById = RequestingUserId
             });
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = CreateService();
@@ -176,7 +180,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateJoinRequestAsync_ReturnsNotFound_WhenClubDoesNotExist()
+    public async Task CreateJoinRequestAsyncReturnsNotFoundWhenClubDoesNotExistAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -192,14 +196,14 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateJoinRequestAsync_CreatesRequestAndEmitsJoinRequestSubmittedEvent()
+    public async Task CreateJoinRequestAsyncCreatesRequestAndEmitsJoinRequestSubmittedEventAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
         _harness.CurrentUser.ClubId = null;
         _harness.CurrentUser.IsClubAdmin = false;
 
-        _userManager.FindByIdAsync(RequestingUserId.ToString())
+        _userManager.FindByIdAsync(RequestingUserId.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
             {
                 Id = RequestingUserId,
@@ -243,7 +247,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     #region GetCurrentUserPendingRequestAsync Tests (Modified Behavior)
 
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsApprovedRequest_WhenUserHasApprovedRequest()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsApprovedRequestWhenUserHasApprovedRequestAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -256,7 +260,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 Status = RequestStatus.Approved,
                 CreatedById = RequestingUserId
             });
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = CreateService();
@@ -271,7 +275,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsRejectedRequest_WhenUserHasRejectedRequest()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsRejectedRequestWhenUserHasRejectedRequestAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -284,7 +288,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 Status = RequestStatus.Rejected,
                 CreatedById = RequestingUserId
             });
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = CreateService();
@@ -298,7 +302,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsNotFound_WhenUserHasNoRequests()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsNotFoundWhenUserHasNoRequestsAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -314,7 +318,7 @@ public class ClubJoinRequestServiceTests : IDisposable
 
 
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsNotFound_WhenNotAuthenticated()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsNotFoundWhenNotAuthenticatedAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = null;
@@ -333,7 +337,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     #region GetClubJoinRequestsAsync Tests
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsPendingRequests_WhenCallerIsClubAdmin()
+    public async Task GetClubJoinRequestsAsyncReturnsPendingRequestsWhenCallerIsClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -349,7 +353,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 Status = RequestStatus.Pending,
                 CreatedById = RequestingUserId
             });
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = CreateService();
@@ -365,7 +369,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsEmptyList_WhenClubHasNoPendingRequests()
+    public async Task GetClubJoinRequestsAsyncReturnsEmptyListWhenClubHasNoPendingRequestsAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -383,7 +387,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task GetClubJoinRequestsAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -401,7 +405,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsForbidden_WhenCallerIsClubAdminOfDifferentClub()
+    public async Task GetClubJoinRequestsAsyncReturnsForbiddenWhenCallerIsClubAdminOfDifferentClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = OtherClubAdminId;
@@ -419,7 +423,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_OnlyReturnsPendingRequests_NotApprovedOrRejected()
+    public async Task GetClubJoinRequestsAsyncOnlyReturnsPendingRequestsNotApprovedOrRejectedAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -450,7 +454,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                     Status = RequestStatus.Rejected,
                     CreatedById = RequestingUserId
                 });
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = CreateService();
@@ -466,7 +470,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsRequestsOrderedOldestFirst()
+    public async Task GetClubJoinRequestsAsyncReturnsRequestsOrderedOldestFirstAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -486,10 +490,13 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request1);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId1 = request1.ClubJoinRequestId;
 
-            System.Threading.Thread.Sleep(10);
+            // Give the first request an explicit earlier timestamp instead of depending on timer resolution.
+            await context.ClubJoinRequests.Where(request => request.ClubJoinRequestId == requestId1)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(request => request.CreatedAt, DateTimeOffset.UtcNow.AddDays(-1)), TestContext.Current.CancellationToken)
+                ;
 
             var request2 = new ClubJoinRequestEntity
             {
@@ -499,7 +506,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request2);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId2 = request2.ClubJoinRequestId;
         }
 
@@ -521,7 +528,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     #region ApproveJoinRequestAsync Tests
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task ApproveJoinRequestAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -539,7 +546,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -554,7 +561,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsNotFound_WhenRequestDoesNotExist()
+    public async Task ApproveJoinRequestAsyncReturnsNotFoundWhenRequestDoesNotExistAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -572,7 +579,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsNotFound_WhenRequestBelongsToDifferentClub()
+    public async Task ApproveJoinRequestAsyncReturnsNotFoundWhenRequestBelongsToDifferentClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -590,7 +597,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -605,7 +612,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsConflict_WhenRequestIsAlreadyApproved()
+    public async Task ApproveJoinRequestAsyncReturnsConflictWhenRequestIsAlreadyApprovedAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -623,7 +630,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -638,7 +645,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsConflict_WhenRequestIsAlreadyRejected()
+    public async Task ApproveJoinRequestAsyncReturnsConflictWhenRequestIsAlreadyRejectedAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -656,7 +663,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -671,7 +678,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ReturnsConflict_WhenRequesterAlreadyJoinedAnotherClub()
+    public async Task ApproveJoinRequestAsyncReturnsConflictWhenRequesterAlreadyJoinedAnotherClubAsync()
     {
         _harness.CurrentUser.UserId = AdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -688,8 +695,8 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId,
             };
             context.ClubJoinRequests.Add(request);
-            context.Users.Single(user => user.Id == RequestingUserId).ClubId = ClubBId;
-            context.SaveChanges();
+            (await context.Users.SingleAsync(user => user.Id == RequestingUserId, TestContext.Current.CancellationToken)).ClubId = ClubBId;
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -698,13 +705,13 @@ public class ClubJoinRequestServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         using var verify = _harness.CreateAdminContext();
-        verify.Users.Single(user => user.Id == RequestingUserId).ClubId.ShouldBe(ClubBId);
-        verify.ClubJoinRequests.Single(request => request.ClubJoinRequestId == requestId).Status.ShouldBe(RequestStatus.Pending);
+        (await verify.Users.SingleAsync(user => user.Id == RequestingUserId, TestContext.Current.CancellationToken)).ClubId.ShouldBe(ClubBId);
+        (await verify.ClubJoinRequests.SingleAsync(request => request.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken)).Status.ShouldBe(RequestStatus.Pending);
         verify.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberJoined);
     }
 
     [Fact]
-    public async Task ApproveJoinRequestAsync_ApprovesRequest_WhenRequestIsPending()
+    public async Task ApproveJoinRequestAsyncApprovesRequestWhenRequestIsPendingAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -722,7 +729,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -742,8 +749,8 @@ public class ClubJoinRequestServiceTests : IDisposable
 
             var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
             updatedUser.ClubId.ShouldBe(ClubAId);
-            updatedUser.SecurityStamp.ShouldNotBe(RequesterSecurityStamp);
-            updatedUser.ConcurrencyStamp.ShouldNotBe(RequesterConcurrencyStamp);
+            updatedUser.SecurityStamp.ShouldNotBe(RequesterSecurityStamp, StringComparer.Ordinal);
+            updatedUser.ConcurrencyStamp.ShouldNotBe(RequesterConcurrencyStamp, StringComparer.Ordinal);
 
             var receipt = await context.ClubMembershipMutationReceipts.SingleAsync(
                 candidate => candidate.MemberUserId == RequestingUserId,
@@ -762,7 +769,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     #region RejectJoinRequestAsync Tests
 
     [Fact]
-    public async Task RejectJoinRequestAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task RejectJoinRequestAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = RequestingUserId;
@@ -780,7 +787,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -795,7 +802,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RejectJoinRequestAsync_ReturnsNotFound_WhenRequestDoesNotExist()
+    public async Task RejectJoinRequestAsyncReturnsNotFoundWhenRequestDoesNotExistAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -813,7 +820,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RejectJoinRequestAsync_ReturnsNotFound_WhenRequestBelongsToDifferentClub()
+    public async Task RejectJoinRequestAsyncReturnsNotFoundWhenRequestBelongsToDifferentClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -831,7 +838,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -846,7 +853,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RejectJoinRequestAsync_ReturnsConflict_WhenRequestIsNotPending()
+    public async Task RejectJoinRequestAsyncReturnsConflictWhenRequestIsNotPendingAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -864,7 +871,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 
@@ -879,7 +886,7 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RejectJoinRequestAsync_RejectsRequest_WhenRequestIsPending()
+    public async Task RejectJoinRequestAsyncRejectsRequestWhenRequestIsPendingAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -897,7 +904,7 @@ public class ClubJoinRequestServiceTests : IDisposable
                 CreatedById = RequestingUserId
             };
             context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             requestId = request.ClubJoinRequestId;
         }
 

@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Tags;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -52,7 +52,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task Create_ReturnsActiveTag_ForClubAdmin()
+    public async Task CreateReturnsActiveTagForClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -66,12 +66,12 @@ public sealed class TagDefinitionServiceTests : IDisposable
         result.Value.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
 
         using var db = _harness.CreateAdminContext();
-        var tag = db.PlayerTags.Single(t => t.PlayerTagId == result.Value.PlayerTagId);
+        var tag = (await db.PlayerTags.SingleAsync(t => t.PlayerTagId == result.Value.PlayerTagId, TestContext.Current.CancellationToken));
         tag.NormalizedName.ShouldBe("DEFENDER");
     }
 
     [Fact]
-    public async Task Create_ReturnsActiveTag_ForClubMember()
+    public async Task CreateReturnsActiveTagForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -86,7 +86,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsForbidden_WhenCallerHasNoClub()
+    public async Task CreateReturnsForbiddenWhenCallerHasNoClubAsync()
     {
         ActAs(ClubAAdminId, clubId: null, isAdmin: true);
 
@@ -102,7 +102,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     [InlineData("forward")]
     [InlineData("FORWARD")]
     [InlineData("Forward ")]
-    public async Task Create_ReturnsConflict_ForDuplicateNameIgnoringCase(string name)
+    public async Task CreateReturnsConflictForDuplicateNameIgnoringCaseAsync(string name)
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -114,11 +114,11 @@ public sealed class TagDefinitionServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
 
         using var db = _harness.CreateAdminContext();
-        db.PlayerTags.Count(t => t.ClubId == ClubAId && t.NormalizedName == "FORWARD").ShouldBe(1);
+        (await db.PlayerTags.CountAsync(t => t.ClubId == ClubAId && t.NormalizedName == "FORWARD", TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     [Fact]
-    public async Task Create_Succeeds_ForSameNameInAnotherClub()
+    public async Task CreateSucceedsForSameNameInAnotherClubAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
 
@@ -131,7 +131,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsConflict_WhenActiveLimitReached()
+    public async Task CreateReturnsConflictWhenActiveLimitReachedAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
@@ -148,7 +148,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
                 });
             }
 
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
@@ -160,12 +160,12 @@ public sealed class TagDefinitionServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
 
         using var verifyDb = _harness.CreateAdminContext();
-        verifyDb.PlayerTags.Count(tag => tag.ClubId == ClubBId)
+        (await verifyDb.PlayerTags.CountAsync(tag => tag.ClubId == ClubBId, TestContext.Current.CancellationToken))
             .ShouldBe(TagDefinitionLimits.MaxActiveTagDefinitions);
     }
 
     [Fact]
-    public async Task Create_IgnoresArchivedTags_WhenEnforcingActiveLimit()
+    public async Task CreateIgnoresArchivedTagsWhenEnforcingActiveLimitAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
@@ -185,7 +185,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
                 });
             }
 
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
@@ -197,7 +197,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsValidation_ForInvalidColor()
+    public async Task CreateReturnsValidationForInvalidColorAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -210,7 +210,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsForbidden_ForNonAdmin()
+    public async Task UpdateReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -223,7 +223,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsNotFound_ForCrossTenantTag()
+    public async Task UpdateReturnsNotFoundForCrossTenantTagAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
 
@@ -236,7 +236,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_Succeeds_ForActiveTag()
+    public async Task UpdateSucceedsForActiveTagAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -250,15 +250,15 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_ForArchivedTag()
+    public async Task UpdateReturnsConflictForArchivedTagAsync()
     {
         using (var db = _harness.CreateAdminContext())
         {
-            var tag = db.PlayerTags.Single(t => t.PlayerTagId == ClubATagId);
+            var tag = (await db.PlayerTags.SingleAsync(t => t.PlayerTagId == ClubATagId, TestContext.Current.CancellationToken));
             tag.LifecycleStatus = LifecycleStatus.Archived;
             tag.ArchivedAt = DateTimeOffset.UtcNow;
             tag.ArchivedById = ClubAAdminId;
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
@@ -271,7 +271,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_WhenRenamingOntoExistingTag()
+    public async Task UpdateReturnsConflictWhenRenamingOntoExistingTagAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var service = CreateService();
@@ -289,7 +289,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
 
         using var db = _harness.CreateAdminContext();
-        db.PlayerTags.Single(t => t.PlayerTagId == created.Value.PlayerTagId).Name.ShouldBe("NewTag");
+        (await db.PlayerTags.SingleAsync(t => t.PlayerTagId == created.Value.PlayerTagId, TestContext.Current.CancellationToken)).Name.ShouldBe("NewTag");
     }
 
     private TagDefinitionService CreateService()
@@ -310,7 +310,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     {
         public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
-        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(harness.CreateTenantContext());
     }
 }

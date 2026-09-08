@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 using CampaignWorkspacePage = Nova.UI.Features.Campaigns.Pages.CampaignWorkspace;
@@ -30,7 +30,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Render mode ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspaceRoute_DeclaresInteractiveAutoRenderMode()
+    public void CampaignWorkspaceRouteDeclaresInteractiveAutoRenderMode()
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Campaigns", "Pages", "CampaignWorkspace.razor");
         File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
@@ -39,7 +39,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Loading state ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsLoadingState_WhileDetailRequestIsPending()
+    public void CampaignWorkspaceShowsLoadingStateWhileDetailRequestIsPending()
     {
         var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
         var queryService = Substitute.For<ICampaignQueryService>();
@@ -58,7 +58,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Header fields ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_RendersHeaderFields_WhenDetailLoads()
+    public void CampaignWorkspaceRendersHeaderFieldsWhenDetailLoads()
     {
         RegisterServices();
 
@@ -78,7 +78,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Tab bar ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsAllTabsEnabled_AndEvaluateActive()
+    public void CampaignWorkspaceShowsAllTabsEnabledAndEvaluateActive()
     {
         RegisterServices();
 
@@ -90,13 +90,15 @@ public sealed class CampaignWorkspaceTests : BunitContext
         activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
 
         var tabButtons = cut.FindAll("ul.nav-tabs button.nav-link");
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         tabButtons.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Evaluate", "Placements", "Overview", "Closeout" });
+#pragma warning restore CA1861
 
         cut.FindAll("ul.nav-tabs .nav-link.disabled").ShouldBeEmpty();
     }
 
     [Fact]
-    public void CampaignWorkspace_KeepsEvaluateTabActive_WhenTabQueryIsEvaluate()
+    public void CampaignWorkspaceKeepsEvaluateTabActiveWhenTabQueryIsEvaluate()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -111,7 +113,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_FallsBackToEvaluateTab_WhenTabQueryIsUnknown()
+    public void CampaignWorkspaceFallsBackToEvaluateTabWhenTabQueryIsUnknown()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -126,7 +128,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_PushesTabQuery_WhenEvaluateTabSelected()
+    public void CampaignWorkspacePushesTabQueryWhenEvaluateTabSelected()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -140,7 +142,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ActivatesPlacementsTab_WhenTabQueryIsPlacements()
+    public void CampaignWorkspaceActivatesPlacementsTabWhenTabQueryIsPlacements()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -158,7 +160,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_PushesPlacementsUrl_AndRendersPlacementsRegion_WhenPlacementsTabSelected()
+    public void CampaignWorkspacePushesPlacementsUrlAndRendersPlacementsRegionWhenPlacementsTabSelected()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -174,7 +176,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_TabClicks_SwitchViewBackAndForth()
+    public void CampaignWorkspaceTabClicksSwitchViewBackAndForth()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -198,7 +200,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Overview / Closeout tabs ──────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_OverviewTabClick_PushesOverviewUrl_AndRendersOverviewRegion()
+    public void CampaignWorkspaceOverviewTabClickPushesOverviewUrlAndRendersOverviewRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -214,7 +216,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_CloseoutTabClick_PushesCloseoutUrl_AndRendersCloseoutRegion()
+    public void CampaignWorkspaceCloseoutTabClickPushesCloseoutUrlAndRendersCloseoutRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -230,7 +232,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ActivatesOverviewTab_WhenTabQueryIsOverview()
+    public void CampaignWorkspaceActivatesOverviewTabWhenTabQueryIsOverview()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -244,7 +246,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ActivatesCloseoutTab_WhenTabQueryIsCloseout()
+    public void CampaignWorkspaceActivatesCloseoutTabWhenTabQueryIsCloseout()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -260,7 +262,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Header campaign menu ───────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_HeaderRendersCampaignMenu_ForAdmin()
+    public void CampaignWorkspaceHeaderRendersCampaignMenuForAdmin()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -271,7 +273,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_NonAdmin_DoesNotSeeMenuItems()
+    public void CampaignWorkspaceNonAdminDoesNotSeeMenuItems()
     {
         RegisterServices(isClubAdmin: false);
 
@@ -286,7 +288,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
     /// <summary>Verifies the entry snapshot avoids a duplicate startup read while explicit metadata refresh reads current data.</summary>
     [Fact]
-    public void CampaignWorkspace_UsesInitialSnapshot_ThenRefreshesAfterMetadataSave()
+    public void CampaignWorkspaceUsesInitialSnapshotThenRefreshesAfterMetadataSave()
     {
         var queries = Substitute.For<ICampaignQueryService>();
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -306,7 +308,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Find("h1").TextContent.ShouldBe("Entry snapshot"));
         _ = queries.DidNotReceive().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
         cut.Find("button[aria-haspopup='menu']").Click();
-        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => string.Equals(button.TextContent.Trim(), "Edit metadata", StringComparison.Ordinal)).Click();
         cut.Find("button[type='submit']").Click();
 
         cut.WaitForAssertion(() => cut.Find("h1").TextContent.ShouldBe("Fresh campaign"));
@@ -321,7 +323,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     [InlineData(11, "101:42:False", CampaignStatus.Active)]
     [InlineData(10, "101:43:False", CampaignStatus.Active)]
     [InlineData(10, "101:42:False", CampaignStatus.Draft)]
-    public void CampaignWorkspace_RejectsUnusableInitialSnapshot(long campaignId, string scope, CampaignStatus status)
+    public void CampaignWorkspaceRejectsUnusableInitialSnapshot(long campaignId, string scope, CampaignStatus status)
     {
         var queries = Substitute.For<ICampaignQueryService>();
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -344,7 +346,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, "player")]
     [InlineData(7, "players")]
-    public void CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount(int count, string noun)
+    public void CampaignWorkspaceAcknowledgesValidOpeningReceiptAfterApplyingCount(int count, string noun)
     {
         RegisterServices();
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster");
@@ -357,9 +359,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain($"Campaign opened and enrolled {count} {noun}."));
-        module.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1);
-        module.Invocations.Where(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Count().ShouldBe(1);
-        var arguments = module.Invocations.Single(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Arguments;
+        module.Invocations.Count(invocation => string.Equals(invocation.Identifier, "focus", StringComparison.Ordinal)).ShouldBe(1);
+        module.Invocations.Count(invocation => string.Equals(invocation.Identifier, "acknowledgeOpeningReceipt", StringComparison.Ordinal)).ShouldBe(1);
+        var arguments = module.Invocations.Single(invocation => string.Equals(invocation.Identifier, "acknowledgeOpeningReceipt", StringComparison.Ordinal)).Arguments;
         arguments[0].ShouldBe("101:42:False");
         arguments[1].ShouldBe(10L);
         arguments[2]!.ToString().ShouldBe(operationId.ToString());
@@ -375,38 +377,38 @@ public sealed class CampaignWorkspaceTests : BunitContext
     [InlineData("wrong-campaign")]
     [InlineData("empty-operation")]
     [InlineData("zero-count")]
-    public void CampaignWorkspace_DoesNotAcknowledgeUnusableReceipt(string kind)
+    public void CampaignWorkspaceDoesNotAcknowledgeUnusableReceipt(string kind)
     {
         RegisterServices();
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster");
         var module = JSInterop.SetupModule(WorkspaceModulePath);
         module.Mode = JSRuntimeMode.Loose;
         var read = module.Setup<OpenCampaignResult?>("readOpeningReceipt", _ => true);
-        if (kind == "read-failure")
+        if (string.Equals(kind, "read-failure", StringComparison.Ordinal))
         {
             read.SetException(new JSException("Storage unavailable"));
         }
-        else if (kind == "json-failure")
+        else if (string.Equals(kind, "json-failure", StringComparison.Ordinal))
         {
             read.SetException(new System.Text.Json.JsonException("Malformed receipt"));
         }
-        else if (kind == "unsupported-failure")
+        else if (string.Equals(kind, "unsupported-failure", StringComparison.Ordinal))
         {
             read.SetException(new NotSupportedException("Unsupported receipt"));
         }
-        else if (kind == "no-receipt")
+        else if (string.Equals(kind, "no-receipt", StringComparison.Ordinal))
         {
             read.SetResult(null);
         }
         else
         {
-            read.SetResult(new OpenCampaignResult(kind == "empty-operation" ? Guid.Empty : Guid.NewGuid(),
-            kind == "wrong-campaign" ? 11 : 10, DateTimeOffset.UtcNow, 101, kind == "zero-count" ? 0 : 7, 0, []));
+            read.SetResult(new OpenCampaignResult(string.Equals(kind, "empty-operation", StringComparison.Ordinal) ? Guid.Empty : Guid.NewGuid(),
+string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateTimeOffset.UtcNow, 101, string.Equals(kind, "zero-count", StringComparison.Ordinal) ? 0 : 7, 0, []));
         }
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
 
-        cut.WaitForAssertion(() => module.Invocations.Count(invocation => invocation.Identifier == "readOpeningReceipt").ShouldBe(1));
+        cut.WaitForAssertion(() => module.Invocations.Count(invocation => string.Equals(invocation.Identifier, "readOpeningReceipt", StringComparison.Ordinal)).ShouldBe(1));
         cut.Markup.ShouldNotContain("Campaign opened and enrolled");
         module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "acknowledgeOpeningReceipt");
         module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "focus");
@@ -418,7 +420,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     [InlineData("placements")]
     [InlineData("overview")]
     [InlineData("closeout")]
-    public void CampaignWorkspace_RosterLandingIgnoresConflictingTab(string tab)
+    public void CampaignWorkspaceRosterLandingIgnoresConflictingTab(string tab)
     {
         RegisterServices();
         Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10/roster?tab={tab}");
@@ -437,7 +439,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Edit metadata ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_EditMetadataFlow_RendersForm_Saves_AndUpdatesHeader()
+    public void CampaignWorkspaceEditMetadataFlowRendersFormSavesAndUpdatesHeader()
     {
         var queryService = Substitute.For<ICampaignQueryService>();
         queryService.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -458,7 +460,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
         cut.Find("button[aria-haspopup='menu']").Click();
-        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => string.Equals(button.TextContent.Trim(), "Edit metadata", StringComparison.Ordinal)).Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
         cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Summer Tryouts");
 
@@ -470,7 +472,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_EditMetadataConflict_ShowsWarningAffordance()
+    public void CampaignWorkspaceEditMetadataConflictShowsWarningAffordance()
     {
         var metadataService = Substitute.For<ICampaignMetadataService>();
         metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
@@ -483,7 +485,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
         cut.Find("button[aria-haspopup='menu']").Click();
-        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => string.Equals(button.TextContent.Trim(), "Edit metadata", StringComparison.Ordinal)).Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
 
         cut.Find("button[type='submit']").Click();
@@ -494,7 +496,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Not-found and forbidden ───────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsNotFoundState_WhenServiceReturnsNotFound()
+    public void CampaignWorkspaceShowsNotFoundStateWhenServiceReturnsNotFound()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         RegisterServices(
@@ -507,12 +509,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.Markup.ShouldContain("Return to campaigns");
         cut.Markup.ShouldNotContain("Loading campaign...");
 
-        participantService.DidNotReceive().GetParticipantRosterAsync(
+        _ = participantService.DidNotReceive().GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void CampaignWorkspace_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
+    public void CampaignWorkspaceRedirectsToAccessDeniedWhenServiceReturnsForbidden()
     {
         RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(
             ServiceProblem.Forbidden("Access denied.")));
@@ -526,7 +528,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Recoverable error with retry ──────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsErrorAndRetries_WhenDetailLoadFails()
+    public void CampaignWorkspaceShowsErrorAndRetriesWhenDetailLoadFails()
     {
         var queryService = Substitute.For<ICampaignQueryService>();
         queryService.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -545,7 +547,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Roster load ordering ──────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_LoadsRoster_OnlyAfterDetailSucceeds()
+    public void CampaignWorkspaceLoadsRosterOnlyAfterDetailSucceeds()
     {
         var pendingDetail = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
         var queryService = Substitute.For<ICampaignQueryService>();
@@ -560,17 +562,20 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.Markup.ShouldContain("Loading campaign...");
-        participantService.DidNotReceive().GetParticipantRosterAsync(
+        _ = participantService.DidNotReceive().GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
 
         pendingDetail.SetResult(new ServiceResult<CampaignDetailResult>(CreateDetail()));
-        cut.WaitForAssertion(() => participantService.Received(1).GetParticipantRosterAsync(
-            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() =>
+        {
+            _ = participantService.Received(1).GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
+        });
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
     }
 
     [Fact]
-    public void CampaignWorkspace_ShowsRosterErrorAndRetries_WhenRosterLoadFails()
+    public void CampaignWorkspaceShowsRosterErrorAndRetriesWhenRosterLoadFails()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -587,7 +592,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ShowsChoicesRetryAndRecovers_WhenChoiceLoadFails()
+    public void CampaignWorkspaceShowsChoicesRetryAndRecoversWhenChoiceLoadFails()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -610,7 +615,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Persisted state ───────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_DoesNotReload_WhenPersistedStateIsRestored()
+    public void CampaignWorkspaceDoesNotReloadWhenPersistedStateIsRestored()
     {
         var queryService = Substitute.For<ICampaignQueryService>();
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
@@ -622,16 +627,16 @@ public sealed class CampaignWorkspaceTests : BunitContext
             .Add(component => component.PersistedCampaignDetail, CreateDetail()));
 
         cut.Markup.ShouldContain("Summer Tryouts");
-        queryService.DidNotReceive().GetCampaignDetailAsync(
+        _ = queryService.DidNotReceive().GetCampaignDetailAsync(
             Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
-        participantService.DidNotReceive().GetParticipantRosterAsync(
+        _ = participantService.DidNotReceive().GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     // ── Roster filters, sorting, and paging ────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_AppliesRosterState_FromQueryParametersOnLoad()
+    public void CampaignWorkspaceAppliesRosterStateFromQueryParametersOnLoad()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -639,7 +644,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>
+        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["tab"] = "evaluate",
             ["search"] = "avery",
@@ -655,13 +660,17 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        participantService.Received(1).GetParticipantRosterAsync(
+        _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Is<GetCampaignParticipantRosterInput>(input =>
                 input.Search == "avery"
                 && input.GraduationYears != null
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
                 && input.GraduationYears.Order().SequenceEqual(new[] { 2031, 2032 })
+#pragma warning restore CA1861
                 && input.TagDefinitionIds != null
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
                 && input.TagDefinitionIds.Order().SequenceEqual(new[] { 11L, 12L })
+#pragma warning restore CA1861
                 && input.Outcome == "undecided"
                 && input.TeamId == 21
                 && input.SortBy == "displayName"
@@ -671,7 +680,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_SortHeaderClick_CyclesAscendingThenDescending_AndPushesUrl()
+    public void CampaignWorkspaceSortHeaderClickCyclesAscendingThenDescendingAndPushesUrl()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -690,7 +699,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_DebouncesSearch_ToSingleRequestWithFinalTerm()
+    public void CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTerm()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -709,17 +718,20 @@ public sealed class CampaignWorkspaceTests : BunitContext
         searchInput.Input("ave");
 
         cut.WaitForAssertion(
-            () => participantService.Received(2).GetParticipantRosterAsync(
-                Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()),
+            () =>
+            {
+                _ = participantService.Received(2).GetParticipantRosterAsync(
+                Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
+            },
             timeout: TimeSpan.FromSeconds(5));
 
-        participantService.Received(1).GetParticipantRosterAsync(
+        _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Is<GetCampaignParticipantRosterInput>(input => input.Search == "ave"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void CampaignWorkspace_DiscardsStaleRosterResponse_WhenNewerRequestCompletesFirst()
+    public void CampaignWorkspaceDiscardsStaleRosterResponseWhenNewerRequestCompletesFirst()
     {
         var firstResponse = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
         var secondResponse = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
@@ -738,12 +750,18 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         cut.Find("#roster-outcome").Change("assigned");
-        cut.WaitForAssertion(() => participantService.Received(2).GetParticipantRosterAsync(
-            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() =>
+        {
+            _ = participantService.Received(2).GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
+        });
 
         cut.Find("#roster-outcome").Change("withdrawn");
-        cut.WaitForAssertion(() => participantService.Received(3).GetParticipantRosterAsync(
-            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() =>
+        {
+            _ = participantService.Received(3).GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
+        });
 
         secondResponse.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
             CreateRoster(CreateRosterItem("Fresh Roster"))));
@@ -756,7 +774,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_Pager_ReflectsPageMathAndBounds()
+    public void CampaignWorkspacePagerReflectsPageMathAndBounds()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -795,7 +813,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ShowsEmptyCampaignMessage_WhenRosterHasNoParticipantsAndNoFilters()
+    public void CampaignWorkspaceShowsEmptyCampaignMessageWhenRosterHasNoParticipantsAndNoFilters()
     {
         RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
             new PagedResult<CampaignParticipantRosterItem>(
@@ -811,7 +829,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_EmptyRoster_DetachesKeydownSuppression_InsteadOfAttaching()
+    public void CampaignWorkspaceEmptyRosterDetachesKeydownSuppressionInsteadOfAttaching()
     {
         RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
             new PagedResult<CampaignParticipantRosterItem>(
@@ -834,7 +852,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_DetachesKeydownSuppression_WhenRosterReloadFails()
+    public void CampaignWorkspaceDetachesKeydownSuppressionWhenRosterReloadFails()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -862,7 +880,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public async Task CampaignWorkspace_DisposeAsync_ToleratesDisconnectedCircuit()
+    public async Task CampaignWorkspaceDisposeAsyncToleratesDisconnectedCircuitAsync()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -873,7 +891,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         detach.SetException(new JSDisconnectedException("Circuit has disconnected."));
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         var disposeTask = cut.InvokeAsync(cut.Instance.DisposeAsync);
         await disposeTask;
@@ -882,14 +900,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ShowsNoMatchMessage_AndClearsFilters_WhenFiltersExcludeAllParticipants()
+    public void CampaignWorkspaceShowsNoMatchMessageAndClearsFiltersWhenFiltersExcludeAllParticipants()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 var input = call.Arg<GetCampaignParticipantRosterInput>();
-                var empty = input.Outcome == "withdrawn";
+                var empty = string.Equals(input.Outcome, "withdrawn", StringComparison.Ordinal);
                 return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
                     empty
                         ? new PagedResult<CampaignParticipantRosterItem>(
@@ -902,7 +920,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>
+        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["tab"] = "evaluate",
             ["outcome"] = "withdrawn",
@@ -922,7 +940,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Phase 5: participant selection and drawer ──────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ClickingRosterRow_OpensDrawer_PushesParticipant_AndHighlightsRow()
+    public void CampaignWorkspaceClickingRosterRowOpensDrawerPushesParticipantAndHighlightsRow()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -956,7 +974,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_ClosingDrawer_RemovesParticipant_AndPreservesRosterParams()
+    public void CampaignWorkspaceClosingDrawerRemovesParticipantAndPreservesRosterParams()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -988,7 +1006,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_Escape_ClosesDrawer()
+    public void CampaignWorkspaceEscapeClosesDrawer()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1004,7 +1022,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_KeyboardEnter_OnRosterRow_SelectsParticipant()
+    public void CampaignWorkspaceKeyboardEnterOnRosterRowSelectsParticipant()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1020,7 +1038,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_SortChange_ScrollsRosterToTop_WithoutCapturingScroll()
+    public void CampaignWorkspaceSortChangeScrollsRosterToTopWithoutCapturingScroll()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1049,7 +1067,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_UnknownParticipantParam_OpensDrawerWithErrorAndFallbackHeading()
+    public void CampaignWorkspaceUnknownParticipantParamOpensDrawerWithErrorAndFallbackHeading()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -1070,7 +1088,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_InvalidParticipantParam_IsDropped()
+    public void CampaignWorkspaceInvalidParticipantParamIsDropped()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1085,7 +1103,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Drawer sequence navigation ──────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsParticipantPositionAndEnabledNavigation_WhenDrawerOpen()
+    public void CampaignWorkspaceShowsParticipantPositionAndEnabledNavigationWhenDrawerOpen()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1103,7 +1121,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     [InlineData(301, true, false)]
     [InlineData(302, false, false)]
     [InlineData(303, false, true)]
-    public void CampaignWorkspace_DisablesSequenceButtons_AccordingToPosition(
+    public void CampaignWorkspaceDisablesSequenceButtonsAccordingToPosition(
         long participantId, bool previousDisabled, bool nextDisabled)
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 3));
@@ -1118,7 +1136,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_NextWithinPage_ChangesOnlyParticipant_WithoutReloadingRoster()
+    public void CampaignWorkspaceNextWithinPageChangesOnlyParticipantWithoutReloadingRoster()
     {
         var participantService = CreatePagedParticipantService();
         RegisterServices(participantQueryService: participantService);
@@ -1142,7 +1160,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         navigationManager.Uri.ShouldNotContain("page=");
         navigationManager.Uri.ShouldContain("tab=evaluate");
-        participantService.Received(1).GetParticipantRosterAsync(
+        _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
 
         var history = ((BunitNavigationManager)navigationManager).History;
@@ -1152,7 +1170,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_PreviousWithinPage_MovesBackward_WithoutReloadingRoster()
+    public void CampaignWorkspacePreviousWithinPageMovesBackwardWithoutReloadingRoster()
     {
         var participantService = CreatePagedParticipantService();
         RegisterServices(participantQueryService: participantService);
@@ -1168,12 +1186,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("2 of 142"));
 
         navigationManager.Uri.ShouldNotContain("page=");
-        participantService.Received(1).GetParticipantRosterAsync(
+        _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void CampaignWorkspace_NextAcrossPageBoundary_SelectsFirstOfNextPage_CorrectingUrlInPlace()
+    public void CampaignWorkspaceNextAcrossPageBoundarySelectsFirstOfNextPageCorrectingUrlInPlace()
     {
         var participantService = CreatePagedParticipantService(totalCount: 6);
         RegisterServices(participantQueryService: participantService);
@@ -1203,7 +1221,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         latest.Uri.ShouldContain("page=2");
         latest.Uri.ShouldContain("participant=304");
 
-        participantService.Received(2).GetParticipantRosterAsync(
+        _ = participantService.Received(2).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
         cut.WaitForAssertion(() =>
         {
@@ -1213,7 +1231,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_PreviousAcrossPageBoundary_SelectsLastOfPreviousPage_CorrectingUrlInPlace()
+    public void CampaignWorkspacePreviousAcrossPageBoundarySelectsLastOfPreviousPageCorrectingUrlInPlace()
     {
         var participantService = CreatePagedParticipantService(totalCount: 6);
         RegisterServices(participantQueryService: participantService);
@@ -1237,12 +1255,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         latest.Uri.ShouldContain("participant=303");
         latest.Uri.ShouldNotContain("page=");
 
-        participantService.Received(2).GetParticipantRosterAsync(
+        _ = participantService.Received(2).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void CampaignWorkspace_SequenceMoves_PreserveFilterAndSortParameters()
+    public void CampaignWorkspaceSequenceMovesPreserveFilterAndSortParameters()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1269,7 +1287,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_OffPageParticipant_HidesPositionAndDisablesNavigation_ButRendersDetail()
+    public void CampaignWorkspaceOffPageParticipantHidesPositionAndDisablesNavigationButRendersDetail()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1285,7 +1303,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_ToEmptyPage_LeavesDrawerOffPage_WithoutUrlCorrection()
+    public void CampaignWorkspaceBoundaryMoveToEmptyPageLeavesDrawerOffPageWithoutUrlCorrection()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 6, page2Items: []));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1310,7 +1328,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_ClosedBeforeTargetPageLoads_DoesNotReopenDrawer()
+    public void CampaignWorkspaceBoundaryMoveClosedBeforeTargetPageLoadsDoesNotReopenDrawer()
     {
         var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
@@ -1340,7 +1358,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_CloseThenBackBeforeTargetPageLoads_DoesNotConsumeMove()
+    public void CampaignWorkspaceBoundaryMoveCloseThenBackBeforeTargetPageLoadsDoesNotConsumeMove()
     {
         var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
@@ -1378,7 +1396,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_BackBeforeTargetPageLoads_DoesNotReopenDrawer()
+    public void CampaignWorkspaceBoundaryMoveBackBeforeTargetPageLoadsDoesNotReopenDrawer()
     {
         var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
@@ -1408,7 +1426,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_FilterChangeBeforeTargetPageLoads_DoesNotConsumeIntent()
+    public void CampaignWorkspaceBoundaryMoveFilterChangeBeforeTargetPageLoadsDoesNotConsumeIntent()
     {
         var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1421,8 +1439,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
                     return page2Completion.Task;
                 }
 
-                var roster = input.Search == "jones"
-                    ? CreatePagedRoster(page: 1, 2, [901, 902])
+                var roster = string.Equals(input.Search, "jones"
+, StringComparison.Ordinal) ? CreatePagedRoster(page: 1, 2, [901, 902])
                     : CreatePagedRoster(page: 1, 6, [301, 302, 303]);
                 return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(roster));
             });
@@ -1459,7 +1477,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Sequence hardening (Phase 4) ───────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_OpenNavigateClose_RestoresScroll_AndPreservesState()
+    public void CampaignWorkspaceOpenNavigateCloseRestoresScrollAndPreservesState()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1496,7 +1514,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_RapidNavigation_EndsOnFinalParticipant_WithoutStaleDetail()
+    public void CampaignWorkspaceRapidNavigationEndsOnFinalParticipantWithoutStaleDetail()
     {
         var detailCompletions = new Dictionary<long, TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>>();
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1548,7 +1566,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMoves_DisableButtons_AtTrueSequenceEnds()
+    public void CampaignWorkspaceBoundaryMovesDisableButtonsAtTrueSequenceEnds()
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 4, page2Items: [304]));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1578,7 +1596,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_BoundaryMove_LandsOnFirstItem_OfFilteredNextPage()
+    public void CampaignWorkspaceBoundaryMoveLandsOnFirstItemOfFilteredNextPage()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -1616,7 +1634,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_RendersResponsiveRosterLayout_WithDrawerOutsideResponsiveContainers()
+    public void CampaignWorkspaceRendersResponsiveRosterLayoutWithDrawerOutsideResponsiveContainers()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -1637,7 +1655,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void RegisterServices(
+#pragma warning restore MA0051
         ICampaignQueryService? campaignQueryService = null,
         ICampaignParticipantQueryService? participantQueryService = null,
         ServiceResult<CampaignDetailResult>? detailResult = null,
@@ -1981,7 +2001,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
     /// <summary>
     /// A test-only <see cref="CampaignWorkspacePage"/> subclass that seeds persisted prerender state.
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedStateCampaignWorkspace(
+#pragma warning restore CA1812
         ICampaignQueryService campaignQueryService,
         ICampaignParticipantQueryService participantQueryService,
         ITagDefinitionQueryService tagDefinitionQueryService,

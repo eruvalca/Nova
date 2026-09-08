@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -11,167 +11,167 @@ namespace Nova.Unit.Tests.Clubs;
 public class ClubEndpointsTests
 {
     [Fact]
-    public void CreateJoinRequestUrl_BuildsCorrectUrl_WithClubId()
+    public void CreateJoinRequestUrlBuildsCorrectUrlWithClubId()
     {
         // Arrange
-        const long clubId = 42;
+        const long ClubId = 42;
 
         // Act
-        var url = ClubEndpoints.CreateJoinRequestUrl(clubId);
+        var url = ClubEndpoints.CreateJoinRequestUrl(ClubId);
 
         // Assert
         url.ShouldBe("/api/clubs/42/join-requests");
     }
 
     [Fact]
-    public void CreateJoinRequestUrl_BuildsCorrectUrl_WithLargeClubId()
+    public void CreateJoinRequestUrlBuildsCorrectUrlWithLargeClubId()
     {
         // Arrange
-        const long clubId = 9876543210;
+        const long ClubId = 9876543210;
 
         // Act
-        var url = ClubEndpoints.CreateJoinRequestUrl(clubId);
+        var url = ClubEndpoints.CreateJoinRequestUrl(ClubId);
 
         // Assert
         url.ShouldBe("/api/clubs/9876543210/join-requests");
     }
 
     [Fact]
-    public void CancelJoinRequestUrl_BuildsCorrectUrl_WithRequestId()
+    public void CancelJoinRequestUrlBuildsCorrectUrlWithRequestId()
     {
         // Arrange
-        const long requestId = 123;
+        const long RequestId = 123;
 
         // Act
-        var url = ClubEndpoints.CancelJoinRequestUrl(requestId);
+        var url = ClubEndpoints.CancelJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/123");
     }
 
     [Fact]
-    public void CancelJoinRequestUrl_BuildsCorrectUrl_WithLargeRequestId()
+    public void CancelJoinRequestUrlBuildsCorrectUrlWithLargeRequestId()
     {
         // Arrange
-        const long requestId = 1234567890;
+        const long RequestId = 1234567890;
 
         // Act
-        var url = ClubEndpoints.CancelJoinRequestUrl(requestId);
+        var url = ClubEndpoints.CancelJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/1234567890");
     }
 
     [Fact]
-    public void AdminJoinRequestsUrl_BuildsCorrectUrl_WithClubId()
+    public void AdminJoinRequestsUrlBuildsCorrectUrlWithClubId()
     {
         // Arrange
-        const long clubId = 42;
+        const long ClubId = 42;
 
         // Act
-        var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
+        var url = ClubEndpoints.AdminJoinRequestsUrl(ClubId);
 
         // Assert
         url.ShouldBe("/api/clubs/42/admin/join-requests");
     }
 
     [Fact]
-    public void AdminJoinRequestsUrl_BuildsCorrectUrl_WithLargeClubId()
+    public void AdminJoinRequestsUrlBuildsCorrectUrlWithLargeClubId()
     {
         // Arrange
-        const long clubId = 9876543210;
+        const long ClubId = 9876543210;
 
         // Act
-        var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
+        var url = ClubEndpoints.AdminJoinRequestsUrl(ClubId);
 
         // Assert
         url.ShouldBe("/api/clubs/9876543210/admin/join-requests");
     }
 
     [Fact]
-    public void ApproveJoinRequestUrl_BuildsCorrectUrl_WithRequestId()
+    public void ApproveJoinRequestUrlBuildsCorrectUrlWithRequestId()
     {
         // Arrange
-        const long requestId = 7;
+        const long RequestId = 7;
 
         // Act
-        var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
+        var url = ClubEndpoints.ApproveJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/7/approve");
     }
 
     [Fact]
-    public void ApproveJoinRequestUrl_BuildsCorrectUrl_WithLargeRequestId()
+    public void ApproveJoinRequestUrlBuildsCorrectUrlWithLargeRequestId()
     {
         // Arrange
-        const long requestId = 1234567890;
+        const long RequestId = 1234567890;
 
         // Act
-        var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
+        var url = ClubEndpoints.ApproveJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/1234567890/approve");
     }
 
     [Fact]
-    public void RejectJoinRequestUrl_BuildsCorrectUrl_WithRequestId()
+    public void RejectJoinRequestUrlBuildsCorrectUrlWithRequestId()
     {
         // Arrange
-        const long requestId = 7;
+        const long RequestId = 7;
 
         // Act
-        var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
+        var url = ClubEndpoints.RejectJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/7/reject");
     }
 
     [Fact]
-    public void RejectJoinRequestUrl_BuildsCorrectUrl_WithLargeRequestId()
+    public void RejectJoinRequestUrlBuildsCorrectUrlWithLargeRequestId()
     {
         // Arrange
-        const long requestId = 1234567890;
+        const long RequestId = 1234567890;
 
         // Act
-        var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
+        var url = ClubEndpoints.RejectJoinRequestUrl(RequestId);
 
         // Assert
         url.ShouldBe("/api/clubs/join-requests/1234567890/reject");
     }
 
     [Fact]
-    public void AdminJoinRequestsRelative_HasCorrectValue() =>
+    public void AdminJoinRequestsRelativeHasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.AdminJoinRequestsRelative.ShouldBe("{clubId:long}/admin/join-requests");
 
     [Fact]
-    public void ApproveJoinRequestRelative_HasCorrectValue() =>
+    public void ApproveJoinRequestRelativeHasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.ApproveJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/approve");
 
     [Fact]
-    public void RejectJoinRequestRelative_HasCorrectValue() =>
+    public void RejectJoinRequestRelativeHasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.RejectJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/reject");
 
     [Fact]
-    public void GroupPrefix_HasNotChanged() =>
+    public void GroupPrefixHasNotChanged() =>
         // Act & Assert
         ClubEndpoints.GroupPrefix.ShouldBe("/api/clubs");
 
     [Fact]
-    public void Complete_HasNotChanged() =>
+    public void CompleteHasNotChanged() =>
         // Act & Assert
         ClubEndpoints.Complete.ShouldBe("/Clubs/Onboarding/Complete");
 
     [Fact]
-    public void PendingRequest_HasNotChanged() =>
+    public void PendingRequestHasNotChanged() =>
         // Act & Assert
         ClubEndpoints.PendingRequest.ShouldBe("/api/clubs/join-requests/pending");
 
     [Fact]
-    public void SearchUrl_ReturnsBaseUrl_WhenQueryIsNull()
+    public void SearchUrlReturnsBaseUrlWhenQueryIsNull()
     {
         // Arrange & Act
         var url = ClubEndpoints.SearchUrl(null);
@@ -181,7 +181,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void SearchUrl_ReturnsBaseUrl_WhenQueryIsEmpty()
+    public void SearchUrlReturnsBaseUrlWhenQueryIsEmpty()
     {
         // Arrange & Act
         var url = ClubEndpoints.SearchUrl(string.Empty);
@@ -191,7 +191,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void SearchUrl_ReturnsBaseUrl_WhenQueryIsWhitespace()
+    public void SearchUrlReturnsBaseUrlWhenQueryIsWhitespace()
     {
         // Arrange & Act
         var url = ClubEndpoints.SearchUrl("   ");
@@ -201,59 +201,59 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void SearchUrl_IncludesQuery_WhenQueryIsProvided()
+    public void SearchUrlIncludesQueryWhenQueryIsProvided()
     {
         // Arrange
-        const string query = "Manchester United";
+        const string Query = "Manchester United";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
         url.ShouldBe("/api/clubs/search?q=Manchester%20United");
     }
 
     [Fact]
-    public void SearchUrl_UrlEncodesSpaces_InQuery()
+    public void SearchUrlUrlEncodesSpacesInQuery()
     {
         // Arrange
-        const string query = "New York";
+        const string Query = "New York";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
         url.ShouldBe("/api/clubs/search?q=New%20York");
     }
 
     [Fact]
-    public void SearchUrl_UrlEncodesSpecialCharacters_InQuery()
+    public void SearchUrlUrlEncodesSpecialCharactersInQuery()
     {
         // Arrange
-        const string query = "Royal Tenenbaums & Friends";
+        const string Query = "Royal Tenenbaums & Friends";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
         url.ShouldContain("%26");  // '&' encoded
     }
 
     [Fact]
-    public void SearchUrl_HandlesQueryWithPlusSign()
+    public void SearchUrlHandlesQueryWithPlusSign()
     {
         // Arrange
-        const string query = "FC Plus";
+        const string Query = "FC Plus";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
         url.ShouldBe("/api/clubs/search?q=FC%20Plus");
     }
 
     [Fact]
-    public void ClubDto_EqualsOtherInstance_WithSameValues()
+    public void ClubDtoEqualsOtherInstanceWithSameValues()
     {
         // Arrange
         var club1 = new ClubDto(ClubId: 1, Name: "FC United", City: "Manchester", State: "England");
@@ -265,7 +265,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubDto_NotEqualsOtherInstance_WithDifferentClubId()
+    public void ClubDtoNotEqualsOtherInstanceWithDifferentClubId()
     {
         // Arrange
         var club1 = new ClubDto(ClubId: 1, Name: "FC United", City: "Manchester", State: "England");
@@ -277,7 +277,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubDto_Deconstructs_Correctly()
+    public void ClubDtoDeconstructsCorrectly()
     {
         // Arrange
         var club = new ClubDto(ClubId: 42, Name: "Liverpool FC", City: "Liverpool", State: "Merseyside");
@@ -293,7 +293,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubJoinRequestDto_EqualsOtherInstance_WithSameValues()
+    public void ClubJoinRequestDtoEqualsOtherInstanceWithSameValues()
     {
         // Arrange
         var createdAt = DateTimeOffset.UtcNow;
@@ -320,7 +320,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubJoinRequestDto_NotEqualsOtherInstance_WithDifferentRequestId()
+    public void ClubJoinRequestDtoNotEqualsOtherInstanceWithDifferentRequestId()
     {
         // Arrange
         var createdAt = DateTimeOffset.UtcNow;
@@ -347,7 +347,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubJoinRequestDto_NotEqualsOtherInstance_WithDifferentStatus()
+    public void ClubJoinRequestDtoNotEqualsOtherInstanceWithDifferentStatus()
     {
         // Arrange
         var createdAt = DateTimeOffset.UtcNow;
@@ -374,7 +374,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void ClubJoinRequestDto_Deconstructs_Correctly()
+    public void ClubJoinRequestDtoDeconstructsCorrectly()
     {
         // Arrange
         var createdAt = new DateTimeOffset(2024, 6, 11, 12, 0, 0, TimeSpan.Zero);
@@ -401,7 +401,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_EqualsOtherInstance_WithSameValues()
+    public void CreateClubInputEqualsOtherInstanceWithSameValues()
     {
         // Arrange
         var crestBytes = TestImages.CreateJpeg();
@@ -414,7 +414,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_NotEqualsOtherInstance_WithDifferentName()
+    public void CreateClubInputNotEqualsOtherInstanceWithDifferentName()
     {
         // Arrange
         var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -426,7 +426,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_NotEqualsOtherInstance_WithDifferentCity()
+    public void CreateClubInputNotEqualsOtherInstanceWithDifferentCity()
     {
         // Arrange
         var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -438,7 +438,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_NotEqualsOtherInstance_WithDifferentState()
+    public void CreateClubInputNotEqualsOtherInstanceWithDifferentState()
     {
         // Arrange
         var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -450,7 +450,7 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_HasCorrectProperties()
+    public void CreateClubInputHasCorrectProperties()
     {
         // Arrange
         var crestBytes = TestImages.CreateJpeg();

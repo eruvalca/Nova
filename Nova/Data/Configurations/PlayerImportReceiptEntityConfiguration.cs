@@ -5,7 +5,7 @@ using Nova.Entities;
 namespace Nova.Data.Configurations;
 
 /// <summary>Configures tenant-isolated immutable import proof and global expiration lookup.</summary>
-public sealed class PlayerImportReceiptEntityConfiguration : IEntityTypeConfiguration<PlayerImportReceiptEntity>
+internal sealed class PlayerImportReceiptEntityConfiguration : IEntityTypeConfiguration<PlayerImportReceiptEntity>
 {
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<PlayerImportReceiptEntity> builder)

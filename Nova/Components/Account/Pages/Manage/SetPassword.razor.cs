@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -16,12 +17,12 @@ public partial class SetPassword(
     /// <summary>
     /// Stores the error or status message to display.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -43,14 +44,14 @@ public partial class SetPassword(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var hasPassword = await userManager.HasPasswordAsync(user);
+        var hasPassword = await userManager.HasPasswordAsync(_user);
         if (hasPassword)
         {
             redirectManager.RedirectTo("Account/Manage/ChangePassword");
@@ -63,20 +64,20 @@ public partial class SetPassword(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var addPasswordResult = await userManager.AddPasswordAsync(user, Input.NewPassword!);
+        var addPasswordResult = await userManager.AddPasswordAsync(_user, Input.NewPassword!);
         if (!addPasswordResult.Succeeded)
         {
-            message = $"Error: {string.Join(",", addPasswordResult.Errors.Select(error => error.Description))}";
+            _message = $"Error: {string.Join(",", addPasswordResult.Errors.Select(error => error.Description))}";
             return;
         }
 
-        await signInManager.RefreshSignInAsync(user);
+        await signInManager.RefreshSignInAsync(_user);
         redirectManager.RedirectToCurrentPageWithStatus("Your password has been set.", HttpContext);
     }
 

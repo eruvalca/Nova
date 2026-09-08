@@ -7,10 +7,12 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class PlacementDecisionSupersession : Migration
+internal partial class PlacementDecisionSupersession : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Preserve ordered schema operations within the generated migration.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.AddColumn<string>(
             name: "DecisionActorDisplayName",
@@ -58,12 +60,16 @@ public partial class PlacementDecisionSupersession : Migration
         migrationBuilder.CreateIndex(
             name: "IX_PlacementMutationReceipts_ClubId_CreatedAt",
             table: "PlacementMutationReceipts",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreatedAt" });
+#pragma warning restore CA1861
 
         migrationBuilder.CreateIndex(
             name: "IX_PlacementMutationReceipts_ClubId_OperationId",
             table: "PlacementMutationReceipts",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "OperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(

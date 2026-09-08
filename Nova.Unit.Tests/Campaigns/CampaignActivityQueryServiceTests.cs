@@ -7,10 +7,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Activity;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -23,6 +23,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignActivityQueryServiceTests : IDisposable
 {
+    private static readonly JsonSerializerOptions _camelCaseJsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private const long ClubAId = 100;
     private const long ClubBId = 200;
     private const long ClubAMemberId = 300;
@@ -33,7 +34,6 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
     private readonly TenancyTestHarness _harness = new();
     private long _activeCampaignId;
     private long _closedCampaignId;
-    private long _campaignBId;
 
     /// <summary>Initializes seeded club, user, season, and campaign data for two clubs.</summary>
     public CampaignActivityQueryServiceTests() => SeedBase();
@@ -43,7 +43,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies an unsigned-in caller cannot read activity.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetActivityReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -58,7 +58,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a signed-in user without a club cannot read activity.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetActivityReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -73,7 +73,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies invalid campaign identifiers are rejected before any query.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsValidation_ForNonPositiveCampaignId()
+    public async Task GetActivityReturnsValidationForNonPositiveCampaignIdAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -88,7 +88,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies an out-of-range explicit limit is rejected.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsValidation_ForOutOfRangeLimit()
+    public async Task GetActivityReturnsValidationForOutOfRangeLimitAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -103,7 +103,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a missing campaign returns a non-disclosing not-found.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsNotFound_ForMissingCampaign()
+    public async Task GetActivityReturnsNotFoundForMissingCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -118,7 +118,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies another club's campaign is invisible to the current tenant.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetActivityReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -133,7 +133,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a Closed campaign's activity remains readable.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsEvents_ForClosedCampaign()
+    public async Task GetActivityReturnsEventsForClosedCampaignAsync()
     {
         var actorUserId = ClubAAdminId;
         var createdAt = new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero);
@@ -158,7 +158,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies the result is bounded to the 50 newest events.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsFiftyNewestEvents_WhenMoreThanFiftyExist()
+    public async Task GetActivityReturnsFiftyNewestEventsWhenMoreThanFiftyExistAsync()
     {
         var baseTime = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
         var specs = Enumerable.Range(0, 60)
@@ -191,7 +191,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies equal-timestamp events use the identifier descending tie-breaker.</summary>
     [Fact]
-    public async Task GetActivity_OrdersEqualTimestamps_ByDescendingEventId()
+    public async Task GetActivityOrdersEqualTimestampsByDescendingEventIdAsync()
     {
         var equalTime = new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero);
         var entities = SeedEvents(
@@ -220,7 +220,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies stored actor name snapshots are returned verbatim, even for removed users.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsStoredActorSnapshots_ForRemovedUsers()
+    public async Task GetActivityReturnsStoredActorSnapshotsForRemovedUsersAsync()
     {
         SeedEvents(
             _activeCampaignId,
@@ -246,7 +246,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a requested explicit limit is honored.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsOnlyRequestedLimit()
+    public async Task GetActivityReturnsOnlyRequestedLimitAsync()
     {
         var baseTime = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
         var specs = Enumerable.Range(0, 10)
@@ -286,7 +286,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="specs">The event type, timestamp, actor, and stored name snapshot for each event.</param>
     /// <returns>The persisted event entities in seed order.</returns>
-    private IReadOnlyList<ActivityEventEntity> SeedEvents(
+    private List<ActivityEventEntity> SeedEvents(
         long campaignId,
         long clubId,
         IReadOnlyList<(CampaignLifecycleEventType EventType, DateTimeOffset CreatedAt, long ActorUserId, string ActorDisplayName)> specs)
@@ -317,14 +317,11 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
             AddParameter(command, "@isAdminOnly", ActivityEventPolicy.IsAdminOnly(eventKind) ? 1 : 0);
             AddParameter(command, "@actorUserId", spec.ActorUserId);
             AddParameter(command, "@actorDisplayName", spec.ActorDisplayName);
-            AddParameter(command, "@payloadJson", JsonSerializer.Serialize(
-                new CampaignLifecycleContext
-                {
-                    CampaignId = campaignId,
-                    CampaignName = "Active A",
-                },
-                typeof(ClubActivityContext),
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            AddParameter(command, "@payloadJson", JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext
+            {
+                CampaignId = campaignId,
+                CampaignName = "Active A",
+            }, _camelCaseJsonOptions));
             AddParameter(command, "@createdAt", spec.CreatedAt);
             AddParameter(command, "@createdById", spec.ActorUserId);
             command.ExecuteNonQuery();
@@ -368,6 +365,6 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         using var read = _harness.CreateAdminContext();
         _activeCampaignId = read.Campaigns.Single(campaign => campaign.Name == "Active A").CampaignId;
         _closedCampaignId = read.Campaigns.Single(campaign => campaign.Name == "Closed A").CampaignId;
-        _campaignBId = read.Campaigns.Single(campaign => campaign.Name == "Campaign B").CampaignId;
+        _ = read.Campaigns.Single(campaign => campaign.Name == "Campaign B").CampaignId;
     }
 }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -16,15 +16,23 @@ namespace Nova.Unit.Tests.Security;
 /// Tests for <see cref="NovaUserClaimsPrincipalFactory"/>: the ClubId claim is added only for
 /// club members, and the HasProfilePhoto claim is added only when a photo row exists.
 /// </summary>
-public class NovaUserClaimsPrincipalFactoryTests : IDisposable
+public sealed class NovaUserClaimsPrincipalFactoryTests : IDisposable
 {
     private readonly TenancyTestHarness _harness = new();
+    private readonly List<IDisposable> _ownedResources = [];
 
     /// <inheritdoc />
-    public void Dispose() => _harness.Dispose();
+    public void Dispose()
+    {
+        foreach (var resource in Enumerable.Reverse(_ownedResources))
+        {
+            resource.Dispose();
+        }
+        _harness.Dispose();
+    }
 
     [Fact]
-    public async Task GenerateClaims_AddsHasProfilePhotoClaim_WhenPhotoExists()
+    public async Task GenerateClaimsAddsHasProfilePhotoClaimWhenPhotoExistsAsync()
     {
         var user = SeedUser(id: 21, clubId: null);
         SeedPhoto(user.Id);
@@ -32,22 +40,22 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasProfilePhoto).ShouldBeTrue();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasProfilePhoto, StringComparison.Ordinal)).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task GenerateClaims_OmitsHasProfilePhotoClaim_WhenNoPhotoExists()
+    public async Task GenerateClaimsOmitsHasProfilePhotoClaimWhenNoPhotoExistsAsync()
     {
         var user = SeedUser(id: 22, clubId: null);
         var factory = CreateFactory();
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasProfilePhoto).ShouldBeFalse();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasProfilePhoto, StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task GenerateClaims_AddsClubIdClaim_WhenUserHasClub()
+    public async Task GenerateClaimsAddsClubIdClaimWhenUserHasClubAsync()
     {
         SeedClub(id: 5, name: "Austin Strikers");
         var user = SeedUser(id: 23, clubId: 5);
@@ -59,7 +67,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateClaims_AddsClubNameClaim_WhenUserHasClub()
+    public async Task GenerateClaimsAddsClubNameClaimWhenUserHasClubAsync()
     {
         SeedClub(id: 6, name: "Dallas Dynamos");
         var user = SeedUser(id: 24, clubId: 6);
@@ -71,19 +79,19 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateClaims_OmitsClubIdAndClubNameClaims_WhenUserHasNoClub()
+    public async Task GenerateClaimsOmitsClubIdAndClubNameClaimsWhenUserHasNoClubAsync()
     {
         var user = SeedUser(id: 25, clubId: null);
         var factory = CreateFactory();
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId).ShouldBeFalse();
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.ClubName).ShouldBeFalse();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.ClubId, StringComparison.Ordinal)).ShouldBeFalse();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.ClubName, StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task GenerateClaims_AddsHasClubCrestClaim_WhenUsersClubHasCrest()
+    public async Task GenerateClaimsAddsHasClubCrestClaimWhenUsersClubHasCrestAsync()
     {
         SeedClub(id: 7, name: "Crested Club");
         SeedCrest(clubId: 7);
@@ -92,11 +100,11 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeTrue();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasClubCrest, StringComparison.Ordinal)).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task GenerateClaims_OmitsHasClubCrestClaim_WhenUsersClubHasNoCrest()
+    public async Task GenerateClaimsOmitsHasClubCrestClaimWhenUsersClubHasNoCrestAsync()
     {
         SeedClub(id: 7, name: "Crested Club");
         var user = SeedUser(id: 27, clubId: 7);
@@ -104,18 +112,18 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeFalse();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasClubCrest, StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task GenerateClaims_OmitsHasClubCrestClaim_WhenUserHasNoClub()
+    public async Task GenerateClaimsOmitsHasClubCrestClaimWhenUserHasNoClubAsync()
     {
         var user = SeedUser(id: 28, clubId: null);
         var factory = CreateFactory();
 
         var principal = await factory.CreateAsync(user);
 
-        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeFalse();
+        principal.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasClubCrest, StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     /// <summary>
@@ -130,7 +138,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
             .Returns(call =>
             {
                 var user = call.Arg<NovaUserEntity>() ?? throw new InvalidOperationException("User argument was null.");
-                return Task.FromResult(user.Id.ToString());
+                return Task.FromResult(user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
             });
         userStore.GetUserNameAsync(Arg.Any<NovaUserEntity>(), Arg.Any<CancellationToken>())
             .Returns(call =>
@@ -139,6 +147,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
                 return Task.FromResult<string?>($"user{user.Id}");
             });
 
+        _ownedResources.Add(userStore);
         var userManager = new UserManager<NovaUserEntity>(
             userStore,
             Options.Create(new IdentityOptions()),
@@ -150,6 +159,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
             Substitute.For<IServiceProvider>(),
             NullLogger<UserManager<NovaUserEntity>>.Instance);
 
+        _ownedResources.Add(userManager);
         var roleManager = new RoleManager<IdentityRole<long>>(
             Substitute.For<IRoleStore<IdentityRole<long>>>(),
             Array.Empty<IRoleValidator<IdentityRole<long>>>(),
@@ -157,6 +167,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
             new IdentityErrorDescriber(),
             NullLogger<RoleManager<IdentityRole<long>>>.Instance);
 
+        _ownedResources.Add(roleManager);
         return new NovaUserClaimsPrincipalFactory(
             userManager,
             roleManager,

@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class NovaUserPhotoEntity : BaseEntity
     /// <summary>
     /// Gets or sets the Nova User Photo Id.
     /// </summary>
-    public long NovaUserPhotoId { get; set; } = default;
+    public long NovaUserPhotoId { get; set; }
     /// <summary>
     /// Gets or sets the Original Blob Name.
     /// </summary>

@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -38,13 +38,13 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies successful application posts to the shared route and deserializes the created identifier.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_PostsToSharedRoute_AndReturnsCreatedIdentifier()
+    public async Task ApplyAsyncPostsToSharedRouteAndReturnsCreatedIdentifierAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(42))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -62,7 +62,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies ProblemDetails responses retain their service problem kind and detail.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task ApplyAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
@@ -73,7 +73,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "Only a club administrator can apply tags."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -89,7 +89,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a not-found problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task ApplyAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
@@ -100,7 +100,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "The campaign participation was not found."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -115,7 +115,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a conflict problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsConflict_FromProblemDetails()
+    public async Task ApplyAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -126,7 +126,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "The selected tag has already been applied to this participation."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -142,13 +142,13 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a successful response without the required payload becomes an explicit server error.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsServerError_ForEmptySuccessPayload()
+    public async Task ApplyAsyncReturnsServerErrorForEmptySuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(string.Empty)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -164,13 +164,13 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies malformed success JSON becomes an explicit server error.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsServerError_ForMalformedSuccessPayload()
+    public async Task ApplyAsyncReturnsServerErrorForMalformedSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent("{not-json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -186,13 +186,13 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a successful JSON null response is rejected as an invalid payload.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsServerError_ForNullSuccessPayload()
+    public async Task ApplyAsyncReturnsServerErrorForNullSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent("null", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -207,13 +207,13 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a successful response with a non-positive identifier is rejected as an invalid payload.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsServerError_ForInvalidCreatedIdentifier()
+    public async Task ApplyAsyncReturnsServerErrorForInvalidCreatedIdentifierAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(0))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
@@ -228,10 +228,10 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies successful removal deletes the shared route and returns success for a no-content response.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_DeletesToSharedRoute_AndReturnsSuccess()
+    public async Task RemoveAsyncDeletesToSharedRouteAndReturnsSuccessAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).RemoveAsync(
@@ -249,7 +249,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a not-found problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task RemoveAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
@@ -260,7 +260,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "The campaign tag application was not found."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).RemoveAsync(
@@ -276,7 +276,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a forbidden problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task RemoveAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
@@ -287,7 +287,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "Only the applying user or a club administrator can remove this tag application."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).RemoveAsync(
@@ -303,7 +303,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Verifies a conflict problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsConflict_FromProblemDetails()
+    public async Task RemoveAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -314,7 +314,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
                 detail = "The tag application cannot be removed."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignTagApplicationService(http).RemoveAsync(

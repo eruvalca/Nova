@@ -17,7 +17,7 @@ FORM: Remove and link forms preserve their generated names, hidden provider fiel
     </header>
 
     <StatusMessage />
-    @if (currentLogins?.Count > 0)
+    @if (_currentLogins?.Count > 0)
     {
         <section class="manage-board" aria-labelledby="registered-logins-heading">
             <h2 id="registered-logins-heading">Registered logins</h2>
@@ -30,12 +30,12 @@ FORM: Remove and link forms preserve their generated names, hidden provider fiel
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var login in currentLogins)
+                        @foreach (var login in _currentLogins)
                         {
                             <tr>
                                 <td>@login.ProviderDisplayName</td>
                                 <td>
-                                    @if (showRemoveButton)
+                                    @if (_showRemoveButton)
                                     {
                                         <form class="manage-login-actions" @formname="@($"remove-login-{login.LoginProvider}")" @onsubmit="OnSubmitAsync" method="post">
                                             <AntiforgeryToken />
@@ -56,7 +56,7 @@ FORM: Remove and link forms preserve their generated names, hidden provider fiel
             </div>
         </section>
     }
-    @if (otherLogins?.Count > 0)
+    @if (_otherLogins?.Count > 0)
     {
         <section class="manage-board" aria-labelledby="available-logins-heading">
             <h2 id="available-logins-heading">Add another service</h2>
@@ -64,7 +64,7 @@ FORM: Remove and link forms preserve their generated names, hidden provider fiel
             <form action="Account/Manage/LinkExternalLogin" method="post">
                 <AntiforgeryToken />
                 <div class="manage-actions">
-                    @foreach (var provider in otherLogins)
+                    @foreach (var provider in _otherLogins)
                     {
                         <button type="submit" class="btn btn-primary" name="Provider" value="@provider.Name" title="Log in using your @provider.DisplayName account">@provider.DisplayName</button>
                     }

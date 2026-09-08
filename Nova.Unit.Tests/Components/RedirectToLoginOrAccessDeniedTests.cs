@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Components;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -16,7 +16,7 @@ namespace Nova.Unit.Tests.Components;
 public class RedirectToLoginOrAccessDeniedTests : BunitContext
 {
     [Fact]
-    public void OnInitializedAsync_NavigatesToLogin_WhenUserIsAnonymous()
+    public void OnInitializedAsyncNavigatesToLoginWhenUserIsAnonymous()
     {
         // Arrange
         SetAuthenticationState(isAuthenticated: false);
@@ -33,7 +33,7 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
     }
 
     [Fact]
-    public void OnInitializedAsync_NavigatesToAccessDenied_WhenUserIsAuthenticated()
+    public void OnInitializedAsyncNavigatesToAccessDeniedWhenUserIsAuthenticated()
     {
         // Arrange
         SetAuthenticationState(isAuthenticated: true);
@@ -48,7 +48,7 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
     }
 
     [Fact]
-    public void OnInitializedAsync_NavigatesDemotedMemberToClubNotice_OnAdministratorRoute()
+    public void OnInitializedAsyncNavigatesDemotedMemberToClubNoticeOnAdministratorRoute()
     {
         SetAuthenticationState(isAuthenticated: true, hasClub: true);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -60,7 +60,7 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
     }
 
     [Fact]
-    public void OnInitializedAsync_NavigatesDemotedMemberToClubNotice_OnLegacyAdministratorRoute()
+    public void OnInitializedAsyncNavigatesDemotedMemberToClubNoticeOnLegacyAdministratorRoute()
     {
         SetAuthenticationState(isAuthenticated: true, hasClub: true);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -72,7 +72,7 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
     }
 
     [Fact]
-    public void OnInitializedAsync_NavigatesDemotedMemberToAccessDenied_OnLegacyMemberRoute()
+    public void OnInitializedAsyncNavigatesDemotedMemberToAccessDeniedOnLegacyMemberRoute()
     {
         SetAuthenticationState(isAuthenticated: true, hasClub: false);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -85,11 +85,12 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
 
     private void SetAuthenticationState(bool isAuthenticated, bool hasClub = false)
     {
+        Claim[] claims = hasClub
+            ? [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(NovaClaimTypes.ClubId, "42")]
+            : [new Claim(ClaimTypes.NameIdentifier, "123")];
         var identity = isAuthenticated
             ? new ClaimsIdentity(
-                hasClub
-                    ? [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(NovaClaimTypes.ClubId, "42")]
-                    : [new Claim(ClaimTypes.NameIdentifier, "123")],
+                claims,
                 "TestAuth")
             : new ClaimsIdentity();
 

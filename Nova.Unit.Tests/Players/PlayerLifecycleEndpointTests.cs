@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Nova.Features.Players;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Security;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -17,7 +17,7 @@ public sealed class PlayerLifecycleEndpointTests
     /// Verifies archive and restore endpoints require the club-administrator policy.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycleEndpoints_RequireClubAdminPolicy()
+    public async Task PlayerLifecycleEndpointsRequireClubAdminPolicyAsync()
     {
         var builder = WebApplication.CreateBuilder();
         await using var app = builder.Build();

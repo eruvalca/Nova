@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -25,7 +25,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
     /// timestamp, and per-caller edit/delete capability flags.
     /// </summary>
     [Fact]
-    public async Task SharedEvaluationNote_IsVisibleToSecondApprovedMember_WithAuthorAndTimestampMetadata()
+    public async Task SharedEvaluationNoteIsVisibleToSecondApprovedMemberWithAuthorAndTimestampMetadataAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (authorClient, observerClient, _, campaignId, assignmentId) = await SeedTwoMemberClubWithCampaignAsync(
@@ -38,7 +38,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         addResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         using var detailResponse = await observerClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -59,7 +59,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
     /// recent timestamp, and a per-caller removal capability flag.
     /// </summary>
     [Fact]
-    public async Task SharedTagApplication_IsVisibleToSecondApprovedMember_WithActorAndTimestampMetadata()
+    public async Task SharedTagApplicationIsVisibleToSecondApprovedMemberWithActorAndTimestampMetadataAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (authorClient, observerClient, adminEmail, campaignId, assignmentId) = await SeedTwoMemberClubWithCampaignAsync(
@@ -74,7 +74,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         using var detailResponse = await observerClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -94,7 +94,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
     /// participant, each carrying its own actor metadata.
     /// </summary>
     [Fact]
-    public async Task IndependentContributions_Coexist_WithPerActorMetadata()
+    public async Task IndependentContributionsCoexistWithPerActorMetadataAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (authorClient, observerClient, _, campaignId, assignmentId) = await SeedTwoMemberClubWithCampaignAsync(
@@ -113,7 +113,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         secondAdd.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         using var detailResponse = await observerClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -142,20 +142,34 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         var club = await SeedingHelpers.CreateClubAsync(adminClient, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
+#pragma warning disable CA2000 // Setup transfers clients to the caller on success and disposes both in the catch block on failure.
         var authorClient = fixture.CreateNovaHttpClient();
-        var authorEmail = SeedingHelpers.UniqueEmail($"{prefix}-author");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(authorClient, authorEmail, Password, cancellationToken);
-        await SeedingHelpers.UpdateUserAsync(fixture, authorEmail, club.ClubId, cancellationToken, firstName: "Alice", lastName: "Author");
-        await SeedingHelpers.RefreshClubMembershipCookieAsync(authorClient, cancellationToken);
+#pragma warning restore CA2000
+        HttpClient? observerClient = null;
+        try
+        {
+            var authorEmail = SeedingHelpers.UniqueEmail($"{prefix}-author");
+            await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(authorClient, authorEmail, Password, cancellationToken);
+            await SeedingHelpers.UpdateUserAsync(fixture, authorEmail, club.ClubId, cancellationToken, firstName: "Alice", lastName: "Author");
+            await SeedingHelpers.RefreshClubMembershipCookieAsync(authorClient, cancellationToken);
 
-        var observerClient = fixture.CreateNovaHttpClient();
-        var observerEmail = SeedingHelpers.UniqueEmail($"{prefix}-observer");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(observerClient, observerEmail, Password, cancellationToken);
-        await SeedingHelpers.UpdateUserAsync(fixture, observerEmail, club.ClubId, cancellationToken, firstName: "Bob", lastName: "Observer");
-        await SeedingHelpers.RefreshClubMembershipCookieAsync(observerClient, cancellationToken);
+#pragma warning disable CA2000 // Setup transfers clients to the caller on success and disposes both in the catch block on failure.
+            observerClient = fixture.CreateNovaHttpClient();
+#pragma warning restore CA2000
+            var observerEmail = SeedingHelpers.UniqueEmail($"{prefix}-observer");
+            await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(observerClient, observerEmail, Password, cancellationToken);
+            await SeedingHelpers.UpdateUserAsync(fixture, observerEmail, club.ClubId, cancellationToken, firstName: "Bob", lastName: "Observer");
+            await SeedingHelpers.RefreshClubMembershipCookieAsync(observerClient, cancellationToken);
 
-        var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
-            fixture, club.ClubId, adminEmail, prefix, participantCount: 1, placementOutcome: PlacementOutcome.Undecided, cancellationToken);
-        return (authorClient, observerClient, adminEmail, seeded.CampaignId, seeded.AssignmentIds[0]);
+            var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
+                fixture, club.ClubId, adminEmail, prefix, participantCount: 1, placementOutcome: PlacementOutcome.Undecided, cancellationToken);
+            return (authorClient, observerClient, adminEmail, seeded.CampaignId, seeded.AssignmentIds[0]);
+        }
+        catch
+        {
+            observerClient?.Dispose();
+            authorClient.Dispose();
+            throw;
+        }
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Tags;
 
@@ -10,7 +10,7 @@ namespace Nova.Client.Services.Tags;
 /// server's tag-definition management endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionService
+internal sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<TagDefinitionDto>> CreateAsync(

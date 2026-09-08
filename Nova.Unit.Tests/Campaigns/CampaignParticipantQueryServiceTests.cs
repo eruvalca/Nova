@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -15,7 +15,7 @@ file sealed class CampaignParticipantReadHarnessDbContextFactory(TenancyTestHarn
 {
     public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
 
-    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(harness.CreateReadContext());
 }
 
@@ -41,7 +41,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetParticipantRoster_ReturnsForbidden_WhenNotMember()
+    public async Task GetParticipantRosterReturnsForbiddenWhenNotMemberAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -58,7 +58,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantRoster_ReturnsValidation_WhenFilterContainsNonPositiveValues()
+    public async Task GetParticipantRosterReturnsValidationWhenFilterContainsNonPositiveValuesAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -80,7 +80,9 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantRoster_FiltersAndPagesWithinTenant()
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    public async Task GetParticipantRosterFiltersAndPagesWithinTenantAsync()
+#pragma warning restore MA0051
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -99,7 +101,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
                 CreatedById = ClubAMemberId
             };
             admin.Players.Add(player);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var assignment = new PlayerCampaignAssignmentEntity
             {
@@ -112,7 +114,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
                 TryoutNumber = 9
             };
             admin.PlayerCampaignAssignments.Add(assignment);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             admin.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
@@ -122,7 +124,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
                 ClubId = ClubAId,
                 CreatedById = ClubAMemberId
             });
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignParticipantQueryService(
@@ -176,7 +178,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantRoster_TreatsSearchWildcardsAsLiterals()
+    public async Task GetParticipantRosterTreatsSearchWildcardsAsLiteralsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -196,7 +198,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantRoster_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetParticipantRosterReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -215,7 +217,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantDetail_ReturnsNotesAndTagsForAssignment()
+    public async Task GetParticipantDetailReturnsNotesAndTagsForAssignmentAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -245,7 +247,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantDetail_OrdersNotesAndTagsByDescendingId_WhenTimestampsAreEqual()
+    public async Task GetParticipantDetailOrdersNotesAndTagsByDescendingIdWhenTimestampsAreEqualAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -256,17 +258,17 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             admin.Notes.AddRange(
                 new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
                 new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            var otherTag = admin.PlayerTags.Single(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag");
+            var otherTag = (await admin.PlayerTags.SingleAsync(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag", TestContext.Current.CancellationToken));
             var thirdTag = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = "Third Tag", NormalizedName = "THIRD TAG", Color = "Green", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active };
             admin.PlayerTags.Add(thirdTag);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             admin.CampaignTagApplications.AddRange(
                 new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
                 new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignParticipantQueryService(
@@ -290,18 +292,18 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantDetail_DoesNotExposePlacementEdit_WhenPlayerArchived()
+    public async Task GetParticipantDetailDoesNotExposePlacementEditWhenPlayerArchivedAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
         using (var admin = _harness.CreateAdminContext())
         {
-            var player = admin.Players.Single(candidate => candidate.ClubId == ClubAId && candidate.FirstName == "Avery");
+            var player = (await admin.Players.SingleAsync(candidate => candidate.ClubId == ClubAId && candidate.FirstName == "Avery", TestContext.Current.CancellationToken));
             player.LifecycleStatus = LifecycleStatus.Archived;
             player.ArchivedAt = DateTimeOffset.UtcNow;
             player.ArchivedById = ClubAMemberId;
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignParticipantQueryService(
@@ -318,7 +320,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetParticipantDetail_DoesNotExposeTagRemoval_WhenTagDefinitionArchived()
+    public async Task GetParticipantDetailDoesNotExposeTagRemovalWhenTagDefinitionArchivedAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -326,11 +328,11 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
 
         using (var admin = _harness.CreateAdminContext())
         {
-            var tag = admin.PlayerTags.Single(candidate => candidate.ClubId == ClubAId && candidate.Name == "Blue Tag");
+            var tag = (await admin.PlayerTags.SingleAsync(candidate => candidate.ClubId == ClubAId && candidate.Name == "Blue Tag", TestContext.Current.CancellationToken));
             tag.LifecycleStatus = LifecycleStatus.Archived;
             tag.ArchivedAt = DateTimeOffset.UtcNow;
             tag.ArchivedById = ClubAMemberId;
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignParticipantQueryService(
@@ -343,23 +345,47 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.AppliedTags.Single(tag => tag.TagName == "Blue Tag").CanRemove.ShouldBeFalse();
+        result.Value.AppliedTags.Single(tag => string.Equals(tag.TagName, "Blue Tag", StringComparison.Ordinal)).CanRemove.ShouldBeFalse();
     }
 
     public static TheoryData<string, string, string[]> SortDirectionCases => new()
     {
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "displayName", "asc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "displayName", "desc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "assignmentId", "asc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "assignmentId", "desc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "graduationYear", "asc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "graduationYear", "desc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "tryoutNumber", "asc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "tryoutNumber", "desc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "outcome", "asc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "outcome", "desc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "teamName", "asc", new[] { "Brett Baker", "Avery Adams" } },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
         { "teamName", "desc", new[] { "Avery Adams", "Brett Baker" } },
+#pragma warning restore CA1861
     };
 
     /// <summary>
@@ -367,7 +393,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// </summary>
     [Theory(IncludeTestCaseIndex = true)]
     [MemberData(nameof(SortDirectionCases))]
-    public async Task GetParticipantRoster_AppliesSortKeyAndDirection(string sortBy, string sortDirection, string[] expectedDisplayNames)
+    public async Task GetParticipantRosterAppliesSortKeyAndDirectionAsync(string sortBy, string sortDirection, string[] expectedDisplayNames)
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -400,7 +426,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     [InlineData("tryoutNumber")]
     [InlineData("outcome")]
     [InlineData("teamName")]
-    public async Task GetParticipantRoster_AppliesAscendingAssignmentIdTieBreaker(string sortBy)
+    public async Task GetParticipantRosterAppliesAscendingAssignmentIdTieBreakerAsync(string sortBy)
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -412,12 +438,12 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             var first = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Dana", LastName = "Davis", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
             var second = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Dana", LastName = "Davis", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
             admin.Players.AddRange(first, second);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var firstAssignment = new PlayerCampaignAssignmentEntity { PlayerId = first.PlayerId, CampaignId = _campaignAId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = _teamAId };
             var secondAssignment = new PlayerCampaignAssignmentEntity { PlayerId = second.PlayerId, CampaignId = _campaignAId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = _teamAId };
             admin.PlayerCampaignAssignments.AddRange(firstAssignment, secondAssignment);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             firstAssignmentId = firstAssignment.PlayerCampaignAssignmentId;
             secondAssignmentId = secondAssignment.PlayerCampaignAssignmentId;
@@ -452,7 +478,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies the graduation-years query returns the campaign's distinct years in ascending order.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsDistinctAscendingYears_ForClubCampaign()
+    public async Task GetRosterGraduationYearsReturnsDistinctAscendingYearsForClubCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -474,7 +500,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies the graduation-years query returns an empty list for a campaign without participants.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsEmptyList_WhenCampaignHasNoParticipants()
+    public async Task GetRosterGraduationYearsReturnsEmptyListWhenCampaignHasNoParticipantsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -482,10 +508,10 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         long emptyCampaignId;
         using (var admin = _harness.CreateAdminContext())
         {
-            admin.Campaigns.Single(campaign => campaign.ClubId == ClubAId
-                && campaign.Status == CampaignStatus.Active).Status = CampaignStatus.Draft;
-            admin.SaveChanges();
-            var season = admin.Seasons.Single(season => season.ClubId == ClubAId);
+            (await admin.Campaigns.SingleAsync(campaign => campaign.ClubId == ClubAId
+                && campaign.Status == CampaignStatus.Active, TestContext.Current.CancellationToken)).Status = CampaignStatus.Draft;
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var season = (await admin.Seasons.SingleAsync(season => season.ClubId == ClubAId, TestContext.Current.CancellationToken));
             var campaign = new CampaignEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -497,7 +523,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
                 CreatedById = ClubAMemberId
             };
             admin.Campaigns.Add(campaign);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
             emptyCampaignId = campaign.CampaignId;
         }
 
@@ -518,7 +544,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies the graduation-years query is rejected for a caller without a club scope.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetRosterGraduationYearsReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -540,7 +566,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies the graduation-years query is rejected for an anonymous caller.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetRosterGraduationYearsReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -562,7 +588,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies a campaign owned by another club is treated as not found.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetRosterGraduationYearsReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -584,7 +610,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// Verifies a non-positive campaign identifier is rejected before querying.
     /// </summary>
     [Fact]
-    public async Task GetRosterGraduationYears_ReturnsValidation_ForNonPositiveCampaignId()
+    public async Task GetRosterGraduationYearsReturnsValidationForNonPositiveCampaignIdAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -602,7 +628,9 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
     }
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var admin = _harness.CreateAdminContext();
 

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -17,12 +18,12 @@ public partial class LoginWithRecoveryCode(
     /// <summary>
     /// Stores the error message to display to the user.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Caches the currently authenticating user entity.
     /// </summary>
-    private NovaUserEntity user = default!;
+    private NovaUserEntity _user = default!;
 
     /// <summary>
     /// Gets or sets the recovery code form input model supplied from the form post.
@@ -45,7 +46,7 @@ public partial class LoginWithRecoveryCode(
         Input ??= new();
 
         // Ensure the user has gone through the username & password screen first
-        user = await signInManager.GetTwoFactorAuthenticationUserAsync() ??
+        _user = await signInManager.GetTwoFactorAuthenticationUserAsync() ??
             throw new InvalidOperationException("Unable to load two-factor authentication user.");
     }
 
@@ -55,11 +56,11 @@ public partial class LoginWithRecoveryCode(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
+        var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty, StringComparison.Ordinal);
 
         var result = await signInManager.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
 
-        var userId = await userManager.GetUserIdAsync(user);
+        var userId = await userManager.GetUserIdAsync(_user);
 
         if (result.Succeeded)
         {
@@ -74,7 +75,7 @@ public partial class LoginWithRecoveryCode(
         else
         {
             LogInvalidRecoveryCodeEntered(userId);
-            message = "Error: Invalid recovery code entered.";
+            _message = "Error: Invalid recovery code entered.";
         }
     }
 

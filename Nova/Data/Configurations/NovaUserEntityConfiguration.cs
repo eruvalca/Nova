@@ -8,7 +8,7 @@ namespace Nova.Data.Configurations;
 /// Configures EF Core mapping for <see cref="NovaUserEntity"/>: primary key, auto-generated <see cref="NovaUserEntity.Id"/>,
 /// and the optional <see cref="NovaUserEntity.Club"/> foreign-key relationship (<see cref="DeleteBehavior.SetNull"/>).
 /// </summary>
-public class NovaUserEntityConfiguration : IEntityTypeConfiguration<NovaUserEntity>
+internal class NovaUserEntityConfiguration : IEntityTypeConfiguration<NovaUserEntity>
 {
     /// <summary>
     /// Configures the <see cref="NovaUserEntity"/> entity type: sets <see cref="NovaUserEntity.Id"/> as the

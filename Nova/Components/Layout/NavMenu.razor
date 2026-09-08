@@ -1,7 +1,8 @@
-﻿@using Nova.Shared.Security
-@using Nova.Shared.Features.Clubs
+﻿@using Nova.SharedKernel.Security
+@using Nova.SharedKernel.Features.Clubs
 
-<nav class="navbar navbar-expand-md navbar-light nova-navigation @(IsAccountRoutesSingle ? "account-routes-single" : null)" aria-label="Primary">
+<nav class="navbar navbar-expand-md navbar-light nova-navigation @(IsAccountRoutesSingle ? "account-routes-single" : null)"
+     aria-label="Primary">
     <div class="container-fluid nova-navigation-inner">
         <a class="nova-brand" href="/dashboard" aria-label="Nova dashboard">
             <span class="nova-brand-mark" aria-hidden="true"><span></span></span>
@@ -19,7 +20,8 @@
                 <AuthorizeView>
                     <Authorized>
                         <li class="nav-item">
-                            <NavLink class="nav-link d-flex align-items-center gap-2" href="/dashboard" Match="NavLinkMatch.All">
+                            <NavLink class="nav-link d-flex align-items-center gap-2" href="/dashboard"
+                                     Match="NavLinkMatch.All">
                                 <span class="nav-icon-slot">
                                     <span class="bi bi-house nav-icon" aria-hidden="true"></span>
                                     <span class="bi bi-house-fill nav-icon-fill" aria-hidden="true"></span>
@@ -30,7 +32,8 @@
                         @if (ClubDetailUrl is not null && ClubName is not null)
                         {
                             <li class="nav-item">
-                                <a class="nav-link d-flex align-items-center gap-2 @(ClubSectionActive ? "active" : null)" href="@ClubDetailUrl" aria-current="@(ClubSectionActive ? "page" : null)">
+                                <a class="nav-link d-flex align-items-center gap-2 @(ClubSectionActive ? "active" : null)"
+                                   href="@ClubDetailUrl" aria-current="@(ClubSectionActive ? "page" : null)">
                                     @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasClubCrest))
                                     {
                                         <span class="nav-avatar-slot">
@@ -48,7 +51,8 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="campaigns" Match="NavLinkMatch.Prefix">
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="campaigns"
+                                         Match="NavLinkMatch.Prefix">
                                     <span class="nav-icon-slot">
                                         <span class="bi bi-calendar-check nav-icon" aria-hidden="true"></span>
                                         <span class="bi bi-calendar-check-fill nav-icon-fill" aria-hidden="true"></span>
@@ -57,7 +61,8 @@
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="players" Match="NavLinkMatch.Prefix">
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="players"
+                                         Match="NavLinkMatch.Prefix">
                                     <span class="nav-icon-slot">
                                         <span class="bi bi-people nav-icon" aria-hidden="true"></span>
                                         <span class="bi bi-people-fill nav-icon-fill" aria-hidden="true"></span>
@@ -66,7 +71,8 @@
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubRoutes.Teams" Match="NavLinkMatch.Prefix">
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubRoutes.Teams"
+                                         Match="NavLinkMatch.Prefix">
                                     <span class="nav-icon-slot">
                                         <span class="bi bi-shield nav-icon" aria-hidden="true"></span>
                                         <span class="bi bi-shield-fill nav-icon-fill" aria-hidden="true"></span>

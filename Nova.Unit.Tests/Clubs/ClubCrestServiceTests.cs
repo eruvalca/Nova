@@ -11,8 +11,8 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -34,6 +34,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     private const long ClubBAdminUserId = 302;
 
     private readonly TenancyTestHarness _harness = new();
+    private readonly List<IDisposable> _ownedResources = [];
 
     public ClubCrestServiceTests()
     {
@@ -41,10 +42,17 @@ public sealed class ClubCrestServiceTests : IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose() => _harness.Dispose();
+    public void Dispose()
+    {
+        foreach (var resource in Enumerable.Reverse(_ownedResources))
+        {
+            resource.Dispose();
+        }
+        _harness.Dispose();
+    }
 
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsForbidden_WhenUserIsNotClubAdmin()
+    public async Task ChangeClubCrestAsyncReturnsForbiddenWhenUserIsNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = MemberUserId;
@@ -64,7 +72,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsForbidden_WhenUserHasNoUserId()
+    public async Task ChangeClubCrestAsyncReturnsForbiddenWhenUserHasNoUserIdAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = null;
@@ -84,7 +92,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsForbidden_WhenAdminOfAnotherClub()
+    public async Task ChangeClubCrestAsyncReturnsForbiddenWhenAdminOfAnotherClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = ClubBAdminUserId;
@@ -107,7 +115,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// An empty upload is rejected with a structured "crest" validation error.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsValidation_WhenCrestIsMissing()
+    public async Task ChangeClubCrestAsyncReturnsValidationWhenCrestIsMissingAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -123,15 +131,15 @@ public sealed class ClubCrestServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors.Keys.ShouldContain("crest");
-        result.Problem.Errors["crest"].ShouldContain("A club crest is required.");
+        result.Problem.Errors.Keys.ShouldContain("crest", StringComparer.Ordinal);
+        result.Problem.Errors["crest"].ShouldContain("A club crest is required.", StringComparer.Ordinal);
     }
 
     /// <summary>
     /// An upload whose declared content type is not allowed is rejected with validation errors.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsValidation_WhenContentTypeNotAllowed()
+    public async Task ChangeClubCrestAsyncReturnsValidationWhenContentTypeNotAllowedAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -147,14 +155,14 @@ public sealed class ClubCrestServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors["crest"].ShouldContain("Only JPEG, PNG, and WebP images are allowed.");
+        result.Problem.Errors["crest"].ShouldContain("Only JPEG, PNG, and WebP images are allowed.", StringComparer.Ordinal);
     }
 
     /// <summary>
     /// An image whose dimensions exceed the processing maximum is rejected before decoding.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsBadRequest_WhenImageTooLarge()
+    public async Task ChangeClubCrestAsyncReturnsBadRequestWhenImageTooLargeAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -175,7 +183,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// A file carrying an allowed signature but no actual image data is rejected as unprocessable.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReturnsBadRequest_WhenContentIsNotAnImage()
+    public async Task ChangeClubCrestAsyncReturnsBadRequestWhenContentIsNotAnImageAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -196,7 +204,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// A successful change inserts a crest row for the club and uploads all four variants.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_InsertsCrestRow_AndUploadsVariants()
+    public async Task ChangeClubCrestAsyncInsertsCrestRowAndUploadsVariantsAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -233,7 +241,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// Changing an existing crest updates the row and best-effort deletes the previous blobs.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_ReplacesExistingCrest_AndDeletesPreviousBlobs()
+    public async Task ChangeClubCrestAsyncReplacesExistingCrestAndDeletesPreviousBlobsAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -254,9 +262,9 @@ public sealed class ClubCrestServiceTests : IDisposable
         await using var verify = _harness.CreateAdminContext();
         var crest = await verify.ClubCrests
             .SingleAsync(candidate => candidate.ClubId == ClubAId, TestContext.Current.CancellationToken);
-        crest.OriginalBlobName.ShouldNotBe("clubs/200/old-original.jpg");
+        crest.OriginalBlobName.ShouldNotBe("clubs/200/old-original.jpg", StringComparer.Ordinal);
         crest.CreatedById.ShouldBe(AdminUserId);
-        verify.ClubCrests.Count().ShouldBe(1);
+        (await verify.ClubCrests.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
 
         await container.Received().DeleteBlobIfExistsAsync(
             "clubs/200/old-original.jpg", Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>());
@@ -272,7 +280,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// When a variant upload fails, already-uploaded blobs are deleted and a server error is returned.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_DeletesUploadedBlobs_WhenBlobUploadFails()
+    public async Task ChangeClubCrestAsyncDeletesUploadedBlobsWhenBlobUploadFailsAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -299,11 +307,11 @@ public sealed class ClubCrestServiceTests : IDisposable
         await container.Received(1).DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>());
 
         await using var verify = _harness.CreateAdminContext();
-        verify.ClubCrests.Any(candidate => candidate.ClubId == ClubAId).ShouldBeFalse();
+        (await verify.ClubCrests.AnyAsync(candidate => candidate.ClubId == ClubAId, TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task RemoveClubCrestAsync_ReturnsForbidden_WhenUserIsNotClubAdmin()
+    public async Task RemoveClubCrestAsyncReturnsForbiddenWhenUserIsNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = MemberUserId;
@@ -320,7 +328,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveClubCrestAsync_ReturnsNotFound_WhenNoCrestExists()
+    public async Task RemoveClubCrestAsyncReturnsNotFoundWhenNoCrestExistsAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -338,7 +346,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// Removing an existing crest deletes the row and best-effort deletes the blob set.
     /// </summary>
     [Fact]
-    public async Task RemoveClubCrestAsync_DeletesRowAndBlobs_WhenCrestExists()
+    public async Task RemoveClubCrestAsyncDeletesRowAndBlobsWhenCrestExistsAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -354,7 +362,7 @@ public sealed class ClubCrestServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
-        verify.ClubCrests.Any(candidate => candidate.ClubId == ClubAId).ShouldBeFalse();
+        (await verify.ClubCrests.AnyAsync(candidate => candidate.ClubId == ClubAId, TestContext.Current.CancellationToken)).ShouldBeFalse();
 
         await container.Received().DeleteBlobIfExistsAsync(
             "clubs/200/old-original.jpg", Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>());
@@ -371,7 +379,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// HasClubCrest claim propagates on the next revalidation; members of other clubs are untouched.
     /// </summary>
     [Fact]
-    public async Task ChangeClubCrestAsync_MarksAllClubMembersClaimsStale_OnSuccess()
+    public async Task ChangeClubCrestAsyncMarksAllClubMembersClaimsStaleOnSuccessAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -388,8 +396,8 @@ public sealed class ClubCrestServiceTests : IDisposable
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
-        (await LoadSecurityStampAsync(AdminUserId)).ShouldNotBe(adminBefore);
-        (await LoadSecurityStampAsync(MemberUserId)).ShouldNotBe(memberBefore);
+        (await LoadSecurityStampAsync(AdminUserId)).ShouldNotBe(adminBefore, StringComparer.Ordinal);
+        (await LoadSecurityStampAsync(MemberUserId)).ShouldNotBe(memberBefore, StringComparer.Ordinal);
         (await LoadSecurityStampAsync(ClubBAdminUserId)).ShouldBe(otherAdminBefore);
     }
 
@@ -397,7 +405,7 @@ public sealed class ClubCrestServiceTests : IDisposable
     /// After a successful remove, members' security stamps are bumped the same way.
     /// </summary>
     [Fact]
-    public async Task RemoveClubCrestAsync_MarksAllClubMembersClaimsStale_OnSuccess()
+    public async Task RemoveClubCrestAsyncMarksAllClubMembersClaimsStaleOnSuccessAsync()
     {
         // Arrange
         SetClubAAdmin();
@@ -411,7 +419,7 @@ public sealed class ClubCrestServiceTests : IDisposable
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
-        (await LoadSecurityStampAsync(MemberUserId)).ShouldNotBe(memberBefore);
+        (await LoadSecurityStampAsync(MemberUserId)).ShouldNotBe(memberBefore, StringComparer.Ordinal);
     }
 
     private void SetClubAAdmin()
@@ -439,7 +447,9 @@ public sealed class ClubCrestServiceTests : IDisposable
 
     private async Task<string?> LoadSecurityStampAsync(long userId)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var context = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         return await context.Users
             .Where(user => user.Id == userId)
             .Select(user => user.SecurityStamp)
@@ -451,7 +461,9 @@ public sealed class ClubCrestServiceTests : IDisposable
         // The claim refresher queries userManager.Users (an IQueryable), so the user manager is
         // backed by a real Identity UserStore over the harness's shared SQLite database.
         var adminContext = _harness.CreateAdminContext();
+        _ownedResources.Add(adminContext);
         var userStore = new UserStore<NovaUserEntity, IdentityRole<long>, NovaAdminDbContext, long>(adminContext);
+        _ownedResources.Add(userStore);
         var userManager = new UserManager<NovaUserEntity>(
             userStore,
             Options.Create(new IdentityOptions()),
@@ -463,6 +475,7 @@ public sealed class ClubCrestServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             NullLogger<UserManager<NovaUserEntity>>.Instance);
 
+        _ownedResources.Add(userManager);
         var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
             userManager,
             Substitute.For<IHttpContextAccessor>(),

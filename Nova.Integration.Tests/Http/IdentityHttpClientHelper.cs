@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
@@ -23,7 +23,7 @@ internal static partial class IdentityHttpClientHelper
     /// </summary>
     private const int UploadRetryMaxAttempts = 5;
 
-    private static readonly TimeSpan UploadRetryDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan _uploadRetryDelay = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
     /// Registers a user, uploads a profile photo, and performs the profile-photo cookie-refresh
@@ -44,7 +44,7 @@ internal static partial class IdentityHttpClientHelper
         await RegisterUserAsync(client, email, password, cancellationToken);
         await UploadProfilePhotoWithRetryAsync(client, email, cancellationToken);
 
-        using var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var complete = await client.GetAsync(new Uri($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         if (complete.StatusCode is not (System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.Found))
         {
             var body = await complete.Content.ReadAsStringAsync(cancellationToken);
@@ -70,11 +70,11 @@ internal static partial class IdentityHttpClientHelper
         string password,
         CancellationToken cancellationToken)
     {
-        using var registerPage = await client.GetAsync("/Account/Register", cancellationToken);
+        using var registerPage = await client.GetAsync(new Uri("/Account/Register", UriKind.RelativeOrAbsolute), cancellationToken);
         registerPage.EnsureSuccessStatusCode();
         var html = await registerPage.Content.ReadAsStringAsync(cancellationToken);
 
-        var form = new Dictionary<string, string>
+        var form = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Input.FirstName"] = "Test",
             ["Input.LastName"] = "User",
@@ -96,7 +96,7 @@ internal static partial class IdentityHttpClientHelper
         }
 
         using var content = new FormUrlEncodedContent(form);
-        using var response = await client.PostAsync("/Account/Register", content, cancellationToken);
+        using var response = await client.PostAsync(new Uri("/Account/Register", UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         // Successful registration signs the user in and redirects to the required photo step.
         if (response.StatusCode is not (System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.Found))
@@ -112,7 +112,7 @@ internal static partial class IdentityHttpClientHelper
     /// name and value attributes.
     /// </summary>
     /// <returns>The compiled regex.</returns>
-    [GeneratedRegex("""<input[^>]*type="hidden"[^>]*name="(?<name>[^"]+)"[^>]*value="(?<value>[^"]*)"[^>]*>""", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("""<input[^>]*type="hidden"[^>]*name="(?<name>[^"]+)"[^>]*value="(?<value>[^"]*)"[^>]*>""", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
     private static partial Regex HiddenInputRegex();
 
     /// <summary>
@@ -144,7 +144,7 @@ internal static partial class IdentityHttpClientHelper
             HttpResponseMessage upload;
             try
             {
-                upload = await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken);
+                upload = await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken);
             }
             catch (HttpRequestException exception)
             {
@@ -152,7 +152,7 @@ internal static partial class IdentityHttpClientHelper
                 attemptStatuses.Add($"transport error: {exception.Message}");
                 if (attempt < UploadRetryMaxAttempts)
                 {
-                    await Task.Delay(UploadRetryDelay, cancellationToken);
+                    await Task.Delay(_uploadRetryDelay, cancellationToken);
                 }
 
                 continue;
@@ -179,7 +179,7 @@ internal static partial class IdentityHttpClientHelper
 
                 if (attempt < UploadRetryMaxAttempts)
                 {
-                    await Task.Delay(UploadRetryDelay, cancellationToken);
+                    await Task.Delay(_uploadRetryDelay, cancellationToken);
                 }
             }
         }
@@ -197,7 +197,9 @@ internal static partial class IdentityHttpClientHelper
     /// <returns>The multipart payload for the <c>file</c> form field.</returns>
     private static MultipartFormDataContent CreateUploadContent(byte[] bytes, string contentType)
     {
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var fileContent = new ByteArrayContent(bytes);
+#pragma warning restore CA2000
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         return new MultipartFormDataContent { { fileContent, "file", "photo.jpg" } };
     }

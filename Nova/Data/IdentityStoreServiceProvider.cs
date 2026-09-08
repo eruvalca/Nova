@@ -9,7 +9,7 @@ namespace Nova.Data;
 /// so contexts created outside the host (design-time tooling, test harnesses) must attach this
 /// provider via <c>UseApplicationServiceProvider</c> to produce the same model as the running app.
 /// </summary>
-public static class IdentityStoreServiceProvider
+internal static class IdentityStoreServiceProvider
 {
     /// <summary>
     /// Gets the shared service provider exposing the pinned <see cref="IdentityOptions"/>.

@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -43,7 +43,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies an administrator can update an Active campaign's name, dates, and season.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_UpdatesMetadata_WhenCampaignIsActive()
+    public async Task UpdateAsyncUpdatesMetadataWhenCampaignIsActiveAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -72,7 +72,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies that updating campaign metadata does not alter existing player assignments.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_PreservesPlayerAssignments_AfterMetadataChange()
+    public async Task UpdateAsyncPreservesPlayerAssignmentsAfterMetadataChangeAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -98,7 +98,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies a Closed campaign rejects metadata updates with Conflict.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsConflict_WhenCampaignIsClosed()
+    public async Task UpdateAsyncReturnsConflictWhenCampaignIsClosedAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -121,7 +121,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies non-admin users are forbidden from updating campaign metadata.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task UpdateAsyncReturnsForbiddenWhenCallerIsNotClubAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isClubAdmin: false);
         var service = CreateService();
@@ -144,7 +144,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies tenant filters prevent updating another club's campaign.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task UpdateAsyncReturnsNotFoundForCrossTenantCampaignAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isClubAdmin: true);
         var service = CreateService();
@@ -167,7 +167,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies a duplicate campaign name within the same season is rejected with Conflict.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsConflict_WhenNameIsDuplicateInSeason()
+    public async Task UpdateAsyncReturnsConflictWhenNameIsDuplicateInSeasonAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -190,7 +190,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies referencing an unknown season returns NotFound.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsNotFound_WhenSeasonDoesNotExist()
+    public async Task UpdateAsyncReturnsNotFoundWhenSeasonDoesNotExistAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -213,7 +213,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies structural validation runs before database access and returns Validation.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsValidation_WhenInputIsStructurallyInvalid()
+    public async Task UpdateAsyncReturnsValidationWhenInputIsStructurallyInvalidAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -236,7 +236,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     /// Verifies that a club admin cannot move a campaign into a season belonging to a different club.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsNotFound_WhenTargetSeasonBelongsToDifferentClub()
+    public async Task UpdateAsyncReturnsNotFoundWhenTargetSeasonBelongsToDifferentClubAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -257,7 +257,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
 
     /// <summary>Verifies campaign metadata cannot be moved out of the club's current season.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsConflict_WhenTargetSeasonIsHistorical()
+    public async Task UpdateAsyncReturnsConflictWhenTargetSeasonIsHistoricalAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
 
@@ -300,7 +300,9 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         _harness.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

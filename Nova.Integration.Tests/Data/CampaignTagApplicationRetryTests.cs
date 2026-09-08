@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using Shouldly;
 
@@ -27,12 +27,16 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// absent row belongs to no request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReportsNotFound_WhenTransientFailurePrecedesCommitOnDeletedApplication()
+    public async Task RemoveCampaignTagApplicationReportsNotFoundWhenTransientFailurePrecedesCommitOnDeletedApplicationAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, _, _) = await SeedTagApplicationDataAsync(actorUserId, suffix);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var missingApplicationId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -67,9 +71,11 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// existing row belongs to an earlier request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReportsConflict_WhenTransientFailurePrecedesCommitOnAppliedPair()
+    public async Task ApplyCampaignTagApplicationReportsConflictWhenTransientFailurePrecedesCommitOnAppliedPairAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, tagId, assignmentId, _) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
 
@@ -105,9 +111,11 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// reported as success rather than replayed into a spurious conflict.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task ApplyCampaignTagApplicationReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, tagId, assignmentId, _) = await SeedTagApplicationDataAsync(actorUserId, suffix);
 
@@ -151,9 +159,11 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// reported as success rather than replayed into a spurious not-found.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task RemoveCampaignTagApplicationReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
 
@@ -191,9 +201,11 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// artifact does not accumulate unboundedly, while the current operation's receipt is retained.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_PrunesExpiredRemovalReceipts()
+    public async Task RemoveCampaignTagApplicationPrunesExpiredRemovalReceiptsAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
 
@@ -203,7 +215,9 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
 
         // Backdate a receipt from an earlier removal beyond the retention window.
         var staleOperationId = Guid.CreateVersion7();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var seed = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var staleReceipt = new CampaignTagApplicationRemovalReceiptEntity
             {
@@ -248,9 +262,13 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// and each removal must preserve its own durable idempotency receipt.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ConcurrentSameActiveCampaignPrunes_BothSucceed()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task RemoveCampaignTagApplicationConcurrentSameActiveCampaignPrunesBothSucceedAsync()
+#pragma warning restore MA0051
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, campaignId, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
         var (_, _, secondApplicationId) = await SeedSecondTagApplicationInCampaignAsync(
@@ -265,7 +283,9 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
 
         // Backdate a receipt so both removals would be eligible to prune it.
         var staleOperationId = Guid.CreateVersion7();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var seed = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var staleReceipt = new CampaignTagApplicationRemovalReceiptEntity
             {
@@ -362,56 +382,59 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     private async Task<(long TagId, long AssignmentId, long ApplicationId)>
         SeedSecondTagApplicationInCampaignAsync(long actorUserId, long clubId, long campaignId, string suffix)
     {
-        await using var seed = fixture.CreateAdminContext();
-        var player = new PlayerEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Tag",
-            LastName = $"Retry Player 2 {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        var playerTag = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Tag 2 {suffix}",
-            NormalizedName = $"Tag Retry Tag 2 {suffix}".Trim().ToUpperInvariant(),
-            Color = "#00CC00",
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Tag",
+                LastName = $"Retry Player 2 {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            var playerTag = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag Retry Tag 2 {suffix}",
+                NormalizedName = $"Tag Retry Tag 2 {suffix}".Trim().ToUpperInvariant(),
+                Color = "#00CC00",
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
 
-        seed.AddRange(player, playerTag);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            seed.AddRange(player, playerTag);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaignId,
-            ClubId = clubId,
-            CreatedById = actorUserId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 8
-        };
-        seed.Add(assignment);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaignId,
+                ClubId = clubId,
+                CreatedById = actorUserId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 8
+            };
+            seed.Add(assignment);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var application = new CampaignTagApplicationEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
-            PlayerTagId = playerTag.PlayerTagId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        seed.Add(application);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var application = new CampaignTagApplicationEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
+                PlayerTagId = playerTag.PlayerTagId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            seed.Add(application);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return (playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, application.CampaignTagApplicationId);
+            return (playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, application.CampaignTagApplicationId);
+        }
     }
 
     /// <summary>
@@ -421,7 +444,9 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// <param name="suffix">A unique suffix for generated names.</param>
     /// <param name="applied">Whether the seeded tag application row should already exist.</param>
     /// <returns>The seeded club, campaign, tag, participation, and application identifiers.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long ClubId, long CampaignId, long TagId, long AssignmentId, long ApplicationId)> SeedTagApplicationDataAsync(
+#pragma warning restore MA0051
         long actorUserId,
         string suffix,
         bool applied = false)
@@ -430,90 +455,93 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Tag",
-            LastName = $"Retry Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var playerTag = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Tag {suffix}",
-            NormalizedName = $"Tag Retry Tag {suffix}".Trim().ToUpperInvariant(),
-            Color = "#00CC00",
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-
-        seed.AddRange(season, campaign, player, playerTag);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
-        };
-        seed.Add(assignment);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        long applicationId = 0;
-        if (applied)
-        {
-            var application = new CampaignTagApplicationEntity
+            var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
-                PlayerTagId = playerTag.PlayerTagId,
+                Name = $"Tag Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag Retry Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             };
-            seed.Add(application);
-            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            applicationId = application.CampaignTagApplicationId;
-        }
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag Retry Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                Season = season,
+                SeasonId = 0,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Tag",
+                LastName = $"Retry Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var playerTag = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag Retry Tag {suffix}",
+                NormalizedName = $"Tag Retry Tag {suffix}".Trim().ToUpperInvariant(),
+                Color = "#00CC00",
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
 
-        return (club.ClubId, campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, applicationId);
+            seed.AddRange(season, campaign, player, playerTag);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 7
+            };
+            seed.Add(assignment);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            long applicationId = 0;
+            if (applied)
+            {
+                var application = new CampaignTagApplicationEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
+                    PlayerTagId = playerTag.PlayerTagId,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                };
+                seed.Add(application);
+                await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+                applicationId = application.CampaignTagApplicationId;
+            }
+
+            return (club.ClubId, campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, applicationId);
+        }
     }
 }

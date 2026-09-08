@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services.Seasons;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Seasons;
@@ -12,7 +12,7 @@ public sealed class HttpSeasonQueryServiceTests
 {
     /// <summary>Verifies list paging is encoded on the first-class season collection route.</summary>
     [Fact]
-    public async Task ListAsync_GetsBoundedPagingRoute()
+    public async Task ListAsyncGetsBoundedPagingRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -24,7 +24,7 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = 0
             })
         };
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpSeasonQueryService(http).ListAsync(
@@ -38,10 +38,10 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies invalid list paging is rejected before transport.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsValidationProblem_ForInvalidInput()
+    public async Task ListAsyncReturnsValidationProblemForInvalidInputAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK);
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpSeasonQueryService(http).ListAsync(
@@ -59,7 +59,7 @@ public sealed class HttpSeasonQueryServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, 50)]
     [InlineData(2, 20)]
-    public async Task ListAsync_ReturnsServerError_WhenResponsePagingDoesNotMatchRequest(
+    public async Task ListAsyncReturnsServerErrorWhenResponsePagingDoesNotMatchRequestAsync(
         int responsePage,
         int responsePageSize)
     {
@@ -73,7 +73,8 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = 0
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -88,7 +89,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies malformed successful list payloads become protocol failures.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_ForInvalidSuccessBody()
+    public async Task ListAsyncReturnsServerErrorForInvalidSuccessBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -110,7 +111,8 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = 1
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -125,7 +127,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies an eventually consistent total may trail the already-read page.</summary>
     [Fact]
-    public async Task ListAsync_AcceptsPage_WhenEventuallyConsistentTotalIsSmaller()
+    public async Task ListAsyncAcceptsPageWhenEventuallyConsistentTotalIsSmallerAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -147,7 +149,8 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = 0
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -163,7 +166,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies an eventually consistent total must still be nonnegative.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenTotalIsNegative()
+    public async Task ListAsyncReturnsServerErrorWhenTotalIsNegativeAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -175,7 +178,8 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = -1
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -190,7 +194,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies a current season cannot follow a historical row.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenCurrentSeasonIsBehindHistory()
+    public async Task ListAsyncReturnsServerErrorWhenCurrentSeasonIsBehindHistoryAsync()
     {
         await AssertInvalidSeasonOrderAsync(
         [
@@ -201,7 +205,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies historical rows remain newest-first by start date.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenHistoricalStartDatesAreAscending()
+    public async Task ListAsyncReturnsServerErrorWhenHistoricalStartDatesAreAscendingAsync()
     {
         await AssertInvalidSeasonOrderAsync(
         [
@@ -212,7 +216,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies equal-date historical rows remain identifier-descending.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenHistoricalIdentifiersAreAscending()
+    public async Task ListAsyncReturnsServerErrorWhenHistoricalIdentifiersAreAscendingAsync()
     {
         var startDate = new DateOnly(2027, 1, 1);
         await AssertInvalidSeasonOrderAsync(
@@ -224,7 +228,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies the current row cannot appear after the first page.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenCurrentSeasonAppearsAfterFirstPage()
+    public async Task ListAsyncReturnsServerErrorWhenCurrentSeasonAppearsAfterFirstPageAsync()
     {
         await AssertInvalidSeasonOrderAsync(
             [NewSeasonSummary(7, new DateOnly(2027, 1, 1), isCurrent: true)],
@@ -233,7 +237,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies detail paging uses the season identifier and campaign paging names.</summary>
     [Fact]
-    public async Task GetAsync_GetsSeasonDetailPagingRoute()
+    public async Task GetAsyncGetsSeasonDetailPagingRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -253,7 +257,7 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = 0
             })
         };
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpSeasonQueryService(http).GetAsync(
@@ -272,10 +276,10 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies invalid detail paging is rejected before transport.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsValidationProblem_ForInvalidInput()
+    public async Task GetAsyncReturnsValidationProblemForInvalidInputAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK);
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpSeasonQueryService(http).GetAsync(
@@ -293,7 +297,7 @@ public sealed class HttpSeasonQueryServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, 10)]
     [InlineData(2, 20)]
-    public async Task GetAsync_ReturnsServerError_WhenResponsePagingDoesNotMatchRequest(
+    public async Task GetAsyncReturnsServerErrorWhenResponsePagingDoesNotMatchRequestAsync(
         int responsePage,
         int responsePageSize)
     {
@@ -315,7 +319,8 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = 0
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -335,7 +340,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies a campaign total may trail the detail page under concurrent inserts.</summary>
     [Fact]
-    public async Task GetAsync_AcceptsDetail_WhenEventuallyConsistentTotalIsSmaller()
+    public async Task GetAsyncAcceptsDetailWhenEventuallyConsistentTotalIsSmallerAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -355,7 +360,7 @@ public sealed class HttpSeasonQueryServiceTests
                     {
                         CampaignId = 11,
                         Name = "Campaign",
-                        Status = Nova.Shared.Enums.CampaignStatus.Closed,
+                        Status = Nova.SharedKernel.Enums.CampaignStatus.Closed,
                         StartDate = new DateOnly(2026, 2, 1),
                         EndDate = new DateOnly(2026, 3, 1),
                         ParticipantCount = 3
@@ -366,7 +371,8 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = 0
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -382,7 +388,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies detail responses reject campaign statuses outside the public lifecycle enum.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    public async Task GetAsyncReturnsServerErrorWhenCampaignStatusIsUndefinedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -395,7 +401,7 @@ public sealed class HttpSeasonQueryServiceTests
                     {
                         CampaignId = 11,
                         Name = "Campaign",
-                        Status = (Nova.Shared.Enums.CampaignStatus)999,
+                        Status = (Nova.SharedKernel.Enums.CampaignStatus)999,
                         StartDate = new DateOnly(2026, 2, 1),
                         ParticipantCount = 0
                     }
@@ -405,7 +411,8 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = 1
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -420,7 +427,7 @@ public sealed class HttpSeasonQueryServiceTests
 
     /// <summary>Verifies an eventually consistent campaign total must still be nonnegative.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsServerError_WhenCampaignTotalIsNegative()
+    public async Task GetAsyncReturnsServerErrorWhenCampaignTotalIsNegativeAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -440,7 +447,8 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = -1
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -458,7 +466,7 @@ public sealed class HttpSeasonQueryServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task GetAsync_ReturnsServerError_WhenCampaignOrderIsAscending(bool useIdentifierTieBreak)
+    public async Task GetAsyncReturnsServerErrorWhenCampaignOrderIsAscendingAsync(bool useIdentifierTieBreak)
     {
         var firstStartDate = new DateOnly(2026, 1, 1);
         var secondStartDate = useIdentifierTieBreak
@@ -486,7 +494,8 @@ public sealed class HttpSeasonQueryServiceTests
                 TotalCount = items.Count
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -513,7 +522,8 @@ public sealed class HttpSeasonQueryServiceTests
                 CampaignTotalCount = campaigns.Count
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -543,7 +553,7 @@ public sealed class HttpSeasonQueryServiceTests
         {
             CampaignId = campaignId,
             Name = $"Campaign {campaignId}",
-            Status = Nova.Shared.Enums.CampaignStatus.Closed,
+            Status = Nova.SharedKernel.Enums.CampaignStatus.Closed,
             StartDate = startDate,
             ParticipantCount = 0
         };

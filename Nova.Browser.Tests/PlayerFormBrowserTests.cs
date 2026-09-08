@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -18,7 +18,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task PlayerForm_Validation_RejectsWhitespaceFirstName_AndStaysOnForm()
+    public async Task PlayerFormValidationRejectsWhitespaceFirstNameAndStaysOnFormAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -39,7 +39,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlayerForm_Success_CreatesPlayer_AndReflectsInRoster()
+    public async Task PlayerFormSuccessCreatesPlayerAndReflectsInRosterAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -64,7 +64,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlayerForm_Responsive_PreservesInputs_AcrossViewports()
+    public async Task PlayerFormResponsivePreservesInputsAcrossViewportsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -87,7 +87,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlayerForm_Keyboard_TabAndEnter_Submits()
+    public async Task PlayerFormKeyboardTabAndEnterSubmitsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -115,12 +115,11 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlayerDetail_ActiveCampaignBadge_MeetsContrastThreshold()
+    public async Task PlayerDetailActiveCampaignBadgeMeetsContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
         var playerId = await SeedPlayerInActiveCampaignAsync(seed, cancellationToken);
-
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/players/{playerId}").ToString());
@@ -137,9 +136,9 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     /// <c>NOVA_A11Y_SCREENSHOTS=1</c>; otherwise skips so a green run always means the assertions executed.
     /// </summary>
     [Fact]
-    public async Task PlayerDetail_A11yEvidence_CapturesScreenshots()
+    public async Task PlayerDetailA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture player detail accessibility evidence.");
         }
@@ -182,9 +181,13 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         long adminUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.AppHost.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         return (club.ClubId, adminEmail, adminUserId);
@@ -197,7 +200,6 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     {
         var campaign = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture.AppHost, seed.ClubId, seed.AdminEmail, "Player Badge", 1, PlacementOutcome.Undecided, cancellationToken);
-
         await using var context = fixture.AppHost.CreateAdminContext();
         return await context.PlayerCampaignAssignments
             .Where(assignment => assignment.PlayerCampaignAssignmentId == campaign.AssignmentIds[0])

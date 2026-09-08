@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapPost(CampaignEndpoints.AddEvaluationNoteRelative, AddEvaluationNoteHandler)
+            group.MapPost(CampaignEndpoints.AddEvaluationNoteRelative, AddEvaluationNoteHandlerAsync)
                 .Produces<EvaluationNoteMutationSuccess>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -34,7 +34,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.AddEvaluationNoteRouteName);
 
-            group.MapPut(CampaignEndpoints.EditEvaluationNoteRelative, EditEvaluationNoteHandler)
+            group.MapPut(CampaignEndpoints.EditEvaluationNoteRelative, EditEvaluationNoteHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -45,7 +45,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.EditEvaluationNoteRouteName);
 
-            group.MapDelete(CampaignEndpoints.DeleteEvaluationNoteRelative, DeleteEvaluationNoteHandler)
+            group.MapDelete(CampaignEndpoints.DeleteEvaluationNoteRelative, DeleteEvaluationNoteHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -66,7 +66,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A 201 response containing the created note identifier, or ProblemDetails.</returns>
-    private static async Task<IResult> AddEvaluationNoteHandler(
+    private static async Task<IResult> AddEvaluationNoteHandlerAsync(
         AddEvaluationNoteInput input,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)
@@ -83,7 +83,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> EditEvaluationNoteHandler(
+    private static async Task<IResult> EditEvaluationNoteHandlerAsync(
         long noteId,
         PutEvaluationNoteInput body,
         ICampaignEvaluationNoteService service,
@@ -102,7 +102,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> DeleteEvaluationNoteHandler(
+    private static async Task<IResult> DeleteEvaluationNoteHandlerAsync(
         long noteId,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)

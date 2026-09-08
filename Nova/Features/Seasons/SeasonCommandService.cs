@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Seasons;
 
@@ -15,7 +15,7 @@ namespace Nova.Features.Seasons;
 /// <param name="dbContextFactory">The tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
 /// <param name="logger">The logger used for season lifecycle outcomes.</param>
-public sealed partial class SeasonCommandService(
+internal sealed partial class SeasonCommandService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<SeasonCommandService> logger) : ISeasonCommandService
@@ -169,7 +169,9 @@ public sealed partial class SeasonCommandService(
     }
 
     /// <summary>Executes one transaction that creates the club's first current season.</summary>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<SeasonSummary>> CreateAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         CreateSeasonInput input,
         long actorUserId,
@@ -247,7 +249,9 @@ public sealed partial class SeasonCommandService(
     }
 
     /// <summary>Executes one optimistic-concurrency-protected metadata update.</summary>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<SeasonSummary>> UpdateAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long seasonId,
         UpdateSeasonInput input,
@@ -275,7 +279,7 @@ public sealed partial class SeasonCommandService(
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
-        var campaignDateErrors = new Dictionary<string, string[]>();
+        var campaignDateErrors = new Dictionary<string, string[]>(StringComparer.Ordinal);
         if (await db.Campaigns.AnyAsync(
             campaign => campaign.SeasonId == seasonId
                 && campaign.StartDate < input.StartDate,
@@ -332,7 +336,9 @@ public sealed partial class SeasonCommandService(
     }
 
     /// <summary>Executes one atomic current-season advancement attempt.</summary>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<StartNextSeasonResult>> StartNextAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         StartNextSeasonInput input,
         long actorUserId,

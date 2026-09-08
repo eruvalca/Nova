@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -31,36 +31,41 @@ internal static class SeedingHelpers
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, "Test#Passw0rd!", cancellationToken);
         await UpdateUserAsync(fixture, email, null, cancellationToken, firstName: "Alex", lastName: "Morgan");
         var club = await CreateClubAsync(client, cancellationToken);
-        await using var context = fixture.CreateAdminContext();
-        var userId = await context.Users.Where(user => user.NormalizedEmail == email.ToUpperInvariant()).Select(user => user.Id).SingleAsync(cancellationToken);
-        for (var index = 0; index < playerCount; index++)
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            context.Players.Add(new PlayerEntity
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var userId = await context.Users.Where(user => user.NormalizedEmail == email.ToUpperInvariant()).Select(user => user.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
+            for (var index = 0; index < playerCount; index++)
             {
-                CreationOperationId = Guid.CreateVersion7(),
-                FirstName = "Player",
-                LastName = $"{index + 1:00}",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030,
-                LifecycleStatus = LifecycleStatus.Active,
-                ClubId = club.ClubId,
-                CreatedById = userId
-            });
-        }
-        for (var index = 0; index < teamCount; index++)
-        {
-            context.Teams.Add(new TeamEntity
+                context.Players.Add(new PlayerEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    FirstName = "Player",
+                    LastName = $"{index + 1:00}",
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = club.ClubId,
+                    CreatedById = userId
+                });
+            }
+            for (var index = 0; index < teamCount; index++)
             {
-                CreationOperationId = Guid.CreateVersion7(),
-                Name = $"U{14 + index * 2} North",
-                GraduationYear = 2030,
-                LifecycleStatus = LifecycleStatus.Active,
-                ClubId = club.ClubId,
-                CreatedById = userId
-            });
+                context.Teams.Add(new TeamEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    Name = $"U{14 + index * 2} North",
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = club.ClubId,
+                    CreatedById = userId
+                });
+            }
+            await context.SaveChangesAsync(cancellationToken);
+            return (club.ClubId, email);
         }
-        await context.SaveChangesAsync(cancellationToken);
-        return (club.ClubId, email);
     }
 
     /// <summary>
@@ -78,10 +83,11 @@ internal static class SeedingHelpers
     /// <returns>The created club.</returns>
     public static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
+        using var responseRequestContent = CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
@@ -98,11 +104,19 @@ internal static class SeedingHelpers
     public static MultipartFormDataContent CreateClubMultipartContent(string name, string city, string state)
     {
         var form = new MultipartFormDataContent();
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent(name), "name");
+#pragma warning restore CA2000
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent(city), "city");
+#pragma warning restore CA2000
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         form.Add(new StringContent(state), "state");
+#pragma warning restore CA2000
         var crestBytes = CreateJpegBytes();
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var crestContent = new ByteArrayContent(crestBytes);
+#pragma warning restore CA2000
         crestContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         form.Add(crestContent, "crest", "crest");
         return form;
@@ -128,7 +142,7 @@ internal static class SeedingHelpers
     /// <returns>A task that completes when the cookie has been refreshed.</returns>
     public static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -150,20 +164,25 @@ internal static class SeedingHelpers
         string? firstName = null,
         string? lastName = null)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        if (firstName is not null)
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            user.FirstName = firstName;
-        }
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.ClubId = clubId;
+            if (firstName is not null)
+            {
+                user.FirstName = firstName;
+            }
 
-        if (lastName is not null)
-        {
-            user.LastName = lastName;
-        }
+            if (lastName is not null)
+            {
+                user.LastName = lastName;
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -172,7 +191,7 @@ internal static class SeedingHelpers
     /// <param name="CampaignId">The campaign identifier.</param>
     /// <param name="CampaignName">The campaign name.</param>
     /// <param name="AssignmentIds">The participant assignment identifiers in seeded (tryout) order.</param>
-    public sealed record SeededCampaign(long CampaignId, string CampaignName, IReadOnlyList<long> AssignmentIds);
+    internal sealed record SeededCampaign(long CampaignId, string CampaignName, IReadOnlyList<long> AssignmentIds);
 
     /// <summary>
     /// Seeds an active season, an active campaign, and the requested number of players with
@@ -186,7 +205,9 @@ internal static class SeedingHelpers
     /// <param name="placementOutcome">The placement outcome applied to every seeded assignment.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The seeded campaign identifiers.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     public static async Task<SeededCampaign> SeedCampaignWithParticipantsAsync(
+#pragma warning restore MA0051
         NovaAppHostFixture fixture,
         long clubId,
         string adminEmail,
@@ -195,102 +216,107 @@ internal static class SeedingHelpers
         PlacementOutcome placementOutcome,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var club = await context.Clubs.SingleAsync(
-            candidate => candidate.ClubId == clubId,
-            cancellationToken);
-        var season = club.CurrentSeasonId is long currentSeasonId
-            ? await context.Seasons.SingleAsync(
-                candidate => candidate.SeasonId == currentSeasonId,
-                cancellationToken)
-            : new SeasonEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var suffix = Guid.NewGuid().ToString("N");
+            var club = await context.Clubs.SingleAsync(
+                candidate => candidate.ClubId == clubId,
+                cancellationToken);
+            var season = club.CurrentSeasonId is long currentSeasonId
+                ? await context.Seasons.SingleAsync(
+                    candidate => candidate.SeasonId == currentSeasonId,
+                    cancellationToken)
+                : new SeasonEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"{namePrefix} Season {suffix}",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    ClubId = clubId,
+                    CreatedById = user.Id
+                };
+            var previousActiveCampaigns = await context.Campaigns
+                .Where(candidate => candidate.ClubId == clubId
+                    && candidate.Status == CampaignStatus.Active)
+                .ToListAsync(cancellationToken);
+            foreach (var previousCampaign in previousActiveCampaigns)
+            {
+                previousCampaign.Status = CampaignStatus.Closed;
+                previousCampaign.ClosedAt = DateTimeOffset.UtcNow;
+                previousCampaign.ClosedById = user.Id;
+            }
+
+            if (previousActiveCampaigns.Count > 0)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
+            var campaign = new CampaignEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                Name = $"{namePrefix} Season {suffix}",
-                StartDate = new DateOnly(2026, 1, 1),
+                Name = $"{namePrefix} Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                Season = season,
+                SeasonId = 0,
                 ClubId = clubId,
                 CreatedById = user.Id
             };
-        var previousActiveCampaigns = await context.Campaigns
-            .Where(candidate => candidate.ClubId == clubId
-                && candidate.Status == CampaignStatus.Active)
-            .ToListAsync(cancellationToken);
-        foreach (var previousCampaign in previousActiveCampaigns)
-        {
-            previousCampaign.Status = CampaignStatus.Closed;
-            previousCampaign.ClosedAt = DateTimeOffset.UtcNow;
-            previousCampaign.ClosedById = user.Id;
-        }
-
-        if (previousActiveCampaigns.Count > 0)
-        {
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"{namePrefix} Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        if (club.CurrentSeasonId is null)
-        {
-            context.Add(season);
-        }
-
-        context.Add(campaign);
-        await context.SaveChangesAsync(cancellationToken);
-        if (club.CurrentSeasonId is null)
-        {
-            club.CurrentSeasonId = season.SeasonId;
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
-        var players = new List<PlayerEntity>(participantCount);
-        for (var index = 1; index <= participantCount; index++)
-        {
-            players.Add(new PlayerEntity
+            if (club.CurrentSeasonId is null)
             {
-                CreationOperationId = Guid.NewGuid(),
-                FirstName = namePrefix,
-                LastName = $"Player {index:D2}",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030 + (index % 3),
-                LifecycleStatus = LifecycleStatus.Active,
+                context.Add(season);
+            }
+
+            context.Add(campaign);
+            await context.SaveChangesAsync(cancellationToken);
+            if (club.CurrentSeasonId is null)
+            {
+                club.CurrentSeasonId = season.SeasonId;
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
+            var players = new List<PlayerEntity>(participantCount);
+            for (var index = 1; index <= participantCount; index++)
+            {
+                players.Add(new PlayerEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    FirstName = namePrefix,
+                    LastName = $"Player {index:D2}",
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030 + (index % 3),
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = clubId,
+                    CreatedById = user.Id
+                });
+            }
+
+            context.AddRange(players);
+            await context.SaveChangesAsync(cancellationToken);
+
+            var assignments = players.Select(player => new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
                 ClubId = clubId,
-                CreatedById = user.Id
-            });
+                CreatedById = user.Id,
+                PlacementOutcome = placementOutcome,
+                TryoutNumber = players.IndexOf(player) + 1
+            }).ToList();
+            context.AddRange(assignments);
+            await context.SaveChangesAsync(cancellationToken);
+
+            var assignmentIds = await context.PlayerCampaignAssignments
+                .Where(candidate => candidate.CampaignId == campaign.CampaignId)
+                .OrderBy(candidate => candidate.TryoutNumber)
+                .Select(candidate => candidate.PlayerCampaignAssignmentId)
+                .ToListAsync(cancellationToken);
+
+            return new SeededCampaign(campaign.CampaignId, campaign.Name, assignmentIds);
         }
-
-        context.AddRange(players);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var assignments = players.Select(player => new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = clubId,
-            CreatedById = user.Id,
-            PlacementOutcome = placementOutcome,
-            TryoutNumber = players.IndexOf(player) + 1
-        }).ToList();
-        context.AddRange(assignments);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var assignmentIds = await context.PlayerCampaignAssignments
-            .Where(candidate => candidate.CampaignId == campaign.CampaignId)
-            .OrderBy(candidate => candidate.TryoutNumber)
-            .Select(candidate => candidate.PlayerCampaignAssignmentId)
-            .ToListAsync(cancellationToken);
-
-        return new SeededCampaign(campaign.CampaignId, campaign.Name, assignmentIds);
     }
 
     /// <summary>
@@ -298,7 +324,7 @@ internal static class SeedingHelpers
     /// </summary>
     /// <param name="SeasonId">The season identifier.</param>
     /// <param name="CampaignId">The active campaign identifier.</param>
-    public sealed record SeededSeasonAndCampaign(long SeasonId, long CampaignId);
+    internal sealed record SeededSeasonAndCampaign(long SeasonId, long CampaignId);
 
     /// <summary>
     /// Seeds an active season and an active campaign (no participants) for the given club.
@@ -316,40 +342,45 @@ internal static class SeedingHelpers
         string namePrefix,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"{namePrefix} Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            EndDate = new DateOnly(2026, 12, 31),
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"{namePrefix} Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        context.AddRange(season, campaign);
-        await context.SaveChangesAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
-        if (club.CurrentSeasonId is null)
-        {
-            club.CurrentSeasonId = season.SeasonId;
+#pragma warning restore CA1862
+            var suffix = Guid.NewGuid().ToString("N");
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"{namePrefix} Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 12, 31),
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"{namePrefix} Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                Season = season,
+                SeasonId = 0,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            context.AddRange(season, campaign);
             await context.SaveChangesAsync(cancellationToken);
-        }
+            var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+            if (club.CurrentSeasonId is null)
+            {
+                club.CurrentSeasonId = season.SeasonId;
+                await context.SaveChangesAsync(cancellationToken);
+            }
 
-        return new SeededSeasonAndCampaign(season.SeasonId, campaign.CampaignId);
+            return new SeededSeasonAndCampaign(season.SeasonId, campaign.CampaignId);
+        }
     }
 
     /// <summary>
@@ -370,20 +401,25 @@ internal static class SeedingHelpers
         int graduationYear,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users
-            .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
-        var team = new TeamEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = name,
-            GraduationYear = graduationYear,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        context.Add(team);
-        await context.SaveChangesAsync(cancellationToken);
-        return team.TeamId;
+            var user = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = name,
+                GraduationYear = graduationYear,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            context.Add(team);
+            await context.SaveChangesAsync(cancellationToken);
+            return team.TeamId;
+        }
     }
 
     /// <summary>
@@ -402,12 +438,15 @@ internal static class SeedingHelpers
         long teamId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var assignment = await context.PlayerCampaignAssignments
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var assignment = await context.PlayerCampaignAssignments
             .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
-        assignment.PlacementOutcome = PlacementOutcome.Assigned;
-        assignment.TeamId = teamId;
-        await context.SaveChangesAsync(cancellationToken);
+            assignment.PlacementOutcome = PlacementOutcome.Assigned;
+            assignment.TeamId = teamId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -430,26 +469,31 @@ internal static class SeedingHelpers
         CancellationToken cancellationToken,
         bool archived = false)
     {
-        await using var context = fixture.CreateAdminContext();
-        var assignment = await context.PlayerCampaignAssignments
-            .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
-        var user = await context.Users
-            .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
-        var playerTag = new PlayerTagEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = name,
-            NormalizedName = name.Trim().ToUpperInvariant(),
-            Color = color,
-            LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archived ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ArchivedById = archived ? user.Id : null,
-            ClubId = assignment.ClubId,
-            CreatedById = user.Id
-        };
-        context.Add(playerTag);
-        await context.SaveChangesAsync(cancellationToken);
-        return playerTag.PlayerTagId;
+            var assignment = await context.PlayerCampaignAssignments
+            .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+            var user = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+                .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var playerTag = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = name,
+                NormalizedName = name.Trim().ToUpperInvariant(),
+                Color = color,
+                LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archived ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ArchivedById = archived ? user.Id : null,
+                ClubId = assignment.ClubId,
+                CreatedById = user.Id
+            };
+            context.Add(playerTag);
+            await context.SaveChangesAsync(cancellationToken);
+            return playerTag.PlayerTagId;
+        }
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
-﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -16,7 +17,7 @@ public class ActivityEventEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the activity event identifier (the monotonic ordering key used by the feed).
     /// </summary>
-    public long ActivityEventId { get; set; } = default;
+    public long ActivityEventId { get; set; }
 
     /// <summary>
     /// Gets or sets the club that owns this event.
@@ -31,23 +32,23 @@ public class ActivityEventEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the event kind.
     /// </summary>
-    public ActivityEventKind EventKind { get; set; } = default;
+    public ActivityEventKind EventKind { get; set; }
 
     /// <summary>
     /// Gets or sets whether the event is visible only to club administrators.
     /// </summary>
-    public bool IsAdminOnly { get; set; } = false;
+    public bool IsAdminOnly { get; set; }
 
     /// <summary>
     /// Gets or sets the nullable campaign identifier the event belongs to (a loose query key used by
     /// the campaign-local activity surface; there is intentionally no FK).
     /// </summary>
-    public long? CampaignId { get; set; } = null;
+    public long? CampaignId { get; set; }
 
     /// <summary>
     /// Gets or sets the identifier of the user who performed the action (a loose snapshot key).
     /// </summary>
-    public long ActorUserId { get; set; } = default;
+    public long ActorUserId { get; set; }
 
     /// <summary>
     /// Gets or sets the actor display-name snapshot.

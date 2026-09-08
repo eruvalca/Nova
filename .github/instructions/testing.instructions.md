@@ -140,7 +140,7 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 
 ## Conventions
 
-- One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
+- One behavior per test; use PascalCase names such as `InterceptorThrowsOnCrossTenantAdd`. Append `Async` for async methods.
   Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
   Theories use `[Theory(IncludeTestCaseIndex = true)]` (xUnit v4) so a failing data row is
   identifiable by its zero-padded `_NNN` display-name suffix.

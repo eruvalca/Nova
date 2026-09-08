@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -34,14 +34,14 @@ public class HttpClubMemberServiceTests
     /// GetClubMembersAsync accepts a populated member list when each row satisfies the contract.
     /// </summary>
     [Fact]
-    public async Task GetClubMembersAsync_ReturnsMembers_WhenSuccessBodyIsValid()
+    public async Task GetClubMembersAsyncReturnsMembersWhenSuccessBodyIsValidAsync()
     {
         var members = new[] { new ClubMemberDto(7, "Test User") };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(members)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubMemberService(httpClient)
@@ -55,14 +55,14 @@ public class HttpClubMemberServiceTests
     /// GetClubMembersAsync accepts a literal empty JSON array as an empty member list.
     /// </summary>
     [Fact]
-    public async Task GetClubMembersAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    public async Task GetClubMembersAsyncReturnsEmptyListWhenSuccessBodyIsEmptyArrayAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("[]", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubMemberService(httpClient);
 
@@ -82,14 +82,14 @@ public class HttpClubMemberServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetClubMembersAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetClubMembersAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubMemberService(httpClient);
 
@@ -105,7 +105,7 @@ public class HttpClubMemberServiceTests
     /// GetClubMembersAsync returns a server error when one member violates an invariant.
     /// </summary>
     [Fact]
-    public async Task GetClubMembersAsync_ReturnsServerError_WhenMemberElementIsInvalid()
+    public async Task GetClubMembersAsyncReturnsServerErrorWhenMemberElementIsInvalidAsync()
     {
         // Arrange
         var members = new[] { new ClubMemberDto(0, "Test User") };
@@ -113,7 +113,7 @@ public class HttpClubMemberServiceTests
         {
             Content = JsonContent.Create(members)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubMemberService(httpClient);
 
@@ -130,10 +130,10 @@ public class HttpClubMemberServiceTests
     [InlineData("demote", "POST", "/api/clubs/members/99/demote")]
     [InlineData("remove", "DELETE", "/api/clubs/members/99")]
     [InlineData("leave", "DELETE", "/api/clubs/membership")]
-    public async Task MembershipMutation_UsesExpectedMethodAndRoute(string operation, string method, string path)
+    public async Task MembershipMutationUsesExpectedMethodAndRouteAsync(string operation, string method, string path)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubMemberService(httpClient);
 

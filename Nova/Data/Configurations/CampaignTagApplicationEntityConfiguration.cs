@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for campaign tag applications.
 /// </summary>
-public class CampaignTagApplicationEntityConfiguration : IEntityTypeConfiguration<CampaignTagApplicationEntity>
+internal class CampaignTagApplicationEntityConfiguration : IEntityTypeConfiguration<CampaignTagApplicationEntity>
 {
     /// <summary>
     /// Executes the configure operation.

@@ -97,4 +97,4 @@ storage.WithCommand(
     commandOptions: AppHostCommands.CreateConfirmationOptions(
         "Deletes every blob from the club-crests container."));
 
-builder.Build().Run();
+await builder.Build().RunAsync();

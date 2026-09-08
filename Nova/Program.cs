@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using Nova;
 using Nova.Components;
 using Nova.Components.Account;
 using Nova.Data;
@@ -20,27 +21,27 @@ using Nova.Features.Activity;
 using Nova.Features.Attention;
 using Nova.Features.Campaigns;
 using Nova.Features.Clubs;
+using Nova.Features.Common;
 using Nova.Features.Dashboard;
 using Nova.Features.Photos;
 using Nova.Features.Players;
 using Nova.Features.Seasons;
-using Nova.Features.Shared;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.ServiceDefaults;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Security;
-using Nova.UI.Shared;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Security;
+using Nova.UI.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,7 +82,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Events.OnRedirectToLogin = context =>
     {
-        if (context.Request.Path.StartsWithSegments("/api"))
+        if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return Task.CompletedTask;
@@ -92,14 +93,14 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
     options.Events.OnRedirectToAccessDenied = context =>
     {
-        if (context.Request.Path.StartsWithSegments("/api"))
+        if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
         }
 
         if (ClubRoutes.IsAdministratorRoute(context.Request.Path.Value ?? string.Empty)
-            && context.HttpContext.User.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId))
+            && context.HttpContext.User.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.ClubId, StringComparison.Ordinal)))
         {
             context.Response.Redirect(ClubRoutes.OverviewWithPermissionsChanged);
             return Task.CompletedTask;
@@ -205,17 +206,14 @@ builder.Services.AddSingleton<IEmailSender<NovaUserEntity>, IdentityNoOpEmailSen
 
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer<CookieSecuritySchemeTransformer>());
 
-builder.Services.AddProblemDetails(options =>
-{
-    options.CustomizeProblemDetails = context =>
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
     {
         var traceId = Activity.Current?.TraceId.ToString();
         if (!string.IsNullOrEmpty(traceId))
         {
             context.ProblemDetails.Extensions["traceId"] = traceId;
         }
-    };
-});
+    });
 
 builder.Services.AddExceptionHandler<BadHttpRequestExceptionHandler>();
 builder.Services.AddValidation();
@@ -240,7 +238,7 @@ else
 
 // For API routes, use ProblemDetails for error responses
 app.UseWhen(
-    context => context.Request.Path.StartsWithSegments("/api"),
+    context => context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase),
     appBuilder =>
     {
         appBuilder.UseExceptionHandler();
@@ -249,7 +247,7 @@ app.UseWhen(
 
 // For non-API routes, use the not-found page
 app.UseWhen(
-    context => !context.Request.Path.StartsWithSegments("/api"),
+    context => !context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase),
     appBuilder => appBuilder.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
 
 app.UseHttpsRedirection();
@@ -319,57 +317,3 @@ app.MapPlayerEndpoints();
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 
 await app.RunAsync();
-
-/// <summary>
-/// Represents the Cookie Security Scheme Transformer.
-/// </summary>
-/// <param name="authenticationSchemeProvider">The authentication Scheme Provider.</param>
-internal sealed class CookieSecuritySchemeTransformer(IAuthenticationSchemeProvider authenticationSchemeProvider) : IOpenApiDocumentTransformer
-{
-    /// <summary>
-    /// Executes the Transform Async operation.
-    /// </summary>
-    /// <param name="document">The document.</param>
-    /// <param name="context">The context.</param>
-    /// <param name="cancellationToken">The cancellation Token.</param>
-    /// <returns>The operation result.</returns>
-    public async Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
-    {
-        var authenticationSchemes = await authenticationSchemeProvider.GetAllSchemesAsync();
-
-        if (authenticationSchemes.Any(scheme => scheme.Name == IdentityConstants.ApplicationScheme))
-        {
-            document.Components ??= new OpenApiComponents();
-            document.Components.SecuritySchemes = new Dictionary<string, IOpenApiSecurityScheme>
-            {
-                [IdentityConstants.ApplicationScheme] = new OpenApiSecurityScheme
-                {
-                    Type = SecuritySchemeType.ApiKey,
-                    In = ParameterLocation.Cookie,
-                    Name = ".AspNetCore.Identity.Application",
-                    Description = "ASP.NET Core Identity cookie authentication. Login via /Account/Login to obtain the cookie."
-                }
-            };
-
-            if (document.Paths is not null)
-            {
-                foreach (var pathItem in document.Paths.Values)
-                {
-                    if (pathItem.Operations is null)
-                    {
-                        continue;
-                    }
-
-                    foreach (var operation in pathItem.Operations)
-                    {
-                        operation.Value.Security ??= [];
-                        operation.Value.Security.Add(new OpenApiSecurityRequirement
-                        {
-                            [new OpenApiSecuritySchemeReference(IdentityConstants.ApplicationScheme, document)] = []
-                        });
-                    }
-                }
-            }
-        }
-    }
-}

@@ -1,5 +1,5 @@
 ﻿using Nova.Entities;
-using Nova.Shared.Features.Account;
+using Nova.SharedKernel.Features.Account;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Account;
@@ -11,7 +11,7 @@ namespace Nova.Unit.Tests.Account;
 public class NovaUserEntityExtensionsTests
 {
     [Fact]
-    public void NovaUserEntity_FullName_CombinesFirstAndLastName()
+    public void NovaUserEntityFullNameCombinesFirstAndLastName()
     {
         // Arrange
         var user = new NovaUserEntity
@@ -32,7 +32,7 @@ public class NovaUserEntityExtensionsTests
     }
 
     [Fact]
-    public void NovaUserEntity_FullName_WithMultipleWords()
+    public void NovaUserEntityFullNameWithMultipleWords()
     {
         // Arrange
         var user = new NovaUserEntity
@@ -52,7 +52,7 @@ public class NovaUserEntityExtensionsTests
     }
 
     [Fact]
-    public void ClubMemberDto_Construction_VerifiesStructure()
+    public void ClubMemberDtoConstructionVerifiesStructure()
     {
         // Arrange
         var dto = new ClubMemberDto(UserId: 555, FullName: "Test User");
@@ -63,7 +63,7 @@ public class NovaUserEntityExtensionsTests
     }
 
     [Fact]
-    public void ClubMemberDto_Deconstructs_Correctly()
+    public void ClubMemberDtoDeconstructsCorrectly()
     {
         // Arrange
         var dto = new ClubMemberDto(UserId: 100, FullName: "Jane Smith");

@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Attention;
+using Nova.SharedKernel.Features.Attention;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -19,7 +19,7 @@ public sealed class ClubAttentionHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies a non-admin club member receives a JSON ProblemDetails 403 from the attention endpoint.</summary>
     [Fact]
-    public async Task GetAttention_MemberForbidden_ReturnsProblemDetailsBody()
+    public async Task GetAttentionMemberForbiddenReturnsProblemDetailsBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -36,7 +36,7 @@ public sealed class ClubAttentionHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.UpdateUserAsync(fixture, memberEmail, club.ClubId, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using var response = await memberClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
 

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Microsoft.AspNetCore.Identity;
 
 namespace Nova.Entities;
 
@@ -35,5 +36,7 @@ public class NovaUserEntity : IdentityUser<long>
     /// <summary>
     /// Gets or sets the Photos.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<NovaUserPhotoEntity> Photos { get; set; } = [];
+#pragma warning restore CA2227
 }

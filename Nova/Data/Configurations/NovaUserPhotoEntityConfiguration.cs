@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for Nova User Photo Entity Configuration.
 /// </summary>
-public sealed class NovaUserPhotoEntityConfiguration : IEntityTypeConfiguration<NovaUserPhotoEntity>
+internal sealed class NovaUserPhotoEntityConfiguration : IEntityTypeConfiguration<NovaUserPhotoEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

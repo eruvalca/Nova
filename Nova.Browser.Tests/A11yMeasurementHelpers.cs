@@ -111,7 +111,9 @@ internal static class A11yMeasurementHelpers
     /// <param name="page">The page whose visible controls should be measured.</param>
     /// <param name="scope">The label prefixing each returned measurement line.</param>
     /// <returns>One measurement string per visible, non-empty target.</returns>
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
     public static async Task<IReadOnlyList<string>> MeasureChecklistAsync(IPage page, string scope)
+#pragma warning restore MA0051
     {
         var result = await page.EvaluateAsync<string>(@"() => {
             const results = [];

@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Tags;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Tags;
@@ -28,13 +28,13 @@ public sealed class HttpTagDefinitionServiceTests
         };
 
     [Fact]
-    public async Task CreateAsync_SendsPostToCreateRoute_AndReadsDto()
+    public async Task CreateAsyncSendsPostToCreateRouteAndReadsDtoAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(ValidDto())
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).CreateAsync(
@@ -47,13 +47,13 @@ public sealed class HttpTagDefinitionServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_SendsPutToUpdateRoute_AndReadsDto()
+    public async Task UpdateAsyncSendsPutToUpdateRouteAndReadsDtoAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidDto())
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).UpdateAsync(
@@ -70,13 +70,13 @@ public sealed class HttpTagDefinitionServiceTests
     /// update and its ambiguous-commit verification, which re-reads the current row.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsSuccess_WhenResponseLifecycleIsArchived()
+    public async Task UpdateAsyncReturnsSuccessWhenResponseLifecycleIsArchivedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidDto(lifecycleStatus: LifecycleStatus.Archived))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).UpdateAsync(
@@ -92,13 +92,13 @@ public sealed class HttpTagDefinitionServiceTests
     /// create and its ambiguous-commit verification, which re-reads the current row.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsSuccess_WhenResponseLifecycleIsArchived()
+    public async Task CreateAsyncReturnsSuccessWhenResponseLifecycleIsArchivedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(ValidDto(lifecycleStatus: LifecycleStatus.Archived))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).CreateAsync(
@@ -110,13 +110,13 @@ public sealed class HttpTagDefinitionServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_WhenResponseTagIdDoesNotMatch()
+    public async Task UpdateAsyncReturnsServerErrorWhenResponseTagIdDoesNotMatchAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidDto(playerTagId: 8))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).UpdateAsync(
@@ -135,13 +135,13 @@ public sealed class HttpTagDefinitionServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task CreateAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task CreateAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).CreateAsync(
@@ -153,13 +153,13 @@ public sealed class HttpTagDefinitionServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_WhenTagDefinitionInvariantIsInvalid()
+    public async Task CreateAsyncReturnsServerErrorWhenTagDefinitionInvariantIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(ValidDto(playerTagId: 0))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).CreateAsync(
@@ -180,7 +180,7 @@ public sealed class HttpTagDefinitionServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("Forward", "#ff0000", LifecycleStatus.Active)]
     [InlineData("Forward", "#FF0000", (LifecycleStatus)99)]
-    public async Task CreateAsync_ReturnsServerError_WhenTagDefinitionStateIsInvalid(
+    public async Task CreateAsyncReturnsServerErrorWhenTagDefinitionStateIsInvalidAsync(
         string name,
         string color,
         LifecycleStatus lifecycleStatus)
@@ -189,7 +189,7 @@ public sealed class HttpTagDefinitionServiceTests
         {
             Content = JsonContent.Create(ValidDto(name: name, color: color, lifecycleStatus: lifecycleStatus))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).CreateAsync(
@@ -204,13 +204,13 @@ public sealed class HttpTagDefinitionServiceTests
     /// Verifies update still rejects an undefined lifecycle status, even though it accepts archived.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_WhenLifecycleStatusIsUndefined()
+    public async Task UpdateAsyncReturnsServerErrorWhenLifecycleStatusIsUndefinedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidDto(lifecycleStatus: (LifecycleStatus)99))
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionService(http).UpdateAsync(

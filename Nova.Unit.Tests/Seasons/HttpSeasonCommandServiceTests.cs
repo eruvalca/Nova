@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services.Seasons;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Seasons;
@@ -12,7 +12,7 @@ public sealed class HttpSeasonCommandServiceTests
 {
     /// <summary>Verifies malformed successful create payloads become protocol failures.</summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForNonCurrentSuccessBody()
+    public async Task CreateAsyncReturnsServerErrorForNonCurrentSuccessBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
@@ -25,7 +25,8 @@ public sealed class HttpSeasonCommandServiceTests
                 ConcurrencyToken = Guid.NewGuid()
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -45,7 +46,7 @@ public sealed class HttpSeasonCommandServiceTests
 
     /// <summary>Verifies update uses the first-class detail route and accepts a valid response.</summary>
     [Fact]
-    public async Task UpdateAsync_PutsToSeasonDetailRoute()
+    public async Task UpdateAsyncPutsToSeasonDetailRouteAsync()
     {
         var token = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -59,7 +60,7 @@ public sealed class HttpSeasonCommandServiceTests
                 ConcurrencyToken = token
             })
         };
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpSeasonCommandService(http).UpdateAsync(
@@ -79,7 +80,7 @@ public sealed class HttpSeasonCommandServiceTests
 
     /// <summary>Verifies a successful metadata response must rotate the expected concurrency token.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_WhenConcurrencyTokenDoesNotRotate()
+    public async Task UpdateAsyncReturnsServerErrorWhenConcurrencyTokenDoesNotRotateAsync()
     {
         var token = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -93,7 +94,8 @@ public sealed class HttpSeasonCommandServiceTests
                 ConcurrencyToken = token
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        using var httpHandler = new RecordingHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -114,7 +116,7 @@ public sealed class HttpSeasonCommandServiceTests
 
     /// <summary>Verifies a successful advancement payload must identify a real season transition.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsServerError_WhenResponseDoesNotAdvance()
+    public async Task StartNextAsyncReturnsServerErrorWhenResponseDoesNotAdvanceAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
@@ -131,7 +133,7 @@ public sealed class HttpSeasonCommandServiceTests
                 }
             })
         };
-        var handler = new RecordingHandler(response);
+        using var handler = new RecordingHandler(response);
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://localhost/")

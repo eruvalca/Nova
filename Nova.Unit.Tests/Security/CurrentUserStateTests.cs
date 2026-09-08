@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Nova.Data.Tenancy;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -35,7 +35,7 @@ public sealed class CurrentUserStateTests
     /// No authenticated principal yields <see cref="Anonymous"/>.
     /// </summary>
     [Fact]
-    public void GetCurrentUserState_WithoutUser_ReturnsAnonymous()
+    public void GetCurrentUserStateWithoutUserReturnsAnonymous()
     {
         var state = CreateProvider(claims: null).GetCurrentUserState();
 
@@ -46,7 +46,7 @@ public sealed class CurrentUserStateTests
     /// A signed-in user without a club claim yields <see cref="AuthenticatedUser"/>.
     /// </summary>
     [Fact]
-    public void GetCurrentUserState_WithUserButNoClub_ReturnsAuthenticatedUser()
+    public void GetCurrentUserStateWithUserButNoClubReturnsAuthenticatedUser()
     {
         var provider = CreateProvider([new Claim(ClaimTypes.NameIdentifier, "42")]);
 
@@ -67,7 +67,7 @@ public sealed class CurrentUserStateTests
     [InlineData(Roles.ClubAdmin, true)]
     [InlineData(Roles.Admin, false)]
     [InlineData(Roles.StandardUser, false)]
-    public void GetCurrentUserState_WithClub_ReturnsClubMember(string? role, bool isClubAdmin)
+    public void GetCurrentUserStateWithClubReturnsClubMember(string? role, bool isClubAdmin)
     {
         List<Claim> claims =
         [
@@ -91,7 +91,7 @@ public sealed class CurrentUserStateTests
     /// Exhaustive Match works over all three cases.
     /// </summary>
     [Fact]
-    public void Match_IsExhaustiveOverAllCases()
+    public void MatchIsExhaustiveOverAllCases()
     {
         var state = CreateProvider([new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(NovaClaimTypes.ClubId, "2")]).GetCurrentUserState();
 
@@ -107,5 +107,5 @@ public sealed class CurrentUserStateTests
     /// The null provider always reports <see cref="Anonymous"/>.
     /// </summary>
     [Fact]
-    public void NullCurrentUserProvider_ReturnsAnonymous() => new NullCurrentUserProvider().GetCurrentUserState().Value.ShouldBeOfType<Anonymous>();
+    public void NullCurrentUserProviderReturnsAnonymous() => new NullCurrentUserProvider().GetCurrentUserState().Value.ShouldBeOfType<Anonymous>();
 }

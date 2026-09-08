@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -19,7 +20,7 @@ public partial class ConfirmEmail(
     /// <summary>
     /// Stores the status message to display to the user regarding email confirmation success or failure.
     /// </summary>
-    private string? statusMessage;
+    private string? _statusMessage;
 
     /// <summary>
     /// Gets or sets the cascading HTTP context from the parent component.
@@ -56,13 +57,13 @@ public partial class ConfirmEmail(
         if (user is null)
         {
             HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
-            statusMessage = $"Error loading user with ID {UserId}";
+            _statusMessage = $"Error loading user with ID {UserId}";
         }
         else
         {
             var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
             var result = await userManager.ConfirmEmailAsync(user, code);
-            statusMessage = result.Succeeded ? "Thank you for confirming your email." : "Error confirming your email.";
+            _statusMessage = result.Succeeded ? "Thank you for confirming your email." : "Error confirming your email.";
         }
     }
 }

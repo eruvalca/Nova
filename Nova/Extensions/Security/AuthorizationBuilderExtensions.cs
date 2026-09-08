@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Extensions.Security;
 
 /// <summary>
 /// Provides Nova authorization policy registration for the server host.
 /// </summary>
-public static class AuthorizationBuilderExtensions
+internal static class AuthorizationBuilderExtensions
 {
     extension(AuthorizationBuilder builder)
     {

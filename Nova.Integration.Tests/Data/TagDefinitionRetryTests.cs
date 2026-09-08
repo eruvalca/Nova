@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Tags;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using Shouldly;
 
@@ -24,11 +24,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// duplicate name is retried with a fresh context and leaves exactly one tag definition behind.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesWithFreshContext_AfterTransientReadFailure()
+    public async Task CreateRetriesWithFreshContextAfterTransientReadFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var tagName = $"Retry Read Tag {suffix}";
         long clubId;
 
@@ -72,11 +74,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// recognized by its stable operation identifier and is not replayed as a duplicate insert.
     /// </summary>
     [Fact]
-    public async Task Create_VerifiesCommittedOperation_AfterAmbiguousCommitFailure()
+    public async Task CreateVerifiesCommittedOperationAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var tagName = $"Ambiguous Commit Tag {suffix}";
         long clubId;
 
@@ -119,11 +123,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// with a fresh context and transaction without leaving a duplicate tag definition behind.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task CreateRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var tagName = $"Retry Create Tag {suffix}";
         long clubId;
 
@@ -167,11 +173,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// with a fresh context and transaction.
     /// </summary>
     [Fact]
-    public async Task Update_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task UpdateRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var updatedName = $"After Retry {suffix}";
         long clubId;
         long tagId;
@@ -229,11 +237,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// window deterministically instead of relying on two updates interleaving by chance.
     /// </remarks>
     [Fact]
-    public async Task Update_ReportsConflict_WhenDuplicateAppearsAfterTheProbe()
+    public async Task UpdateReportsConflictWhenDuplicateAppearsAfterTheProbeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var contestedName = $"Contested {suffix}";
         long clubId;
         long tagId;
@@ -254,9 +264,12 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
 
         var conflictInterceptor = new InsertAfterPlayerTagExistsProbeInterceptor(async () =>
         {
-            await using var conflicting = fixture.CreateAdminContext();
-            conflicting.PlayerTags.Add(CreateTag(contestedName, clubId, actorUserId));
-            await conflicting.SaveChangesAsync(CancellationToken.None);
+            var conflicting = fixture.CreateAdminContext();
+            await using (conflicting)
+            {
+                conflicting.PlayerTags.Add(CreateTag(contestedName, clubId, actorUserId));
+                await conflicting.SaveChangesAsync(CancellationToken.None);
+            }
         });
 
         var factory = new RetryingTenantDbContextFactory(
@@ -296,11 +309,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// window deterministically instead of relying on two creates interleaving by chance.
     /// </remarks>
     [Fact]
-    public async Task Create_ReportsConflict_WhenDuplicateAppearsAfterTheProbe()
+    public async Task CreateReportsConflictWhenDuplicateAppearsAfterTheProbeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var contestedName = $"Contested Create {suffix}";
         long clubId;
 
@@ -315,9 +330,12 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
 
         var conflictInterceptor = new InsertAfterPlayerTagExistsProbeInterceptor(async () =>
         {
-            await using var conflicting = fixture.CreateAdminContext();
-            conflicting.PlayerTags.Add(CreateTag(contestedName, clubId, actorUserId));
-            await conflicting.SaveChangesAsync(CancellationToken.None);
+            var conflicting = fixture.CreateAdminContext();
+            await using (conflicting)
+            {
+                conflicting.PlayerTags.Add(CreateTag(contestedName, clubId, actorUserId));
+                await conflicting.SaveChangesAsync(CancellationToken.None);
+            }
         });
 
         var factory = new RetryingTenantDbContextFactory(
@@ -357,11 +375,15 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// success and never overwrites the newer content.
     /// </remarks>
     [Fact]
-    public async Task Update_AmbiguousCommitThenNewerEdit_DoesNotOverwriteNewerContent()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task UpdateAmbiguousCommitThenNewerEditDoesNotOverwriteNewerContentAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long tagId;
 
@@ -439,11 +461,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// (not the mutable lifecycle status) and reports success without replaying the transition.
     /// </summary>
     [Fact]
-    public async Task Archive_VerifiesCommittedTransition_AfterAmbiguousCommitFailure()
+    public async Task ArchiveVerifiesCommittedTransitionAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long tagId;
 
@@ -489,11 +513,13 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// (not the mutable lifecycle status) and reports success without replaying the transition.
     /// </summary>
     [Fact]
-    public async Task Restore_VerifiesCommittedTransition_AfterAmbiguousCommitFailure()
+    public async Task RestoreVerifiesCommittedTransitionAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long tagId;
 
@@ -548,11 +574,15 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// restored Active status back to Archived.
     /// </remarks>
     [Fact]
-    public async Task Archive_AmbiguousCommitThenRestore_DoesNotOverwriteRestoredStatus()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ArchiveAmbiguousCommitThenRestoreDoesNotOverwriteRestoredStatusAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long tagId;
 
@@ -631,11 +661,15 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// archived status back to Active.
     /// </remarks>
     [Fact]
-    public async Task Restore_AmbiguousCommitThenArchive_DoesNotOverwriteArchivedStatus()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task RestoreAmbiguousCommitThenArchiveDoesNotOverwriteArchivedStatusAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long tagId;
 
@@ -718,11 +752,15 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// post-create active count of exactly the cap, returning a conflict instead of overflowing.
     /// </remarks>
     [Fact]
-    public async Task CreateAndRestore_AdvisoryClubLock_AllowsExactlyOnePastTheActiveCap()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CreateAndRestoreAdvisoryClubLockAllowsExactlyOnePastTheActiveCapAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long archivedTagId;
 

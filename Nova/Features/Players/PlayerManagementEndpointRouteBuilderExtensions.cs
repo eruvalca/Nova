@@ -1,7 +1,7 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Players;
 
@@ -25,7 +25,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
             // Create a new player and enroll them in all Active campaigns atomically.
-            group.MapPost(PlayerEndpoints.CreateRelative, CreatePlayerHandler)
+            group.MapPost(PlayerEndpoints.CreateRelative, CreatePlayerHandlerAsync)
                 .Produces<PlayerDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -35,7 +35,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
                 .WithName("CreatePlayer");
 
             // Update a player's permanent profile fields.
-            group.MapPut(PlayerEndpoints.UpdateRelative, UpdatePlayerHandler)
+            group.MapPut(PlayerEndpoints.UpdateRelative, UpdatePlayerHandlerAsync)
                 .Produces<PlayerDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -52,7 +52,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles POST /api/players — creates a new player and enrolls them in all Active campaigns.
     /// </summary>
-    private static async Task<IResult> CreatePlayerHandler(
+    private static async Task<IResult> CreatePlayerHandlerAsync(
         CreatePlayerInput input,
         IPlayerManagementService playerManagementService,
         CancellationToken cancellationToken)
@@ -64,7 +64,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles PUT /api/players/{playerId} — updates a player's permanent profile fields.
     /// </summary>
-    private static async Task<IResult> UpdatePlayerHandler(
+    private static async Task<IResult> UpdatePlayerHandlerAsync(
         long playerId,
         UpdatePlayerInput input,
         IPlayerManagementService playerManagementService,

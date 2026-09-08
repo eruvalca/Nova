@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using Shouldly;
 
@@ -23,10 +23,12 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// identifier.
     /// </summary>
     [Fact]
-    public async Task CreationOperationId_RejectsDuplicateWithinClub()
+    public async Task CreationOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var creationOperationId = Guid.CreateVersion7();
         var (clubId, _, assignmentId, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
@@ -49,12 +51,16 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// absent participation belongs to no request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task AddNote_ReportsNotFound_WhenTransientFailurePrecedesCommitOnMissingParticipation()
+    public async Task AddNoteReportsNotFoundWhenTransientFailurePrecedesCommitOnMissingParticipationAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var missingAssignmentId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -88,9 +94,11 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// reported as success and the note is persisted.
     /// </summary>
     [Fact]
-    public async Task AddNote_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task AddNoteReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, assignmentId, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
 
@@ -131,9 +139,11 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// Verifies a failed commit is retried instead of being mistaken for an older identical note.
     /// </summary>
     [Fact]
-    public async Task AddNote_RetriesFailedCommit_WhenIdenticalNoteAlreadyExists()
+    public async Task AddNoteRetriesFailedCommitWhenIdenticalNoteAlreadyExistsAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, assignmentId, existingNoteId) = await SeedNoteDataAsync(actorUserId, suffix);
         var content = $"Original note content {suffix}";
@@ -181,9 +191,13 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// paused add reports success and never re-inserts the note.
     /// </remarks>
     [Fact]
-    public async Task AddNote_AmbiguousCommitThenConcurrentDelete_DoesNotResurrectNote()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task AddNoteAmbiguousCommitThenConcurrentDeleteDoesNotResurrectNoteAsync()
+#pragma warning restore MA0051
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, assignmentId, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
 
@@ -226,7 +240,9 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 
             // The commit is durable, so the note is visible; a competing delete removes it.
             long noteId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var locate = fixture.CreateAdminContext())
+#pragma warning restore MA0004
             {
                 noteId = await locate.Notes
                     .Where(candidate => candidate.PlayerCampaignAssignmentId == assignmentId)
@@ -268,12 +284,16 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// belongs to no request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task EditNote_ReportsNotFound_WhenTransientFailurePrecedesCommitOnMissingNote()
+    public async Task EditNoteReportsNotFoundWhenTransientFailurePrecedesCommitOnMissingNoteAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var missingNoteId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -311,9 +331,11 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// reported as success and the note content is updated.
     /// </summary>
     [Fact]
-    public async Task EditNote_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task EditNoteReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
 
@@ -359,9 +381,13 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// never overwrites the newer content.
     /// </remarks>
     [Fact]
-    public async Task EditNote_AmbiguousCommitThenNewerEdit_DoesNotOverwriteNewerContent()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task EditNoteAmbiguousCommitThenNewerEditDoesNotOverwriteNewerContentAsync()
+#pragma warning restore MA0051
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
 
@@ -436,12 +462,16 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// belongs to no request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task DeleteNote_ReportsNotFound_WhenTransientFailurePrecedesCommitOnMissingNote()
+    public async Task DeleteNoteReportsNotFoundWhenTransientFailurePrecedesCommitOnMissingNoteAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var missingNoteId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -478,9 +508,11 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// reported as success and the note is removed.
     /// </summary>
     [Fact]
-    public async Task DeleteNote_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task DeleteNoteReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
 
@@ -520,7 +552,9 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     /// <param name="suffix">A unique suffix for generated names.</param>
     /// <param name="withNote">Whether the seeded evaluation note row should already exist.</param>
     /// <returns>The seeded club, campaign, participation, and note identifiers.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long ClubId, long CampaignId, long AssignmentId, long NoteId)> SeedNoteDataAsync(
+#pragma warning restore MA0051
         long actorUserId,
         string suffix,
         bool withNote = true)
@@ -529,81 +563,84 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Retry Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Retry Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Note",
-            LastName = $"Retry Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-
-        seed.AddRange(season, campaign, player);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
-        };
-        seed.Add(assignment);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        long noteId = 0;
-        if (withNote)
-        {
-            var note = new NoteEntity
+            var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                Content = $"Original note content {suffix}",
-                PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
+                Name = $"Note Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Note Retry Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             };
-            seed.Add(note);
-            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            noteId = note.NoteId;
-        }
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Note Retry Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                Season = season,
+                SeasonId = 0,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Note",
+                LastName = $"Retry Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
 
-        return (club.ClubId, campaign.CampaignId, assignment.PlayerCampaignAssignmentId, noteId);
+            seed.AddRange(season, campaign, player);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 7
+            };
+            seed.Add(assignment);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            long noteId = 0;
+            if (withNote)
+            {
+                var note = new NoteEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Content = $"Original note content {suffix}",
+                    PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                };
+                seed.Add(note);
+                await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+                noteId = note.NoteId;
+            }
+
+            return (club.ClubId, campaign.CampaignId, assignment.PlayerCampaignAssignmentId, noteId);
+        }
     }
 
     /// <summary>

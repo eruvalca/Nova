@@ -5,10 +5,10 @@ using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -18,14 +18,14 @@ namespace Nova.Unit.Tests.Account;
 /// <summary>
 /// Tests for <see cref="AccountDeletionService.GetDeletionPreviewAsync"/> and <see cref="AccountDeletionService.DeleteAccountAsync"/>.
 /// </summary>
-public class AccountDeletionServiceTests : IDisposable
+public sealed class AccountDeletionServiceTests : IDisposable
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const long ClubAId = 100;
     private const long ClubBId = 101;
     private const long AdminUserId = 200;
     private const long NonAdminUserId = 201;
     private const long SecondAdminUserId = 202;
-    private const long UnauthenticatedUserId = -1;
 
     private readonly TenancyTestHarness _harness = new();
     private readonly ILogger<AccountDeletionService> _mockLogger;
@@ -119,9 +119,9 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         // Setup FindByIdAsync to return users
-        userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
-        userManager.FindByIdAsync(NonAdminUserId.ToString()).Returns(Task.FromResult(_nonAdminUser)!);
-        userManager.FindByIdAsync(SecondAdminUserId.ToString()).Returns(Task.FromResult(_secondAdminUser)!);
+        userManager.FindByIdAsync(AdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_adminUser)!);
+        userManager.FindByIdAsync(NonAdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_nonAdminUser)!);
+        userManager.FindByIdAsync(SecondAdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_secondAdminUser)!);
 
         // Configure role checks - use Arg.Is to match exact users
         if (_adminUser != null)
@@ -167,7 +167,7 @@ public class AccountDeletionServiceTests : IDisposable
     #region GetDeletionPreviewAsync Tests
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsNoClubOrNonAdmin_WhenUserNotAuthenticated()
+    public async Task GetDeletionPreviewAsyncReturnsNoClubOrNonAdminWhenUserNotAuthenticatedAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = null;
@@ -184,7 +184,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsNoClubOrNonAdmin_WhenUserNotFound()
+    public async Task GetDeletionPreviewAsyncReturnsNoClubOrNonAdminWhenUserNotFoundAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = 999; // Non-existent user ID
@@ -201,7 +201,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsNoClubOrNonAdmin_WhenUserNotClubAdmin()
+    public async Task GetDeletionPreviewAsyncReturnsNoClubOrNonAdminWhenUserNotClubAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = NonAdminUserId;
@@ -218,7 +218,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsOnlyClubMember_WhenUserIsOnlyMemberOfClub()
+    public async Task GetDeletionPreviewAsyncReturnsOnlyClubMemberWhenUserIsOnlyMemberOfClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -239,7 +239,7 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
-        userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
+        userManager.FindByIdAsync(AdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_adminUser)!);
         userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin user is a ClubAdmin in Club A
@@ -250,7 +250,7 @@ public class AccountDeletionServiceTests : IDisposable
         using (var context = _harness.CreateAdminContext())
         {
             context.Users.RemoveRange(context.Users.Where(u => u.Id == NonAdminUserId || u.Id == SecondAdminUserId));
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new AccountDeletionService(
@@ -271,7 +271,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsSoleClubAdmin_WhenUserIsOnlyAdminButOtherMembersExist()
+    public async Task GetDeletionPreviewAsyncReturnsSoleClubAdminWhenUserIsOnlyAdminButOtherMembersExistAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -292,7 +292,7 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
-        userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
+        userManager.FindByIdAsync(AdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_adminUser)!);
         userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin user is a ClubAdmin in Club A (other members are not admins)
@@ -317,7 +317,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDeletionPreviewAsync_ReturnsNoClubOrNonAdmin_WhenAnotherAdminExistsInClub()
+    public async Task GetDeletionPreviewAsyncReturnsNoClubOrNonAdminWhenAnotherAdminExistsInClubAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -338,7 +338,7 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
-        userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
+        userManager.FindByIdAsync(AdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_adminUser)!);
         userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Both admin and secondAdmin are ClubAdmins in Club A
@@ -366,7 +366,7 @@ public class AccountDeletionServiceTests : IDisposable
     #region DeleteAccountAsync Tests
 
     [Fact]
-    public async Task DeleteAccountAsync_DeletesClubAndUser_WhenOnlyClubMember()
+    public async Task DeleteAccountAsyncDeletesClubAndUserWhenOnlyClubMemberAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = AdminUserId;
@@ -387,7 +387,7 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
-        userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
+        userManager.FindByIdAsync(AdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_adminUser)!);
         userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin is a ClubAdmin
@@ -401,7 +401,7 @@ public class AccountDeletionServiceTests : IDisposable
         using (var context = _harness.CreateAdminContext())
         {
             context.Users.RemoveRange(context.Users.Where(u => u.Id == NonAdminUserId || u.Id == SecondAdminUserId));
-            context.SaveChanges();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new AccountDeletionService(
@@ -422,7 +422,7 @@ public class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAccountAsync_DeletesUserOnly_WhenNoClubOrNonAdmin()
+    public async Task DeleteAccountAsyncDeletesUserOnlyWhenNoClubOrNonAdminAsync()
     {
         // Arrange
         _harness.CurrentUser.UserId = NonAdminUserId;
@@ -443,7 +443,7 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<IServiceProvider>(),
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
-        userManager.FindByIdAsync(NonAdminUserId.ToString()).Returns(Task.FromResult(_nonAdminUser)!);
+        userManager.FindByIdAsync(NonAdminUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Returns(Task.FromResult(_nonAdminUser)!);
         userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == NonAdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(false));
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
@@ -474,7 +474,7 @@ public class AccountDeletionServiceTests : IDisposable
         activity.ActorDisplayName.ShouldBe("Member User");
         var context = JsonSerializer.Deserialize<MembershipContext>(
             activity.PayloadJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            _caseInsensitiveJsonOptions);
         context.ShouldNotBeNull();
         context.MemberUserId.ShouldBe(NonAdminUserId);
         context.MemberDisplayName.ShouldBe("Member User");

@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Campaigns;
@@ -10,7 +10,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignLifecycleService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignLifecycleService(HttpClient http) : ICampaignLifecycleService
+internal sealed class HttpCampaignLifecycleService(HttpClient http) : ICampaignLifecycleService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<OpenCampaignResult>> OpenAsync(
@@ -44,7 +44,7 @@ public sealed class HttpCampaignLifecycleService(HttpClient http) : ICampaignLif
         long campaignId,
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.DeleteAsync(CampaignEndpoints.DeleteDraftUrl(campaignId), cancellationToken);
+        using var response = await http.DeleteAsync(new Uri(CampaignEndpoints.DeleteDraftUrl(campaignId), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -75,7 +75,7 @@ public sealed class HttpCampaignLifecycleService(HttpClient http) : ICampaignLif
         string requestUri,
         CancellationToken cancellationToken)
     {
-        using var response = await http.PostAsync(requestUri, content: null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(requestUri, UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

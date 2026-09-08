@@ -4,11 +4,11 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Players;
 
@@ -19,7 +19,7 @@ namespace Nova.Features.Players;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for service outcomes.</param>
-public sealed partial class PlayerManagementService(
+internal sealed partial class PlayerManagementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<PlayerManagementService> logger) : IPlayerManagementService
@@ -270,7 +270,9 @@ public sealed partial class PlayerManagementService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The updated player or a ProblemDetails-mappable failure.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<PlayerDto>> UpdatePlayerAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         UpdatePlayerInput input,
         long actorUserId,
@@ -356,17 +358,17 @@ public sealed partial class PlayerManagementService(
     /// Encodes graduation-year blocker items into the ServiceProblem errors dictionary using
     /// indexed keys so clients can read structured fields without parsing text.
     /// </summary>
-    private static IReadOnlyDictionary<string, string[]> BuildBlockerErrors(
+    private static Dictionary<string, string[]> BuildBlockerErrors(
         IReadOnlyList<GraduationYearBlockerItem> blockers)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
         for (var i = 0; i < blockers.Count; i++)
         {
             var b = blockers[i];
-            errors[$"blockers[{i}].assignmentId"] = [b.PlayerCampaignAssignmentId.ToString()];
-            errors[$"blockers[{i}].campaignId"] = [b.CampaignId.ToString()];
-            errors[$"blockers[{i}].teamId"] = [b.TeamId.ToString()];
-            errors[$"blockers[{i}].teamGraduationYear"] = [b.TeamGraduationYear.ToString()];
+            errors[$"blockers[{i}].assignmentId"] = [b.PlayerCampaignAssignmentId.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+            errors[$"blockers[{i}].campaignId"] = [b.CampaignId.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+            errors[$"blockers[{i}].teamId"] = [b.TeamId.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+            errors[$"blockers[{i}].teamGraduationYear"] = [b.TeamGraduationYear.ToString(System.Globalization.CultureInfo.InvariantCulture)];
         }
         return errors;
     }

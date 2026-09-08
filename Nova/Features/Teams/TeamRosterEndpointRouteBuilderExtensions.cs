@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Teams;
 
@@ -20,7 +20,7 @@ internal static class TeamRosterEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             endpoints.MapGroup(TeamRosterEndpoints.GroupPrefix)
-                .MapGet(TeamRosterEndpoints.GetRosterRelative, GetTeamRosterHandler)
+                .MapGet(TeamRosterEndpoints.GetRosterRelative, GetTeamRosterHandlerAsync)
                 .Produces<IReadOnlyList<TeamRosterItem>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -40,7 +40,7 @@ internal static class TeamRosterEndpointRouteBuilderExtensions
     /// <param name="teamRosterService">The team roster service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The roster result or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetTeamRosterHandler(
+    private static async Task<IResult> GetTeamRosterHandlerAsync(
         [AsParameters] GetTeamRosterInput input,
         ITeamRosterService teamRosterService,
         CancellationToken cancellationToken)

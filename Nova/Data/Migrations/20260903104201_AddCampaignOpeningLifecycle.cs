@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCampaignOpeningLifecycle : Migration
+internal partial class AddCampaignOpeningLifecycle : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Preserve ordered schema operations within the generated migration.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.DropCheckConstraint(
             name: "CK_Campaigns_StatusClosureMetadata",
@@ -54,14 +56,18 @@ public partial class AddCampaignOpeningLifecycle : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Campaigns_ClubId_OpeningOperationId",
             table: "Campaigns",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "OpeningOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"OpeningOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Campaigns_ClubId_SeasonId_SeasonOpeningSequence",
             table: "Campaigns",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "SeasonId", "SeasonOpeningSequence" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"SeasonOpeningSequence\" IS NOT NULL");
 

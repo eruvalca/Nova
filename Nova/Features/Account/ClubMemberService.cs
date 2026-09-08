@@ -8,19 +8,19 @@ using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Account;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 using OneOf.Types;
 
 namespace Nova.Features.Account;
 
 /// <summary>Lists club members and owns the transactional club-membership lifecycle.</summary>
-public sealed partial class ClubMemberService(
+internal sealed partial class ClubMemberService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -28,7 +28,7 @@ public sealed partial class ClubMemberService(
     ILogger<ClubMemberService> logger) : IClubMemberService
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(CancellationToken cancellationToken)
     {
         if (currentUserProvider.UserId is not long userId || currentUserProvider.ClubId is not long clubId)
         {
@@ -105,7 +105,9 @@ public sealed partial class ClubMemberService(
             cancellationToken);
     }
 
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<Success>> ExecuteAndRefreshAsync(MutationState state, CancellationToken cancellationToken)
+#pragma warning restore MA0051
     {
         ServiceResult<MutationReceipt> result;
         try
@@ -137,7 +139,9 @@ public sealed partial class ClubMemberService(
         {
             throw;
         }
+#pragma warning disable CA1031 // Report the operation failure without replaying a possibly committed mutation or sign-in refresh; the exception is logged.
         catch (Exception exception)
+#pragma warning restore CA1031
         {
             LogMutationFailed(exception, state.Kind, state.ActorUserId, state.TargetUserId, state.ClubId);
             return ServiceProblem.ServerError("The membership change could not be completed.");
@@ -169,14 +173,18 @@ public sealed partial class ClubMemberService(
                 success => success,
                 _ => ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed."));
         }
+#pragma warning disable CA1031 // Report the operation failure without replaying a possibly committed mutation or sign-in refresh; the exception is logged.
         catch (Exception exception)
+#pragma warning restore CA1031
         {
             LogSignInRefreshFailed(exception, state.ActorUserId);
             return ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed.");
         }
     }
 
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<MutationReceipt>> PersistMutationAsync(
+#pragma warning restore MA0051
         NovaAdminDbContext db,
         MutationState state,
         CommitAttemptTracker commitAttempted,
@@ -191,7 +199,9 @@ public sealed partial class ClubMemberService(
         await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
 
         var administratorRoleId = await db.Roles
+#pragma warning disable CA1862 // Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
             .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => (long?)role.Id)
             .SingleOrDefaultAsync(cancellationToken);
         if (administratorRoleId is null)

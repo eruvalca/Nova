@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Campaigns;
+﻿
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Campaigns.Components;

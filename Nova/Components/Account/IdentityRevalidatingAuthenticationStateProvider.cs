@@ -13,7 +13,7 @@ namespace Nova.Components.Account;
 /// Server-side authentication state provider that periodically revalidates the security stamp of the connected user.
 /// </summary>
 /// <remarks>
-/// The <paramref name="loggerFactory"/> parameter is passed to the base class as required by the ASP.NET Core framework 
+/// The <paramref name="loggerFactory"/> parameter is passed to the base class as required by the ASP.NET Core framework
 /// (<see cref="RevalidatingServerAuthenticationStateProvider"/>), which handles framework-level logging independently.
 /// </remarks>
 internal sealed class IdentityRevalidatingAuthenticationStateProvider(
@@ -39,7 +39,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProvider(
         AuthenticationState authenticationState, CancellationToken cancellationToken)
     {
         // Get the user manager from a new scope to ensure it fetches fresh data
-        await using var scope = scopeFactory.CreateAsyncScope();
+        var scope = scopeFactory.CreateAsyncScope();
+        await using var scopeDisposal = scope;
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<NovaUserEntity>>();
         return await ValidateSecurityStampAsync(userManager, authenticationState.User);
     }
@@ -59,15 +60,14 @@ internal sealed class IdentityRevalidatingAuthenticationStateProvider(
         {
             return false;
         }
-        else if (!userManager.SupportsUserSecurityStamp)
+
+        if (!userManager.SupportsUserSecurityStamp)
         {
             return true;
         }
-        else
-        {
-            var principalStamp = principal.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
-            var userStamp = await userManager.GetSecurityStampAsync(user);
-            return principalStamp == userStamp;
-        }
+
+        var principalStamp = principal.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
+        var userStamp = await userManager.GetSecurityStampAsync(user);
+        return string.Equals(principalStamp, userStamp, StringComparison.Ordinal);
     }
 }

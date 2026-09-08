@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -13,7 +13,7 @@ public sealed class TeamDetailContractTests
     /// Verifies the canonical team-detail URL.
     /// </summary>
     [Fact]
-    public void GetDetailUrl_BuildsCanonicalTeamDetailRoute()
+    public void GetDetailUrlBuildsCanonicalTeamDetailRoute()
     {
         TeamEndpoints.GetDetailUrl(123).ShouldBe("/api/teams/123");
     }
@@ -22,7 +22,7 @@ public sealed class TeamDetailContractTests
     /// Verifies the contract retains active and historical placement context.
     /// </summary>
     [Fact]
-    public void TeamDetailDto_SeparatesActiveImpactsFromHistoricalPlacements()
+    public void TeamDetailDtoSeparatesActiveImpactsFromHistoricalPlacements()
     {
         var active = new TeamPlacementImpactDto(
             1,

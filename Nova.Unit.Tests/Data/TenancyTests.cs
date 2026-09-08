@@ -7,8 +7,8 @@ using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Security;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Data;
@@ -16,7 +16,7 @@ namespace Nova.Unit.Tests.Data;
 /// <summary>
 /// A mutable <see cref="ICurrentUserProvider"/> for simulating different users in tests.
 /// </summary>
-public sealed class FakeCurrentUserProvider : ICurrentUserProvider
+internal sealed class FakeCurrentUserProvider : ICurrentUserProvider
 {
     public long? UserId { get; set; }
     public long? ClubId { get; set; }
@@ -34,7 +34,7 @@ public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 /// <summary>
 /// Creates the three application contexts over a shared in-memory Sqlite database.
 /// </summary>
-public sealed class TenancyTestHarness : IDisposable
+internal sealed class TenancyTestHarness : IDisposable
 {
     private readonly SqliteConnection _connection;
 
@@ -88,7 +88,7 @@ public sealed class TenancyTestHarness : IDisposable
     }
 }
 
-public class TenancyTests : IDisposable
+public sealed class TenancyTests : IDisposable
 {
     private const long ClubAId = 1;
     private const long ClubBId = 2;
@@ -112,7 +112,9 @@ public class TenancyTests : IDisposable
 
     public void Dispose() => _harness.Dispose();
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         // Admin context bypasses tenant guarding, allowing cross-tenant seeding.
         using var context = _harness.CreateAdminContext();
@@ -333,7 +335,7 @@ public class TenancyTests : IDisposable
         };
 
     [Fact]
-    public void Campaigns_HideDraftsFromMembers_AndShowThemToClubAdmins()
+    public void CampaignsHideDraftsFromMembersAndShowThemToClubAdmins()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using (var member = _harness.CreateReadContext())
@@ -348,7 +350,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void DraftEvaluationGraph_IsVisibleOnlyToOwningClubAdministratorsAndAdminContext()
+    public void DraftEvaluationGraphIsVisibleOnlyToOwningClubAdministratorsAndAdminContext()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using (var member = _harness.CreateReadContext())
@@ -385,7 +387,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void ActivityEvents_HideAdminOnlyRowsFromMembers_AndPreserveTenantIsolation()
+    public void ActivityEventsHideAdminOnlyRowsFromMembersAndPreserveTenantIsolation()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using (var member = _harness.CreateReadContext())
@@ -405,7 +407,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void TenantContext_ReturnsOnlyCurrentClubsRows()
+    public void TenantContextReturnsOnlyCurrentClubsRows()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -417,7 +419,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void TenantContext_UserWithoutClub_SeesNoTenantData()
+    public void TenantContextUserWithoutClubSeesNoTenantData()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -426,7 +428,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void TenantContext_ClubsAreUnfiltered()
+    public void TenantContextClubsAreUnfiltered()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -435,7 +437,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void ClubMembershipMutationReceipts_VisibleOnlyToOwningClub()
+    public void ClubMembershipMutationReceiptsVisibleOnlyToOwningClub()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -447,7 +449,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void ClubMembershipMutationReceipts_HiddenFromOtherClub()
+    public void ClubMembershipMutationReceiptsHiddenFromOtherClub()
     {
         ActAs(ClubBMemberId, ClubBId);
         using var context = _harness.CreateTenantContext();
@@ -459,7 +461,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnCrossTenantClubMembershipMutationReceiptAdd()
+    public void InterceptorThrowsOnCrossTenantClubMembershipMutationReceiptAdd()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -477,7 +479,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void AdminContext_BypassesTenantFilters()
+    public void AdminContextBypassesTenantFilters()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateAdminContext();
@@ -488,7 +490,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void ReadContext_AppliesTenantFilters_AndDoesNotTrack()
+    public void ReadContextAppliesTenantFiltersAndDoesNotTrack()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateReadContext();
@@ -500,7 +502,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadContext_AllSaveOverloads_Throw()
+    public async Task ReadContextAllSaveOverloadsThrowAsync()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateReadContext();
@@ -512,7 +514,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void JoinRequests_VisibleToRequester()
+    public void JoinRequestsVisibleToRequester()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -524,7 +526,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void JoinRequests_VisibleToTargetClubAdmin()
+    public void JoinRequestsVisibleToTargetClubAdmin()
     {
         ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
         using var context = _harness.CreateTenantContext();
@@ -533,7 +535,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void JoinRequests_HiddenFromNonAdminClubMember()
+    public void JoinRequestsHiddenFromNonAdminClubMember()
     {
         ActAs(ClubAMember1Id, ClubAId, isClubAdmin: false);
         using var context = _harness.CreateTenantContext();
@@ -542,7 +544,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void JoinRequests_HiddenFromOtherClubsAdmin()
+    public void JoinRequestsHiddenFromOtherClubsAdmin()
     {
         ActAs(ClubBMemberId, ClubBId, isClubAdmin: true);
         using var context = _harness.CreateTenantContext();
@@ -551,7 +553,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Users_MemberSeesClubmatesAndSelf()
+    public void UsersMemberSeesClubmatesAndSelf()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -562,7 +564,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Users_ClubLessUserSeesOnlySelf()
+    public void UsersClubLessUserSeesOnlySelf()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -573,7 +575,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void UserPhotos_MemberSeesClubmatesPhotosAndOwn()
+    public void UserPhotosMemberSeesClubmatesPhotosAndOwn()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -584,7 +586,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void UserPhotos_ClubLessUserSeesOnlyOwnPhoto()
+    public void UserPhotosClubLessUserSeesOnlyOwnPhoto()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -595,7 +597,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_StampsClubIdAndAuditFields_OnAdd()
+    public void InterceptorStampsClubIdAndAuditFieldsOnAdd()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -619,7 +621,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnCrossTenantAdd()
+    public void InterceptorThrowsOnCrossTenantAdd()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -640,7 +642,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnCrossTenantClubIdReassignment()
+    public void InterceptorThrowsOnCrossTenantClubIdReassignment()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -653,7 +655,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnCrossTenantDelete()
+    public void InterceptorThrowsOnCrossTenantDelete()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -682,7 +684,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_WhenUserHasNoClub()
+    public void InterceptorThrowsWhenUserHasNoClub()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -702,7 +704,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_StampsModifiedFields_OnUpdate()
+    public void InterceptorStampsModifiedFieldsOnUpdate()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -716,7 +718,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Notes_VisibleToOwningClubMember()
+    public void NotesVisibleToOwningClubMember()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -728,7 +730,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Notes_HiddenFromOtherClub()
+    public void NotesHiddenFromOtherClub()
     {
         ActAs(ClubBMemberId, ClubBId);
         using var context = _harness.CreateTenantContext();
@@ -740,7 +742,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnCrossTenantNoteAdd()
+    public void InterceptorThrowsOnCrossTenantNoteAdd()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -759,7 +761,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_AllowsClubLessUser_ToWriteJoinRequestSubmittedActivityEvent()
+    public void InterceptorAllowsClubLessUserToWriteJoinRequestSubmittedActivityEvent()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -777,11 +779,11 @@ public class TenancyTests : IDisposable
 
         // The club-less requester can write the join-request activity row for the club they
         // are requesting to join; the explicit ClubId and join-request kind are the carve-out.
-        context.SaveChanges();
+        context.SaveChanges().ShouldBe(1);
     }
 
     [Fact]
-    public void Interceptor_StillGuardsClubLessUser_WhenWritingOtherActivityEventKinds()
+    public void InterceptorStillGuardsClubLessUserWhenWritingOtherActivityEventKinds()
     {
         ActAs(NoClubUserId, clubId: null);
         using var context = _harness.CreateTenantContext();
@@ -804,7 +806,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_GuardsClubMember_WhenWritingJoinRequestSubmittedEventForAnotherClub()
+    public void InterceptorGuardsClubMemberWhenWritingJoinRequestSubmittedEventForAnotherClub()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var context = _harness.CreateTenantContext();
@@ -827,7 +829,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnExistingActivityEventUpdate()
+    public void InterceptorThrowsOnExistingActivityEventUpdate()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var admin = _harness.CreateAdminContext();
@@ -856,7 +858,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnExistingActivityEventDelete()
+    public void InterceptorThrowsOnExistingActivityEventDelete()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var admin = _harness.CreateAdminContext();
@@ -883,7 +885,7 @@ public class TenancyTests : IDisposable
     }
 
     [Fact]
-    public void Interceptor_Throws_OnAdminContextActivityEventDelete()
+    public void InterceptorThrowsOnAdminContextActivityEventDelete()
     {
         ActAs(ClubAMember1Id, ClubAId);
         using var admin = _harness.CreateAdminContext();

@@ -5,11 +5,11 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Security;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Security;
 using OneOf;
 using OneOf.Types;
 
@@ -18,7 +18,7 @@ namespace Nova.Features.Account;
 /// <summary>
 /// Server-side implementation of <see cref="IAccountDeletionService"/>: previews and executes account deletion.
 /// </summary>
-public sealed partial class AccountDeletionService(
+internal sealed partial class AccountDeletionService(
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     UserManager<NovaUserEntity> userManager,
@@ -26,7 +26,7 @@ public sealed partial class AccountDeletionService(
     ILogger<AccountDeletionService> logger) : IAccountDeletionService
 {
     /// <inheritdoc />
-    public async Task<AccountDeletionPreviewDto> GetDeletionPreviewAsync(CancellationToken cancellationToken = default)
+    public async Task<AccountDeletionPreviewDto> GetDeletionPreviewAsync(CancellationToken cancellationToken)
     {
         var facts = await GatherDeletionFactsAsync(cancellationToken);
         var preview = AccountDeletionPolicy.Evaluate(facts);
@@ -43,7 +43,7 @@ public sealed partial class AccountDeletionService(
     }
 
     /// <inheritdoc />
-    public async Task DeleteAccountAsync(CancellationToken cancellationToken = default)
+    public async Task DeleteAccountAsync(CancellationToken cancellationToken)
     {
         if (currentUserProvider.UserId is not long userId)
         {
@@ -91,7 +91,9 @@ public sealed partial class AccountDeletionService(
     /// <param name="commitAttempted">Tracks whether the attempt reached its commit.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The deletion, missing-user, or sole-administrator outcome.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<Success, NotFound, AccountDeletionBlocked>> PersistDeletionAsync(
+#pragma warning restore MA0051
         NovaAdminDbContext db,
         long userId,
         CommitAttemptTracker commitAttempted,
@@ -111,7 +113,9 @@ public sealed partial class AccountDeletionService(
         {
             await db.AcquireClubMembershipLockAsync(currentClubId, cancellationToken);
             var administratorRoleId = await db.Roles
+#pragma warning disable CA1862 // Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                 .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(role => (long?)role.Id)
                 .SingleOrDefaultAsync(cancellationToken);
             var userIsAdministrator = administratorRoleId is not null && await db.UserRoles.AnyAsync(
@@ -178,7 +182,7 @@ public sealed partial class AccountDeletionService(
             return new AccountDeletionFacts(false, false, false, null, null, 0, 0);
         }
 
-        var user = await userManager.FindByIdAsync(userId.ToString());
+        var user = await userManager.FindByIdAsync(userId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (user is null)
         {
             return new AccountDeletionFacts(true, false, false, currentUserProvider.ClubId, null, 0, 0);

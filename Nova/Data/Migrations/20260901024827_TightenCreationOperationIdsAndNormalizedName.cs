@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class TightenCreationOperationIdsAndNormalizedName : Migration
+internal partial class TightenCreationOperationIdsAndNormalizedName : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the generated migration operations ordered within their Up/Down method.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         // DESTRUCTIVE DECISION: rows without a creation-operation identifier predate
         // idempotent creation support, and tag rows without a normalized name predate
@@ -146,60 +148,80 @@ public partial class TightenCreationOperationIdsAndNormalizedName : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Teams_ClubId_CreationOperationId",
             table: "Teams",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_Seasons_ClubId_CreationOperationId",
             table: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_CreationOperationId",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_NormalizedName",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "NormalizedName" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_Players_ClubId_CreationOperationId",
             table: "Players",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_Notes_ClubId_CreationOperationId",
             table: "Notes",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_Clubs_CreatedById_CreationOperationId",
             table: "Clubs",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CreatedById", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_ClubId_CreationOperationId",
             table: "CampaignTagApplications",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_Campaigns_ClubId_CreationOperationId",
             table: "Campaigns",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true);
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the generated migration operations ordered within their Up/Down method.
     protected override void Down(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.DropIndex(
             name: "IX_Teams_ClubId_CreationOperationId",
@@ -312,63 +334,81 @@ public partial class TightenCreationOperationIdsAndNormalizedName : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Teams_ClubId_CreationOperationId",
             table: "Teams",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Seasons_ClubId_CreationOperationId",
             table: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_CreationOperationId",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_NormalizedName",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "NormalizedName" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"NormalizedName\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Players_ClubId_CreationOperationId",
             table: "Players",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Notes_ClubId_CreationOperationId",
             table: "Notes",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Clubs_CreatedById_CreationOperationId",
             table: "Clubs",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CreatedById", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_ClubId_CreationOperationId",
             table: "CampaignTagApplications",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_Campaigns_ClubId_CreationOperationId",
             table: "Campaigns",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
     }

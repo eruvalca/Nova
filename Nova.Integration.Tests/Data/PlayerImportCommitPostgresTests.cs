@@ -8,12 +8,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Features.Common;
 using Nova.Features.Players;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Security;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -27,7 +27,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies that a late save failure rolls back players, enrollment, and proof together.</summary>
     [Fact]
-    public async Task Commit_RollsBackEntireBatch_WhenSecondSaveFails()
+    public async Task CommitRollsBackEntireBatchWhenSecondSaveFailsAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -46,7 +46,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Commit_PersistsExactlyOnce_AfterTransientFailure(bool lostAcknowledgement)
+    public async Task CommitPersistsExactlyOnceAfterTransientFailureAsync(bool lostAcknowledgement)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -81,7 +81,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     [InlineData(true, false)]
     [InlineData(false, false)]
     [InlineData(false, true)]
-    public async Task Commit_SerializesCompetingImports_WithoutDuplicatePlayers(bool sameOperation, bool distinctActors)
+    public async Task CommitSerializesCompetingImportsWithoutDuplicatePlayersAsync(bool sameOperation, bool distinctActors)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -134,7 +134,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Commit_BlocksNewDuplicate_AfterContendingManualMutation(bool update)
+    public async Task CommitBlocksNewDuplicateAfterContendingManualMutationAsync(bool update)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Draft, ct);
@@ -192,14 +192,18 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     [InlineData("open")]
     [InlineData("close")]
     [InlineData("reopen")]
-    public async Task Commit_UsesAuthoritativeCampaign_AfterContendingLifecycleChange(string transition)
+    public async Task CommitUsesAuthoritativeCampaignAfterContendingLifecycleChangeAsync(string transition)
     {
         var ct = TestContext.Current.CancellationToken;
-        var initial = transition == "open" ? CampaignStatus.Draft
-            : transition == "close" ? CampaignStatus.Active : CampaignStatus.Closed;
+        var initial = transition switch
+        {
+            "open" => CampaignStatus.Draft,
+            "close" => CampaignStatus.Active,
+            _ => CampaignStatus.Closed
+        };
         var seed = await SeedAsync(initial, ct);
         ActAs(seed);
-        if (transition == "open")
+        if (string.Equals(transition, "open", StringComparison.Ordinal))
         {
             await using var db = fixture.CreateAdminContext();
             db.Players.Add(new PlayerEntity
@@ -226,7 +230,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
         try
         {
             await using var probe = fixture.CreateAdminContext();
-            var lockKey = transition == "close" ? long.MinValue + seed.CampaignId : (long.MinValue / 16) + seed.ClubId;
+            var lockKey = string.Equals(transition, "close", StringComparison.Ordinal) ? long.MinValue + seed.CampaignId : (long.MinValue / 16) + seed.ClubId;
             await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(probe, lockKey, ct);
         }
         finally
@@ -237,18 +241,18 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
         var result = await commit;
         result.IsSuccess.ShouldBeTrue();
         result.Value.CreatedRows.ShouldBe(2);
-        result.Value.EnrolledPlayers.ShouldBe(transition == "close" ? 0 : 2);
-        result.Value.WaitingPlayers.ShouldBe(transition == "close" ? 2 : 0);
-        result.Value.CampaignId.ShouldBe(transition == "close" ? null : seed.CampaignId);
-        await AssertCountsAsync(seed, transition == "open" ? 3 : 2,
-            transition == "close" ? 0 : transition == "open" ? 3 : 2, 1, ct);
+        result.Value.EnrolledPlayers.ShouldBe(string.Equals(transition, "close", StringComparison.Ordinal) ? 0 : 2);
+        result.Value.WaitingPlayers.ShouldBe(string.Equals(transition, "close", StringComparison.Ordinal) ? 2 : 0);
+        result.Value.CampaignId.ShouldBe(string.Equals(transition, "close", StringComparison.Ordinal) ? null : seed.CampaignId);
+        await AssertCountsAsync(seed, string.Equals(transition, "open", StringComparison.Ordinal) ? 3 : 2,
+transition switch { "close" => 0, "open" => 3, _ => 2 }, 1, ct);
     }
 
     /// <summary>Verifies opening and closure use the roster committed by a winning import.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CampaignTransition_ObservesImportedPlayers_AfterWaitingForImport(bool close)
+    public async Task CampaignTransitionObservesImportedPlayersAfterWaitingForImportAsync(bool close)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(close ? CampaignStatus.Active : CampaignStatus.Draft, ct);
@@ -291,7 +295,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies the complete lock order before any campaign enrollment is persisted.</summary>
     [Fact]
-    public async Task Commit_AcquiresMembershipSeasonRosterAndCampaignLocks_InGlobalOrder()
+    public async Task CommitAcquiresMembershipSeasonRosterAndCampaignLocksInGlobalOrderAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -314,7 +318,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies persisted role revocation defeats stale administrator claims after lock contention.</summary>
     [Fact]
-    public async Task Commit_RejectsRevokedAdministrator_AfterMembershipLockWait()
+    public async Task CommitRejectsRevokedAdministratorAfterMembershipLockWaitAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -341,7 +345,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies the database's final operation identity guard independently of the service.</summary>
     [Fact]
-    public async Task Receipt_RejectsDuplicateOperation_WithinClub()
+    public async Task ReceiptRejectsDuplicateOperationWithinClubAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Draft, ct);
@@ -359,7 +363,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies deleting mutable aggregates cannot delete commit proof or change recovered results.</summary>
     [Fact]
-    public async Task Commit_RecoversOriginalSnapshot_AfterPlayersAndCampaignAreDeleted()
+    public async Task CommitRecoversOriginalSnapshotAfterPlayersAndCampaignAreDeletedAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -368,7 +372,9 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
         var input = await PreviewAsync(service, Upload("First", "Second"), ct);
         var original = await service.CommitAsync(input, ct);
         original.IsSuccess.ShouldBeTrue();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var deletion = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             await deletion.Players.Where(x => x.ClubId == seed.ClubId).ExecuteDeleteAsync(ct);
             await deletion.Campaigns.Where(x => x.CampaignId == seed.CampaignId).ExecuteDeleteAsync(ct);
@@ -389,7 +395,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     [InlineData(1000, "duplicates")]
     [InlineData(200, "invalid")]
     [InlineData(1000, "invalid")]
-    public async Task Commit_UsesBoundedReaders_ForLargeFiles(int rowCount, string shape)
+    public async Task CommitUsesBoundedReadersForLargeFilesAsync(int rowCount, string shape)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Active, ct);
@@ -408,11 +414,11 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.TotalRows.ShouldBe(rowCount);
-        var expectedCreated = shape == "ready" ? rowCount : rowCount / 2;
+        var expectedCreated = string.Equals(shape, "ready", StringComparison.Ordinal) ? rowCount : rowCount / 2;
         result.Value.CreatedRows.ShouldBe(expectedCreated);
         result.Value.EnrolledPlayers.ShouldBe(expectedCreated);
-        result.Value.SkippedDuplicateRows.ShouldBe(shape == "duplicates" ? rowCount / 2 : 0);
-        result.Value.SkippedInvalidRows.ShouldBe(shape == "invalid" ? rowCount / 2 : 0);
+        result.Value.SkippedDuplicateRows.ShouldBe(string.Equals(shape, "duplicates", StringComparison.Ordinal) ? rowCount / 2 : 0);
+        result.Value.SkippedInvalidRows.ShouldBe(string.Equals(shape, "invalid", StringComparison.Ordinal) ? rowCount / 2 : 0);
         // Includes batched INSERT ... RETURNING readers as well as SELECTs. A per-row read
         // adds hundreds of commands and cannot fit this ceiling at either accepted size.
         counter.ReaderExecutionCount.ShouldBeGreaterThan(0);
@@ -459,10 +465,13 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     /// <summary>Verifies all three transaction aggregates within this test's isolated club.</summary>
     private async Task AssertCountsAsync(Seed seed, int players, int enrollments, int receipts, CancellationToken ct)
     {
-        await using var db = fixture.CreateAdminContext();
-        (await db.Players.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(players);
-        (await db.PlayerCampaignAssignments.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(enrollments);
-        (await db.PlayerImportReceipts.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(receipts);
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            (await db.Players.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(players);
+            (await db.PlayerCampaignAssignments.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(enrollments);
+            (await db.PlayerImportReceipts.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(receipts);
+        }
     }
 
     /// <summary>Creates the identity that a racing import must discover as a new duplicate.</summary>
@@ -493,11 +502,11 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     /// <summary>Completes the selected lifecycle mutation through its production service.</summary>
     private static async Task ChangeCampaignAsync(ICampaignLifecycleService service, long campaignId, string transition, CancellationToken ct)
     {
-        if (transition == "open")
+        if (string.Equals(transition, "open", StringComparison.Ordinal))
         {
             (await service.OpenAsync(campaignId, new OpenCampaignInput { OperationId = Guid.CreateVersion7() }, ct)).IsSuccess.ShouldBeTrue();
         }
-        else if (transition == "close")
+        else if (string.Equals(transition, "close", StringComparison.Ordinal))
         {
             (await service.CloseAsync(campaignId, ct)).IsSuccess.ShouldBeTrue();
         }
@@ -538,62 +547,72 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
-        await using var db = fixture.CreateAdminContext();
-        var user = new NovaUserEntity { FirstName = "Import", LastName = "Administrator" };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Import {Guid.NewGuid():N}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = user.Id
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(ct);
-        user.ClubId = club.ClubId;
-        var roleId = await db.Roles.Where(x => x.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Select(x => x.Id).SingleAsync(ct);
-        db.UserRoles.Add(new IdentityUserRole<long> { UserId = user.Id, RoleId = roleId });
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            ClubId = club.ClubId,
-            CreatedById = user.Id,
-            Name = "Import season",
-            StartDate = new DateOnly(2026, 1, 1)
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(ct);
-        club.CurrentSeasonId = season.SeasonId;
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            ClubId = club.ClubId,
-            CreatedById = user.Id,
-            SeasonId = season.SeasonId,
-            Name = "Import campaign",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = status,
-            ClosedAt = status == CampaignStatus.Closed ? DateTimeOffset.UtcNow : null,
-            ClosedById = status == CampaignStatus.Closed ? user.Id : null
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(ct);
-        return new Seed(club.ClubId, user.Id, campaign.CampaignId);
+            var user = new NovaUserEntity { FirstName = "Import", LastName = "Administrator" };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                Name = $"Import {Guid.NewGuid():N}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = user.Id
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(ct);
+            user.ClubId = club.ClubId;
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var roleId = await db.Roles.Where(x => x.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Select(x => x.Id).SingleAsync(ct);
+#pragma warning restore CA1862
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = user.Id, RoleId = roleId });
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                ClubId = club.ClubId,
+                CreatedById = user.Id,
+                Name = "Import season",
+                StartDate = new DateOnly(2026, 1, 1)
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(ct);
+            club.CurrentSeasonId = season.SeasonId;
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                ClubId = club.ClubId,
+                CreatedById = user.Id,
+                SeasonId = season.SeasonId,
+                Name = "Import campaign",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = status,
+                ClosedAt = status == CampaignStatus.Closed ? DateTimeOffset.UtcNow : null,
+                ClosedById = status == CampaignStatus.Closed ? user.Id : null
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(ct);
+            return new Seed(club.ClubId, user.Id, campaign.CampaignId);
+        }
     }
 
     /// <summary>Seeds a second real administrator to exercise club-wide contention across actors.</summary>
     private async Task<long> SeedAdditionalAdministratorAsync(long clubId, CancellationToken ct)
     {
-        await using var db = fixture.CreateAdminContext();
-        var user = new NovaUserEntity { FirstName = "Second", LastName = "Administrator", ClubId = clubId };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
-        var roleId = await db.Roles.Where(x => x.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Select(x => x.Id).SingleAsync(ct);
-        db.UserRoles.Add(new IdentityUserRole<long> { UserId = user.Id, RoleId = roleId });
-        await db.SaveChangesAsync(ct);
-        return user.Id;
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var user = new NovaUserEntity { FirstName = "Second", LastName = "Administrator", ClubId = clubId };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var roleId = await db.Roles.Where(x => x.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Select(x => x.Id).SingleAsync(ct);
+#pragma warning restore CA1862
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = user.Id, RoleId = roleId });
+            await db.SaveChangesAsync(ct);
+            return user.Id;
+        }
     }
 
     /// <summary>Identifies the isolated club, real actor, and campaign used by one scenario.</summary>

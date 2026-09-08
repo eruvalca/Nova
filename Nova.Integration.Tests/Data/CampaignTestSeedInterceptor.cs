@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Integration.Tests.Data;
 
@@ -12,7 +12,7 @@ namespace Nova.Integration.Tests.Data;
 /// </summary>
 internal sealed class CampaignTestSeedInterceptor : SaveChangesInterceptor
 {
-    private long nextOpeningSequence;
+    private long _nextOpeningSequence;
 
     /// <inheritdoc />
     public override InterceptionResult<int> SavingChanges(
@@ -89,7 +89,7 @@ internal sealed class CampaignTestSeedInterceptor : SaveChangesInterceptor
                 ? DateTimeOffset.UtcNow
                 : campaign.CreatedAt.ToUniversalTime();
             campaign.OpenedById ??= campaign.CreatedById;
-            campaign.SeasonOpeningSequence ??= Interlocked.Increment(ref nextOpeningSequence);
+            campaign.SeasonOpeningSequence ??= Interlocked.Increment(ref _nextOpeningSequence);
             campaign.InitialEnrolledPlayerCount ??= 0;
             campaign.InitialActiveTeamCount ??= 0;
         }

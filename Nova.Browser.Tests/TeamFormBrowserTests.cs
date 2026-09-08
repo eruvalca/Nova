@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -18,7 +18,7 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task TeamForm_Validation_RejectsWhitespaceName_AndStaysOnForm()
+    public async Task TeamFormValidationRejectsWhitespaceNameAndStaysOnFormAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -39,7 +39,7 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task TeamForm_Success_CreatesTeam_AndReflectsInRoster()
+    public async Task TeamFormSuccessCreatesTeamAndReflectsInRosterAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -61,7 +61,7 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task TeamForm_Responsive_PreservesInputs_AcrossViewports()
+    public async Task TeamFormResponsivePreservesInputsAcrossViewportsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -84,7 +84,7 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task TeamForm_Keyboard_TabAndEnter_Submits()
+    public async Task TeamFormKeyboardTabAndEnterSubmitsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -110,12 +110,11 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task TeamDetail_ActiveCampaignBadge_MeetsContrastThreshold()
+    public async Task TeamDetailActiveCampaignBadgeMeetsContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
         var teamId = await SeedTeamWithActivePlacementAsync(seed, cancellationToken);
-
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/teams/{teamId}").ToString());
@@ -132,9 +131,9 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
     /// <c>NOVA_A11Y_SCREENSHOTS=1</c>; otherwise skips so a green run always means the assertions executed.
     /// </summary>
     [Fact]
-    public async Task TeamDetail_A11yEvidence_CapturesScreenshots()
+    public async Task TeamDetailA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture team detail accessibility evidence.");
         }
@@ -177,9 +176,13 @@ public sealed class TeamFormBrowserTests(BrowserSuiteFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         long adminUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.AppHost.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         return (club.ClubId, adminEmail, adminUserId);

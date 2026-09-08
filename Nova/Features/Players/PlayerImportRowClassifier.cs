@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
 
 namespace Nova.Features.Players;
 
@@ -13,7 +13,9 @@ internal static class PlayerImportRowClassifier
     /// <param name="parsed">The structurally parsed source file.</param>
     /// <param name="cancellationToken">Cancels the database read.</param>
     /// <returns>Ordered row classifications using the existing import normalization rules.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     internal static async Task<IReadOnlyList<PlayerImportPreviewRow>> ClassifyAsync(
+#pragma warning restore MA0051
         ApplicationDbContext db, ParsedPlayerImport parsed, CancellationToken cancellationToken)
     {
         var readyCandidates = parsed.Rows

@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Campaigns.Components;
 
@@ -77,7 +78,7 @@ public partial class SeasonMetadataForm
     /// Submits a cloned local model to the parent callback.
     /// </summary>
     /// <returns>A task that completes when the parent callback finishes.</returns>
-    private async Task HandleValidSubmit() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
+    private async Task HandleValidSubmitAsync() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
 }
 
 /// <summary>
@@ -121,14 +122,18 @@ public sealed class SeasonMetadataFormState : IValidatableObject
     /// </summary>
     /// <param name="season">The selected season group.</param>
     /// <returns>A form state initialized with the current metadata.</returns>
-    public static SeasonMetadataFormState FromSeasonGroup(CampaignSeasonGroup season) => new()
+    public static SeasonMetadataFormState FromSeasonGroup(CampaignSeasonGroup season)
     {
-        SeasonId = season.SeasonId,
-        Name = season.Name,
-        StartDate = season.StartDate,
-        EndDate = season.EndDate,
-        ConcurrencyToken = season.ConcurrencyToken
-    };
+        ArgumentNullException.ThrowIfNull(season);
+        return new()
+        {
+            SeasonId = season.SeasonId,
+            Name = season.Name,
+            StartDate = season.StartDate,
+            EndDate = season.EndDate,
+            ConcurrencyToken = season.ConcurrencyToken
+        };
+    }
 
     /// <summary>
     /// Converts this state to an update-season-metadata input payload.

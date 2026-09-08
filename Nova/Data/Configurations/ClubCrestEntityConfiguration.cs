@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for Club Crest Entity Configuration.
 /// </summary>
-public sealed class ClubCrestEntityConfiguration : IEntityTypeConfiguration<ClubCrestEntity>
+internal sealed class ClubCrestEntityConfiguration : IEntityTypeConfiguration<ClubCrestEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

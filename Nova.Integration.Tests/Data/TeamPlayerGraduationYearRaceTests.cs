@@ -6,10 +6,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -40,10 +40,12 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// ordering is a property of the emitted SQL, not of how two connections happen to interleave.
     /// </remarks>
     [Fact]
-    public async Task TeamUpdate_LocksPlacedPlayersBeforeTeam()
+    public async Task TeamUpdateLocksPlacedPlayersBeforeTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
+#pragma warning restore CA5394
         var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
 
         fixture.CurrentUser.UserId = actorUserId;
@@ -70,10 +72,14 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// ineligible placement cannot both succeed, and that the surviving state satisfies the invariant.
     /// </summary>
     [Fact]
-    public async Task ConcurrentTeamAndPlayerUpdates_CannotStrandIneligiblePlacement()
+#pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
+    public async Task ConcurrentTeamAndPlayerUpdatesCannotStrandIneligiblePlacementAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
+#pragma warning restore CA5394
         var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
 
         fixture.CurrentUser.UserId = actorUserId;
@@ -145,10 +151,12 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// than waiting for two requests to interleave by chance.
     /// </remarks>
     [Fact]
-    public async Task TeamUpdate_ReportsConflict_WhenPlacementAppearsForUnlockedPlayer()
+    public async Task TeamUpdateReportsConflictWhenPlacementAppearsForUnlockedPlayerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
+#pragma warning restore CA5394
         var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
         var latecomerPlayerId = await SeedPlayerAsync(seed.ClubId, actorUserId, graduationYear: 2030);
         var campaignId = await ReadCampaignIdAsync(seed.PlacementId);
@@ -159,17 +167,20 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var latecomer = new PlacementAfterLockSetInterceptor(async () =>
         {
-            await using var independent = fixture.CreateAdminContext();
-            independent.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            var independent = fixture.CreateAdminContext();
+            await using (independent)
             {
-                PlayerId = latecomerPlayerId,
-                CampaignId = campaignId,
-                TeamId = seed.TeamId,
-                PlacementOutcome = PlacementOutcome.Assigned,
-                ClubId = seed.ClubId,
-                CreatedById = actorUserId
-            });
-            await independent.SaveChangesAsync(CancellationToken.None);
+                independent.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = latecomerPlayerId,
+                    CampaignId = campaignId,
+                    TeamId = seed.TeamId,
+                    PlacementOutcome = PlacementOutcome.Assigned,
+                    ClubId = seed.ClubId,
+                    CreatedById = actorUserId
+                });
+                await independent.SaveChangesAsync(CancellationToken.None);
+            }
         });
 
         var service = new TeamManagementService(
@@ -202,11 +213,14 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// <returns>The owning campaign identifier.</returns>
     private async Task<long> ReadCampaignIdAsync(long placementId)
     {
-        await using var read = fixture.CreateAdminContext();
-        return await read.PlayerCampaignAssignments
+        var read = fixture.CreateAdminContext();
+        await using (read)
+        {
+            return await read.PlayerCampaignAssignments
             .Where(assignment => assignment.PlayerCampaignAssignmentId == placementId)
             .Select(assignment => assignment.CampaignId)
             .SingleAsync(TestContext.Current.CancellationToken);
+        }
     }
 
     /// <summary>
@@ -218,20 +232,23 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// <returns>The seeded player identifier.</returns>
     private async Task<long> SeedPlayerAsync(long clubId, long actorUserId, int graduationYear)
     {
-        await using var seed = fixture.CreateAdminContext();
-        var player = new PlayerEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Latecomer",
-            LastName = $"Player{Guid.CreateVersion7().ToString("N")[..8]}",
-            DateOfBirth = new DateOnly(2012, 6, 6),
-            GraduationYear = graduationYear,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        seed.Players.Add(player);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-        return player.PlayerId;
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Latecomer",
+                LastName = $"Player{Guid.CreateVersion7().ToString("N")[..8]}",
+                DateOfBirth = new DateOnly(2012, 6, 6),
+                GraduationYear = graduationYear,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            seed.Players.Add(player);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return player.PlayerId;
+        }
     }
 
     /// <summary>
@@ -241,7 +258,9 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// <param name="teamGraduationYear">The team's starting graduation year.</param>
     /// <param name="playerGraduationYear">The player's starting graduation year.</param>
     /// <returns>Identifiers and current values needed by the assertions.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<PlacementSeed> SeedPlacementAsync(
+#pragma warning restore MA0051
         long actorUserId,
         int teamGraduationYear,
         int playerGraduationYear)
@@ -253,86 +272,88 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Race Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(cancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Race Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Race Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        seed.Seasons.Add(season);
-        await seed.SaveChangesAsync(cancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Race Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            seed.Seasons.Add(season);
+            await seed.SaveChangesAsync(cancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Race Campaign {suffix}",
-            StartDate = new DateOnly(2026, 8, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        seed.Campaigns.Add(campaign);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Race Campaign {suffix}",
+                StartDate = new DateOnly(2026, 8, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            seed.Campaigns.Add(campaign);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Race Team {suffix}",
-            GraduationYear = teamGraduationYear,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        seed.Teams.Add(team);
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Race Team {suffix}",
+                GraduationYear = teamGraduationYear,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            seed.Teams.Add(team);
 
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Race",
-            LastName = $"Player{suffix[..8]}",
-            DateOfBirth = new DateOnly(2012, 5, 5),
-            GraduationYear = playerGraduationYear,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        seed.Players.Add(player);
-        await seed.SaveChangesAsync(cancellationToken);
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Race",
+                LastName = $"Player{suffix[..8]}",
+                DateOfBirth = new DateOnly(2012, 5, 5),
+                GraduationYear = playerGraduationYear,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            seed.Players.Add(player);
+            await seed.SaveChangesAsync(cancellationToken);
 
-        var placement = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            TeamId = team.TeamId,
-            PlacementOutcome = PlacementOutcome.Assigned,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        seed.PlayerCampaignAssignments.Add(placement);
-        await seed.SaveChangesAsync(cancellationToken);
+            var placement = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                TeamId = team.TeamId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            seed.PlayerCampaignAssignments.Add(placement);
+            await seed.SaveChangesAsync(cancellationToken);
 
-        return new PlacementSeed(
-            club.ClubId,
-            team.TeamId,
-            team.Name,
-            player.PlayerId,
-            player.FirstName,
-            player.LastName,
-            player.DateOfBirth,
-            placement.PlayerCampaignAssignmentId);
+            return new PlacementSeed(
+                club.ClubId,
+                team.TeamId,
+                team.Name,
+                player.PlayerId,
+                player.FirstName,
+                player.LastName,
+                player.DateOfBirth,
+                placement.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>
@@ -433,12 +454,5 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         /// <returns>A new tenant context.</returns>
         public NovaDbContext CreateDbContext() => fixture.CreateTenantContext();
 
-        /// <summary>
-        /// Creates a tenant context asynchronously.
-        /// </summary>
-        /// <param name="_">A token that cancels context creation.</param>
-        /// <returns>A new tenant context.</returns>
-        public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
-            => ValueTask.FromResult(fixture.CreateTenantContext());
     }
 }

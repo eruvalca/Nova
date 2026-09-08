@@ -11,8 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Campaigns;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -29,7 +29,7 @@ public sealed class CampaignPlacementEndpointTests
     /// disabled antiforgery, the PUT verb, and the shared route name.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementEndpoint_RequiresClubMember_AndDisablesAntiforgery()
+    public async Task CampaignPlacementEndpointRequiresClubMemberAndDisablesAntiforgeryAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(_ => new CampaignPlacementService(
@@ -44,7 +44,7 @@ public sealed class CampaignPlacementEndpointTests
         var endpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .SingleOrDefault(candidate => candidate.RoutePattern.RawText == CampaignEndpoints.UpdateCampaignPlacement);
+            .SingleOrDefault(candidate => string.Equals(candidate.RoutePattern.RawText, CampaignEndpoints.UpdateCampaignPlacement, StringComparison.Ordinal));
 
         endpoint.ShouldNotBeNull(
             $"The placement update endpoint must be registered at '{CampaignEndpoints.UpdateCampaignPlacement}'.");
@@ -54,14 +54,14 @@ public sealed class CampaignPlacementEndpointTests
         endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()!.RequiresValidation.ShouldBeFalse();
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
             .ShouldBe(CampaignEndpoints.UpdateCampaignPlacementRouteName);
-        endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.ShouldContain(HttpMethods.Put);
+        endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.ShouldContain(HttpMethods.Put, StringComparer.Ordinal);
     }
 
     /// <summary>
     /// Verifies a successful placement result converts to a 200 response containing the new token.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsOk_WithConcurrencyToken_ForSuccess()
+    public async Task ToHttpResultReturnsOkWithConcurrencyTokenForSuccessAsync()
     {
         var token = Guid.NewGuid();
         PlacementUpdateResult result = new PlacementMutationSuccess(token);
@@ -77,9 +77,9 @@ public sealed class CampaignPlacementEndpointTests
     /// Verifies validation errors convert to a validation problem naming the offending fields.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsValidationProblem_WithErrors_ForValidationFailure()
+    public async Task ToHttpResultReturnsValidationProblemWithErrorsForValidationFailureAsync()
     {
-        var errors = new Dictionary<string, string[]>
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
             [nameof(UpdateCampaignPlacementInput.TeamId)] = ["A team is required for an assigned outcome."]
         };
@@ -98,7 +98,7 @@ public sealed class CampaignPlacementEndpointTests
     /// Verifies unavailable participation converts to a non-disclosing 404 response.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsNotFound_WithoutDisclosure_ForUnavailableParticipation()
+    public async Task ToHttpResultReturnsNotFoundWithoutDisclosureForUnavailableParticipationAsync()
     {
         PlacementUpdateResult result = new NotFound();
 
@@ -113,32 +113,32 @@ public sealed class CampaignPlacementEndpointTests
     /// Verifies forbidden placement results convert to a 403 response with the service detail.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsForbidden_WithServiceDetail_ForNonMemberCaller()
+    public async Task ToHttpResultReturnsForbiddenWithServiceDetailForNonMemberCallerAsync()
     {
-        const string detail = "You must be an approved club member to update campaign placements.";
-        PlacementUpdateResult result = new PlacementForbidden(detail);
+        const string Detail = "You must be an approved club member to update campaign placements.";
+        PlacementUpdateResult result = new PlacementForbidden(Detail);
 
         var httpContext = await ExecuteAsync(result);
 
         httpContext.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
         using var document = JsonDocument.Parse(httpContext.Body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
     /// Verifies conflict placement results convert to a 409 response with the service detail.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsConflict_WithServiceDetail_ForConflict()
+    public async Task ToHttpResultReturnsConflictWithServiceDetailForConflictAsync()
     {
-        const string detail = "The placement was changed by another user. Reload it and try again.";
-        PlacementUpdateResult result = new PlacementConflict(detail);
+        const string Detail = "The placement was changed by another user. Reload it and try again.";
+        PlacementUpdateResult result = new PlacementConflict(Detail);
 
         var httpContext = await ExecuteAsync(result);
 
         httpContext.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
         using var document = JsonDocument.Parse(httpContext.Body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
@@ -148,10 +148,14 @@ public sealed class CampaignPlacementEndpointTests
     /// <returns>The captured response status code and body text.</returns>
     private static async Task<(int StatusCode, string Body)> ExecuteAsync(PlacementUpdateResult result)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var services = new ServiceCollection()
+#pragma warning restore MA0004
             .AddLogging()
             .BuildServiceProvider();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var responseBody = new MemoryStream();
+#pragma warning restore MA0004
         var httpContext = new DefaultHttpContext
         {
             RequestServices = services,

@@ -24,7 +24,7 @@ public class ManageProfilePageTests : BunitContext
     /// the username read-only and the phone number editable.
     /// </summary>
     [Fact]
-    public void Render_ShowsAccountFormPrimitives_WithPreservedProfileFields()
+    public void RenderShowsAccountFormPrimitivesWithPreservedProfileFields()
     {
         var user = new NovaUserEntity
         {
@@ -35,7 +35,7 @@ public class ManageProfilePageTests : BunitContext
             PhoneNumber = "+1 512 555 0142",
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())],
+            [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))],
             IdentityConstants.ApplicationScheme));
         var httpContext = new DefaultHttpContext { User = principal };
         var userManager = CreateUserManager();
@@ -58,8 +58,7 @@ public class ManageProfilePageTests : BunitContext
         username.GetAttribute("value").ShouldBe(user.UserName);
         username.HasAttribute("disabled").ShouldBeTrue();
 
-        var phoneNumber = cut.FindAll("input").Single(element =>
-            element.GetAttribute("id") == "Input.PhoneNumber");
+        var phoneNumber = cut.FindAll("input").Single(element => string.Equals(element.GetAttribute("id"), "Input.PhoneNumber", StringComparison.Ordinal));
         phoneNumber.GetAttribute("value").ShouldBe(user.PhoneNumber);
         phoneNumber.GetAttribute("autocomplete").ShouldBe("tel");
 

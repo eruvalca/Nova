@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -18,13 +18,19 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>Verifies opening a Draft waits for placement and cannot enroll while the owning campaign remains Active.</summary>
     [Fact]
-    public async Task UpdatePlacement_SerializesCompetingOpening_WithoutCreatingAnotherDecision()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task UpdatePlacementSerializesCompetingOpeningWithoutCreatingAnotherDecisionAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         long draftId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var seed = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var seasonId = await seed.Clubs.Where(row => row.ClubId == clubId)
                 .Select(row => row.CurrentSeasonId).SingleAsync(cancellationToken);
@@ -87,14 +93,20 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies supersession locks an earlier decision's team even when the requested outcome has no team.</summary>
     [Fact]
-    public async Task UpdatePlacement_LocksPriorTeam_AndSupersedesItsDecisionAfterArchival()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task UpdatePlacementLocksPriorTeamAndSupersedesItsDecisionAfterArchivalAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         long priorAssignmentId;
         Guid priorToken;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var target = await db.PlayerCampaignAssignments.Include(row => row.Campaign)
                 .SingleAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
@@ -175,7 +187,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     [InlineData("zeroActor")]
     [InlineData("blankActor")]
     [InlineData("enrollment")]
-    public async Task PlacementDecision_RejectsInvalidAttribution_AtDatabaseBoundary(string invalidField)
+    public async Task PlacementDecisionRejectsInvalidAttributionAtDatabaseBoundaryAsync(string invalidField)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedPlacementDataAsync(7, Guid.NewGuid().ToString("N"));
@@ -212,14 +224,18 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     }
     /// <summary>Verifies receipt operation identifiers are unique within a tenant and reusable by another tenant.</summary>
     [Fact]
-    public async Task PlacementReceipt_EnforcesTenantScopedOperationUniqueness()
+    public async Task PlacementReceiptEnforcesTenantScopedOperationUniquenessAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var first = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         var second = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         var operationId = Guid.NewGuid();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateUnnormalizedAdminContext())
+#pragma warning restore MA0004
         {
             db.PlacementMutationReceipts.AddRange(
                 new PlacementMutationReceiptEntity
@@ -260,10 +276,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies same-campaign identical saves preserve attribution and never append duplicate activity or receipts.</summary>
     [Fact]
-    public async Task UpdatePlacement_IdenticalSavePreservesDecision_AndStaleIdenticalSaveConflicts()
+    public async Task UpdatePlacementIdenticalSavePreservesDecisionAndStaleIdenticalSaveConflictsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -295,10 +313,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies placement waits for season advancement and rechecks the committed current-season pointer.</summary>
     [Fact]
-    public async Task UpdatePlacement_RejectsNonCurrentSeason_AfterWaitingForSeasonLock()
+    public async Task UpdatePlacementRejectsNonCurrentSeasonAfterWaitingForSeasonLockAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -339,10 +359,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies target team lifecycle is reloaded after real PostgreSQL lock contention.</summary>
     [Fact]
-    public async Task UpdatePlacement_RejectsArchivedTarget_AfterWaitingForTeamLock()
+    public async Task UpdatePlacementRejectsArchivedTargetAfterWaitingForTeamLockAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -376,9 +398,11 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     /// and the placement is persisted exactly once.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacement_RetriesFailedCommit_AndPersistsReplacementToken()
+    public async Task UpdatePlacementRetriesFailedCommitAndPersistsReplacementTokenAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, suffix);
 
@@ -424,9 +448,11 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     /// reported as success rather than replayed into a spurious conflict against its own token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacement_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    public async Task UpdatePlacementReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, suffix);
 
@@ -468,10 +494,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     /// Verifies a durable receipt recovers the original success after a competing save changes the row token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacement_RecoversOriginalToken_WhenLaterSavePrecedesCommitVerification()
+    public async Task UpdatePlacementRecoversOriginalTokenWhenLaterSavePrecedesCommitVerificationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -490,7 +518,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
                 new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
             await gate.WaitForVerificationAttemptAsync(cancellationToken);
             Guid committedToken;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var locate = fixture.CreateAdminContext())
+#pragma warning restore MA0004
             {
                 committedToken = await locate.PlayerCampaignAssignments
                     .Where(row => row.PlayerCampaignAssignmentId == assignmentId)
@@ -525,10 +555,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     /// Verifies a receipt survives club deletion and recovers an acknowledged-lost placement without replaying it.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacement_RecoversOriginalSuccess_WhenClubDeletionPrecedesCommitVerification()
+    public async Task UpdatePlacementRecoversOriginalSuccessWhenClubDeletionPrecedesCommitVerificationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var (clubId, teamId, assignmentId, expectedToken) = await SeedPlacementDataAsync(actorUserId, Guid.NewGuid().ToString("N"));
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -545,7 +577,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
                 new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
             await gate.WaitForVerificationAttemptAsync(cancellationToken);
             Guid committedToken;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var delete = fixture.CreateAdminContext())
+#pragma warning restore MA0004
             {
                 committedToken = await delete.PlayerCampaignAssignments
                     .Where(row => row.PlayerCampaignAssignmentId == assignmentId)
@@ -582,7 +616,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     /// <param name="actorUserId">The creating user identifier.</param>
     /// <param name="suffix">A unique suffix for generated names.</param>
     /// <returns>The seeded club, team, participation, and participation concurrency token.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long ClubId, long TeamId, long AssignmentId, Guid ConcurrencyToken)> SeedPlacementDataAsync(
+#pragma warning restore MA0051
         long actorUserId,
         string suffix)
     {
@@ -590,76 +626,79 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var seed = fixture.CreateAdminContext();
-        var club = new ClubEntity
+        var seed = fixture.CreateAdminContext();
+        await using (seed)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        seed.Clubs.Add(club);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Retry Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Retry Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Place",
-            LastName = $"Retry Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Retry Team {suffix}",
-            GraduationYear = 2029,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Retry Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Retry Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                Season = season,
+                SeasonId = 0,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Place",
+                LastName = $"Retry Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Retry Team {suffix}",
+                GraduationYear = 2029,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
 
-        seed.AddRange(season, campaign, player, team);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            seed.AddRange(season, campaign, player, team);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var concurrencyToken = Guid.NewGuid();
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7,
-            ConcurrencyToken = concurrencyToken
-        };
-        seed.Add(assignment);
-        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var concurrencyToken = Guid.NewGuid();
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 7,
+                ConcurrencyToken = concurrencyToken
+            };
+            seed.Add(assignment);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return (club.ClubId, team.TeamId, assignment.PlayerCampaignAssignmentId, concurrencyToken);
+            return (club.ClubId, team.TeamId, assignment.PlayerCampaignAssignmentId, concurrencyToken);
+        }
     }
 }

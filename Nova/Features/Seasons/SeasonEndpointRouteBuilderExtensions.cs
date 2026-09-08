@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Seasons;
 
@@ -18,7 +18,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .MapGroup(SeasonEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapGet(SeasonEndpoints.CollectionRelative, ListHandler)
+            group.MapGet(SeasonEndpoints.CollectionRelative, ListHandlerAsync)
                 .Produces<SeasonPageResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -26,7 +26,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName("ListSeasons");
 
-            group.MapGet(SeasonEndpoints.DetailRelative, GetHandler)
+            group.MapGet(SeasonEndpoints.DetailRelative, GetHandlerAsync)
                 .Produces<SeasonDetailResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -35,7 +35,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(SeasonEndpoints.GetDetailRouteName);
 
-            group.MapPost(SeasonEndpoints.CollectionRelative, CreateHandler)
+            group.MapPost(SeasonEndpoints.CollectionRelative, CreateHandlerAsync)
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<SeasonSummary>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
@@ -47,7 +47,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("CreateSeason");
 
-            group.MapPut(SeasonEndpoints.DetailRelative, UpdateHandler)
+            group.MapPut(SeasonEndpoints.DetailRelative, UpdateHandlerAsync)
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<SeasonSummary>()
                 .ProducesValidationProblem()
@@ -59,7 +59,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("UpdateSeason");
 
-            group.MapPost(SeasonEndpoints.StartNextRelative, StartNextHandler)
+            group.MapPost(SeasonEndpoints.StartNextRelative, StartNextHandlerAsync)
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<StartNextSeasonResult>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
@@ -75,21 +75,21 @@ internal static class SeasonEndpointRouteBuilderExtensions
     }
 
     /// <summary>Handles season-list reads.</summary>
-    private static async Task<IResult> ListHandler(
+    private static async Task<IResult> ListHandlerAsync(
         [AsParameters] GetSeasonListInput input,
         ISeasonQueryService service,
         CancellationToken cancellationToken)
         => (await service.ListAsync(input, cancellationToken)).ToHttpResult();
 
     /// <summary>Handles season-detail reads.</summary>
-    private static async Task<IResult> GetHandler(
+    private static async Task<IResult> GetHandlerAsync(
         [AsParameters] GetSeasonDetailInput input,
         ISeasonQueryService service,
         CancellationToken cancellationToken)
         => (await service.GetAsync(input, cancellationToken)).ToHttpResult();
 
     /// <summary>Handles first-current-season creation.</summary>
-    private static async Task<IResult> CreateHandler(
+    private static async Task<IResult> CreateHandlerAsync(
         CreateSeasonInput input,
         ISeasonCommandService service,
         CancellationToken cancellationToken)
@@ -100,7 +100,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 new { seasonId = season.SeasonId }));
 
     /// <summary>Handles metadata updates.</summary>
-    private static async Task<IResult> UpdateHandler(
+    private static async Task<IResult> UpdateHandlerAsync(
         long seasonId,
         UpdateSeasonInput input,
         ISeasonCommandService service,
@@ -108,7 +108,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
         => (await service.UpdateAsync(seasonId, input, cancellationToken)).ToHttpResult();
 
     /// <summary>Handles atomic season advancement.</summary>
-    private static async Task<IResult> StartNextHandler(
+    private static async Task<IResult> StartNextHandlerAsync(
         StartNextSeasonInput input,
         ISeasonCommandService service,
         CancellationToken cancellationToken)

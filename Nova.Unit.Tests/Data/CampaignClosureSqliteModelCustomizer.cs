@@ -6,7 +6,9 @@ namespace Nova.Unit.Tests.Data;
 
 /// <summary>Maps campaign closure instants to sortable UTC ticks in the SQLite service harness.</summary>
 /// <param name="dependencies">The default model customization dependencies.</param>
-public sealed class CampaignClosureSqliteModelCustomizer(ModelCustomizerDependencies dependencies)
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
+internal sealed class CampaignClosureSqliteModelCustomizer(ModelCustomizerDependencies dependencies)
+#pragma warning restore CA1812
     : ModelCustomizer(dependencies)
 {
     /// <summary>Preserves the application model while replacing SQLite's unsupported timestamp ordering.</summary>

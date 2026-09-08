@@ -1,10 +1,11 @@
-﻿using System.Security.Claims;
+﻿
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Campaigns.Components;
 
 namespace Nova.UI.Features.Campaigns.Pages;
@@ -73,7 +74,7 @@ public partial class NewCampaign(
             return;
         }
         _scope = Identity(state);
-        if (Initialized && SnapshotScope == _scope)
+        if (Initialized && string.Equals(SnapshotScope, _scope, StringComparison.Ordinal))
         {
             _setup = PersistedSetup;
             _pageError = PersistedPageError;
@@ -98,7 +99,7 @@ public partial class NewCampaign(
             return;
         }
         var next = Identity(state);
-        if (next == _scope)
+        if (string.Equals(next, _scope, StringComparison.Ordinal))
         {
             return;
         }
@@ -319,7 +320,9 @@ public partial class NewCampaign(
     /// <summary>Persists and submits the original payload, retaining uncertain creation for replay.</summary>
     /// <param name="model">The editable input used only when no original request is pending.</param>
     /// <returns>The creation or exact-request recovery task.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task CreateCampaignAsync(CampaignCreateFormState model)
+#pragma warning restore MA0051
     {
         if (_isSubmitting || !_sessionReady)
         {
@@ -427,7 +430,7 @@ public partial class NewCampaign(
         authentication.AuthenticationStateChanged -= AuthenticationChanged;
         if (_module is not null)
         {
-            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { }
+            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { /* The disconnected circuit has already released its browser resources. */ }
         }
         await base.DisposeAsyncCore();
     }

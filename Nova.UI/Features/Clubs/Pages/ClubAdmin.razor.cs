@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+﻿
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Clubs.Pages;

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Photos;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
 using Shouldly;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -22,7 +22,7 @@ namespace Nova.Integration.Tests.Data;
 public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
 {
     [Fact]
-    public async Task SaveProfilePhoto_UploadsBlobsAndPersistsRow()
+    public async Task SaveProfilePhotoUploadsBlobsAndPersistsRowAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Pia", cancellationToken);
@@ -59,7 +59,7 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task SaveProfilePhoto_ReplacesExistingPhotoAndDeletesOldBlobs()
+    public async Task SaveProfilePhotoReplacesExistingPhotoAndDeletesOldBlobsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Rae", cancellationToken);
@@ -71,7 +71,9 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
             new ProfilePhotoUpload(CreateJpeg(300, 200), "image/jpeg", "first.jpg"), cancellationToken)).IsSuccess.ShouldBeTrue();
 
         string firstOriginal;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateReadContext())
+#pragma warning restore MA0004
         {
             firstOriginal = (await context.NovaUserPhotos.SingleAsync(p => p.NovaUserId == userId, cancellationToken)).OriginalBlobName;
         }
@@ -79,11 +81,13 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
         (await service.SaveProfilePhotoAsync(
             new ProfilePhotoUpload(CreateJpeg(400, 400), "image/jpeg", "second.jpg"), cancellationToken)).IsSuccess.ShouldBeTrue();
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateReadContext())
+#pragma warning restore MA0004
         {
             var photos = await context.NovaUserPhotos.Where(p => p.NovaUserId == userId).ToListAsync(cancellationToken);
             photos.ShouldHaveSingleItem();
-            photos[0].OriginalBlobName.ShouldNotBe(firstOriginal);
+            photos[0].OriginalBlobName.ShouldNotBe(firstOriginal, StringComparer.Ordinal);
         }
 
         (await fixture.ProfilePhotosContainer.GetBlobClient(firstOriginal).ExistsAsync(cancellationToken)).Value
@@ -91,7 +95,7 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task SaveProfilePhoto_RejectsContentThatIsNotAnAllowedImage()
+    public async Task SaveProfilePhotoRejectsContentThatIsNotAnAllowedImageAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Sam", cancellationToken);
@@ -109,7 +113,7 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task SaveProfilePhoto_RejectsOversizedDimensions_WithoutUploading()
+    public async Task SaveProfilePhotoRejectsOversizedDimensionsWithoutUploadingAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Max", cancellationToken);
@@ -132,7 +136,7 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task SaveProfilePhoto_StripsExifMetadataFromStoredOriginal()
+    public async Task SaveProfilePhotoStripsExifMetadataFromStoredOriginalAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Gia", cancellationToken);
@@ -158,12 +162,14 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task NovaUserPhotos_RejectsSecondRowForSameUser_ViaUniqueIndex()
+    public async Task NovaUserPhotosRejectsSecondRowForSameUserViaUniqueIndexAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var userId = await SeedUserAsync("Uli", cancellationToken);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             context.NovaUserPhotos.Add(new NovaUserPhotoEntity { NovaUserId = userId, OriginalBlobName = "first", CreatedById = userId });
             await context.SaveChangesAsync(cancellationToken);
@@ -171,7 +177,9 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
 
         // A concurrent first upload that lost the check-then-insert race must fail at the
         // database (the service's DbUpdateException catch turns this into a retryable error).
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             context.NovaUserPhotos.Add(new NovaUserPhotoEntity { NovaUserId = userId, OriginalBlobName = "second", CreatedById = userId });
             await Should.ThrowAsync<DbUpdateException>(
@@ -198,11 +206,14 @@ public class ProfilePhotoServiceTests(NovaAppHostFixture fixture)
     /// <returns>The new user's id.</returns>
     private async Task<long> SeedUserAsync(string firstName, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = new NovaUserEntity { FirstName = firstName, LastName = "PhotoTest", ClubId = null };
-        context.Users.Add(user);
-        await context.SaveChangesAsync(cancellationToken);
-        return user.Id;
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = new NovaUserEntity { FirstName = firstName, LastName = "PhotoTest", ClubId = null };
+            context.Users.Add(user);
+            await context.SaveChangesAsync(cancellationToken);
+            return user.Id;
+        }
     }
 
     /// <summary>

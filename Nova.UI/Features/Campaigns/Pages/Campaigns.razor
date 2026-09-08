@@ -2,8 +2,8 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
-@using Nova.Shared.Enums
-@using Nova.Shared.Security
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Security
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>Campaigns</PageTitle>
@@ -18,9 +18,13 @@ FORM: Directory companion to the approved Details and readiness system. -->
         <h1 class="mb-0">Campaigns</h1>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <label for="campaigns-view-filter" class="visually-hidden">Campaign view</label>
-            <select id="campaigns-view-filter" class="form-select campaigns-view-select" value="@_statusFilter" disabled="@_isMutating" @onchange="OnStatusFilterChangedAsync">
+            <select id="campaigns-view-filter" class="form-select campaigns-view-select" value="@_statusFilter"
+                    disabled="@_isMutating" @onchange="OnStatusFilterChangedAsync">
                 <option value="all">All campaigns</option>
-                @if (_canManageCampaigns) { <option value="draft">Draft</option> }
+                @if (_canManageCampaigns)
+                {
+                    <option value="draft">Draft</option>
+                }
                 <option value="active">Active</option>
                 <option value="closed">Closed</option>
             </select>
@@ -47,14 +51,9 @@ FORM: Directory companion to the approved Details and readiness system. -->
     @if (_editCampaignForm is not null)
     {
         <div class="mb-3">
-            <CampaignMetadataForm Heading="Edit campaign metadata"
-                                  Model="_editCampaignForm"
-                                  Seasons="_editFormSeasonChoices"
-                                  TotalSeasonCount="_seasonChoiceTotalCount"
-                                  SubmitButtonText="Save changes"
-                                  IsSubmitting="_isMutating"
-                                  ErrorMessage="@_mutationError"
-                                  OnValidSubmit="UpdateCampaignAsync"
+            <CampaignMetadataForm Heading="Edit campaign metadata" Model="_editCampaignForm"
+                                  Seasons="_editFormSeasonChoices" TotalSeasonCount="_seasonChoiceTotalCount" SubmitButtonText="Save changes"
+                                  IsSubmitting="_isMutating" ErrorMessage="@_mutationError" OnValidSubmit="UpdateCampaignAsync"
                                   OnCancel="CancelMutationForm" />
         </div>
     }
@@ -62,12 +61,8 @@ FORM: Directory companion to the approved Details and readiness system. -->
     @if (_editSeasonForm is not null)
     {
         <div class="mb-3">
-            <SeasonMetadataForm Heading="Edit season metadata"
-                                Model="_editSeasonForm"
-                                SubmitButtonText="Save changes"
-                                IsSubmitting="_isMutating"
-                                ErrorMessage="@_mutationError"
-                                OnValidSubmit="UpdateSeasonAsync"
+            <SeasonMetadataForm Heading="Edit season metadata" Model="_editSeasonForm" SubmitButtonText="Save changes"
+                                IsSubmitting="_isMutating" ErrorMessage="@_mutationError" OnValidSubmit="UpdateSeasonAsync"
                                 OnCancel="CancelMutationForm" />
         </div>
     }
@@ -75,125 +70,144 @@ FORM: Directory companion to the approved Details and readiness system. -->
     @if (_mutationConflict)
     {
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
-            <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying again.</span>
-            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
-        </div>
-    }
+            <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying
+                again.</span>
+                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
+                </div>
+            }
 
-    @if (_isLoading)
-    {
-        <div class="campaign-directory-board">
-            <div class="card-body d-flex align-items-center gap-2">
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                <span>Loading campaigns...</span>
-            </div>
-        </div>
-    }
-    else if (_list is not null && _list.Seasons.Count == 0)
-    {
-        <div class="campaign-directory-board">
-            <div class="card-body">
-                @if (_statusFilter != "closed")
-                {
-                    <h2 class="h5 mb-2">No campaigns available</h2>
-                    @if (_canManageCampaigns)
-                    {
-                        <p class="text-muted mb-3">Create a Draft to prepare your campaign. Players enroll when you explicitly open it.</p>
-                        <a class="btn btn-primary" href="campaigns/new">Create campaign</a>
-                    }
-                    else
-                    {
-                        <p class="text-muted mb-0">No campaigns are available in this view. An administrator can open a campaign for club work.</p>
-                    }
-                }
-                else
-                {
-                    <h2 class="h5 mb-2">No closed campaigns</h2>
-                    <p class="text-muted mb-0">Closed campaigns will appear here grouped by season.</p>
-                }
-            </div>
-        </div>
-    }
-    else if (_list is not null)
-    {
-        <div class="campaign-directory-board">
-        @foreach (var season in _list.Seasons)
-        {
-            <section class="campaign-season-group" aria-labelledby="season-heading-@season.SeasonId">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                        <div>
-                            <h2 class="h5 mb-0" id="season-heading-@season.SeasonId">@season.Name</h2>
-                            @if (season.SeasonId == _list.CurrentSeasonId) { <span>Current season</span> }
-                            <div class="text-muted small">@FormatSeasonDates(season)</div>
-                        </div>
-                        @if (_canManageCampaigns && _statusFilter != "closed")
-                        {
-                            <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit season @season.Name" disabled="@_isMutating" @onclick="() => BeginEditSeason(season)">
-                                Edit season
-                            </button>
-                        }
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Dates</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Participants</th>
-                                    <th scope="col">Next action</th>
-                                    @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status == CampaignStatus.Active))
-                                    {
-                                        <th scope="col" class="text-end">Actions</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var campaign in season.Campaigns)
-                                {
-                                    <tr>
-                                        <td><a href="@($"campaigns/{campaign.CampaignId}")">@campaign.Name</a></td>
-                                        <td class="text-nowrap">@FormatCampaignDates(campaign)</td>
-                                        <td>
-                                            <span class="badge @CampaignStatusBadgeClass(campaign.Status)">@campaign.Status</span>
-                                            @if (campaign.Status == CampaignStatus.Closed)
-                                            {
-                                                <div class="text-muted small">Immutable campaign record</div>
-                                            }
-                                        </td>
-                                        <td>@(campaign.Status == CampaignStatus.Draft ? $"{_list.DraftActivePlayerCount} active {(_list.DraftActivePlayerCount == 1 ? "player" : "players")} will enroll" : $"{campaign.ParticipantCount} {(campaign.ParticipantCount == 1 ? "participant" : "participants")}")</td>
-                                        <td><a href="@($"/campaigns/{campaign.CampaignId}")">@(campaign.Status == CampaignStatus.Draft ? "Prepare draft" : campaign.Status == CampaignStatus.Active ? "Continue campaign" : "View record")</a></td>
-                                        @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status == CampaignStatus.Active))
-                                        {
-                                            <td class="text-end">
-                                                @if (campaign.Status == CampaignStatus.Active)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit campaign @campaign.Name in @season.Name" disabled="@_isMutating" @onclick="() => BeginEditCampaignAsync(campaign, season)">
-                                                        Edit
-                                                    </button>
-                                                }
-                                            </td>
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+            @if (_isLoading)
+            {
+                <div class="campaign-directory-board">
+                    <div class="card-body d-flex align-items-center gap-2">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        <span>Loading campaigns...</span>
                     </div>
                 </div>
-            </section>
-        }
-        </div>
+            }
+            else if (_list is not null && _list.Seasons.Count == 0)
+            {
+                <div class="campaign-directory-board">
+                    <div class="card-body">
+                        @if (_statusFilter != "closed")
+                        {
+                            <h2 class="h5 mb-2">No campaigns available</h2>
+                            @if (_canManageCampaigns)
+                            {
+                                <p class="text-muted mb-3">Create a Draft to prepare your campaign. Players enroll when you explicitly open
+                                    it.</p>
+                                    <a class="btn btn-primary" href="campaigns/new">Create campaign</a>
+                                }
+                    else
+                                {
+                                    <p class="text-muted mb-0">No campaigns are available in this view. An administrator can open a campaign for club work.</p>
+                                    }
+                                }
+                else
+                                {
+                                    <h2 class="h5 mb-2">No closed campaigns</h2>
+                                    <p class="text-muted mb-0">Closed campaigns will appear here grouped by season.</p>
+                                }
+                            </div>
+                        </div>
+                    }
+    else if (_list is not null)
+                    {
+                        <div class="campaign-directory-board">
+                            @foreach (var season in _list.Seasons)
+                            {
+                                <section class="campaign-season-group" aria-labelledby="season-heading-@season.SeasonId">
+                                    <div class="card-body">
+                                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                                            <div>
+                                                <h2 class="h5 mb-0" id="season-heading-@season.SeasonId">@season.Name</h2>
+                                                @if (season.SeasonId == _list.CurrentSeasonId)
+                                                {
+                                                    <span>Current season</span>
+                                                }
+                                                <div class="text-muted small">@FormatSeasonDates(season)</div>
+                                            </div>
+                                            @if (_canManageCampaigns && _statusFilter != "closed")
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit season @season.Name"
+                                                        disabled="@_isMutating" @onclick="() => BeginEditSeason(season)">
+                                                    Edit season
+                                                </button>
+                                            }
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table align-middle mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th scope="col">Name</th>
+                                                        <th scope="col">Dates</th>
+                                                        <th scope="col">Status</th>
+                                                        <th scope="col">Participants</th>
+                                                        <th scope="col">Next action</th>
+                                                        @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status ==
+                                                    CampaignStatus.Active))
+                                                        {
+                                                            <th scope="col" class="text-end">Actions</th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var campaign in season.Campaigns)
+                                                    {
+                                                        <tr>
+                                                            <td><a href="@($"campaigns/{campaign.CampaignId}")">@campaign.Name</a></td>
+                                                            <td class="text-nowrap">@FormatCampaignDates(campaign)</td>
+                                                            <td>
+                                                                <span
+                                                                class="badge @CampaignStatusBadgeClass(campaign.Status)">@campaign.Status</span>
+                                                                @if (campaign.Status == CampaignStatus.Closed)
+                                                                {
+                                                                    <div class="text-muted small">Immutable campaign record</div>
+                                                                }
+                                                            </td>
+                                                            <td>@CampaignEnrollmentLabel(campaign)</td>
+                                                                <td><a href="@($"/campaigns/{campaign.CampaignId}")">@CampaignActionLabel(campaign.Status)</a></td>
+                                                                    @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status ==
+                                                            CampaignStatus.Active))
+                                                                    {
+                                                                        <td class="text-end">
+                                                                            @if (campaign.Status == CampaignStatus.Active)
+                                                                            {
+                                                                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                                                                        aria-label="Edit campaign @campaign.Name in @season.Name"
+                                                                                        disabled="@_isMutating"
+                                                                                        @onclick="() => BeginEditCampaignAsync(campaign, season)">
+                                                                                    Edit
+                                                                                </button>
+                                                                            }
+                                                                        </td>
+                                                                    }
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    }
+                                </div>
 
-        @if (_list.TotalCount > 0)
-        {
-            <div class="campaign-pagination" role="status">
-                <p>Page @_page · Showing @LoadedCampaignCount of @_list.TotalCount campaigns</p>
-                <nav aria-label="Campaign pages">
-                    @if (_page > 1) { <a class="btn btn-outline-primary" href="@PageUrl(_page - 1)">Previous</a> }
-                    @if ((long)_page * 20 < _list.TotalCount) { <a class="btn btn-outline-primary" href="@PageUrl(_page + 1)">Next</a> }
-                </nav>
-            </div>
-        }
-    }
-</div>
+                                @if (_list.TotalCount > 0)
+                                {
+                                    <div class="campaign-pagination" role="status">
+                                        <p>Page @_page · Showing @LoadedCampaignCount of @_list.TotalCount campaigns</p>
+                                        <nav aria-label="Campaign pages">
+                                            @if (_page > 1)
+                                            {
+                                                <a class="btn btn-outline-primary" href="@PageUrl(_page - 1)">Previous</a>
+                                            }
+                                            @if ((long)_page * 20 < _list.TotalCount)
+                                            {
+                                                <a class="btn btn-outline-primary"
+                                                   href="@PageUrl(_page + 1)">Next</a>
+                                            }
+                                        </nav>
+                                    </div>
+                                }
+                            }
+                        </div>

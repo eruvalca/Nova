@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddEvaluationNoteCampaignAssociation : Migration
+internal partial class AddEvaluationNoteCampaignAssociation : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

@@ -17,7 +17,7 @@ FORM: Hall of Panels, ranked 1; surface seed a3b942a9; the shared static-SSR she
 <div class="row">
     <div class="col-lg-6">
         <StatusMessage Message="@Message" />
-        <EditForm class="auth-form" Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <EditForm class="auth-form" Model="Input" method="post" OnValidSubmit="RegisterUserAsync" FormName="register">
             <DataAnnotationsValidator />
             <h2>Create a new account.</h2>
             <hr />

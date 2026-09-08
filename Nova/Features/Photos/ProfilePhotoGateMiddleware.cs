@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Security;
+﻿using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Photos;
 
@@ -8,7 +8,7 @@ namespace Nova.Features.Photos;
 /// before they can use the rest of the application.
 /// </summary>
 /// <param name="next">The next middleware in the pipeline.</param>
-public sealed class ProfilePhotoGateMiddleware(RequestDelegate next)
+internal sealed class ProfilePhotoGateMiddleware(RequestDelegate next)
 {
     /// <summary>
     /// The page users without a photo are redirected to.
@@ -21,7 +21,7 @@ public sealed class ProfilePhotoGateMiddleware(RequestDelegate next)
     /// framework assets and the SignalR circuit endpoint, RCL static content, health checks,
     /// and error pages.
     /// </summary>
-    private static readonly string[] ExemptPrefixes =
+    private static readonly string[] _exemptPrefixes =
     [
         "/Account",
         "/api",
@@ -44,7 +44,7 @@ public sealed class ProfilePhotoGateMiddleware(RequestDelegate next)
     public Task InvokeAsync(HttpContext context)
     {
         var isAuthenticated = context.User.Identity?.IsAuthenticated == true;
-        var hasPhotoClaim = context.User.HasClaim(claim => claim.Type == NovaClaimTypes.HasProfilePhoto);
+        var hasPhotoClaim = context.User.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasProfilePhoto, StringComparison.Ordinal));
 
         if (ShouldRedirect(context.Request.Path, isAuthenticated, hasPhotoClaim))
         {
@@ -70,12 +70,9 @@ public sealed class ProfilePhotoGateMiddleware(RequestDelegate next)
             return false;
         }
 
-        foreach (var prefix in ExemptPrefixes)
+        if (_exemptPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
         {
-            if (path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
+            return false;
         }
 
         // Static assets (anything with a file extension) are exempt.

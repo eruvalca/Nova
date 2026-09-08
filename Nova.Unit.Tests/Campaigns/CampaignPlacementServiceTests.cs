@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -18,6 +18,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed partial class CampaignPlacementServiceTests : IDisposable
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const long ClubAId = 100;
     private const long ClubBId = 101;
     private const long ClubAAdminId = 200;
@@ -48,7 +49,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies a club administrator can assign an eligible player and receives a new token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_AssignsEligiblePlayer_AndRegeneratesConcurrencyToken()
+    public async Task UpdatePlacementAsyncAssignsEligiblePlayerAndRegeneratesConcurrencyTokenAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -79,7 +80,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// placement context snapshot and the acting administrator's display name.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_AppendsDurablePlacementEvent_WithStructuredSnapshot()
+    public async Task UpdatePlacementAsyncAppendsDurablePlacementEventWithStructuredSnapshotAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -106,7 +107,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
 
         var context = JsonSerializer.Deserialize<ClubActivityContext>(
             row.PayloadJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            _caseInsensitiveJsonOptions);
         var placement = context.ShouldBeOfType<PlacementContext>();
         placement.CampaignId.ShouldBe(600);
         placement.CampaignName.ShouldBe("Campaign A");
@@ -124,7 +125,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// reloads the old-team reference after locking (rather than only the first assignment).
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_AppendsReassignmentEvent_WithPreviousAndCurrentTeamSnapshots()
+    public async Task UpdatePlacementAsyncAppendsReassignmentEventWithPreviousAndCurrentTeamSnapshotsAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -154,7 +155,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
 
         var context = JsonSerializer.Deserialize<ClubActivityContext>(
             row.PayloadJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            _caseInsensitiveJsonOptions);
         var placement = context.ShouldBeOfType<PlacementContext>();
         placement.CampaignId.ShouldBe(600);
         placement.CampaignName.ShouldBe("Campaign A");
@@ -176,7 +177,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     [InlineData(PlacementOutcome.Undecided, EligibleTeamId)]
     [InlineData(PlacementOutcome.NotSelected, EligibleTeamId)]
     [InlineData(PlacementOutcome.Withdrawn, EligibleTeamId)]
-    public async Task UpdatePlacementAsync_ReturnsValidation_ForInvalidOutcomeTeamMatrix(
+    public async Task UpdatePlacementAsyncReturnsValidationForInvalidOutcomeTeamMatrixAsync(
         PlacementOutcome outcome,
         long? teamId)
     {
@@ -202,7 +203,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task UpdatePlacementAsync_ReturnsValidation_ForNonPositiveTeamId(long teamId)
+    public async Task UpdatePlacementAsyncReturnsValidationForNonPositiveTeamIdAsync(long teamId)
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -223,7 +224,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies a regular club member can mutate placement decisions.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_UpdatesPlacement_ForClubMember()
+    public async Task UpdatePlacementAsyncUpdatesPlacementForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -244,7 +245,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies an authenticated user without club membership cannot mutate placement decisions.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsForbidden_WhenCallerHasNoClub()
+    public async Task UpdatePlacementAsyncReturnsForbiddenWhenCallerHasNoClubAsync()
     {
         ActAs(ClubAMemberId, clubId: null);
         var service = CreateService();
@@ -264,7 +265,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies tenant filters hide another club's participation from an administrator.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsNotFound_ForCrossTenantParticipation()
+    public async Task UpdatePlacementAsyncReturnsNotFoundForCrossTenantParticipationAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -284,7 +285,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies tenant filters prevent assigning a team owned by another club.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsNotFound_ForCrossTenantTeam()
+    public async Task UpdatePlacementAsyncReturnsNotFoundForCrossTenantTeamAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -304,7 +305,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies an ineligible team is rejected without changing participation state.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsValidation_AndDoesNotWrite_WhenTeamIsIneligible()
+    public async Task UpdatePlacementAsyncReturnsValidationAndDoesNotWriteWhenTeamIsIneligibleAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -333,7 +334,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies an archived player cannot receive a new placement decision.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflict_WhenPlayerIsArchived()
+    public async Task UpdatePlacementAsyncReturnsConflictWhenPlayerIsArchivedAsync()
     {
         await using (var archive = _harness.CreateAdminContext())
         {
@@ -363,7 +364,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies an archived team cannot receive a new placement.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflict_WhenTeamIsArchived()
+    public async Task UpdatePlacementAsyncReturnsConflictWhenTeamIsArchivedAsync()
     {
         await using (var archive = _harness.CreateAdminContext())
         {
@@ -393,7 +394,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies closed campaigns reject placement mutations.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflict_WhenCampaignIsClosed()
+    public async Task UpdatePlacementAsyncReturnsConflictWhenCampaignIsClosedAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -415,7 +416,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// appending placement activity.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflictWithoutWritesOrActivity_WhenCampaignIsDraft()
+    public async Task UpdatePlacementAsyncReturnsConflictWithoutWritesOrActivityWhenCampaignIsDraftAsync()
     {
         await using (var arrange = _harness.CreateAdminContext())
         {
@@ -454,7 +455,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// Verifies a stale token returns a conflict and cannot overwrite the newer placement.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflict_AndDoesNotOverwrite_WhenTokenIsStale()
+    public async Task UpdatePlacementAsyncReturnsConflictAndDoesNotOverwriteWhenTokenIsStaleAsync()
     {
         var newerToken = Guid.NewGuid();
         await using (var update = _harness.CreateAdminContext())
@@ -521,7 +522,9 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
     /// <summary>
     /// Seeds two clubs with campaign participation and placement teams.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

@@ -13,7 +13,7 @@ public sealed class TeamGraduationYearPolicyTests
     /// Verifies an empty placement set never blocks a proposed graduation year.
     /// </summary>
     [Fact]
-    public void Evaluate_Allows_WhenNoPlacementsExist()
+    public void EvaluateAllowsWhenNoPlacementsExist()
     {
         var decision = TeamGraduationYearPolicy.Evaluate(2030, []);
 
@@ -27,7 +27,7 @@ public sealed class TeamGraduationYearPolicyTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(2030)]
     [InlineData(2031)]
-    public void Evaluate_Allows_WhenEveryPlayerGraduatesOnOrAfterProposedYear(int playerGraduationYear)
+    public void EvaluateAllowsWhenEveryPlayerGraduatesOnOrAfterProposedYear(int playerGraduationYear)
     {
         var decision = TeamGraduationYearPolicy.Evaluate(
             2030,
@@ -40,7 +40,7 @@ public sealed class TeamGraduationYearPolicyTests
     /// Verifies a player graduating before the proposed year blocks the change and is reported.
     /// </summary>
     [Fact]
-    public void Evaluate_Blocks_WhenPlayerGraduatesBeforeProposedYear()
+    public void EvaluateBlocksWhenPlayerGraduatesBeforeProposedYear()
     {
         var decision = TeamGraduationYearPolicy.Evaluate(
             2030,
@@ -60,7 +60,7 @@ public sealed class TeamGraduationYearPolicyTests
     /// placement identifier so the payload is deterministic.
     /// </summary>
     [Fact]
-    public void Evaluate_ReportsOnlyIneligiblePlacements_InPlacementIdOrder()
+    public void EvaluateReportsOnlyIneligiblePlacementsInPlacementIdOrder()
     {
         var decision = TeamGraduationYearPolicy.Evaluate(
             2030,
@@ -81,7 +81,7 @@ public sealed class TeamGraduationYearPolicyTests
     /// widen eligibility.
     /// </summary>
     [Fact]
-    public void Evaluate_Allows_WhenProposedYearIsLoweredBelowEveryPlayer()
+    public void EvaluateAllowsWhenProposedYearIsLoweredBelowEveryPlayer()
     {
         var decision = TeamGraduationYearPolicy.Evaluate(
             2025,

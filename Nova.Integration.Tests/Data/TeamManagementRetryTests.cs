@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -22,11 +22,13 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// identifier.
     /// </summary>
     [Fact]
-    public async Task CreationOperationId_RejectsDuplicateWithinClub()
+    public async Task CreationOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var creationOperationId = Guid.CreateVersion7();
 
         ActAs(userId: null, clubId: null, isAdmin: false);
@@ -45,11 +47,13 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// Verifies PostgreSQL rejects two teams in the same club sharing a name and graduation year.
     /// </summary>
     [Fact]
-    public async Task TeamName_RejectsDuplicateNameAndGraduationYearWithinClub()
+    public async Task TeamNameRejectsDuplicateNameAndGraduationYearWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         ActAs(userId: null, clubId: null, isAdmin: false);
 
@@ -68,11 +72,13 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// recognized by its stable operation identifier and is not replayed as a duplicate insert.
     /// </summary>
     [Fact]
-    public async Task Create_VerifiesCommittedOperation_AfterAmbiguousCommitFailure()
+    public async Task CreateVerifiesCommittedOperationAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var teamName = $"Ambiguous Commit Team {suffix}";
         long clubId;
 
@@ -119,11 +125,13 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// fresh context and transaction without leaving a duplicate team behind.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task CreateRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var teamName = $"Retry Create Team {suffix}";
         long clubId;
 
@@ -171,11 +179,13 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// fresh context and transaction.
     /// </summary>
     [Fact]
-    public async Task Update_RetriesWithFreshContext_AfterTransientSaveFailure()
+    public async Task UpdateRetriesWithFreshContextAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var updatedName = $"After Retry {suffix}";
         long clubId;
         long teamId;
@@ -237,11 +247,15 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     /// window deterministically instead of relying on two updates interleaving by chance.
     /// </remarks>
     [Fact]
-    public async Task Update_ReportsConflict_WhenDuplicateAppearsAfterTheProbe()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task UpdateReportsConflictWhenDuplicateAppearsAfterTheProbeAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var contestedName = $"Contested {suffix}";
         long clubId;
         long teamId;
@@ -266,9 +280,12 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
 
         var conflictInterceptor = new InsertAfterTeamExistsProbeInterceptor(async () =>
         {
-            await using var conflicting = fixture.CreateAdminContext();
-            conflicting.Teams.Add(CreateTeam(contestedName, clubId, actorUserId, Guid.CreateVersion7()));
-            await conflicting.SaveChangesAsync(CancellationToken.None);
+            var conflicting = fixture.CreateAdminContext();
+            await using (conflicting)
+            {
+                conflicting.Teams.Add(CreateTeam(contestedName, clubId, actorUserId, Guid.CreateVersion7()));
+                await conflicting.SaveChangesAsync(CancellationToken.None);
+            }
         });
 
         var factory = new RetryingTenantDbContextFactory(

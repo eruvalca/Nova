@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapPost(CampaignEndpoints.ApplyCampaignTagApplicationRelative, ApplyCampaignTagApplicationHandler)
+            group.MapPost(CampaignEndpoints.ApplyCampaignTagApplicationRelative, ApplyCampaignTagApplicationHandlerAsync)
                 .Produces<CampaignTagApplicationMutationSuccess>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -34,7 +34,7 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.ApplyCampaignTagApplicationRouteName);
 
-            group.MapDelete(CampaignEndpoints.RemoveCampaignTagApplicationRelative, RemoveCampaignTagApplicationHandler)
+            group.MapDelete(CampaignEndpoints.RemoveCampaignTagApplicationRelative, RemoveCampaignTagApplicationHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -56,7 +56,7 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
     /// <param name="service">The campaign tag application service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A 201 response containing the created application identifier, or ProblemDetails.</returns>
-    private static async Task<IResult> ApplyCampaignTagApplicationHandler(
+    private static async Task<IResult> ApplyCampaignTagApplicationHandlerAsync(
         ApplyCampaignTagApplicationInput input,
         ICampaignTagApplicationService service,
         CancellationToken cancellationToken)
@@ -72,7 +72,7 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
     /// <param name="service">The campaign tag application service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> RemoveCampaignTagApplicationHandler(
+    private static async Task<IResult> RemoveCampaignTagApplicationHandlerAsync(
         long campaignTagApplicationId,
         ICampaignTagApplicationService service,
         CancellationToken cancellationToken)

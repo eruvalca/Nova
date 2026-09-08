@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -20,7 +20,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     /// Verifies the player-creation migration has been applied so the schema is ready.
     /// </summary>
     [Fact]
-    public async Task Migration_ContainsPlayerAndAssignmentTables()
+    public async Task MigrationContainsPlayerAndAssignmentTablesAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -37,7 +37,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     /// and both are enrolled in the club's sole Active campaign exactly once.
     /// </summary>
     [Fact]
-    public async Task ConcurrentPlayerCreation_SameClub_BothPersistWithCorrectEnrollments()
+    public async Task ConcurrentPlayerCreationSameClubBothPersistWithCorrectEnrollmentsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(activeCampaignCount: 1, cancellationToken);
@@ -92,14 +92,14 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     /// duplicate enrollments, even under high contention on the roster lock.
     /// </summary>
     [Fact]
-    public async Task ConcurrentPlayerCreation_HighContention_AllSucceedWithCorrectEnrollments()
+    public async Task ConcurrentPlayerCreationHighContentionAllSucceedWithCorrectEnrollmentsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(activeCampaignCount: 1, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
-        const int playerCount = 5;
-        var tasks = Enumerable.Range(1, playerCount).Select(index =>
+        const int PlayerCount = 5;
+        var tasks = Enumerable.Range(1, PlayerCount).Select(index =>
             CreateService().CreateAsync(new CreatePlayerInput
             {
                 FirstName = $"Concurrent{index}",
@@ -131,14 +131,16 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     /// player is enrolled only in Club A's campaign — never in another club's active campaign.
     /// </summary>
     [Fact]
-    public async Task PlayerCreation_DoesNotEnrollInOtherClubsActiveCampaign()
+    public async Task PlayerCreationDoesNotEnrollInOtherClubsActiveCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         long clubAId, clubACampaignId, clubBCampaignId, clubAAdminId;
         await using (var db = fixture.CreateAdminContext())
         {
             var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
             var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
             var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
             var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
@@ -201,46 +203,51 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     private async Task<EnrollmentSeed> SeedAsync(int activeCampaignCount, CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null, isAdmin: false);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Enrollment Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Enrollment Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var campaigns = Enumerable.Range(1, activeCampaignCount).Select(i => new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign {i} {suffix}",
-            StartDate = new DateOnly(2026, i, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        }).ToArray();
-        db.Campaigns.AddRange(campaigns);
-        await db.SaveChangesAsync(cancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(cancellationToken);
 
-        return new EnrollmentSeed(club.ClubId, actorUserId);
+            var campaigns = Enumerable.Range(1, activeCampaignCount).Select(i => new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign {i} {suffix}",
+                StartDate = new DateOnly(2026, i, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            }).ToArray();
+            db.Campaigns.AddRange(campaigns);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new EnrollmentSeed(club.ClubId, actorUserId);
+        }
     }
 
     private sealed record EnrollmentSeed(long ClubId, long ActorUserId);
@@ -252,7 +259,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     private sealed class FixtureDbContextFactory(NovaAppHostFixture fixture) : IDbContextFactory<Nova.Data.NovaDbContext>
     {
         public Nova.Data.NovaDbContext CreateDbContext() => fixture.CreateTenantContext();
-        public Task<Nova.Data.NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+        public Task<Nova.Data.NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(fixture.CreateTenantContext());
     }
 }

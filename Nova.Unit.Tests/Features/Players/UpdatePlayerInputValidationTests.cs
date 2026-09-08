@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Players;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;
@@ -19,7 +19,7 @@ public sealed class UpdatePlayerInputValidationTests
     };
 
     [Fact]
-    public void Validate_WithValidInput_ReturnsNoErrors()
+    public void ValidateWithValidInputReturnsNoErrors()
     {
         InputValidator.Validate(ValidInput()).ShouldBeEmpty();
     }
@@ -27,7 +27,7 @@ public sealed class UpdatePlayerInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Validate_WithInvalidPlayerId_ReturnsError(long id)
+    public void ValidateWithInvalidPlayerIdReturnsError(long id)
     {
         var input = ValidInput() with { PlayerId = id };
         var errors = InputValidator.Validate(input);
@@ -35,7 +35,7 @@ public sealed class UpdatePlayerInputValidationTests
     }
 
     [Fact]
-    public void Validate_WithValidPlayerId_ReturnsNoError()
+    public void ValidateWithValidPlayerIdReturnsNoError()
     {
         var input = ValidInput() with { PlayerId = long.MaxValue };
         InputValidator.Validate(input).ShouldBeEmpty();
@@ -45,7 +45,7 @@ public sealed class UpdatePlayerInputValidationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_WithBlankFirstName_ReturnsError(string? firstName)
+    public void ValidateWithBlankFirstNameReturnsError(string? firstName)
     {
         var input = ValidInput() with { FirstName = firstName! };
         var errors = InputValidator.Validate(input);
@@ -56,7 +56,7 @@ public sealed class UpdatePlayerInputValidationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_WithBlankLastName_ReturnsError(string? lastName)
+    public void ValidateWithBlankLastNameReturnsError(string? lastName)
     {
         var input = ValidInput() with { LastName = lastName! };
         var errors = InputValidator.Validate(input);
@@ -64,14 +64,14 @@ public sealed class UpdatePlayerInputValidationTests
     }
 
     [Fact]
-    public void Validate_WithFirstNameExceedingMaxLength_ReturnsError()
+    public void ValidateWithFirstNameExceedingMaxLengthReturnsError()
     {
         var input = ValidInput() with { FirstName = new string('a', 101) };
         InputValidator.Validate(input).ShouldContainKey("FirstName");
     }
 
     [Fact]
-    public void Validate_WithLastNameExceedingMaxLength_ReturnsError()
+    public void ValidateWithLastNameExceedingMaxLengthReturnsError()
     {
         var input = ValidInput() with { LastName = new string('a', 101) };
         InputValidator.Validate(input).ShouldContainKey("LastName");
@@ -80,7 +80,7 @@ public sealed class UpdatePlayerInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
-    public void Validate_WithOutOfRangeGraduationYear_ReturnsError(int year)
+    public void ValidateWithOutOfRangeGraduationYearReturnsError(int year)
     {
         var input = ValidInput() with { GraduationYear = year };
         InputValidator.Validate(input).ShouldContainKey("GraduationYear");
@@ -89,7 +89,7 @@ public sealed class UpdatePlayerInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
-    public void Validate_WithOutOfRangeJerseyNumber_ReturnsError(int jersey)
+    public void ValidateWithOutOfRangeJerseyNumberReturnsError(int jersey)
     {
         var input = ValidInput() with { JerseyNumber = jersey };
         InputValidator.Validate(input).ShouldContainKey("JerseyNumber");

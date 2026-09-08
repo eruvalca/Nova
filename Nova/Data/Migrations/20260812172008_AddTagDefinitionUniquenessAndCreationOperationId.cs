@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddTagDefinitionUniquenessAndCreationOperationId : Migration
+internal partial class AddTagDefinitionUniquenessAndCreationOperationId : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -33,19 +33,25 @@ public partial class AddTagDefinitionUniquenessAndCreationOperationId : Migratio
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_CreationOperationId",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_LifecycleStatus",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "LifecycleStatus" });
+#pragma warning restore CA1861
 
         migrationBuilder.CreateIndex(
             name: "IX_PlayerTags_ClubId_NormalizedName",
             table: "PlayerTags",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "NormalizedName" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"NormalizedName\" IS NOT NULL");
     }

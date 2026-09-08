@@ -2,9 +2,9 @@
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Validation;
 using OneOf;
 
 namespace Nova.Features.Players;
@@ -18,13 +18,16 @@ internal sealed record PlayerImportFileFailure(string Message);
 /// <summary>Strictly parses the authoritative player CSV format.</summary>
 internal sealed class PlayerImportCsvParser
 {
-    private static readonly UTF8Encoding StrictUtf8 = new(
+    private static readonly UTF8Encoding _strictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
-    private static readonly byte[] Utf8Preamble = [0xEF, 0xBB, 0xBF];
+    private static readonly byte[] _utf8Preamble = [0xEF, 0xBB, 0xBF];
 
     /// <summary>Parses the supplied bytes without performing database work.</summary>
+#pragma warning disable MA0051 // Keep the ordered CSV validation and per-row diagnostics together.
+#pragma warning disable CA1822 // Keep the injected parser service contract shared by the import workflow and its tests.
     public OneOf<ParsedPlayerImport, PlayerImportFileFailure> Parse(
+#pragma warning restore MA0051, CA1822
         byte[] content,
         CancellationToken cancellationToken = default)
     {
@@ -35,7 +38,7 @@ internal sealed class PlayerImportCsvParser
             return new PlayerImportFileFailure("The file must use UTF-8 encoding.");
         }
 
-        var offset = content.AsSpan().StartsWith(Utf8Preamble) ? Utf8Preamble.Length : 0;
+        var offset = content.AsSpan().StartsWith(_utf8Preamble) ? _utf8Preamble.Length : 0;
         var configuration = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = ",",
@@ -52,7 +55,7 @@ internal sealed class PlayerImportCsvParser
             using var stream = new MemoryStream(content, offset, content.Length - offset, writable: false);
             using var reader = new StreamReader(
                 stream,
-                StrictUtf8,
+                _strictUtf8,
                 detectEncodingFromByteOrderMarks: false,
                 bufferSize: 1024,
                 leaveOpen: false);
@@ -135,7 +138,9 @@ internal sealed class PlayerImportCsvParser
         }
     }
 
+#pragma warning disable MA0051 // Keep the ordered CSV validation and per-row diagnostics together.
     private static PlayerImportPreviewRow ParseRow(int sourceRowNumber, string[] record)
+#pragma warning restore MA0051, CA1822
     {
         var values = new PlayerImportRowValues(
             record[0],
@@ -241,7 +246,7 @@ internal sealed class PlayerImportCsvParser
     private static void AddFormulaError(
         string value,
         PlayerImportField field,
-        ICollection<PlayerImportFieldError> errors)
+        List<PlayerImportFieldError> errors)
     {
         if (!IsFormulaLike(value))
         {

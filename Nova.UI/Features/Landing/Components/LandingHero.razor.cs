@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using Microsoft.AspNetCore.Components;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Landing.Components;
@@ -16,3 +17,6 @@ public partial class LandingHero(NavigationManager navigationManager) : NovaComp
     /// </summary>
     protected string CreateClubUrl => LandingUrlHelper.CreateClubUrl(navigationManager);
 }
+
+
+#pragma warning restore CA1055, CA1056

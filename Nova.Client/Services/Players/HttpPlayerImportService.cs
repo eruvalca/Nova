@@ -1,16 +1,16 @@
 ﻿using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Players;
 
 /// <summary>WebAssembly HTTP implementation of player import preview, commit, and exact-request recovery.</summary>
 /// <param name="httpClient">The client used to call the server player-import endpoints.</param>
-public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImportService
+internal sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImportService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
@@ -41,9 +41,11 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         }
 
         form.Add(file, PlayerImportConstraints.FileFormFieldName, PlayerImportConstraints.TemplateFileName);
-        form.Add(new StringContent(input.OperationId.ToString()), PlayerImportConstraints.OperationIdFormFieldName);
-        form.Add(new StringContent(input.ConfirmationToken), PlayerImportConstraints.ConfirmationTokenFormFieldName);
-        using var response = await httpClient.PostAsync(PlayerEndpoints.ImportCommit, form, cancellationToken);
+        using var operationContent = new StringContent(input.OperationId.ToString());
+        using var confirmationContent = new StringContent(input.ConfirmationToken);
+        form.Add(operationContent, PlayerImportConstraints.OperationIdFormFieldName);
+        form.Add(confirmationContent, PlayerImportConstraints.ConfirmationTokenFormFieldName);
+        using var response = await httpClient.PostAsync(new Uri(PlayerEndpoints.ImportCommit, UriKind.RelativeOrAbsolute), form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -58,7 +60,9 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     /// <summary>Rejects incomplete or contradictory success bodies rather than reporting false success.</summary>
     /// <param name="completion">The decoded server result.</param>
     /// <returns>Whether every aggregate and row relationship is valid.</returns>
+#pragma warning disable MA0051 // Keep the bounded payload validation matrix together to audit every accepted and rejected wire shape.
     private static bool IsValidCompletion(PlayerImportCompletion completion)
+#pragma warning restore MA0051
     {
         if (completion.OperationId == Guid.Empty || completion.OperationId.Version != 7
             || completion.CompletedAt == default || completion.CompletedAt.Offset != TimeSpan.Zero
@@ -136,7 +140,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     public async Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync(PlayerEndpoints.ImportTemplate, cancellationToken);
+        using var response = await httpClient.GetAsync(new Uri(PlayerEndpoints.ImportTemplate, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -188,7 +192,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             fileContent,
             PlayerImportConstraints.FileFormFieldName,
             PlayerImportConstraints.TemplateFileName);
-        using var response = await httpClient.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+        using var response = await httpClient.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -218,8 +222,8 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         }
 
         if (string.IsNullOrWhiteSpace(upload.FileName)
-            || upload.FileName.Contains('\r')
-            || upload.FileName.Contains('\n')
+            || upload.FileName.Contains('\r', StringComparison.Ordinal)
+            || upload.FileName.Contains('\n', StringComparison.Ordinal)
             || !string.Equals(Path.GetExtension(upload.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
         {
             return ServiceProblem.Validation("file", "The uploaded file must have a .csv extension.");
@@ -239,7 +243,9 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     /// <summary>Validates the complete successful preview response contract.</summary>
     /// <param name="preview">The deserialized server response.</param>
     /// <returns><see langword="true" /> when every preview invariant is satisfied.</returns>
+#pragma warning disable MA0051 // Keep the bounded payload validation matrix together to audit every accepted and rejected wire shape.
     private static bool IsValidPreview(PlayerImportPreview preview)
+#pragma warning restore MA0051
     {
         if (preview.OperationId == Guid.Empty
             || preview.OperationId.Version != 7
@@ -325,7 +331,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     /// <returns><see langword="true" /> when the duplicate payload and relationship are valid.</returns>
     private static bool IsValidDuplicate(
         PlayerImportPreviewRow row,
-        IReadOnlyDictionary<int, PlayerImportPreviewRow> priorRows) =>
+        Dictionary<int, PlayerImportPreviewRow> priorRows) =>
         row.Duplicate is { } duplicate
         && row.Candidate is { } candidate
         && Enum.IsDefined(duplicate.Kind)

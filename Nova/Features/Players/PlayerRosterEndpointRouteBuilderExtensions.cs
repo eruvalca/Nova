@@ -1,7 +1,7 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Players;
 
@@ -21,7 +21,7 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             var group = endpoints.MapGroup(GetPlayerRosterEndpoints.GroupPrefix).RequireAuthorization();
-            group.MapGet(GetPlayerRosterEndpoints.GetRosterRelative, GetPlayerRosterHandler)
+            group.MapGet(GetPlayerRosterEndpoints.GetRosterRelative, GetPlayerRosterHandlerAsync)
                 .Produces<PagedResult<PlayerListItem>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -41,7 +41,7 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
     /// <param name="playerService">The player service.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The HTTP result for the roster query.</returns>
-    private static async Task<IResult> GetPlayerRosterHandler(
+    private static async Task<IResult> GetPlayerRosterHandlerAsync(
         [AsParameters] GetPlayerRosterInput input,
         IPlayerService playerService,
         CancellationToken cancellationToken)

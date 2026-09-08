@@ -1,6 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Data.Tenancy;
 
@@ -11,7 +11,7 @@ namespace Nova.Data.Tenancy;
 /// </summary>
 /// <param name="httpContextAccessor">The http Context Accessor.</param>
 /// <param name="serviceProvider">The service Provider used to optionally resolve the authentication state provider.</param>
-public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor, IServiceProvider serviceProvider) : ICurrentUserProvider
+internal sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor, IServiceProvider serviceProvider) : ICurrentUserProvider
 {
     /// <inheritdoc />
     public long? UserId => GetLongClaim(ClaimTypes.NameIdentifier);
@@ -29,14 +29,13 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
         var principal = GetPrincipal();
 
         var userIdValue = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!long.TryParse(userIdValue, out var userId))
+        if (!long.TryParse(userIdValue, System.Globalization.CultureInfo.InvariantCulture, out var userId))
         {
             return new Anonymous();
         }
 
         var clubIdValue = principal?.FindFirstValue(NovaClaimTypes.ClubId);
-        return long.TryParse(clubIdValue, out var clubId)
-            ? new ClubMember(userId, clubId, IsClubAdminRole(principal))
+        return long.TryParse(clubIdValue, System.Globalization.CultureInfo.InvariantCulture, out var clubId) ? new ClubMember(userId, clubId, IsClubAdminRole(principal))
             : new AuthenticatedUser(userId);
     }
 
@@ -53,7 +52,7 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
     private long? GetLongClaim(string claimType)
     {
         var value = GetPrincipal()?.FindFirstValue(claimType);
-        return long.TryParse(value, out var parsed) ? parsed : null;
+        return long.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
     }
 
     private ClaimsPrincipal? GetPrincipal()

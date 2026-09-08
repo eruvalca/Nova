@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Clubs;
+﻿#pragma warning disable CA1308 // Lowercase route/filter tokens match the existing ASCII wire vocabulary.
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Features.Clubs;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
@@ -12,7 +13,9 @@ public partial class ClubReservedSection(NavigationManager navigationManager)
     {
         get
         {
-            var path = "/" + navigationManager.ToBaseRelativePath(navigationManager.Uri).Split('?', '#')[0].TrimEnd('/');
+#pragma warning disable S1075 // This is a browser-relative URL path, not a filesystem path.
+            var path = "/" + navigationManager.ToBaseRelativePath(navigationManager.Uri).Split(['?', '#'], StringSplitOptions.None)[0].TrimEnd('/');
+#pragma warning restore S1075
             return path.ToLowerInvariant() switch
             {
                 ClubRoutes.Seasons => ("Seasons", "Season management is reserved for issue #204 and is not available here yet."),
@@ -25,3 +28,6 @@ public partial class ClubReservedSection(NavigationManager navigationManager)
         }
     }
 }
+
+
+#pragma warning restore CA1308

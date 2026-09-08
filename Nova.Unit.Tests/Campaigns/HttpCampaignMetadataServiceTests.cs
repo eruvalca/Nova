@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -33,7 +33,7 @@ public sealed class HttpCampaignMetadataServiceTests
     /// Verifies a successful update PUT to the shared route and deserializes the result.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_PutsToSharedRoute_AndReturnsResult()
+    public async Task UpdateAsyncPutsToSharedRouteAndReturnsResultAsync()
     {
         var input = ValidInput();
         var expected = SuccessResult(input.CampaignId);
@@ -41,7 +41,7 @@ public sealed class HttpCampaignMetadataServiceTests
         {
             Content = JsonContent.Create(expected)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignMetadataService(http).UpdateAsync(
@@ -59,7 +59,7 @@ public sealed class HttpCampaignMetadataServiceTests
     /// Verifies a Conflict ProblemDetails response is propagated correctly.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsConflict_FromProblemDetails()
+    public async Task UpdateAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -70,7 +70,7 @@ public sealed class HttpCampaignMetadataServiceTests
                 detail = "Metadata cannot be changed while the campaign is closed."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignMetadataService(http).UpdateAsync(
@@ -85,13 +85,14 @@ public sealed class HttpCampaignMetadataServiceTests
     /// Verifies a null success response body is surfaced as a server error.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_ForNullBody()
+    public async Task UpdateAsyncReturnsServerErrorForNullBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("null", Encoding.UTF8, "application/json")
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };

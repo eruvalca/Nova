@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Account;
-using Nova.Shared.Features.Account;
+using Nova.SharedKernel.Features.Account;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Account;
@@ -18,7 +18,7 @@ public sealed class AccountDeletionPolicyTests
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public void Evaluate_ReturnsNoClubOrNonAdmin_WhenUserIsUnavailable(
+    public void EvaluateReturnsNoClubOrNonAdminWhenUserIsUnavailable(
         bool isAuthenticated,
         bool userExists)
     {
@@ -32,7 +32,7 @@ public sealed class AccountDeletionPolicyTests
     /// Verifies a non-administrator produces the neutral scenario.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsNoClubOrNonAdmin_WhenUserIsNotClubAdmin()
+    public void EvaluateReturnsNoClubOrNonAdminWhenUserIsNotClubAdmin()
     {
         var result = AccountDeletionPolicy.Evaluate(CreateFacts(isClubAdmin: false));
 
@@ -43,7 +43,7 @@ public sealed class AccountDeletionPolicyTests
     /// Verifies an administrator without a club produces the neutral scenario.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsNoClubOrNonAdmin_WhenClubIsMissing()
+    public void EvaluateReturnsNoClubOrNonAdminWhenClubIsMissing()
     {
         var result = AccountDeletionPolicy.Evaluate(CreateFacts(clubId: null));
 
@@ -54,7 +54,7 @@ public sealed class AccountDeletionPolicyTests
     /// Verifies an only member is told that account deletion also deletes the club.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsOnlyClubMember_WhenTotalMemberCountIsOne()
+    public void EvaluateReturnsOnlyClubMemberWhenTotalMemberCountIsOne()
     {
         var result = AccountDeletionPolicy.Evaluate(
             CreateFacts(totalMemberCount: 1, clubAdminCount: 1));
@@ -66,7 +66,7 @@ public sealed class AccountDeletionPolicyTests
     /// Verifies a sole administrator with other members must transfer administration first.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsSoleClubAdmin_WhenOtherMembersHaveNoOtherAdmin()
+    public void EvaluateReturnsSoleClubAdminWhenOtherMembersHaveNoOtherAdmin()
     {
         var result = AccountDeletionPolicy.Evaluate(
             CreateFacts(totalMemberCount: 4, clubAdminCount: 1));
@@ -78,7 +78,7 @@ public sealed class AccountDeletionPolicyTests
     /// Verifies another administrator makes club-specific deletion handling unnecessary.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsNoClubOrNonAdmin_WhenMultipleAdminsExist()
+    public void EvaluateReturnsNoClubOrNonAdminWhenMultipleAdminsExist()
     {
         var result = AccountDeletionPolicy.Evaluate(
             CreateFacts(totalMemberCount: 4, clubAdminCount: 2));

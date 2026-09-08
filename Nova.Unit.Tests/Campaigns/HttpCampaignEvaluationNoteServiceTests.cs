@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -46,13 +46,13 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a successful add posts to the shared route and deserializes the created note identifier.
     /// </summary>
     [Fact]
-    public async Task AddAsync_PostsToSharedRoute_AndReturnsCreatedIdentifier()
+    public async Task AddAsyncPostsToSharedRouteAndReturnsCreatedIdentifierAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -70,7 +70,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a validation problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsValidation_FromProblemDetails()
+    public async Task AddAsyncReturnsValidationFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -79,13 +79,13 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 title = "One or more validation errors occurred.",
                 status = 400,
                 detail = "Note content is required.",
-                errors = new Dictionary<string, string[]>
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
                     ["Content"] = ["The Content field is required."]
                 }
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -102,7 +102,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a forbidden problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task AddAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
@@ -113,7 +113,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 detail = "Only club members can add evaluation notes."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -129,7 +129,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a not-found problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task AddAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
@@ -140,7 +140,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 detail = "The campaign participation was not found."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -155,7 +155,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a conflict problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsConflict_FromProblemDetails()
+    public async Task AddAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -166,7 +166,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 detail = "Evaluation notes can only be added to an Active campaign."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -182,13 +182,13 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a successful response without the required payload becomes an explicit server error.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsServerError_ForEmptySuccessPayload()
+    public async Task AddAsyncReturnsServerErrorForEmptySuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(string.Empty)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -204,13 +204,13 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a successful response with a non-positive identifier is rejected as an invalid payload.
     /// </summary>
     [Fact]
-    public async Task AddAsync_ReturnsServerError_ForInvalidCreatedIdentifier()
+    public async Task AddAsyncReturnsServerErrorForInvalidCreatedIdentifierAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(new EvaluationNoteMutationSuccess(0))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).AddAsync(
@@ -225,10 +225,10 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a successful edit puts to the shared route and returns success for a no-content response.
     /// </summary>
     [Fact]
-    public async Task EditAsync_PutsToSharedRoute_AndReturnsSuccess()
+    public async Task EditAsyncPutsToSharedRouteAndReturnsSuccessAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).EditAsync(
@@ -248,7 +248,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a conflict problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task EditAsync_ReturnsConflict_FromProblemDetails()
+    public async Task EditAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -259,7 +259,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 detail = "Evaluation notes can only be edited in an Active campaign."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).EditAsync(
@@ -275,10 +275,10 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a successful delete deletes the shared route and returns success for a no-content response.
     /// </summary>
     [Fact]
-    public async Task DeleteAsync_DeletesToSharedRoute_AndReturnsSuccess()
+    public async Task DeleteAsyncDeletesToSharedRouteAndReturnsSuccessAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).DeleteAsync(
@@ -295,7 +295,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Verifies a not-found problem response maps to the matching kind.
     /// </summary>
     [Fact]
-    public async Task DeleteAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task DeleteAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
@@ -306,7 +306,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
                 detail = "The evaluation note was not found."
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).DeleteAsync(

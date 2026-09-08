@@ -5,9 +5,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 using static Nova.Integration.Tests.Http.SeedingHelpers;
 
@@ -22,16 +22,16 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies all opening routes reject anonymous callers and non-administrator members.</summary>
     [Fact]
-    public async Task OpeningRoutes_EnforceClubAdministratorPolicy()
+    public async Task OpeningRoutesEnforceClubAdministratorPolicyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymous = fixture.CreateNovaHttpClient();
-        using var anonymousReadiness = await anonymous.GetAsync(CampaignEndpoints.GetOpeningReadinessUrl(1), cancellationToken);
+        using var anonymousReadiness = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetOpeningReadinessUrl(1), UriKind.RelativeOrAbsolute), cancellationToken);
         using var anonymousOpen = await anonymous.PostAsJsonAsync(
             CampaignEndpoints.OpenUrl(1),
             new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
             cancellationToken);
-        using var anonymousDelete = await anonymous.DeleteAsync(CampaignEndpoints.DeleteDraftUrl(1), cancellationToken);
+        using var anonymousDelete = await anonymous.DeleteAsync(new Uri(CampaignEndpoints.DeleteDraftUrl(1), UriKind.RelativeOrAbsolute), cancellationToken);
         anonymousReadiness.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         anonymousOpen.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         anonymousDelete.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -50,12 +50,12 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(fixture, memberEmail, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using var memberReadiness = await memberClient.GetAsync(CampaignEndpoints.GetOpeningReadinessUrl(1), cancellationToken);
+        using var memberReadiness = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetOpeningReadinessUrl(1), UriKind.RelativeOrAbsolute), cancellationToken);
         using var memberOpen = await memberClient.PostAsJsonAsync(
             CampaignEndpoints.OpenUrl(1),
             new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
             cancellationToken);
-        using var memberDelete = await memberClient.DeleteAsync(CampaignEndpoints.DeleteDraftUrl(1), cancellationToken);
+        using var memberDelete = await memberClient.DeleteAsync(new Uri(CampaignEndpoints.DeleteDraftUrl(1), UriKind.RelativeOrAbsolute), cancellationToken);
         memberReadiness.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         memberOpen.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         memberDelete.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -63,7 +63,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies readiness, opening receipt serialization, and idempotent Draft deletion.</summary>
     [Fact]
-    public async Task OpeningRoutes_ReturnExpectedSuccessContracts_ForAdministrator()
+    public async Task OpeningRoutesReturnExpectedSuccessContractsForAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("opening-success", cancellationToken);
@@ -73,7 +73,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
             var deleteCampaignId = await SeedDraftAsync(clubId, email, activePlayerCount: 0, cancellationToken);
 
             using var readinessResponse = await client.GetAsync(
-                CampaignEndpoints.GetOpeningReadinessUrl(openCampaignId),
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(openCampaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             readinessResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var readiness = await readinessResponse.Content.ReadFromJsonAsync<CampaignOpeningReadinessResult>(cancellationToken);
@@ -98,11 +98,11 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
             receipt.EnrolledPlayerCount.ShouldBe(2);
 
             using var deleteResponse = await client.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(deleteCampaignId),
+new Uri(CampaignEndpoints.DeleteDraftUrl(deleteCampaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
             using var replayResponse = await client.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(deleteCampaignId),
+new Uri(CampaignEndpoints.DeleteDraftUrl(deleteCampaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             replayResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -114,7 +114,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
     [InlineData("")]
     [InlineData("{")]
     [InlineData("{}")]
-    public async Task OpenCampaign_ReturnsCorrelatedBadRequest_ForInvalidBody(string payload)
+    public async Task OpenCampaignReturnsCorrelatedBadRequestForInvalidBodyAsync(string payload)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("opening-invalid-body", cancellationToken);
@@ -122,7 +122,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         {
             var campaignId = await SeedDraftAsync(clubId, email, activePlayerCount: 1, cancellationToken);
             using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            using var response = await client.PostAsync(CampaignEndpoints.OpenUrl(campaignId), content, cancellationToken);
+            using var response = await client.PostAsync(new Uri(CampaignEndpoints.OpenUrl(campaignId), UriKind.RelativeOrAbsolute), content, cancellationToken);
 
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
             using var document = await JsonDocument.ParseAsync(
@@ -135,7 +135,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies tenant isolation and lifecycle conflicts from all three opening routes.</summary>
     [Fact]
-    public async Task OpeningRoutes_MapNotFoundAndConflictStates()
+    public async Task OpeningRoutesMapNotFoundAndConflictStatesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (ownerClient, ownerEmail, ownerClubId) = await CreateAdministratorAsync("opening-owner", cancellationToken);
@@ -145,14 +145,14 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         {
             var campaignId = await SeedDraftAsync(ownerClubId, ownerEmail, activePlayerCount: 1, cancellationToken);
             using var crossTenantReadiness = await otherClient.GetAsync(
-                CampaignEndpoints.GetOpeningReadinessUrl(campaignId),
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(campaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             using var crossTenantOpen = await otherClient.PostAsJsonAsync(
                 CampaignEndpoints.OpenUrl(campaignId),
                 new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
                 cancellationToken);
             using var crossTenantDelete = await otherClient.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(campaignId),
+new Uri(CampaignEndpoints.DeleteDraftUrl(campaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             crossTenantReadiness.StatusCode.ShouldBe(HttpStatusCode.NotFound);
             crossTenantOpen.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -164,14 +164,14 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
                 cancellationToken);
             openResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             using var activeReadiness = await ownerClient.GetAsync(
-                CampaignEndpoints.GetOpeningReadinessUrl(campaignId),
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(campaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             using var reopenResponse = await ownerClient.PostAsJsonAsync(
                 CampaignEndpoints.OpenUrl(campaignId),
                 new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
                 cancellationToken);
             using var deleteActiveResponse = await ownerClient.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(campaignId),
+new Uri(CampaignEndpoints.DeleteDraftUrl(campaignId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             activeReadiness.StatusCode.ShouldBe(HttpStatusCode.Conflict);
             reopenResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -184,7 +184,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
                 cancellationToken,
                 makeCurrentSeason: false);
             using var historicalReadiness = await ownerClient.GetAsync(
-                CampaignEndpoints.GetOpeningReadinessUrl(historicalDraftId),
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(historicalDraftId), UriKind.RelativeOrAbsolute),
                 cancellationToken);
             historicalReadiness.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         }
@@ -195,7 +195,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
     /// and that the opening state, technical enrollments, and a single lifecycle event are persisted.
     /// </summary>
     [Fact]
-    public async Task CampaignOpen_ReplaysIdenticalReceipt_AndPersistsOpeningState()
+    public async Task CampaignOpenReplaysIdenticalReceiptAndPersistsOpeningStateAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("opening-replay", cancellationToken);
@@ -253,7 +253,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
     /// campaign's identity, without partially mutating the Draft.
     /// </summary>
     [Fact]
-    public async Task CampaignOpen_ReturnsConflict_WithStructuredBlockers()
+    public async Task CampaignOpenReturnsConflictWithStructuredBlockersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("opening-blockers", cancellationToken);
@@ -278,7 +278,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
             var blockedErrors = await ReadErrorsAsync(blockedResponse, cancellationToken);
             blockedErrors.ShouldContainKey(CampaignOpeningProblemKeys.AnotherCampaignActive);
             blockedErrors[CampaignOpeningProblemKeys.BlockingCampaignId].Single()
-                .ShouldBe(blockingCampaignId.ToString());
+                .ShouldBe(blockingCampaignId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             blockedErrors[CampaignOpeningProblemKeys.BlockingCampaignName].Single()
                 .ShouldNotBeNullOrWhiteSpace();
 
@@ -295,7 +295,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
     /// blocking Active campaign's identity over the deployed pipeline.
     /// </summary>
     [Fact]
-    public async Task CampaignOpeningReadiness_ReportsBlockers_ForBlockedDraft()
+    public async Task CampaignOpeningReadinessReportsBlockersForBlockedDraftAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("readiness-blocked", cancellationToken);
@@ -305,7 +305,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
             var blockingCampaignId = await SeedBlockingActiveCampaignAsync(clubId, email, cancellationToken);
 
             using var response = await client.GetAsync(
-                CampaignEndpoints.GetOpeningReadinessUrl(draftId), cancellationToken);
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(draftId), UriKind.RelativeOrAbsolute), cancellationToken);
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var readiness = (await response.Content.ReadFromJsonAsync<CampaignOpeningReadinessResult>(cancellationToken))!;
             readiness.CanOpen.ShouldBeFalse();
@@ -323,7 +323,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
     /// deletion still succeeds without adding another.
     /// </summary>
     [Fact]
-    public async Task CampaignDraftDelete_PersistsSingleTombstone_AndReplays()
+    public async Task CampaignDraftDeletePersistsSingleTombstoneAndReplaysAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("delete-tombstone", cancellationToken);
@@ -331,7 +331,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         {
             var campaignId = await SeedDraftAsync(clubId, email, activePlayerCount: 0, cancellationToken);
             using var response = await client.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(campaignId), cancellationToken);
+new Uri(CampaignEndpoints.DeleteDraftUrl(campaignId), UriKind.RelativeOrAbsolute), cancellationToken);
             response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             await using var context = fixture.CreateAdminContext();
@@ -343,7 +343,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
                 cancellationToken)).ShouldBe(1);
 
             using var replayResponse = await client.DeleteAsync(
-                CampaignEndpoints.DeleteDraftUrl(campaignId), cancellationToken);
+new Uri(CampaignEndpoints.DeleteDraftUrl(campaignId), UriKind.RelativeOrAbsolute), cancellationToken);
             replayResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
             (await context.ActivityEvents.CountAsync(
                 activity => activity.CampaignId == campaignId
@@ -354,7 +354,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies readiness previews only the first five active teams while retaining the full count.</summary>
     [Fact]
-    public async Task CampaignOpeningReadiness_ReturnsBoundedActiveTeamPreview()
+    public async Task CampaignOpeningReadinessReturnsBoundedActiveTeamPreviewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (client, email, clubId) = await CreateAdministratorAsync("readiness-teams", cancellationToken);
@@ -362,11 +362,17 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         {
             var draftId = await SeedDraftAsync(clubId, email, activePlayerCount: 1, cancellationToken);
             long[] expectedTeamIds;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
             {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 var userId = await context.Users.Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
                     .Select(user => user.Id).SingleAsync(cancellationToken);
+#pragma warning disable CA1861 // These expected values belong to this isolated test scenario and are not a production allocation path.
                 var teams = new[] { "Foxtrot", "Echo", "Delta", "Charlie", "Bravo", "Alpha" }
+#pragma warning restore CA1861
                     .Select(name => new TeamEntity
                     {
                         CreationOperationId = Guid.NewGuid(),
@@ -393,7 +399,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
                     .Take(5).Select(team => team.TeamId).ToArray();
             }
 
-            using var response = await client.GetAsync(CampaignEndpoints.GetOpeningReadinessUrl(draftId), cancellationToken);
+            using var response = await client.GetAsync(new Uri(CampaignEndpoints.GetOpeningReadinessUrl(draftId), UriKind.RelativeOrAbsolute), cancellationToken);
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var readiness = await response.Content.ReadFromJsonAsync<CampaignOpeningReadinessResult>(cancellationToken);
             readiness.ShouldNotBeNull();
@@ -433,29 +439,34 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         string adminEmail,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var userId = await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var userId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(user => user.Id)
             .SingleAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
-        var season = club.CurrentSeasonId is long currentSeasonId
-            ? await context.Seasons.SingleAsync(candidate => candidate.SeasonId == currentSeasonId, cancellationToken)
-            : throw new InvalidOperationException("The club has no current season for the blocking campaign.");
-        var suffix = Guid.CreateVersion7().ToString("N");
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Opening Blocker {suffix}",
-            StartDate = new DateOnly(2026, 5, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = userId
-        };
-        context.Add(campaign);
-        await context.SaveChangesAsync(cancellationToken);
-        return campaign.CampaignId;
+            var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+            var season = club.CurrentSeasonId is long currentSeasonId
+                ? await context.Seasons.SingleAsync(candidate => candidate.SeasonId == currentSeasonId, cancellationToken)
+                : throw new InvalidOperationException("The club has no current season for the blocking campaign.");
+            var suffix = Guid.CreateVersion7().ToString("N");
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                Name = $"Opening Blocker {suffix}",
+                StartDate = new DateOnly(2026, 5, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = userId
+            };
+            context.Add(campaign);
+            await context.SaveChangesAsync(cancellationToken);
+            return campaign.CampaignId;
+        }
     }
 
     /// <summary>
@@ -474,7 +485,7 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 
     /// <summary>Seeds one Draft and optional active players for an administrator's club.</summary>
@@ -491,57 +502,62 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken,
         bool makeCurrentSeason = true)
     {
-        await using var context = fixture.CreateAdminContext();
-        var userId = await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var userId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(user => user.Id)
             .SingleAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
-        var suffix = Guid.CreateVersion7().ToString("N");
-        var season = makeCurrentSeason && club.CurrentSeasonId is long currentSeasonId
-            ? await context.Seasons.SingleAsync(candidate => candidate.SeasonId == currentSeasonId, cancellationToken)
-            : new SeasonEntity
+            var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+            var suffix = Guid.CreateVersion7().ToString("N");
+            var season = makeCurrentSeason && club.CurrentSeasonId is long currentSeasonId
+                ? await context.Seasons.SingleAsync(candidate => candidate.SeasonId == currentSeasonId, cancellationToken)
+                : new SeasonEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    Name = $"Opening Season {suffix}",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    ClubId = clubId,
+                    CreatedById = userId
+                };
+            var campaign = new CampaignEntity
             {
                 CreationOperationId = Guid.CreateVersion7(),
-                Name = $"Opening Season {suffix}",
-                StartDate = new DateOnly(2026, 1, 1),
+                Name = $"Opening Draft {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Draft,
+                Season = season,
+                SeasonId = season.SeasonId,
                 ClubId = clubId,
                 CreatedById = userId
             };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.CreateVersion7(),
-            Name = $"Opening Draft {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Draft,
-            Season = season,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = userId
-        };
-        context.Add(campaign);
-        for (var index = 0; index < activePlayerCount; index++)
-        {
-            context.Add(new PlayerEntity
+            context.Add(campaign);
+            for (var index = 0; index < activePlayerCount; index++)
             {
-                CreationOperationId = Guid.CreateVersion7(),
-                FirstName = "Opening",
-                LastName = $"Player {index + 1} {suffix}",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030,
-                LifecycleStatus = LifecycleStatus.Active,
-                ClubId = clubId,
-                CreatedById = userId
-            });
-        }
+                context.Add(new PlayerEntity
+                {
+                    CreationOperationId = Guid.CreateVersion7(),
+                    FirstName = "Opening",
+                    LastName = $"Player {index + 1} {suffix}",
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = clubId,
+                    CreatedById = userId
+                });
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
-        if (makeCurrentSeason && club.CurrentSeasonId is null)
-        {
-            club.CurrentSeasonId = season.SeasonId;
             await context.SaveChangesAsync(cancellationToken);
-        }
+            if (makeCurrentSeason && club.CurrentSeasonId is null)
+            {
+                club.CurrentSeasonId = season.SeasonId;
+                await context.SaveChangesAsync(cancellationToken);
+            }
 
-        return campaign.CampaignId;
+            return campaign.CampaignId;
+        }
     }
 }

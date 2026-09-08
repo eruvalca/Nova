@@ -4,9 +4,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -24,7 +24,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies anonymous callers receive an unauthorized response for all three note mutations.
     /// </summary>
     [Fact]
-    public async Task EvaluationNoteMutations_ReturnUnauthorized_ForAnonymousCaller()
+    public async Task EvaluationNoteMutationsReturnUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -42,7 +42,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         using var deleteResponse = await anonymousClient.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(42),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -51,7 +51,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies authenticated callers without a club receive forbidden responses for all three note mutations.
     /// </summary>
     [Fact]
-    public async Task EvaluationNoteMutations_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task EvaluationNoteMutationsReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -73,7 +73,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using var deleteResponse = await client.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(42),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -83,7 +83,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// as creator, then the note is reflected in the participant detail payload.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_ReturnsCreated_AndPersistsRow_ForLeastPrivilegedClubMember()
+    public async Task AddEvaluationNoteReturnsCreatedAndPersistsRowForLeastPrivilegedClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -113,7 +113,9 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         success.NoteId.ShouldBeGreaterThan(0);
 
         await using var context = fixture.CreateAdminContext();
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
         var member = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == memberEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
         var persisted = await context.Notes
             .SingleOrDefaultAsync(candidate => candidate.NoteId == success.NoteId, cancellationToken);
         persisted.ShouldNotBeNull();
@@ -123,7 +125,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         persisted.CreatedById.ShouldBe(member.Id);
 
         using var detailResponse = await memberClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -141,7 +143,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies blank note content is rejected with validation ProblemDetails naming the content field.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_ReturnsValidationProblem_ForBlankContent()
+    public async Task AddEvaluationNoteReturnsValidationProblemForBlankContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -166,7 +168,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies adding a note to a participation in a closed campaign returns a conflict.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_ReturnsConflict_ForClosedCampaign()
+    public async Task AddEvaluationNoteReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -198,7 +200,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator cannot add a note to a Draft campaign and no note or receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task AddEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -238,7 +240,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies cross-tenant and nonexistent participation identifiers return non-disclosing not-found responses.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_ReturnsNotFound_ForCrossTenantAndMissingAssignments()
+    public async Task AddEvaluationNoteReturnsNotFoundForCrossTenantAndMissingAssignmentsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -278,7 +280,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies the note author can edit their note and the row is updated with audit stamps preserved.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsNoContent_AndUpdatesRow_ForAuthor()
+    public async Task EditEvaluationNoteReturnsNoContentAndUpdatesRowForAuthorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -310,7 +312,9 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         editResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         await using var context = fixture.CreateAdminContext();
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
         var member = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == memberEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
         var persisted = await context.Notes
             .SingleOrDefaultAsync(candidate => candidate.NoteId == added.NoteId, cancellationToken);
         persisted.ShouldNotBeNull();
@@ -320,7 +324,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         persisted.ModifiedAt.ShouldNotBeNull();
 
         using var detailResponse = await memberClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -338,7 +342,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-author, non-admin club member cannot edit another member's note.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsForbidden_ForNonAuthorNonAdmin()
+    public async Task EditEvaluationNoteReturnsForbiddenForNonAuthorNonAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -387,7 +391,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies editing a note in a closed campaign returns a conflict and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsConflict_ForClosedCampaign()
+    public async Task EditEvaluationNoteReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -421,7 +425,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator cannot edit a note in a Draft campaign and no mutation receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task EditEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -460,7 +464,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies blank note content is rejected on PUT with validation ProblemDetails and the row is unchanged.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsValidationProblem_ForBlankContent()
+    public async Task EditEvaluationNoteReturnsValidationProblemForBlankContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -487,7 +491,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies overlong note content is rejected on PUT with validation ProblemDetails and the row is unchanged.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsValidationProblem_ForOverlongContent()
+    public async Task EditEvaluationNoteReturnsValidationProblemForOverlongContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -514,7 +518,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies editing another club's note identifier is non-disclosing and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNote_ReturnsNotFound_ForCrossTenantNote()
+    public async Task EditEvaluationNoteReturnsNotFoundForCrossTenantNoteAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -554,7 +558,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies the note author can delete their note and the row is deleted from the database and detail payload.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNote_ReturnsNoContent_AndDeletesRow_ForAuthor()
+    public async Task DeleteEvaluationNoteReturnsNoContentAndDeletesRowForAuthorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -581,7 +585,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var added = await addResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(cancellationToken);
 
         using var deleteResponse = await memberClient.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
@@ -591,7 +595,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         persisted.ShouldBeNull();
 
         using var detailResponse = await memberClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -603,7 +607,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-author, non-admin club member cannot delete another member's note.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNote_ReturnsForbidden_ForNonAuthorNonAdmin()
+    public async Task DeleteEvaluationNoteReturnsForbiddenForNonAuthorNonAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -635,7 +639,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(otherMemberClient, cancellationToken);
 
         using var deleteResponse = await otherMemberClient.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -651,7 +655,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies deleting a note in a closed campaign returns a conflict and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNote_ReturnsConflict_ForClosedCampaign()
+    public async Task DeleteEvaluationNoteReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -668,7 +672,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
         using var deleteResponse = await client.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(noteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -684,7 +688,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator cannot delete a note in a Draft campaign and no mutation receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task DeleteEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -701,7 +705,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
         using var response = await client.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(noteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -722,7 +726,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies deleting another club's note identifier is non-disclosing and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNote_ReturnsNotFound_ForCrossTenantNote()
+    public async Task DeleteEvaluationNoteReturnsNotFoundForCrossTenantNoteAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -750,7 +754,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
         using var deleteResponse = await otherClient.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -761,7 +765,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// Verifies a successful add is reflected in the participant detail payload the notes drawer consumes.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNote_IsReflected_InParticipantDetailNotes()
+    public async Task AddEvaluationNoteIsReflectedInParticipantDetailNotesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -780,7 +784,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var added = await addResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(cancellationToken);
 
         using var detailResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -823,10 +827,11 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// <returns>The created club.</returns>
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
@@ -839,7 +844,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes when the cookie has been refreshed.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -852,10 +857,15 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes when the user has been updated.</returns>
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.ClubId = clubId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -872,51 +882,56 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken,
         CampaignStatus campaignStatus = CampaignStatus.Active)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Note Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = campaignStatus,
-            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Note",
-            LastName = $"Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var suffix = Guid.NewGuid().ToString("N");
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Note Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Note Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = campaignStatus,
+                ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
+                Season = season,
+                SeasonId = 0,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Note",
+                LastName = $"Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
 
-        context.AddRange(season, campaign, player);
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(season, campaign, player);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = clubId,
-            CreatedById = user.Id,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
-        };
-        context.Add(assignment);
-        await context.SaveChangesAsync(cancellationToken);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = clubId,
+                CreatedById = user.Id,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 7
+            };
+            context.Add(assignment);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (campaign.CampaignId, assignment.PlayerCampaignAssignmentId);
+            return (campaign.CampaignId, assignment.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>
@@ -936,19 +951,24 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         string content,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var note = new NoteEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Content = content,
-            PlayerCampaignAssignmentId = assignmentId,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        context.Add(note);
-        await context.SaveChangesAsync(cancellationToken);
-        return note.NoteId;
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var note = new NoteEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Content = content,
+                PlayerCampaignAssignmentId = assignmentId,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            context.Add(note);
+            await context.SaveChangesAsync(cancellationToken);
+            return note.NoteId;
+        }
     }
 
     /// <summary>
@@ -959,11 +979,14 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     private async Task AssertNotePersistedAsync(long noteId, string expectedContent, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var persisted = await context.Notes
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var persisted = await context.Notes
             .SingleOrDefaultAsync(candidate => candidate.NoteId == noteId, cancellationToken);
-        persisted.ShouldNotBeNull();
-        persisted.Content.ShouldBe(expectedContent);
+            persisted.ShouldNotBeNull();
+            persisted.Content.ShouldBe(expectedContent);
+        }
     }
 
     /// <summary>
@@ -982,6 +1005,6 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 }

@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Components;
 
@@ -24,7 +25,7 @@ public partial class RedirectToLoginOrAccessDenied(
         if (authState.User.Identity?.IsAuthenticated == true)
         {
             var relativePath = navigationManager.ToBaseRelativePath(navigationManager.Uri);
-            if (authState.User.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId)
+            if (authState.User.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.ClubId, StringComparison.Ordinal))
                 && ClubRoutes.IsAdministratorRoute(relativePath))
             {
                 navigationManager.NavigateTo(ClubRoutes.OverviewWithPermissionsChanged, forceLoad: true);

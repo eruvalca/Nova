@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Clubs;
@@ -11,13 +11,13 @@ namespace Nova.Client.Services.Clubs;
 /// minimal API endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinRequestService
+internal sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinRequestService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubJoinRequestDto>> GetCurrentUserPendingRequestAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(ClubEndpoints.PendingRequest, cancellationToken);
+        using var response = await http.GetAsync(new Uri(ClubEndpoints.PendingRequest, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -56,7 +56,7 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         CancellationToken cancellationToken = default)
     {
         var url = ClubEndpoints.CancelJoinRequestUrl(requestId);
-        using var response = await http.DeleteAsync(url, cancellationToken);
+        using var response = await http.DeleteAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -71,7 +71,7 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         CancellationToken cancellationToken = default)
     {
         var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
-        using var response = await http.GetAsync(url, cancellationToken);
+        using var response = await http.GetAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -97,7 +97,7 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         CancellationToken cancellationToken = default)
     {
         var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
-        using var response = await http.PostAsync(url, null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(url, UriKind.RelativeOrAbsolute), null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -112,7 +112,7 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         CancellationToken cancellationToken = default)
     {
         var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
-        using var response = await http.PostAsync(url, null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(url, UriKind.RelativeOrAbsolute), null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

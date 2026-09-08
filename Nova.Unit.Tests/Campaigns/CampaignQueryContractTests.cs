@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -18,7 +18,7 @@ public sealed class CampaignQueryContractTests
     [InlineData(1, true)]
     [InlineData(2, true)]
     [InlineData(int.MaxValue, true)]
-    public void GetCampaignListInput_ValidatesPageBounds(int page, bool isValid)
+    public void GetCampaignListInputValidatesPageBounds(int page, bool isValid)
     {
         var errors = InputValidator.Validate(new GetCampaignListInput { Page = page });
 
@@ -27,7 +27,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies accepted filters produce the expected normalized URL.</summary>
     [Fact]
-    public void GetCampaignListUrl_BuildsExpectedUrl()
+    public void GetCampaignListUrlBuildsExpectedUrl()
     {
         var url = CampaignEndpoints.GetCampaignListUrl(" Active ", 25);
 
@@ -36,7 +36,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies directory continuation forwards its page together with filters and bounds.</summary>
     [Fact]
-    public void GetCampaignListUrl_IncludesRequestedPage()
+    public void GetCampaignListUrlIncludesRequestedPage()
     {
         CampaignEndpoints.GetCampaignListUrl("draft", 20, 2)
             .ShouldBe("/api/campaigns?page=2&status=draft&limit=20");
@@ -44,7 +44,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies omitted filters satisfy the shared input contract.</summary>
     [Fact]
-    public void GetCampaignListInput_DefaultsToNoValidationErrors_WhenOmitted()
+    public void GetCampaignListInputDefaultsToNoValidationErrorsWhenOmitted()
     {
         var errors = InputValidator.Validate(new GetCampaignListInput());
         errors.ShouldBeEmpty();
@@ -52,7 +52,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies the detail URL builder routes to the shared route.</summary>
     [Fact]
-    public void GetCampaignDetailUrl_BuildsExpectedUrl()
+    public void GetCampaignDetailUrlBuildsExpectedUrl()
     {
         var url = CampaignEndpoints.GetCampaignDetailUrl(42);
 
@@ -66,7 +66,7 @@ public sealed class CampaignQueryContractTests
     [InlineData(0, false)]
     [InlineData(-1, false)]
     [InlineData(1, true)]
-    public void GetCampaignDetailInput_ValidatesCampaignIdBounds(long campaignId, bool isValid)
+    public void GetCampaignDetailInputValidatesCampaignIdBounds(long campaignId, bool isValid)
     {
         var errors = InputValidator.Validate(new GetCampaignDetailInput { CampaignId = campaignId });
 
@@ -75,7 +75,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies unsupported status values are rejected.</summary>
     [Fact]
-    public void GetCampaignListInput_RejectsInvalidStatus()
+    public void GetCampaignListInputRejectsInvalidStatus()
     {
         var errors = InputValidator.Validate(new GetCampaignListInput { Status = "open" });
         errors.ShouldContainKey(nameof(GetCampaignListInput.Status));
@@ -83,7 +83,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies an explicitly empty status is rejected.</summary>
     [Fact]
-    public void GetCampaignListInput_RejectsEmptyStatus()
+    public void GetCampaignListInputRejectsEmptyStatus()
     {
         var errors = InputValidator.Validate(new GetCampaignListInput { Status = string.Empty });
         errors.ShouldContainKey(nameof(GetCampaignListInput.Status));
@@ -91,7 +91,7 @@ public sealed class CampaignQueryContractTests
 
     /// <summary>Verifies invalid optional values are omitted by the URL builder.</summary>
     [Fact]
-    public void GetCampaignListUrl_OmitsInvalidOptionalValues()
+    public void GetCampaignListUrlOmitsInvalidOptionalValues()
     {
         var url = CampaignEndpoints.GetCampaignListUrl(" ", 0);
         url.ShouldBe("/api/campaigns");
@@ -107,7 +107,7 @@ public sealed class CampaignQueryContractTests
     [InlineData(1, true)]
     [InlineData(100, true)]
     [InlineData(101, false)]
-    public void GetCampaignListInput_ValidatesLimitBounds(int limit, bool isValid)
+    public void GetCampaignListInputValidatesLimitBounds(int limit, bool isValid)
     {
         var errors = InputValidator.Validate(new GetCampaignListInput { Limit = limit });
 
@@ -123,7 +123,7 @@ public sealed class CampaignQueryContractTests
     [InlineData("ACTIVE")]
     [InlineData("closed")]
     [InlineData("CLOSED")]
-    public void GetCampaignListInput_AcceptsSupportedStatusCaseInsensitively(string status)
+    public void GetCampaignListInputAcceptsSupportedStatusCaseInsensitively(string status)
     {
         var errors = InputValidator.Validate(new GetCampaignListInput { Status = status });
 
@@ -134,14 +134,18 @@ public sealed class CampaignQueryContractTests
     /// Verifies the roster URL builder normalizes accepted filters and sorts.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterUrl_BuildsExpectedUrl()
+    public void GetCampaignParticipantRosterUrlBuildsExpectedUrl()
     {
         var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
         {
             CampaignId = 42,
             Search = " A ",
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             GraduationYears = new[] { 2028, 2029 },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             TagDefinitionIds = new[] { 7L, 8L },
+#pragma warning restore CA1861
             Outcome = " ASSIGNED ",
             TeamId = 9,
             SortBy = " GRADUATIONYEAR ",
@@ -158,7 +162,7 @@ public sealed class CampaignQueryContractTests
     /// so server-side bounds validation can reject out-of-range page sizes.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterUrl_OmitsInvalidOptionalValues()
+    public void GetCampaignParticipantRosterUrlOmitsInvalidOptionalValues()
     {
         var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
         {
@@ -180,13 +184,17 @@ public sealed class CampaignQueryContractTests
     /// the shared input validation is what rejects non-positive elements before a request is made.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterUrl_ForwardsFilterElementsForServerValidation()
+    public void GetCampaignParticipantRosterUrlForwardsFilterElementsForServerValidation()
     {
         var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
         {
             CampaignId = 42,
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             GraduationYears = new[] { 2028, 2028, 0 },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             TagDefinitionIds = new[] { 7L, 0L }
+#pragma warning restore CA1861
         });
 
         url.ShouldBe("/api/campaigns/42/participants?graduationYears=2028&graduationYears=0&tagDefinitionIds=7&tagDefinitionIds=0&page=1&pageSize=50");
@@ -196,7 +204,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies the placement roster URL builder omits page sizes rejected by the input contract.
     /// </summary>
     [Fact]
-    public void GetCampaignPlacementRosterUrl_OmitsOutOfRangePageSize()
+    public void GetCampaignPlacementRosterUrlOmitsOutOfRangePageSize()
     {
         var url = CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
         {
@@ -211,13 +219,17 @@ public sealed class CampaignQueryContractTests
     /// Verifies non-positive filter elements are rejected by the shared input validation.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterInput_RejectsNonPositiveFilterElements()
+    public void GetCampaignParticipantRosterInputRejectsNonPositiveFilterElements()
     {
         var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
         {
             CampaignId = 1,
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             GraduationYears = new[] { 0 },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             TagDefinitionIds = new[] { 0L }
+#pragma warning restore CA1861
         });
 
         errors.ShouldContainKey(nameof(GetCampaignParticipantRosterInput.GraduationYears));
@@ -228,13 +240,17 @@ public sealed class CampaignQueryContractTests
     /// Verifies positive filter elements satisfy the shared input validation.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterInput_AcceptsPositiveFilterElements()
+    public void GetCampaignParticipantRosterInputAcceptsPositiveFilterElements()
     {
         var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
         {
             CampaignId = 1,
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             GraduationYears = new[] { 2028, 2029 },
+#pragma warning restore CA1861
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             TagDefinitionIds = new[] { 7L, 8L }
+#pragma warning restore CA1861
         });
 
         errors.ShouldBeEmpty();
@@ -244,7 +260,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies the roster input applies default paging when omitted.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantRosterInput_DefaultsToPageOneAndPageSizeFifty_WhenOmitted()
+    public void GetCampaignParticipantRosterInputDefaultsToPageOneAndPageSizeFiftyWhenOmitted()
     {
         var input = new GetCampaignParticipantRosterInput { CampaignId = 1 };
 
@@ -262,7 +278,7 @@ public sealed class CampaignQueryContractTests
     [InlineData("ASC")]
     [InlineData("desc")]
     [InlineData("DESC")]
-    public void GetCampaignParticipantRosterInput_AcceptsSupportedSortDirectionsCaseInsensitively(string direction)
+    public void GetCampaignParticipantRosterInputAcceptsSupportedSortDirectionsCaseInsensitively(string direction)
     {
         var input = new GetCampaignParticipantRosterInput { CampaignId = 1, SortDirection = direction };
 
@@ -273,7 +289,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies the graduation-years URL builder produces the shared route shape.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantGraduationYearsUrl_BuildsExpectedUrl()
+    public void GetCampaignParticipantGraduationYearsUrlBuildsExpectedUrl()
     {
         CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42)
             .ShouldBe("/api/campaigns/42/participants/graduation-years");
@@ -283,11 +299,11 @@ public sealed class CampaignQueryContractTests
     /// Verifies the graduation-years route constant matches the URL builder output.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantGraduationYears_ConstantMatchesUrlBuilder()
+    public void GetCampaignParticipantGraduationYearsConstantMatchesUrlBuilder()
     {
         var url = CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42);
 
-        url.ShouldBe(CampaignEndpoints.GetCampaignParticipantGraduationYears.Replace("{campaignId:long}", "42"));
+        url.ShouldBe(CampaignEndpoints.GetCampaignParticipantGraduationYears.Replace("{campaignId:long}", "42", StringComparison.Ordinal));
         CampaignEndpoints.GetCampaignParticipantGraduationYearsRelative.ShouldBe("{campaignId:long}/participants/graduation-years");
         CampaignEndpoints.GetCampaignParticipantGraduationYearsRouteName.ShouldBe("GetCampaignParticipantGraduationYears");
     }
@@ -296,7 +312,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies the graduation-years input rejects a non-positive campaign identifier.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantGraduationYearsInput_RejectsNonPositiveCampaignId()
+    public void GetCampaignParticipantGraduationYearsInputRejectsNonPositiveCampaignId()
     {
         var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 0 });
 
@@ -307,7 +323,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies the graduation-years input accepts a positive campaign identifier.
     /// </summary>
     [Fact]
-    public void GetCampaignParticipantGraduationYearsInput_AcceptsPositiveCampaignId()
+    public void GetCampaignParticipantGraduationYearsInputAcceptsPositiveCampaignId()
     {
         var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 });
 

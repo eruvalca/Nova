@@ -8,12 +8,12 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.Features.Common;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Clubs;
 
@@ -28,13 +28,15 @@ internal static class ClubEndpointRouteBuilderExtensions
         /// Maps the club endpoints using MapGroup for organization.
         /// </summary>
         /// <returns>The endpoint route builder, for chaining.</returns>
+#pragma warning disable MA0051 // Keep the endpoint group registration and its metadata together; request handlers are separate.
         public IEndpointRouteBuilder MapClubEndpoints()
+#pragma warning restore MA0051
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
             var group = endpoints.MapGroup(ClubEndpoints.GroupPrefix).RequireAuthorization();
 
-            group.MapGet(ClubEndpoints.GetCurrentRelative, GetCurrentClubHandler)
+            group.MapGet(ClubEndpoints.GetCurrentRelative, GetCurrentClubHandlerAsync)
                 .Produces<ClubIdentityResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -46,7 +48,7 @@ internal static class ClubEndpointRouteBuilderExtensions
             // Create a new club with a required crest upload; the current user becomes the club admin.
             // The WASM client posts with the Identity cookie but without a Razor antiforgery token;
             // SameSite=Lax on the Identity cookie protects this multipart API post from CSRF.
-            group.MapPost(ClubEndpoints.CreateRelative, CreateClubHandler)
+            group.MapPost(ClubEndpoints.CreateRelative, CreateClubHandlerAsync)
                 .Produces<ClubDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status409Conflict)
@@ -56,21 +58,21 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("CreateClub");
 
             // Search clubs by name, city, or state.
-            group.MapGet(ClubEndpoints.SearchRelative, SearchClubsHandler)
+            group.MapGet(ClubEndpoints.SearchRelative, SearchClubsHandlerAsync)
                 .Produces<IReadOnlyList<ClubDto>>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName("SearchClubs");
 
             // Get the current user's pending join request, if any.
-            group.MapGet(ClubEndpoints.PendingRequestRelative, GetPendingRequestHandler)
+            group.MapGet(ClubEndpoints.PendingRequestRelative, GetPendingRequestHandlerAsync)
                 .Produces<ClubJoinRequestDto>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .WithName("GetPendingJoinRequest");
 
             // Submit a request for the current user to join a specific club.
-            group.MapPost(ClubEndpoints.CreateJoinRequestRelative, CreateJoinRequestHandler)
+            group.MapPost(ClubEndpoints.CreateJoinRequestRelative, CreateJoinRequestHandlerAsync)
                 .Produces<ClubJoinRequestDto>(StatusCodes.Status201Created)
                 .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status409Conflict)
@@ -80,7 +82,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("CreateJoinRequest");
 
             // Cancel a pending join request owned by the current user.
-            group.MapDelete(ClubEndpoints.CancelJoinRequestRelative, CancelJoinRequestHandler)
+            group.MapDelete(ClubEndpoints.CancelJoinRequestRelative, CancelJoinRequestHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -89,7 +91,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("CancelJoinRequest");
 
             // List a specific club's pending join requests (ClubAdmin only).
-            group.MapGet(ClubEndpoints.AdminJoinRequestsRelative, GetClubJoinRequestsHandler)
+            group.MapGet(ClubEndpoints.AdminJoinRequestsRelative, GetClubJoinRequestsHandlerAsync)
                 .Produces<IReadOnlyList<ClubJoinRequestDto>>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -97,7 +99,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("GetClubJoinRequests");
 
             // Approve a pending join request (ClubAdmin only).
-            group.MapPost(ClubEndpoints.ApproveJoinRequestRelative, ApproveJoinRequestHandler)
+            group.MapPost(ClubEndpoints.ApproveJoinRequestRelative, ApproveJoinRequestHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -108,7 +110,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("ApproveJoinRequest");
 
             // Reject a pending join request (ClubAdmin only).
-            group.MapPost(ClubEndpoints.RejectJoinRequestRelative, RejectJoinRequestHandler)
+            group.MapPost(ClubEndpoints.RejectJoinRequestRelative, RejectJoinRequestHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -119,14 +121,14 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("RejectJoinRequest");
 
             // Get the current user's club members.
-            group.MapGet(ClubEndpoints.GetMembersRelative, GetClubMembersHandler)
+            group.MapGet(ClubEndpoints.GetMembersRelative, GetClubMembersHandlerAsync)
                 .Produces<IReadOnlyList<ClubMemberDto>>()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetClubMembers");
 
-            group.MapPost(ClubEndpoints.PromoteMemberRelative, PromoteMemberHandler)
+            group.MapPost(ClubEndpoints.PromoteMemberRelative, PromoteMemberHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -138,7 +140,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName("PromoteClubMember");
 
-            group.MapPost(ClubEndpoints.DemoteMemberRelative, DemoteMemberHandler)
+            group.MapPost(ClubEndpoints.DemoteMemberRelative, DemoteMemberHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -150,7 +152,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName("DemoteClubMember");
 
-            group.MapDelete(ClubEndpoints.RemoveMemberRelative, RemoveMemberHandler)
+            group.MapDelete(ClubEndpoints.RemoveMemberRelative, RemoveMemberHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -162,7 +164,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName("RemoveClubMember");
 
-            group.MapDelete(ClubEndpoints.LeaveClubRelative, LeaveClubHandler)
+            group.MapDelete(ClubEndpoints.LeaveClubRelative, LeaveClubHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -174,14 +176,14 @@ internal static class ClubEndpointRouteBuilderExtensions
 
             // Serve a club crest by club ID and size, with ETag caching. Mapped outside
             // the clubs group because its route lives under /api/clubs/{clubId}/crest.
-            endpoints.MapGet(ClubCrestEndpoints.GetTemplate, GetCrestHandler)
+            endpoints.MapGet(ClubCrestEndpoints.GetTemplate, GetCrestHandlerAsync)
                 .RequireAuthorization()
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .WithName("GetClubCrest");
 
             // Change a club's crest (ClubAdmin only, multipart upload).
-            group.MapPost(ClubCrestEndpoints.ManageRelative, ChangeCrestHandler)
+            group.MapPost(ClubCrestEndpoints.ManageRelative, ChangeCrestHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -194,7 +196,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .WithName("ChangeClubCrest");
 
             // Remove a club's crest (ClubAdmin only).
-            group.MapDelete(ClubCrestEndpoints.ManageRelative, RemoveCrestHandler)
+            group.MapDelete(ClubCrestEndpoints.ManageRelative, RemoveCrestHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -206,7 +208,7 @@ internal static class ClubEndpointRouteBuilderExtensions
 
             // Cookie refresh hop after club creation: reissues auth cookie so claims take effect.
             // Mapped at its absolute path, outside the API group.
-            endpoints.MapGet(ClubEndpoints.Complete, CompleteHandler)
+            endpoints.MapGet(ClubEndpoints.Complete, CompleteHandlerAsync)
                 .RequireAuthorization()
                 .WithName("CompleteClubOnboarding");
 
@@ -218,7 +220,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <param name="clubIdentityQueryService">The service that loads identity from the trusted membership context.</param>
     /// <param name="cancellationToken">The token that cancels the identity read when the request is aborted.</param>
     /// <returns>The club identity HTTP response or the service problem mapped to an HTTP result.</returns>
-    private static async Task<IResult> GetCurrentClubHandler(
+    private static async Task<IResult> GetCurrentClubHandlerAsync(
         IClubIdentityQueryService clubIdentityQueryService,
         CancellationToken cancellationToken)
         => (await clubIdentityQueryService.GetCurrentAsync(cancellationToken)).ToHttpResult();
@@ -226,7 +228,9 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles club creation requests (multipart form: name, city, state, and required crest file).
     /// </summary>
-    private static async Task<IResult> CreateClubHandler(
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
+    private static async Task<IResult> CreateClubHandlerAsync(
+#pragma warning restore MA0051
         [FromForm] string name,
         [FromForm] string city,
         [FromForm] string state,
@@ -250,12 +254,15 @@ internal static class ClubEndpointRouteBuilderExtensions
         }
 
         byte[] crestContent;
-        await using (var stream = crest.OpenReadStream())
+        var stream = crest.OpenReadStream();
+
+        await using (stream)
         using (var buffer = new MemoryStream((int)crest.Length))
         {
             await stream.CopyToAsync(buffer, cancellationToken);
             crestContent = buffer.ToArray();
         }
+
 
         var input = new CreateClubInput
         {
@@ -308,7 +315,9 @@ internal static class ClubEndpointRouteBuilderExtensions
         {
             throw;
         }
+#pragma warning disable CA1031 // Report the operation failure without replaying a possibly committed mutation or sign-in refresh; the exception is logged.
         catch (Exception exception)
+#pragma warning restore CA1031
         {
             endpointLogger.LogClubCreationCookieRefreshFailed(exception, currentUserProvider.UserId);
             return ServiceProblem.ServerError(
@@ -320,7 +329,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles retrieval of a club crest by club ID and size, with ETag caching.
     /// </summary>
-    private static async Task<IResult> GetCrestHandler(
+    private static async Task<IResult> GetCrestHandlerAsync(
         long clubId,
         [FromQuery] string? size,
         HttpContext context,
@@ -353,6 +362,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .FirstOrDefaultAsync(c => c.ClubId == clubId, cancellationToken);
         }
 
+
         var blobName = SelectBlobName(crest, crestSize);
         if (crest is null || blobName is null)
         {
@@ -371,7 +381,7 @@ internal static class ClubEndpointRouteBuilderExtensions
             context.Response.Headers.CacheControl = "private, no-cache";
             context.Response.Headers.ETag = etag;
 
-            if (context.Request.Headers.IfNoneMatch.Any(value => value == etag))
+            if (context.Request.Headers.IfNoneMatch.Any(value => string.Equals(value, etag, StringComparison.Ordinal)))
             {
                 return TypedResults.StatusCode(StatusCodes.Status304NotModified);
             }
@@ -388,7 +398,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles changing a club's crest (multipart upload, ClubAdmin only).
     /// </summary>
-    private static async Task<IResult> ChangeCrestHandler(
+    private static async Task<IResult> ChangeCrestHandlerAsync(
         long clubId,
         [FromForm] IFormFile? crest,
         HttpContext context,
@@ -408,12 +418,15 @@ internal static class ClubEndpointRouteBuilderExtensions
         }
 
         byte[] crestContent;
-        await using (var stream = crest.OpenReadStream())
+        var stream = crest.OpenReadStream();
+
+        await using (stream)
         using (var buffer = new MemoryStream((int)crest.Length))
         {
             await stream.CopyToAsync(buffer, cancellationToken);
             crestContent = buffer.ToArray();
         }
+
 
         var result = await clubCrestService.ChangeClubCrestAsync(
             clubId,
@@ -427,14 +440,14 @@ internal static class ClubEndpointRouteBuilderExtensions
 
         // The crest changed and the acting admin's security stamp was bumped when the club's
         // members were marked stale; reissue their cookie so HasClubCrest takes effect now.
-        await RefreshAdminCookieAsync(context, userManager, signInManager, cancellationToken);
+        await RefreshAdminCookieAsync(context, userManager, signInManager);
         return TypedResults.NoContent();
     }
 
     /// <summary>
     /// Handles removing a club's crest (ClubAdmin only).
     /// </summary>
-    private static async Task<IResult> RemoveCrestHandler(
+    private static async Task<IResult> RemoveCrestHandlerAsync(
         long clubId,
         HttpContext context,
         UserManager<NovaUserEntity> userManager,
@@ -450,7 +463,7 @@ internal static class ClubEndpointRouteBuilderExtensions
 
         // The crest was removed and the acting admin's security stamp was bumped when the
         // club's members were marked stale; reissue their cookie so HasClubCrest disappears now.
-        await RefreshAdminCookieAsync(context, userManager, signInManager, cancellationToken);
+        await RefreshAdminCookieAsync(context, userManager, signInManager);
         return TypedResults.NoContent();
     }
 
@@ -461,8 +474,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     private static async Task RefreshAdminCookieAsync(
         HttpContext context,
         UserManager<NovaUserEntity> userManager,
-        SignInManager<NovaUserEntity> signInManager,
-        CancellationToken cancellationToken)
+        SignInManager<NovaUserEntity> signInManager)
     {
         var user = await userManager.GetUserAsync(context.User);
         if (user is null)
@@ -494,7 +506,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles club search requests.
     /// </summary>
-    private static async Task<IResult> SearchClubsHandler(
+    private static async Task<IResult> SearchClubsHandlerAsync(
         [FromQuery] string? q,
         IClubService clubService,
         CancellationToken cancellationToken)
@@ -506,7 +518,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles requests for the current user's pending join request.
     /// </summary>
-    private static async Task<IResult> GetPendingRequestHandler(
+    private static async Task<IResult> GetPendingRequestHandlerAsync(
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
     {
@@ -517,7 +529,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles join request creation for a specific club.
     /// </summary>
-    private static async Task<IResult> CreateJoinRequestHandler(
+    private static async Task<IResult> CreateJoinRequestHandlerAsync(
         long clubId,
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
@@ -529,7 +541,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles cancellation of a pending join request.
     /// </summary>
-    private static async Task<IResult> CancelJoinRequestHandler(
+    private static async Task<IResult> CancelJoinRequestHandlerAsync(
         long requestId,
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
@@ -541,7 +553,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles listing a club's pending join requests (ClubAdmin only).
     /// </summary>
-    private static async Task<IResult> GetClubJoinRequestsHandler(
+    private static async Task<IResult> GetClubJoinRequestsHandlerAsync(
         long clubId,
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
@@ -556,7 +568,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <param name="clubMemberService">The club member service.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The HTTP result containing the list of club members.</returns>
-    private static async Task<IResult> GetClubMembersHandler(
+    private static async Task<IResult> GetClubMembersHandlerAsync(
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
     {
@@ -567,7 +579,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles approving a pending join request (ClubAdmin only).
     /// </summary>
-    private static async Task<IResult> ApproveJoinRequestHandler(
+    private static async Task<IResult> ApproveJoinRequestHandlerAsync(
         long requestId,
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
@@ -579,7 +591,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles rejecting a pending join request (ClubAdmin only).
     /// </summary>
-    private static async Task<IResult> RejectJoinRequestHandler(
+    private static async Task<IResult> RejectJoinRequestHandlerAsync(
         long requestId,
         IClubJoinRequestService joinRequestService,
         CancellationToken cancellationToken)
@@ -591,7 +603,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles promotion of a club member.
     /// </summary>
-    private static async Task<IResult> PromoteMemberHandler(
+    private static async Task<IResult> PromoteMemberHandlerAsync(
         [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
@@ -600,21 +612,21 @@ internal static class ClubEndpointRouteBuilderExtensions
         return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 
-    private static async Task<IResult> DemoteMemberHandler(
+    private static async Task<IResult> DemoteMemberHandlerAsync(
         [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
         => (await clubMemberService.DemoteMemberAsync(input, cancellationToken))
             .ToHttpResult(_ => TypedResults.NoContent());
 
-    private static async Task<IResult> RemoveMemberHandler(
+    private static async Task<IResult> RemoveMemberHandlerAsync(
         [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
         => (await clubMemberService.RemoveMemberAsync(input, cancellationToken))
             .ToHttpResult(_ => TypedResults.NoContent());
 
-    private static async Task<IResult> LeaveClubHandler(
+    private static async Task<IResult> LeaveClubHandlerAsync(
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
         => (await clubMemberService.LeaveClubAsync(cancellationToken))
@@ -624,12 +636,11 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// Handles the post-onboarding cookie refresh: reissues the auth cookie so the
     /// ClubId claim takes effect, then redirects to the requested local URL.
     /// </summary>
-    private static async Task<IResult> CompleteHandler(
+    private static async Task<IResult> CompleteHandlerAsync(
         HttpContext context,
         UserManager<NovaUserEntity> userManager,
         SignInManager<NovaUserEntity> signInManager,
-        [FromQuery] string? returnUrl,
-        CancellationToken cancellationToken)
+        [FromQuery] string? returnUrl)
     {
         var user = await userManager.GetUserAsync(context.User);
         if (user is null)

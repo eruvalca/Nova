@@ -2,9 +2,9 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -22,7 +22,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     // ── Checklist rendering ────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_RendersChecklistRows_WithExactCountsAndMessages_WhenBlocked()
+    public void PanelRendersChecklistRowsWithExactCountsAndMessagesWhenBlocked()
     {
         var summary = CreateSummary(assigned: 5, notSelected: 2, withdrawn: 2, undecided: 3);
         var readiness = CreateReadiness(
@@ -51,7 +51,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_RendersSatisfiedRows_WhenAllClear()
+    public void PanelRendersSatisfiedRowsWhenAllClear()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(assigned: 6, notSelected: 3, withdrawn: 3, undecided: 0))));
@@ -66,13 +66,13 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
         rows[3].ShouldBe("Eligibility Satisfied");
         rows[4].ShouldBe("Archived teams Satisfied");
 
-        cut.FindAll("button").Any(button => button.TextContent.Trim() == "Review unresolved").ShouldBeFalse();
+        cut.FindAll("button").Any(button => string.Equals(button.TextContent.Trim(), "Review unresolved", StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     // ── Close gating ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_DisablesClose_WhenReadinessIsNotReady()
+    public void PanelDisablesCloseWhenReadinessIsNotReady()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(undecided: 3), isReady: false)));
@@ -84,7 +84,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_DisablesClose_ForNonAdmin()
+    public void PanelDisablesCloseForNonAdmin()
     {
         RegisterServices();
 
@@ -97,7 +97,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     // ── Close flow ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_CloseSuccess_ShowsMessage_AndFiresReload()
+    public void PanelCloseSuccessShowsMessageAndFiresReload()
     {
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
         lifecycleService.CloseAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -117,7 +117,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_CloseConflict_ShowsWarning_AndRefetchesReadiness()
+    public void PanelCloseConflictShowsWarningAndRefetchesReadiness()
     {
         var ready = CreateReadiness(CreateSummary(undecided: 0));
         var blocked = CreateReadiness(
@@ -145,13 +145,13 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Resolve all campaign close blockers before closing this campaign."));
         cut.Markup.ShouldContain("alert-warning");
-        queryService.Received(2).GetCloseoutReadinessAsync(
+        _ = queryService.Received(2).GetCloseoutReadinessAsync(
             Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
         cut.Markup.ShouldContain("Found 3 undecided participation record(s).");
     }
 
     [Fact]
-    public void Panel_PendingClose_DisablesButtons_WhileInFlight()
+    public void PanelPendingCloseDisablesButtonsWhileInFlight()
     {
         var pending = new TaskCompletionSource<ServiceResult<Success>>();
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
@@ -174,7 +174,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     // ── Closed view ────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_ClosedView_ShowsClosureMetadata_Summary_AndReadOnlyBanner()
+    public void PanelClosedViewShowsClosureMetadataSummaryAndReadOnlyBanner()
     {
         RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
             CreateReadiness(CreateSummary(assigned: 6, notSelected: 3, withdrawn: 3, undecided: 0))));
@@ -195,20 +195,20 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     }
 
     [Fact]
-    public void Panel_ReopenButton_HiddenForNonAdmin()
+    public void PanelReopenButtonHiddenForNonAdmin()
     {
         RegisterServices();
 
         var cut = RenderPanel(isClubAdmin: false, status: CampaignStatus.Closed);
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("This campaign is closed and read-only."));
 
-        cut.FindAll("button").Any(button => button.TextContent.Trim() == "Reopen campaign").ShouldBeFalse();
+        cut.FindAll("button").Any(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     // ── Reopen confirm flow ────────────────────────────────────────────────────
 
     [Fact]
-    public void Panel_ReopenConfirm_CancelIsNoOp()
+    public void PanelReopenConfirmCancelIsNoOp()
     {
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
         RegisterServices(lifecycleService: lifecycleService);
@@ -216,16 +216,16 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
         var cut = RenderPanel(isClubAdmin: true, status: CampaignStatus.Closed);
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Reopen campaign"));
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Reopen campaign").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).Click();
         cut.Markup.ShouldContain("Reopening restores editing without discarding outcomes and is recorded for audit.");
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Cancel").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Cancel", StringComparison.Ordinal)).Click();
         cut.Markup.ShouldNotContain("Reopening restores editing without discarding outcomes and is recorded for audit.");
-        lifecycleService.DidNotReceive().ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+        _ = lifecycleService.DidNotReceive().ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Panel_ReopenSuccess_FiresReload()
+    public void PanelReopenSuccessFiresReload()
     {
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
         lifecycleService.ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -238,8 +238,8 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
         var cut = RenderPanel(isClubAdmin: true, status: CampaignStatus.Closed, onReloadRequested: onReloadRequested);
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Reopen campaign"));
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Reopen campaign").Click();
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm reopen").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm reopen", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign reopened."));
         reloaded.ShouldBeTrue();
@@ -248,7 +248,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
     // ── Unresolved-review drill-down ───────────────────────────────────────────
 
     [Fact]
-    public void Panel_ReviewUnresolved_ReceivesTrueForOutcomes_AndFalseOtherwise()
+    public void PanelReviewUnresolvedReceivesTrueForOutcomesAndFalseOtherwise()
     {
         var readiness = CreateReadiness(
             CreateSummary(undecided: 3),
@@ -267,7 +267,7 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review unresolved"));
 
         var buttons = cut.FindAll("button")
-            .Where(button => button.TextContent.Trim() == "Review unresolved")
+            .Where(button => string.Equals(button.TextContent.Trim(), "Review unresolved", StringComparison.Ordinal))
             .ToList();
         buttons.Count.ShouldBe(3);
         foreach (var button in buttons)
@@ -366,5 +366,5 @@ public sealed class CampaignCloseoutPanelTests : BunitContext
         => new(condition, count, [301, 302, 303], message);
 
     private static string Collapse(string text)
-        => Regex.Replace(text, @"\s+", " ").Trim();
+        => Regex.Replace(text, @"\s+", " ", RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
 }

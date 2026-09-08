@@ -10,14 +10,14 @@ namespace Nova.Unit.Tests.Features.Players;
 public sealed class PlayerGraduationYearPolicyTests
 {
     [Fact]
-    public void Evaluate_WithEmptyPlacements_ReturnsMayChange()
+    public void EvaluateWithEmptyPlacementsReturnsMayChange()
     {
         var result = PlayerGraduationYearPolicy.Evaluate(2028, []);
         result.IsT0.ShouldBeTrue(); // GraduationYearMayChange
     }
 
     [Fact]
-    public void Evaluate_WithAllEligiblePlacements_ReturnsMayChange()
+    public void EvaluateWithAllEligiblePlacementsReturnsMayChange()
     {
         var placements = new[]
         {
@@ -31,7 +31,7 @@ public sealed class PlayerGraduationYearPolicyTests
     }
 
     [Fact]
-    public void Evaluate_WithExactlyMatchingGraduationYear_ReturnsMayChange()
+    public void EvaluateWithExactlyMatchingGraduationYearReturnsMayChange()
     {
         var placements = new[]
         {
@@ -45,7 +45,7 @@ public sealed class PlayerGraduationYearPolicyTests
     }
 
     [Fact]
-    public void Evaluate_WithOnePlacementTooYoung_ReturnsBlockedWithThatItem()
+    public void EvaluateWithOnePlacementTooYoungReturnsBlockedWithThatItem()
     {
         var placements = new[]
         {
@@ -65,7 +65,7 @@ public sealed class PlayerGraduationYearPolicyTests
     }
 
     [Fact]
-    public void Evaluate_WithAllPlacementsBlocked_ReturnsAllBlockers()
+    public void EvaluateWithAllPlacementsBlockedReturnsAllBlockers()
     {
         var placements = new[]
         {
@@ -85,7 +85,7 @@ public sealed class PlayerGraduationYearPolicyTests
     [InlineData(2028, 2029, true)]  // player year < team year — blocked
     [InlineData(2025, 2026, true)]  // blocked
     [InlineData(2026, 2026, false)] // eligible
-    public void Evaluate_GraduationYearEligibilityMatrix(
+    public void EvaluateGraduationYearEligibilityMatrix(
         int proposedPlayerYear,
         int teamGraduationYear,
         bool expectBlocked)

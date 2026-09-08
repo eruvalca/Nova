@@ -1,5 +1,5 @@
 ﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -9,12 +9,12 @@ namespace Nova.Entities;
 /// ambiguous-commit verification to the request that actually applied the mutation instead of
 /// relying on the mutable note row.
 /// </summary>
-public class EvaluationNoteMutationReceiptEntity : BaseEntity, ITenantOwnedEntity
+internal class EvaluationNoteMutationReceiptEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the mutation receipt identifier.
     /// </summary>
-    public long EvaluationNoteMutationReceiptId { get; set; } = default;
+    public long EvaluationNoteMutationReceiptId { get; set; }
 
     /// <summary>
     /// Gets or sets the stable identifier for the mutation operation that wrote this receipt.

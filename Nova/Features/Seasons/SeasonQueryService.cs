@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Seasons;
 
@@ -11,7 +11,7 @@ namespace Nova.Features.Seasons;
 /// <param name="dbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
 /// <param name="logger">The logger used for denied and failed season reads.</param>
-public sealed partial class SeasonQueryService(
+internal sealed partial class SeasonQueryService(
     IDbContextFactory<NovaReadDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<SeasonQueryService> logger) : ISeasonQueryService
@@ -79,7 +79,9 @@ public sealed partial class SeasonQueryService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<SeasonDetailResult>> GetAsync(
+#pragma warning restore MA0051
         GetSeasonDetailInput input,
         CancellationToken cancellationToken = default)
     {

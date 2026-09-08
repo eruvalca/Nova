@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -14,7 +14,7 @@ public sealed class PlayerLifecycleProblemExtensionsTests
     /// Verifies malformed blocker array elements return false instead of propagating a JSON parse exception.
     /// </summary>
     [Fact]
-    public void TryGetArchiveBlockers_ReturnsFalse_ForMalformedArrayElements()
+    public void TryGetArchiveBlockersReturnsFalseForMalformedArrayElements()
     {
         var malformed = JsonSerializer.SerializeToElement(new[]
         {
@@ -22,7 +22,9 @@ public sealed class PlayerLifecycleProblemExtensionsTests
             {
                 campaignId = "not-a-number",
                 campaignName = "Malformed",
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
                 participationIds = new[] { 1L }
+#pragma warning restore CA1861
             }
         });
         var problem = CreateProblem(malformed);
@@ -37,7 +39,7 @@ public sealed class PlayerLifecycleProblemExtensionsTests
     /// Verifies a non-array extension value returns false without attempting deserialization.
     /// </summary>
     [Fact]
-    public void TryGetArchiveBlockers_ReturnsFalse_ForNonArrayValue()
+    public void TryGetArchiveBlockersReturnsFalseForNonArrayValue()
     {
         var wrongShape = JsonSerializer.SerializeToElement(new { campaignId = 1L });
         var problem = CreateProblem(wrongShape);
@@ -56,7 +58,7 @@ public sealed class PlayerLifecycleProblemExtensionsTests
     private static ServiceProblem CreateProblem(object extensionValue)
         => ServiceProblem.Conflict(
             "Archive blockers were returned.",
-            new Dictionary<string, object?>
+            new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [PlayerLifecycleProblemExtensions.ArchiveBlockersExtensionName] = extensionValue
             });

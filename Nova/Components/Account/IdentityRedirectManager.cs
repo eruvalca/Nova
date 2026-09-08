@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
 
@@ -17,7 +18,7 @@ public sealed class IdentityRedirectManager(NavigationManager navigationManager)
     /// <summary>
     /// Gets the configured cookie builder for Identity status messages with strict security settings.
     /// </summary>
-    private static readonly CookieBuilder StatusCookieBuilder = new()
+    private static readonly CookieBuilder _statusCookieBuilder = new()
     {
         SameSite = SameSiteMode.Strict,
         HttpOnly = true,
@@ -29,7 +30,9 @@ public sealed class IdentityRedirectManager(NavigationManager navigationManager)
     /// Redirects to the specified URI after normalizing and validating it to prevent open redirects.
     /// </summary>
     /// <param name="uri">The target URI, or <see langword="null"/> to navigate to an empty path.</param>
+#pragma warning disable CA1054 // Blazor binding and NavigationManager consume string URLs in this component contract.
     public void RedirectTo(string? uri)
+#pragma warning restore CA1054
     {
         uri ??= "";
 
@@ -47,7 +50,9 @@ public sealed class IdentityRedirectManager(NavigationManager navigationManager)
     /// </summary>
     /// <param name="uri">The target URI.</param>
     /// <param name="queryParameters">A dictionary of query parameters to append to the URI.</param>
-    public void RedirectTo(string uri, Dictionary<string, object?> queryParameters)
+#pragma warning disable CA1054 // Blazor binding and NavigationManager consume string URLs in this component contract.
+    public void RedirectTo(string uri, IReadOnlyDictionary<string, object?> queryParameters)
+#pragma warning restore CA1054
     {
         var uriWithoutQuery = navigationManager.ToAbsoluteUri(uri).GetLeftPart(UriPartial.Path);
         var newUri = navigationManager.GetUriWithQueryParameters(uriWithoutQuery, queryParameters);
@@ -60,9 +65,12 @@ public sealed class IdentityRedirectManager(NavigationManager navigationManager)
     /// <param name="uri">The target URI.</param>
     /// <param name="message">The status message to store in the cookie.</param>
     /// <param name="context">The current HTTP context.</param>
+#pragma warning disable CA1054 // Blazor binding and NavigationManager consume string URLs in this component contract.
     public void RedirectToWithStatus(string uri, string message, HttpContext context)
+#pragma warning restore CA1054
     {
-        context.Response.Cookies.Append(StatusCookieName, message, StatusCookieBuilder.Build(context));
+        ArgumentNullException.ThrowIfNull(context);
+        context.Response.Cookies.Append(StatusCookieName, message, _statusCookieBuilder.Build(context));
         RedirectTo(uri);
     }
 
@@ -90,5 +98,9 @@ public sealed class IdentityRedirectManager(NavigationManager navigationManager)
     /// <param name="userManager">The user manager service.</param>
     /// <param name="context">The current HTTP context.</param>
     public void RedirectToInvalidUser(UserManager<NovaUserEntity> userManager, HttpContext context)
-        => RedirectToWithStatus("Account/InvalidUser", $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.", context);
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(userManager);
+        RedirectToWithStatus("Account/InvalidUser", $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.", context);
+    }
 }

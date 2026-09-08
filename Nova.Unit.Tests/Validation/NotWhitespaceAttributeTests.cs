@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Validation;
@@ -12,7 +12,7 @@ public class NotWhitespaceAttributeTests
     private readonly NotWhitespaceAttribute _attribute = new();
 
     [Fact]
-    public void IsValid_WithNull_ReturnsTrue()
+    public void IsValidWithNullReturnsTrue()
     {
         // Arrange
         object? value = null;
@@ -25,7 +25,7 @@ public class NotWhitespaceAttributeTests
     }
 
     [Fact]
-    public void IsValid_WithEmptyString_ReturnsFalse()
+    public void IsValidWithEmptyStringReturnsFalse()
     {
         // Arrange
         var value = "";
@@ -43,7 +43,7 @@ public class NotWhitespaceAttributeTests
     [InlineData("\n")]
     [InlineData("\r\n")]
     [InlineData("\t\n")]
-    public void IsValid_WithWhitespaceOnly_ReturnsFalse(string value)
+    public void IsValidWithWhitespaceOnlyReturnsFalse(string value)
     {
         // Arrange & Act
         var result = _attribute.IsValid(value);
@@ -59,7 +59,7 @@ public class NotWhitespaceAttributeTests
     [InlineData("0")]
     [InlineData("123")]
     [InlineData(" \t world \n ")]
-    public void IsValid_WithNonBlankString_ReturnsTrue(string value)
+    public void IsValidWithNonBlankStringReturnsTrue(string value)
     {
         // Arrange & Act
         var result = _attribute.IsValid(value);
@@ -73,7 +73,7 @@ public class NotWhitespaceAttributeTests
     [InlineData(3.14)]
     [InlineData(true)]
     [InlineData(false)]
-    public void IsValid_WithNonStringValue_ReturnsTrue(object value)
+    public void IsValidWithNonStringValueReturnsTrue(object value)
     {
         // Arrange & Act
         var result = _attribute.IsValid(value);
@@ -83,7 +83,7 @@ public class NotWhitespaceAttributeTests
     }
 
     [Fact]
-    public void IsValid_WithNonStringObject_ReturnsTrue()
+    public void IsValidWithNonStringObjectReturnsTrue()
     {
         // Arrange
         var value = new object();
@@ -96,7 +96,7 @@ public class NotWhitespaceAttributeTests
     }
 
     [Fact]
-    public void FormatErrorMessage_ReturnsMessageWithFieldName()
+    public void FormatErrorMessageReturnsMessageWithFieldName()
     {
         // Arrange
         var fieldName = "TestField";

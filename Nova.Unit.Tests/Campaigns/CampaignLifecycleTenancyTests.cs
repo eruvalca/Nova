@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -32,7 +32,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
     /// Verifies activity events are visible only to the current club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersActivityEventsToCurrentClub()
+    public void TenantContextFiltersActivityEventsToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -48,7 +48,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
     /// carries the snapshot fields required for readable feed rows.
     /// </summary>
     [Fact]
-    public void Model_ConfiguresActivityEventIntegrityMetadata()
+    public void ModelConfiguresActivityEventIntegrityMetadata()
     {
         using var db = _harness.CreateAdminContext();
         var model = db.GetService<IDesignTimeModel>().Model;
@@ -58,7 +58,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
 
         var idProperty = entityType.FindProperty(nameof(ActivityEventEntity.ActivityEventId));
         idProperty.ShouldNotBeNull();
-        idProperty!.ValueGenerated.ShouldBe(ValueGenerated.OnAdd);
+        idProperty.ValueGenerated.ShouldBe(ValueGenerated.OnAdd);
 
         entityType.FindProperty(nameof(ActivityEventEntity.ActorDisplayName))!
             .IsNullable.ShouldBeFalse();
@@ -87,7 +87,9 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
     /// <summary>
     /// Seeds one campaign and one lifecycle event for each of two clubs.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

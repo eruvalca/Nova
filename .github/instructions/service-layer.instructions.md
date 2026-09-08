@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/**/*Service*.cs,Nova.Shared/**/I*Service.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
+applyTo: "Nova/Features/**/*Service*.cs,Nova.SharedKernel/**/I*Service.cs,Nova.SharedKernel/Results/**/*.cs,Nova.Client/Services/**/*.cs"
 description: "Service-layer rules: validation, ServiceResult, retry-safe transactions, lifecycle locking, trace IDs, and logging."
 ---
 
@@ -20,7 +20,7 @@ endpoint validation, so both layers read the **same attributes**. See
 
 ## ServiceProblem / ServiceResult types
 
-Defined in `Nova.Shared.Results`:
+Defined in `Nova.SharedKernel.Results`:
 
 - **ServiceProblem** — readonly record struct for a known failure: a `Kind`, optional `Detail`, and
   optional structured `Errors` dictionary. Maps to HTTP status + RFC 7807 ProblemDetails.
@@ -101,8 +101,8 @@ Follow source-generated `[LoggerMessage]` conventions from `.github/instructions
 ## Related
 
 - `.agents/skills/add-feature-slice/` — full service + input recipe and examples.
-- `Nova.Shared/Results/` — `ServiceProblem`, `ServiceResult`, `ServiceProblemKind`, `HttpResponseMessageExtensions`.
-- `Nova/Features/Shared/ServiceResultExtensions.cs`.
+- `Nova.SharedKernel/Results/` — `ServiceProblem`, `ServiceResult`, `ServiceProblemKind`, `HttpResponseMessageExtensions`.
+- `Nova/Features/Common/ServiceResultExtensions.cs`.
 - `.github/instructions/api-endpoints.instructions.md`, `.github/instructions/validation.instructions.md`.
 - `.github/instructions/functional-core.instructions.md`.
 - `.github/instructions/season-lifecycle.instructions.md`.

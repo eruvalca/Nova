@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
+using Nova.UI.Common;
 using Nova.UI.Features.Clubs.Components;
 using Nova.UI.Features.Clubs.Pages;
-using Nova.UI.Shared;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -76,7 +76,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows create/search forms when there is no pending request (NotFound).
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsCreateSearchForms_WhenNoPendingRequest()
+    public void ClubOnboardingShowsCreateSearchFormsWhenNoPendingRequest()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -99,14 +99,14 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows error message when GetCurrentUserPendingRequestAsync returns ServerError.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsErrorMessage_WhenServerError()
+    public void ClubOnboardingShowsErrorMessageWhenServerError()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
-        const string errorMessage = "Database connection failed";
+        const string ErrorMessage = "Database connection failed";
         joinRequestService.GetCurrentUserPendingRequestAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClubJoinRequestDto>(
-                ServiceProblem.ServerError(errorMessage))));
+                ServiceProblem.ServerError(ErrorMessage))));
 
         SetupServices(joinRequestService);
 
@@ -115,7 +115,7 @@ public class ClubComponentsTests : BunitContext
 
         // Assert
         cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
+        cut.Markup.ShouldContain(ErrorMessage);
         cut.FindComponents<CreateClubForm>().Count.ShouldBe(1);
         cut.FindComponents<ClubSearchPanel>().Count.ShouldBe(1);
     }
@@ -124,7 +124,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows error message with fallback text when ServerError has no detail.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsErrorFallback_WhenServerErrorHasNoDetail()
+    public void ClubOnboardingShowsErrorFallbackWhenServerErrorHasNoDetail()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -146,7 +146,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows pending request card when there is an active pending join request.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsPendingRequestCard_WhenPendingRequestExists()
+    public void ClubOnboardingShowsPendingRequestCardWhenPendingRequestExists()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -179,7 +179,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding navigates to ClubEndpoints.Complete when HandleClubCreated is invoked.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_NavigatesToComplete_WhenClubCreated()
+    public async Task ClubOnboardingNavigatesToCompleteWhenClubCreatedAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -190,14 +190,14 @@ public class ClubComponentsTests : BunitContext
 
         var cut = Render<ClubOnboarding>();
         var navManager = Services.GetRequiredService<NavigationManager>();
-        var initialUri = navManager.Uri;
+        _ = navManager.Uri;
 
         var createForm = cut.FindComponent<CreateClubForm>();
         var newClub = new ClubDto(ClubId: 42, Name: "My Club", City: "Austin", State: "TX");
 
         // Act
         // Invoke in the context of the renderer
-        Render(_ => createForm.Instance.OnClubCreated.InvokeAsync(newClub));
+        await cut.InvokeAsync(() => createForm.Instance.OnClubCreated.InvokeAsync(newClub));
 
         // Assert
         // Navigation should occur - verify URI changed or NavigationManager.NavigateTo was called
@@ -210,7 +210,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows pending request card after HandleJoinRequested is invoked.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsPendingCard_AfterJoinRequested()
+    public async Task ClubOnboardingShowsPendingCardAfterJoinRequestedAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -234,7 +234,7 @@ public class ClubComponentsTests : BunitContext
         );
 
         // Act
-        Render(_ => searchPanel.Instance.OnJoinRequested.InvokeAsync(newRequest));
+        await cut.InvokeAsync(() => searchPanel.Instance.OnJoinRequested.InvokeAsync(newRequest));
 
         // Assert
         cut.Render();
@@ -247,7 +247,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubOnboarding shows create/search forms after HandleRequestCancelled is invoked.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsCreateSearchForms_AfterRequestCancelled()
+    public async Task ClubOnboardingShowsCreateSearchFormsAfterRequestCancelledAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -272,7 +272,7 @@ public class ClubComponentsTests : BunitContext
         var card = cut.FindComponent<PendingJoinRequestCard>();
 
         // Act
-        Render(_ => card.Instance.OnRequestCancelled.InvokeAsync());
+        await cut.InvokeAsync(() => card.Instance.OnRequestCancelled.InvokeAsync());
 
         // Assert
         cut.Render();
@@ -289,7 +289,7 @@ public class ClubComponentsTests : BunitContext
     /// CreateClubForm renders with input fields for club name, city, and state.
     /// </summary>
     [Fact]
-    public void CreateClubForm_RendersFormFields()
+    public void CreateClubFormRendersFormFields()
     {
         // Arrange
         SetupServices();
@@ -309,7 +309,7 @@ public class ClubComponentsTests : BunitContext
     /// ready, so a quick click cannot export against a not-yet-initialized cropper.
     /// </summary>
     [Fact]
-    public async Task CreateClubForm_SaveCrest_IsDisabled_UntilCropperReady()
+    public async Task CreateClubFormSaveCrestIsDisabledUntilCropperReadyAsync()
     {
         // Arrange
         SetupServices();
@@ -318,7 +318,7 @@ public class ClubComponentsTests : BunitContext
 
         var crestInput = cut.FindComponent<InputFile>();
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
 
         // Act/Assert: the save button is disabled before the cropper is ready, and enabled after.
         var saveButton = cut.Find("button[type='button'].btn-primary");
@@ -326,7 +326,7 @@ public class ClubComponentsTests : BunitContext
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
 
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse(
                 "Save crest must be enabled once the cropper reports ready"));
     }
@@ -335,13 +335,13 @@ public class ClubComponentsTests : BunitContext
     /// CreateClubForm shows error message when club creation fails.
     /// </summary>
     [Fact]
-    public async Task CreateClubForm_ShowsErrorMessage_OnCreateFailure()
+    public async Task CreateClubFormShowsErrorMessageOnCreateFailureAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
-        const string errorMessage = "Club name already exists";
+        const string ErrorMessage = "Club name already exists";
         clubService.CreateClubAsync(Arg.Any<CreateClubInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDto>(ServiceProblem.Conflict(errorMessage))));
+            .Returns(Task.FromResult(new ServiceResult<ClubDto>(ServiceProblem.Conflict(ErrorMessage))));
 
         SetupServices(clubService: clubService);
 
@@ -354,30 +354,40 @@ public class ClubComponentsTests : BunitContext
         var submitButton = cut.Find("button[type=\"submit\"]");
 
         // Act
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         nameInput.Change("Test Club");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cityInput.Change("Austin");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         stateInput.Change("TX");
+#pragma warning restore CA1849, S6966
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Save crest", StringComparison.Ordinal)).Click();
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("club-crest-preview"));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         submitButton.Click();
+#pragma warning restore CA1849, S6966
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("alert-danger"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("alert-danger"));
 
         // Assert
         cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
+        cut.Markup.ShouldContain(ErrorMessage);
     }
 
     /// <summary>
     /// CreateClubForm disables submit button while submission is in progress.
     /// </summary>
     [Fact]
-    public async Task CreateClubForm_DisablesSubmitButton_DuringSubmission()
+    public async Task CreateClubFormDisablesSubmitButtonDuringSubmissionAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -396,20 +406,30 @@ public class ClubComponentsTests : BunitContext
         var submitButton = cut.Find("button[type=\"submit\"]");
 
         // Act
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         nameInput.Change("Test Club");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cityInput.Change("Austin");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         stateInput.Change("TX");
+#pragma warning restore CA1849, S6966
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Save crest", StringComparison.Ordinal)).Click();
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("club-crest-preview"));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         submitButton.Click();
+#pragma warning restore CA1849, S6966
 
         // Assert
-        cut.WaitForAssertion(() => submitButton.HasAttribute("disabled"));
+        await cut.WaitForAssertionAsync(() => submitButton.HasAttribute("disabled"));
     }
 
     /// <summary>
@@ -417,7 +437,7 @@ public class ClubComponentsTests : BunitContext
     /// completed before the form can be submitted.
     /// </summary>
     [Fact]
-    public async Task CreateClubForm_SendsCroppedJpegBytes_AfterCropStep()
+    public async Task CreateClubFormSendsCroppedJpegBytesAfterCropStepAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -437,22 +457,32 @@ public class ClubComponentsTests : BunitContext
         // Act: the submit button is disabled while the crop step is active, so the crop must be
         // saved first (the exporter returns fixed JPEG bytes) before the form can be submitted.
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Save crest"));
         submitButton.HasAttribute("disabled").ShouldBeTrue("submit must be gated while cropping");
 
         await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Save crest", StringComparison.Ordinal)).Click();
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("club-crest-preview"));
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         nameInput.Change("Cropped Club");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cityInput.Change("Austin");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         stateInput.Change("TX");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         submitButton.Click();
+#pragma warning restore CA1849, S6966
 
         // Assert
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
             clubService.Received(1).CreateClubAsync(
                 Arg.Is<CreateClubInput>(input =>
                     input.CrestContentType == "image/jpeg" &&
@@ -468,7 +498,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubSearchPanel renders search input and button.
     /// </summary>
     [Fact]
-    public void ClubSearchPanel_RendersSearchElements()
+    public void ClubSearchPanelRendersSearchElements()
     {
         // Arrange
         SetupServices();
@@ -485,7 +515,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubSearchPanel shows search results after successful search.
     /// </summary>
     [Fact]
-    public void ClubSearchPanel_ShowsSearchResults_AfterSuccessfulSearch()
+    public void ClubSearchPanelShowsSearchResultsAfterSuccessfulSearch()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -523,7 +553,7 @@ public class ClubComponentsTests : BunitContext
     /// ClubSearchPanel shows "no results" message when search returns empty list.
     /// </summary>
     [Fact]
-    public void ClubSearchPanel_ShowsNoResultsMessage_WhenSearchIsEmpty()
+    public void ClubSearchPanelShowsNoResultsMessageWhenSearchIsEmpty()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -552,15 +582,15 @@ public class ClubComponentsTests : BunitContext
     /// ClubSearchPanel shows error message when search fails.
     /// </summary>
     [Fact]
-    public void ClubSearchPanel_ShowsErrorMessage_OnSearchFailure()
+    public void ClubSearchPanelShowsErrorMessageOnSearchFailure()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
-        const string errorMessage = "Search service unavailable";
+        const string ErrorMessage = "Search service unavailable";
 
         clubService.SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<ClubDto>>(
-                ServiceProblem.ServerError(errorMessage))));
+                ServiceProblem.ServerError(ErrorMessage))));
 
         SetupServices(clubService: clubService);
 
@@ -576,7 +606,7 @@ public class ClubComponentsTests : BunitContext
 
         // Assert
         cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
+        cut.Markup.ShouldContain(ErrorMessage);
     }
 
     #endregion
@@ -588,7 +618,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests the 3-character minimum threshold in HandleInputAsync.
     /// </summary>
     [Fact]
-    public async Task HandleInputAsync_DoesNotSearch_WhenQueryIsTwoCharacters()
+    public async Task HandleInputAsyncDoesNotSearchWhenQueryIsTwoCharactersAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -603,7 +633,9 @@ public class ClubComponentsTests : BunitContext
 
         // Act
         // Simulate typing "ab" (2 characters)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("ab");
+#pragma warning restore CA1849, S6966
 
         // Wait a bit to ensure no debounce is triggered
         await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
@@ -618,7 +650,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests the clearing of results when below threshold in HandleInputAsync.
     /// </summary>
     [Fact]
-    public async Task HandleInputAsync_DoesNotSearch_WhenQueryIsEmpty()
+    public async Task HandleInputAsyncDoesNotSearchWhenQueryIsEmptyAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -635,15 +667,19 @@ public class ClubComponentsTests : BunitContext
         var searchInput = cut.Find("input[placeholder*=\"Search\"]");
 
         // First do a successful search with 3+ characters
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("abc");
-        cut.WaitForAssertion(() =>
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() =>
         {
-            clubService.Received(1).SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+            _ = clubService.Received(1).SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         }, timeout: TimeSpan.FromSeconds(2));
 
         // Act
         // Now clear the input
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("");
+#pragma warning restore CA1849, S6966
         await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
@@ -658,7 +694,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests result clearing in HandleInputAsync when query length < 3.
     /// </summary>
     [Fact]
-    public async Task HandleInputAsync_ClearsResults_WhenQueryDropsBelowThreshold()
+    public async Task HandleInputAsyncClearsResultsWhenQueryDropsBelowThresholdAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -675,13 +711,17 @@ public class ClubComponentsTests : BunitContext
         var searchInput = cut.Find("input[placeholder*=\"Search\"]");
 
         // First, trigger a successful search with "aust" (4 characters)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("aust");
+#pragma warning restore CA1849, S6966
         await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Austin Club"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Austin Club"));
 
         // Act
         // Now reduce to "au" (2 characters, below threshold)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("au");
+#pragma warning restore CA1849, S6966
         await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
@@ -695,7 +735,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests the 300ms debounce behavior in HandleInputAsync.
     /// </summary>
     [Fact]
-    public async Task HandleInputAsync_SearchesAfterDebounce_WhenQueryIsThreeCharacters()
+    public async Task HandleInputAsyncSearchesAfterDebounceWhenQueryIsThreeCharactersAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -713,16 +753,18 @@ public class ClubComponentsTests : BunitContext
 
         // Act
         // Type "abc" (3 characters, meets threshold)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("abc");
+#pragma warning restore CA1849, S6966
 
         // Wait for debounce to complete (300ms + buffer)
         await Task.Delay(350, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // SearchClubsAsync should have been called exactly once
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
         {
-            clubService.Received(1).SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+            _ = clubService.Received(1).SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
             cut.Markup.ShouldContain("Debounce Test Club");
         });
     }
@@ -732,7 +774,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests debounce cancellation in HandleInputAsync via _debounceCts.
     /// </summary>
     [Fact]
-    public async Task HandleInputAsync_CancelsPreviousDebounce_WhenInputChanges()
+    public async Task HandleInputAsyncCancelsPreviousDebounceWhenInputChangesAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -750,11 +792,15 @@ public class ClubComponentsTests : BunitContext
 
         // Act
         // Type "abc" (3 characters)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("abc");
+#pragma warning restore CA1849, S6966
 
         // Before debounce completes (300ms), change input to "abcd"
         await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("abcd");
+#pragma warning restore CA1849, S6966
 
         // Wait for both debounces to potentially complete
         await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
@@ -762,9 +808,9 @@ public class ClubComponentsTests : BunitContext
         // Assert
         // SearchClubsAsync should be called exactly once (for "abcd", not "abc")
         // because the first debounce should have been cancelled
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
         {
-            clubService.Received(1).SearchClubsAsync("abcd", Arg.Any<CancellationToken>());
+            _ = clubService.Received(1).SearchClubsAsync("abcd", Arg.Any<CancellationToken>());
         }, timeout: TimeSpan.FromSeconds(2));
     }
 
@@ -773,7 +819,7 @@ public class ClubComponentsTests : BunitContext
     /// This test confirms that the 3-character threshold is enforced by HandleInputAsync.
     /// </summary>
     [Fact]
-    public void HandleInputAsync_DoesNotSearch_WhenQueryIsTwoChars_ConfirmingThreshold()
+    public void HandleInputAsyncDoesNotSearchWhenQueryIsTwoCharsConfirmingThreshold()
     {
         // Arrange & Act
         // Verify that the component renders without errors and minimum threshold logic is in place
@@ -795,7 +841,7 @@ public class ClubComponentsTests : BunitContext
     /// Phase 5: Tests that DisposeAsyncCore cancels in-flight debounce delays to prevent orphaned searches.
     /// </summary>
     [Fact]
-    public async Task DisposeAsyncCore_CancelsInFlightDebounce_WhenComponentIsDisposed()
+    public async Task DisposeAsyncCoreCancelsInFlightDebounceWhenComponentIsDisposedAsync()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -814,7 +860,9 @@ public class ClubComponentsTests : BunitContext
 
         // Act
         // Type "abc" (3 characters, meets threshold and starts debounce)
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchInput.Input("abc");
+#pragma warning restore CA1849, S6966
 
         // Immediately dispose the component before the 300ms debounce completes
         await component.DisposeAsync();
@@ -836,7 +884,7 @@ public class ClubComponentsTests : BunitContext
     /// PendingJoinRequestCard displays pending request information.
     /// </summary>
     [Fact]
-    public void PendingJoinRequestCard_DisplaysPendingRequestInfo()
+    public void PendingJoinRequestCardDisplaysPendingRequestInfo()
     {
         // Arrange
         SetupServices();
@@ -865,15 +913,15 @@ public class ClubComponentsTests : BunitContext
     /// PendingJoinRequestCard shows error message when cancellation fails.
     /// </summary>
     [Fact]
-    public void PendingJoinRequestCard_ShowsErrorMessage_OnCancelFailure()
+    public void PendingJoinRequestCardShowsErrorMessageOnCancelFailure()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
-        const string errorMessage = "Request is already accepted";
+        const string ErrorMessage = "Request is already accepted";
 
         joinRequestService.CancelJoinRequestAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(
-                ServiceProblem.Conflict(errorMessage))));
+                ServiceProblem.Conflict(ErrorMessage))));
 
         SetupServices(joinRequestService);
 
@@ -898,14 +946,14 @@ public class ClubComponentsTests : BunitContext
 
         // Assert
         cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
+        cut.Markup.ShouldContain(ErrorMessage);
     }
 
     /// <summary>
     /// PendingJoinRequestCard disables cancel button while cancellation is in progress.
     /// </summary>
     [Fact]
-    public void PendingJoinRequestCard_DisablesCancelButton_DuringCancellation()
+    public void PendingJoinRequestCardDisablesCancelButtonDuringCancellation()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -946,7 +994,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests OnInitialized detection of Approved status (no polling triggered).
     /// </summary>
     [Fact]
-    public void OnInitialized_RendersApprovedState_WhenRequestStatusIsApproved()
+    public void OnInitializedRendersApprovedStateWhenRequestStatusIsApproved()
     {
         // Arrange
         SetupServices();
@@ -978,7 +1026,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests OnInitialized detection of Rejected status (no polling triggered).
     /// </summary>
     [Fact]
-    public void OnInitialized_RendersRejectedState_WhenRequestStatusIsRejected()
+    public void OnInitializedRendersRejectedStateWhenRequestStatusIsRejected()
     {
         // Arrange
         SetupServices();
@@ -1010,7 +1058,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests OnInitialized starts polling without immediate state change.
     /// </summary>
     [Fact]
-    public void OnInitialized_RendersPendingState_WhenRequestStatusIsPending()
+    public void OnInitializedRendersPendingStateWhenRequestStatusIsPending()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1057,7 +1105,7 @@ public class ClubComponentsTests : BunitContext
     /// modifying the component implementation. This test verifies the UI remains stable during polling.
     /// </summary>
     [Fact]
-    public void OnInitialized_MaintainsPendingUI_WhenRequestStatusIsPending()
+    public async Task OnInitializedMaintainsPendingUIWhenRequestStatusIsPendingAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1082,7 +1130,7 @@ public class ClubComponentsTests : BunitContext
             parameters.Add(p => p.Request, pendingRequest));
 
         // Small delay to allow OnInitialized to execute
-        System.Threading.Thread.Sleep(100);
+        await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // Verify pending UI is rendered and stable
@@ -1101,7 +1149,7 @@ public class ClubComponentsTests : BunitContext
     /// Verifies that only terminal statuses (Approved/Rejected) trigger state transitions.
     /// </summary>
     [Fact]
-    public void PollStatusAsync_DoesNotChangeState_WhenRequestRemainsPending()
+    public async Task PollStatusAsyncDoesNotChangeStateWhenRequestRemainsPendingAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1127,7 +1175,7 @@ public class ClubComponentsTests : BunitContext
             parameters.Add(p => p.Request, pendingRequest));
 
         // Wait a short time
-        System.Threading.Thread.Sleep(200);
+        await Task.Delay(200, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // Should still show pending state (not transitioned to approved or rejected)
@@ -1143,7 +1191,7 @@ public class ClubComponentsTests : BunitContext
     /// Note: Full navigation testing with forceLoad: true requires integration testing.
     /// </summary>
     [Fact]
-    public void HandleCompleteOnboarding_RendersContinueButton_WhenApprovedStateDisplayed()
+    public void HandleCompleteOnboardingRendersContinueButtonWhenApprovedStateDisplayed()
     {
         // Arrange
         SetupServices();
@@ -1175,7 +1223,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests that "Search for another club" button raises the callback on rejected state.
     /// </summary>
     [Fact]
-    public async Task HandleSearchAgainAsync_InvokesOnSearchAgainCallback_WhenSearchAgainButtonClicked()
+    public async Task HandleSearchAgainAsyncInvokesOnSearchAgainCallbackWhenSearchAgainButtonClickedAsync()
     {
         // Arrange
         SetupServices();
@@ -1205,7 +1253,9 @@ public class ClubComponentsTests : BunitContext
         var searchAgainButton = cut.Find("button.btn-primary");
 
         // Act
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         searchAgainButton.Click();
+#pragma warning restore CA1849, S6966
 
         // Wait for callback to be invoked
         await cut.InvokeAsync(() => Task.Delay(100));
@@ -1219,7 +1269,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests that the DisposeAsyncCore properly cleans up resources.
     /// </summary>
     [Fact]
-    public async Task DisposeAsyncCore_CompletesSuccessfully_WhenComponentIsDisposed()
+    public async Task DisposeAsyncCoreCompletesSuccessfullyWhenComponentIsDisposedAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1262,7 +1312,7 @@ public class ClubComponentsTests : BunitContext
     /// Tests the integration where rejected card's search again action clears the pending request.
     /// </summary>
     [Fact]
-    public void ClubOnboarding_ShowsCreateSearchForms_AfterSearchAgainRequested()
+    public async Task ClubOnboardingShowsCreateSearchFormsAfterSearchAgainRequestedAsync()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1288,7 +1338,7 @@ public class ClubComponentsTests : BunitContext
 
         // Act
         // Invoke the OnSearchAgainRequested callback from the card
-        Render(_ => card.Instance.OnSearchAgainRequested.InvokeAsync());
+        await cut.InvokeAsync(() => card.Instance.OnSearchAgainRequested.InvokeAsync());
 
         // Assert
         cut.Render();

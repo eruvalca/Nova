@@ -1,10 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Dashboard;
 
@@ -19,7 +19,7 @@ namespace Nova.Features.Dashboard;
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts.</param>
-public sealed partial class DashboardQueryService(
+internal sealed partial class DashboardQueryService(
     ICampaignQueryService campaignQueryService,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -29,7 +29,7 @@ public sealed partial class DashboardQueryService(
     public async Task<ServiceResult<ClubDashboardResult>> GetDashboardAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!TryGetClubId(out var clubId))
+        if (!TryGetClubId(out _))
         {
             LogDashboardForbidden(currentUserProvider.UserId ?? 0);
             return ServiceProblem.Forbidden("You must be an approved club member to view the club dashboard.");

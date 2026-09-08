@@ -1,5 +1,5 @@
 ﻿using Microsoft.Playwright;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 using static Microsoft.Playwright.Assertions;
 
@@ -15,7 +15,7 @@ namespace Nova.Browser.Tests;
 public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
-    public async Task Workspace_AssignsEligibleTeam_SavesRefreshesSummary_AndRemovesRowFromUnresolved()
+    public async Task WorkspaceAssignsEligibleTeamSavesRefreshesSummaryAndRemovesRowFromUnresolvedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -37,7 +37,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var outcomeSelect = firstRow.Locator("select[aria-label^='Outcome for']");
         var teamSelect = firstRow.Locator("select[aria-label^='Team for']");
         await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
-        await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString());
+        await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         await firstRow.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
@@ -63,7 +63,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Workspace_AppliesGraduationYearFilter_AndComposesWithUnresolvedOnly()
+    public async Task WorkspaceAppliesGraduationYearFilterAndComposesWithUnresolvedOnlyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -86,7 +86,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Workspace_ChangesEverySupportedOutcome_AndUpdatesSummary()
+    public async Task WorkspaceChangesEverySupportedOutcomeAndUpdatesSummaryAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -106,7 +106,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task SecondEdit_ReusesReplacementToken_WithoutReload()
+    public async Task SecondEditReusesReplacementTokenWithoutReloadAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -121,7 +121,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task ConcurrentUpdate_ShowsConflictRecovery_AndReloadShowsWinner()
+    public async Task ConcurrentUpdateShowsConflictRecoveryAndReloadShowsWinnerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -136,7 +136,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 
         var secondRow = secondPage.Locator("tbody tr[id^='placement-row-']").First;
         var secondOutcome = secondRow.Locator("select[aria-label^='Outcome for']");
-        await secondOutcome.SelectOptionAsync(((int)PlacementOutcome.Withdrawn).ToString());
+        await secondOutcome.SelectOptionAsync(((int)PlacementOutcome.Withdrawn).ToString(System.Globalization.CultureInfo.InvariantCulture));
         var secondSave = secondRow.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
         await Expect(secondSave).ToBeVisibleAsync();
         await secondSave.ClickAsync();
@@ -150,11 +150,11 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await secondPage.GetByRole(AriaRole.Button, new() { Name = "Close and reload", Exact = true }).ClickAsync();
         await Expect(secondPage.Locator("tbody tr[id^='placement-row-']").First).ToBeVisibleAsync();
         var winnerSelect = secondPage.Locator("tbody tr[id^='placement-row-']").First.Locator("select[aria-label^='Outcome for']");
-        await Expect(winnerSelect).ToHaveValueAsync(((int)PlacementOutcome.Assigned).ToString());
+        await Expect(winnerSelect).ToHaveValueAsync(((int)PlacementOutcome.Assigned).ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public async Task ParticipantNavigation_AndBack_RestoreTabAndFilters()
+    public async Task ParticipantNavigationAndBackRestoreTabAndFiltersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -180,14 +180,16 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task NarrowViewport_CardsRemainKeyboardOperable_WithLabelsAndAnnouncements()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task NarrowViewportCardsRemainKeyboardOperableWithLabelsAndAnnouncementsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            PlacementSeed.Password,
-            new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail,
+                    PlacementSeed.Password,
+                    new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
         await OpenPlacementsAsync(page, seed.CampaignId);
 
@@ -222,7 +224,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
             await outcome.SelectOptionAsync("2");
             await page.Keyboard.PressAsync("ArrowUp");
             await page.Keyboard.PressAsync("Enter");
-            if (await outcome.InputValueAsync() == "1" && await team.IsEnabledAsync())
+            if (string.Equals(await outcome.InputValueAsync(), "1", StringComparison.Ordinal) && await team.IsEnabledAsync())
             {
                 break;
             }
@@ -267,7 +269,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlacementsTab_RendersReadOnly_ForApprovedNonAdmin()
+    public async Task PlacementsTabRendersReadOnlyForApprovedNonAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -282,7 +284,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task ClosedCampaign_ShowsFrozenBanner_AndStaticRows()
+    public async Task ClosedCampaignShowsFrozenBannerAndStaticRowsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -297,7 +299,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Placements_AllResolved_ShowsZeroUndecided_AndEmptyUnresolvedView()
+    public async Task PlacementsAllResolvedShowsZeroUndecidedAndEmptyUnresolvedViewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -316,7 +318,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Placements_AssignedWithoutTeam_ShowsInlineValidationError()
+    public async Task PlacementsAssignedWithoutTeamShowsInlineValidationErrorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -341,7 +343,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Placements_Loading_ShowsIndicator_ThenRendersRows()
+    public async Task PlacementsLoadingShowsIndicatorThenRendersRowsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -374,7 +376,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Placements_SaveFailure_ShowsRowError_AndRetryRecovers()
+    public async Task PlacementsSaveFailureShowsRowErrorAndRetryRecoversAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -389,7 +391,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var outcomeSelect = firstRow.Locator("select[aria-label^='Outcome for']");
         var teamSelect = firstRow.Locator("select[aria-label^='Team for']");
         await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
-        await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString());
+        await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         await page.RouteAsync(IsPlacementSaveUrl, route => route.FulfillAsync(new() { Status = 500 }));
 
@@ -468,7 +470,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         {
             try
             {
-                if (year != "2031")
+                if (!string.Equals(year, "2031", StringComparison.Ordinal))
                 {
                     await select.SelectOptionAsync("2031");
                 }
@@ -503,13 +505,13 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var row = page.Locator("tbody tr[id^='placement-row-']").Nth(rowIndex);
         await Expect(row).ToBeVisibleAsync();
         var outcomeSelect = row.Locator("select[aria-label^='Outcome for']");
-        var outcomeValue = ((int)outcome).ToString();
+        var outcomeValue = ((int)outcome).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var teamSelect = row.Locator("select[aria-label^='Team for']");
         for (var attempt = 0; attempt < 20; attempt++)
         {
             try
             {
-                await outcomeSelect.SelectOptionAsync(outcomeValue == "2" ? "1" : "2");
+                await outcomeSelect.SelectOptionAsync(string.Equals(outcomeValue, "2", StringComparison.Ordinal) ? "1" : "2");
                 await outcomeSelect.SelectOptionAsync(outcomeValue);
                 await Expect(outcomeSelect).ToHaveValueAsync(outcomeValue, new() { Timeout = 1500 });
                 if (outcome != PlacementOutcome.Assigned)
@@ -528,7 +530,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 
         if (outcome == PlacementOutcome.Assigned)
         {
-            await teamSelect.SelectOptionAsync(teamId!.Value.ToString());
+            await teamSelect.SelectOptionAsync(teamId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
@@ -568,7 +570,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
         {
             var years = await rows.Locator("td:nth-child(2)").AllTextContentsAsync();
-            if (years.Count > 0 && years.All(year => year.Trim() == expectedYear))
+            if (years.Count > 0 && years.All(year => string.Equals(year.Trim(), expectedYear, StringComparison.Ordinal)))
             {
                 return;
             }

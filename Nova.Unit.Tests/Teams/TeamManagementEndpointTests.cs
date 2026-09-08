@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Features.Teams;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -14,28 +14,32 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamManagementEndpointTests
 {
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakeTeamManagementService : ITeamManagementService
+#pragma warning restore CA1812
     {
         /// <inheritdoc />
         public Task<ServiceResult<TeamDto>> CreateAsync(
             CreateTeamInput input,
             CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+            => throw new NotSupportedException("This test double does not support this operation.");
 
         /// <inheritdoc />
         public Task<ServiceResult<TeamDto>> UpdateAsync(
             UpdateTeamInput input,
             CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+            => throw new NotSupportedException("This test double does not support this operation.");
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakeTeamDetailService : ITeamDetailService
+#pragma warning restore CA1812
     {
         /// <inheritdoc />
         public Task<ServiceResult<TeamDetailDto>> GetTeamDetailAsync(
             long teamId,
             CancellationToken cancellationToken = default)
-            => throw new NotImplementedException();
+            => throw new NotSupportedException("This test double does not support this operation.");
     }
 
     /// <summary>
@@ -45,7 +49,7 @@ public sealed class TeamManagementEndpointTests
     /// handler. Without this wiring the <c>Location</c> header would throw at runtime.
     /// </summary>
     [Fact]
-    public async Task TeamDetailEndpoint_IsRegistered_WithGetTeamDetailRouteName()
+    public async Task TeamDetailEndpointIsRegisteredWithGetTeamDetailRouteNameAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<ITeamManagementService, FakeTeamManagementService>();
@@ -60,9 +64,8 @@ public sealed class TeamManagementEndpointTests
         var detailEndpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .Where(ep => ep.RoutePattern.RawText == TeamEndpoints.GetDetailTemplate)
-            .SingleOrDefault(ep =>
-                ep.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == TeamEndpoints.GetDetailRouteName);
+            .Where(ep => string.Equals(ep.RoutePattern.RawText, TeamEndpoints.GetDetailTemplate, StringComparison.Ordinal))
+            .SingleOrDefault(ep => string.Equals(ep.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName, TeamEndpoints.GetDetailRouteName, StringComparison.Ordinal));
 
         detailEndpoint.ShouldNotBeNull(
             $"The GET team-detail endpoint must carry the route name '{TeamEndpoints.GetDetailRouteName}' " +

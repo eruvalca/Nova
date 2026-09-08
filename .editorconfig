@@ -17,11 +17,14 @@ indent_size = 2
 indent_size = 2
 
 [*.cs]
+# Application code uses ordinary await; preserve the caller context by default.
+dotnet_diagnostic.CA2007.severity = none
+# MA0004 enforces the same ConfigureAwait requirement in library projects.
+dotnet_diagnostic.MA0004.severity = none
 charset = utf-8-bom
 
-# Naming remains advisory pending the coordinated migration recorded in
-# plans/build-quality-enforcement.md; do not exempt maintained scaffold code.
-dotnet_diagnostic.IDE1006.severity = suggestion
+# Naming conventions are build-enforced across maintained C# source.
+dotnet_diagnostic.IDE1006.severity = error
 # Build-enforced SDK reliability checks.
 dotnet_diagnostic.CA2012.severity = warning
 dotnet_diagnostic.CA2016.severity = warning
@@ -165,7 +168,10 @@ dotnet_naming_symbols.private_constant_symbols.applicable_kinds = field
 dotnet_naming_symbols.private_constant_symbols.applicable_accessibilities = private, protected, private_protected
 dotnet_naming_symbols.private_constant_symbols.required_modifiers = const
 
-[{Nova.Unit.Tests,Nova.Integration.Tests,Nova.Browser.Tests}/**.cs]
-# Public tests retain Subject_Outcome_Condition names. EditorConfig cannot select Fact/Theory
-# attributes, so public test-project helpers share this exception; non-public helpers still use Async.
-dotnet_naming_symbols.async_method_symbols.applicable_accessibilities = private, internal, protected, protected_internal, private_protected
+# MA0048: File name must match type name
+dotnet_diagnostic.MA0048.severity = none
+
+[Nova/**.cs]
+# Server types have been audited; CA1515 also flags locationless extension-block symbols.
+# Disable this rule only for Nova; other projects retain their existing enforcement.
+dotnet_diagnostic.CA1515.severity = none

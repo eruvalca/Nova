@@ -11,14 +11,14 @@ namespace Nova.Unit.Tests.Features.Photos;
 public class ProfilePhotoGateMiddlewareTests
 {
     [Fact]
-    public void ShouldRedirect_ReturnsFalse_WhenUnauthenticated()
+    public void ShouldRedirectReturnsFalseWhenUnauthenticated()
     {
         ProfilePhotoGateMiddleware.ShouldRedirect("/", isAuthenticated: false, hasPhotoClaim: false)
             .ShouldBeFalse();
     }
 
     [Fact]
-    public void ShouldRedirect_ReturnsFalse_WhenUserHasPhotoClaim()
+    public void ShouldRedirectReturnsFalseWhenUserHasPhotoClaim()
     {
         ProfilePhotoGateMiddleware.ShouldRedirect("/", isAuthenticated: true, hasPhotoClaim: true)
             .ShouldBeFalse();
@@ -28,7 +28,7 @@ public class ProfilePhotoGateMiddlewareTests
     [InlineData("/")]
     [InlineData("/clubs")]
     [InlineData("/players/42")]
-    public void ShouldRedirect_ReturnsTrue_ForAppPagesWithoutPhotoClaim(string path)
+    public void ShouldRedirectReturnsTrueForAppPagesWithoutPhotoClaim(string path)
     {
         ProfilePhotoGateMiddleware.ShouldRedirect(new PathString(path), isAuthenticated: true, hasPhotoClaim: false)
             .ShouldBeTrue();
@@ -51,7 +51,7 @@ public class ProfilePhotoGateMiddlewareTests
     [InlineData("/favicon.png")]
     [InlineData("/app.css")]
     [InlineData("/lib/bootstrap/dist/js/bootstrap.bundle.min.js")]
-    public void ShouldRedirect_ReturnsFalse_ForExemptPaths(string path)
+    public void ShouldRedirectReturnsFalseForExemptPaths(string path)
     {
         ProfilePhotoGateMiddleware.ShouldRedirect(new PathString(path), isAuthenticated: true, hasPhotoClaim: false)
             .ShouldBeFalse();

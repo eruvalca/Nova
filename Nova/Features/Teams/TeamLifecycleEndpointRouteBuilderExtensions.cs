@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Teams;
 
@@ -23,7 +23,7 @@ internal static class TeamLifecycleEndpointRouteBuilderExtensions
                 .MapGroup(TeamEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPost(TeamEndpoints.ArchiveRelative, ArchiveTeamHandler)
+            group.MapPost(TeamEndpoints.ArchiveRelative, ArchiveTeamHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -33,7 +33,7 @@ internal static class TeamLifecycleEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("ArchiveTeam");
 
-            group.MapPost(TeamEndpoints.RestoreRelative, RestoreTeamHandler)
+            group.MapPost(TeamEndpoints.RestoreRelative, RestoreTeamHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -54,7 +54,7 @@ internal static class TeamLifecycleEndpointRouteBuilderExtensions
     /// <param name="teamLifecycleService">The team lifecycle service.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> ArchiveTeamHandler(
+    private static async Task<IResult> ArchiveTeamHandlerAsync(
         long teamId,
         ITeamLifecycleService teamLifecycleService,
         CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ internal static class TeamLifecycleEndpointRouteBuilderExtensions
     /// <param name="teamLifecycleService">The team lifecycle service.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> RestoreTeamHandler(
+    private static async Task<IResult> RestoreTeamHandlerAsync(
         long teamId,
         ITeamLifecycleService teamLifecycleService,
         CancellationToken cancellationToken)

@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -16,7 +16,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
     /// Verifies the live database has the evaluation note association migration applied.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesEvaluationNoteCampaignAssociation()
+    public async Task MigrationAppliesEvaluationNoteCampaignAssociationAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -30,13 +30,15 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
     /// Verifies that deleting a campaign participation cascades to its notes.
     /// </summary>
     [Fact]
-    public async Task CascadeDelete_RemovesNotesWhenParticipationDeleted()
+    public async Task CascadeDeleteRemovesNotesWhenParticipationDeletedAsync()
     {
         var data = await SeedAsync();
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
 
         // Add a note to the participation.
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             db.Notes.Add(new NoteEntity
             {
@@ -50,7 +52,9 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
         }
 
         // Delete the participation — the note should cascade.
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             var participation = await db.PlayerCampaignAssignments
                 .SingleAsync(
@@ -73,13 +77,15 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
     /// Verifies that notes are filtered to the owning club and invisible to another club.
     /// </summary>
     [Fact]
-    public async Task Notes_TenantFilter_HidesOtherClubNotes()
+    public async Task NotesTenantFilterHidesOtherClubNotesAsync()
     {
         var data = await SeedAsync();
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
 
         // Seed a note for this club's assignment.
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             db.Notes.Add(new NoteEntity
             {
@@ -103,72 +109,78 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>Seeds one club, season, campaign, player, and participation for isolation.</summary>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<EvaluationNoteSeed> SeedAsync()
+#pragma warning restore MA0051
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var suffix = Guid.NewGuid().ToString("N");
-
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var suffix = Guid.NewGuid().ToString("N");
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Note Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Note",
-            LastName = suffix,
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Players.Add(player);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Note Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Note",
+                LastName = suffix,
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Players.Add(player);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerCampaignAssignments.Add(assignment);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Note Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new EvaluationNoteSeed(club.ClubId, actorUserId, assignment.PlayerCampaignAssignmentId);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerCampaignAssignments.Add(assignment);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            return new EvaluationNoteSeed(club.ClubId, actorUserId, assignment.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>Sets the simulated current user for subsequent contexts.</summary>

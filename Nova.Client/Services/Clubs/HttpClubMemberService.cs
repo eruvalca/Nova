@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Clubs;
 
@@ -10,13 +10,13 @@ namespace Nova.Client.Services.Clubs;
 /// minimal API endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
+internal sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        using var response = await http.GetAsync(ClubEndpoints.GetMembers, cancellationToken);
+        using var response = await http.GetAsync(new Uri(ClubEndpoints.GetMembers, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

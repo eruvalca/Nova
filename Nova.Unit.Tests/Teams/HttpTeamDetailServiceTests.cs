@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -18,14 +18,14 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies successful detail payloads are requested through the shared route.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsDetail_OnSuccess()
+    public async Task GetTeamDetailAsyncReturnsDetailOnSuccessAsync()
     {
         var payload = new TeamDetailDto(7, 8, "U16", 2028, LifecycleStatus.Active, [], []);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(7, TestContext.Current.CancellationToken);
@@ -43,7 +43,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies placement history accepts Draft rows in the contracted lifecycle order.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsDetail_WhenPlacementHistoryUsesDraftLifecycleOrder()
+    public async Task GetTeamDetailAsyncReturnsDetailWhenPlacementHistoryUsesDraftLifecycleOrderAsync()
     {
         var active = new TeamPlacementImpactDto(
             1,
@@ -88,7 +88,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -105,19 +105,19 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies malformed successful responses are surfaced as protocol failures.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenSuccessBodyIsJsonNull()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenSuccessBodyIsJsonNullAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create<object?>(null)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(7, TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(Nova.Shared.Results.ServiceProblemKind.ServerError);
+        result.Problem.Kind.ShouldBe(Nova.SharedKernel.Results.ServiceProblemKind.ServerError);
     }
 
     /// <summary>
@@ -127,13 +127,13 @@ public sealed class HttpTeamDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -148,7 +148,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies detail responses that violate portable team-detail invariants are rejected.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenTeamDetailInvariantIsInvalid()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenTeamDetailInvariantIsInvalidAsync()
     {
         var payload = new TeamDetailDto(7, 8, "U16", 2028, LifecycleStatus.Active, [], [])
         {
@@ -158,7 +158,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -177,7 +177,7 @@ public sealed class HttpTeamDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenTeamStateIsInvalid(
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenTeamStateIsInvalidAsync(
         int graduationYear,
         LifecycleStatus lifecycleStatus)
     {
@@ -186,7 +186,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -201,7 +201,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies placement rows require player graduation years within the shared contract.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlayerGraduationYearIsOutOfRange()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenPlayerGraduationYearIsOutOfRangeAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -226,7 +226,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -241,14 +241,14 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies detail rejects a success payload for a different team.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenResponseTeamIdDoesNotMatch()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenResponseTeamIdDoesNotMatchAsync()
     {
         var payload = new TeamDetailDto(8, 9, "U16", 2028, LifecycleStatus.Active, [], []);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -263,14 +263,14 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies a matching requested identifier does not make a zero response identifier valid.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenRequestedAndResponseTeamIdsAreZero()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenRequestedAndResponseTeamIdsAreZeroAsync()
     {
         var payload = new TeamDetailDto(0, 9, "U16", 2028, LifecycleStatus.Active, [], []);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -285,7 +285,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies active placement summaries must be Active rows from the returned history.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenActivePlacementIsContradictory()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenActivePlacementIsContradictoryAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -310,7 +310,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -325,7 +325,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies active placement summaries must exactly match their placement-history record.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenActivePlacementDiffersFromHistory()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenActivePlacementDiffersFromHistoryAsync()
     {
         var history = new TeamPlacementImpactDto(
             1,
@@ -351,7 +351,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -366,7 +366,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies active placement summaries contain every Active row from placement history.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenActivePlacementIsMissing()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenActivePlacementIsMissingAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -391,7 +391,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -406,7 +406,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies team placement rows require the Assigned outcome.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementOutcomeIsNotAssigned()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenPlacementOutcomeIsNotAssignedAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -431,7 +431,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -446,7 +446,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies team placement rows reject undefined campaign statuses.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenCampaignStatusIsUndefinedAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -471,7 +471,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -486,7 +486,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies placement history retains descending campaign-date ordering.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementHistoryIsOutOfOrder()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenPlacementHistoryIsOutOfOrderAsync()
     {
         var older = new TeamPlacementImpactDto(
             1,
@@ -520,7 +520,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -540,7 +540,7 @@ public sealed class HttpTeamDetailServiceTests
     [InlineData(CampaignStatus.Draft, CampaignStatus.Active)]
     [InlineData(CampaignStatus.Closed, CampaignStatus.Active)]
     [InlineData(CampaignStatus.Closed, CampaignStatus.Draft)]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementHistoryLifecycleOrderIsInvalid(
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenPlacementHistoryLifecycleOrderIsInvalidAsync(
         CampaignStatus firstStatus,
         CampaignStatus secondStatus)
     {
@@ -577,7 +577,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -592,7 +592,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies the truncation flag remains consistent with its shared total and bound.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenTruncationFlagIsContradictory()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenTruncationFlagIsContradictoryAsync()
     {
         var payload = new TeamDetailDto(7, 8, "U16", 2028, LifecycleStatus.Active, [], [])
         {
@@ -603,7 +603,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -618,7 +618,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies placement history cannot exceed the shared detail bound.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementHistoryExceedsBound()
+    public async Task GetTeamDetailAsyncReturnsServerErrorWhenPlacementHistoryExceedsBoundAsync()
     {
         var placements = Enumerable.Range(1, TeamDetailDto.MaxPlacementHistoryItems + 1)
             .Select(index => new TeamPlacementImpactDto(
@@ -645,7 +645,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
@@ -660,7 +660,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies an eventually consistent placement total may briefly lag returned rows.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsRows_WhenTotalTemporarilyLags()
+    public async Task GetTeamDetailAsyncReturnsRowsWhenTotalTemporarilyLagsAsync()
     {
         var placement = new TeamPlacementImpactDto(
             1,
@@ -688,7 +688,7 @@ public sealed class HttpTeamDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(

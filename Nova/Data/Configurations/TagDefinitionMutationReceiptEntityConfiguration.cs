@@ -8,7 +8,7 @@ namespace Nova.Data.Configurations;
 /// Configures EF Core mapping for <see cref="TagDefinitionMutationReceiptEntity"/>, the durable
 /// mutation receipt that protects ambiguous-commit verification for tag definitions.
 /// </summary>
-public class TagDefinitionMutationReceiptEntityConfiguration : IEntityTypeConfiguration<TagDefinitionMutationReceiptEntity>
+internal class TagDefinitionMutationReceiptEntityConfiguration : IEntityTypeConfiguration<TagDefinitionMutationReceiptEntity>
 {
     /// <summary>
     /// Executes the configure operation.

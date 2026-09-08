@@ -1,7 +1,7 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using OneOf;
 using OneOf.Types;
 
@@ -26,7 +26,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPost(CampaignEndpoints.OpenRelative, OpenCampaignHandler)
+            group.MapPost(CampaignEndpoints.OpenRelative, OpenCampaignHandlerAsync)
                 .Produces<OpenCampaignResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -37,7 +37,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.OpenRouteName);
 
-            group.MapDelete(CampaignEndpoints.DeleteDraftRelative, DeleteDraftHandler)
+            group.MapDelete(CampaignEndpoints.DeleteDraftRelative, DeleteDraftHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -47,7 +47,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.DeleteDraftRouteName);
 
-            group.MapPost(CampaignEndpoints.CloseRelative, CloseCampaignHandler)
+            group.MapPost(CampaignEndpoints.CloseRelative, CloseCampaignHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -57,7 +57,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.CloseRouteName);
 
-            group.MapPost(CampaignEndpoints.ReopenRelative, ReopenCampaignHandler)
+            group.MapPost(CampaignEndpoints.ReopenRelative, ReopenCampaignHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -116,7 +116,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
     /// <param name="lifecycleService">The campaign lifecycle service.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> CloseCampaignHandler(
+    private static async Task<IResult> CloseCampaignHandlerAsync(
         long campaignId,
         CampaignLifecycleService lifecycleService,
         CancellationToken cancellationToken)
@@ -133,7 +133,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
     /// <param name="lifecycleService">The campaign lifecycle service.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The immutable opening receipt or ProblemDetails.</returns>
-    private static async Task<IResult> OpenCampaignHandler(
+    private static async Task<IResult> OpenCampaignHandlerAsync(
         long campaignId,
         OpenCampaignInput input,
         CampaignLifecycleService lifecycleService,
@@ -150,7 +150,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
     /// <param name="lifecycleService">The campaign lifecycle service.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>No content or ProblemDetails.</returns>
-    private static async Task<IResult> DeleteDraftHandler(
+    private static async Task<IResult> DeleteDraftHandlerAsync(
         long campaignId,
         CampaignLifecycleService lifecycleService,
         CancellationToken cancellationToken)
@@ -166,7 +166,7 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
     /// <param name="lifecycleService">The campaign lifecycle service.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> ReopenCampaignHandler(
+    private static async Task<IResult> ReopenCampaignHandlerAsync(
         long campaignId,
         CampaignLifecycleService lifecycleService,
         CancellationToken cancellationToken)

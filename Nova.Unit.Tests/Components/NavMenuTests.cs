@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Nova.Components.Layout;
 using Nova.Data.Tenancy;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -20,7 +20,7 @@ namespace Nova.Unit.Tests.Components;
 public class NavMenuTests
 {
     [Fact]
-    public void Render_RendersClubLink_WhenUserHasClubNameClaim()
+    public void RenderRendersClubLinkWhenUserHasClubNameClaim()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -94,7 +94,7 @@ public class NavMenuTests
     /// blend. The computed value is proven end to end by browser test NB7.
     /// </summary>
     [Fact]
-    public void SheetActiveRow_DeclaresTokenDerivedField_WhenCollapseShown()
+    public void SheetActiveRowDeclaresTokenDerivedFieldWhenCollapseShown()
     {
         var cssPath = Path.Join(FindRepoRoot(), "Nova", "Components", "Layout", "NavMenu.razor.css");
         var css = File.ReadAllText(cssPath);
@@ -114,7 +114,7 @@ public class NavMenuTests
     /// would silently drop.
     /// </summary>
     [Fact]
-    public void Render_AddsAccountRoutesSingleMarker_WhenAnonymous()
+    public void RenderAddsAccountRoutesSingleMarkerWhenAnonymous()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -157,7 +157,7 @@ public class NavMenuTests
     }
 
     [Fact]
-    public void Render_OmitsClubLink_WhenUserHasNoClubNameClaim()
+    public void RenderOmitsClubLinkWhenUserHasNoClubNameClaim()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -204,7 +204,7 @@ public class NavMenuTests
     /// the building glyphs, pointing at the small crest variant.
     /// </summary>
     [Fact]
-    public void Render_RendersClubCrestImage_WhenUserHasClubCrestClaim()
+    public void RenderRendersClubCrestImageWhenUserHasClubCrestClaim()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -255,7 +255,7 @@ public class NavMenuTests
     }
 
     [Fact]
-    public void Render_RendersAvatarWithPhotoUrl_WhenUserHasProfilePhotoClaim()
+    public void RenderRendersAvatarWithPhotoUrlWhenUserHasProfilePhotoClaim()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -299,7 +299,7 @@ public class NavMenuTests
     }
 
     [Fact]
-    public void Render_OmitsAvatar_WhenUserHasNoProfilePhotoClaim()
+    public void RenderOmitsAvatarWhenUserHasNoProfilePhotoClaim()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -347,7 +347,7 @@ public class NavMenuTests
     /// own nav item.
     /// </summary>
     [Fact]
-    public void Render_ActivatesOnlyTeamsLink_OnTeamsRoute()
+    public void RenderActivatesOnlyTeamsLinkOnTeamsRoute()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -385,8 +385,8 @@ public class NavMenuTests
         // Assert
         var clubLink = cut.Find("a[href=\"/club\"]");
         var teamsLink = cut.Find("a[href=\"/club/teams\"]");
-        clubLink.ClassList.ShouldNotContain("active");
-        teamsLink.ClassList.ShouldContain("active");
+        clubLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
+        teamsLink.ClassList.ShouldContain("active", StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -394,7 +394,7 @@ public class NavMenuTests
     /// link must not be lit.
     /// </summary>
     [Fact]
-    public void Render_ActivatesOnlyClubLink_OnClubOverviewRoute()
+    public void RenderActivatesOnlyClubLinkOnClubOverviewRoute()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -432,8 +432,8 @@ public class NavMenuTests
         // Assert
         var clubLink = cut.Find("a[href=\"/club\"]");
         var teamsLink = cut.Find("a[href=\"/club/teams\"]");
-        clubLink.ClassList.ShouldContain("active");
-        teamsLink.ClassList.ShouldNotContain("active");
+        clubLink.ClassList.ShouldContain("active", StringComparer.Ordinal);
+        teamsLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -441,7 +441,7 @@ public class NavMenuTests
     /// members are still redirected there via <see cref="ClubDetail"/> until the shell replaces it.
     /// </summary>
     [Fact]
-    public void Render_ActivatesClubLink_OnLegacyClubDetailRoute()
+    public void RenderActivatesClubLinkOnLegacyClubDetailRoute()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -479,8 +479,8 @@ public class NavMenuTests
         // Assert
         var clubLink = cut.Find("a[href=\"/club\"]");
         var teamsLink = cut.Find("a[href=\"/club/teams\"]");
-        clubLink.ClassList.ShouldContain("active");
-        teamsLink.ClassList.ShouldNotContain("active");
+        clubLink.ClassList.ShouldContain("active", StringComparer.Ordinal);
+        teamsLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -488,7 +488,7 @@ public class NavMenuTests
     /// dashboard, the Club link must remain active between the admin area and the shell.
     /// </summary>
     [Fact]
-    public void Render_ActivatesClubLink_OnLegacyClubAdminRoute()
+    public void RenderActivatesClubLinkOnLegacyClubAdminRoute()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -526,8 +526,8 @@ public class NavMenuTests
         // Assert
         var clubLink = cut.Find("a[href=\"/club\"]");
         var teamsLink = cut.Find("a[href=\"/club/teams\"]");
-        clubLink.ClassList.ShouldContain("active");
-        teamsLink.ClassList.ShouldNotContain("active");
+        clubLink.ClassList.ShouldContain("active", StringComparer.Ordinal);
+        teamsLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -536,7 +536,7 @@ public class NavMenuTests
     /// must stay inactive there.
     /// </summary>
     [Fact]
-    public void Render_DoesNotActivateClubLink_OnLegacyOnboardingRoute()
+    public void RenderDoesNotActivateClubLinkOnLegacyOnboardingRoute()
     {
         // Arrange
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
@@ -574,8 +574,8 @@ public class NavMenuTests
         // Assert
         var clubLink = cut.Find("a[href=\"/club\"]");
         var teamsLink = cut.Find("a[href=\"/club/teams\"]");
-        clubLink.ClassList.ShouldNotContain("active");
-        teamsLink.ClassList.ShouldNotContain("active");
+        clubLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
+        teamsLink.ClassList.ShouldNotContain("active", StringComparer.Ordinal);
     }
 
     private static ClaimsPrincipal CreatePrincipal(string? clubId, string? clubName, bool hasClubCrest = false, bool hasProfilePhoto = false)
@@ -625,7 +625,9 @@ public class NavMenuTests
     /// Denies every authorization request — models the real anonymous state, where the
     /// account-routes <c>AuthorizeView</c> renders the <c>NotAuthorized</c> branch (Login).
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class DenyAuthorizationService : IAuthorizationService
+#pragma warning restore CA1812
     {
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
             => Task.FromResult(AuthorizationResult.Failed());
@@ -634,7 +636,9 @@ public class NavMenuTests
             => Task.FromResult(AuthorizationResult.Failed());
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakeAuthorizationService : IAuthorizationService
+#pragma warning restore CA1812
     {
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
             => Task.FromResult(AuthorizationResult.Success());

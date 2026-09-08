@@ -3,7 +3,7 @@
 /// <summary>
 /// Model for capturing passkey operation input from HTML forms.
 /// </summary>
-public class PasskeyInputModel
+internal class PasskeyInputModel
 {
     /// <summary>
     /// Gets or sets the serialized credential JSON from the passkey operation.

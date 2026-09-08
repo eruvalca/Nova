@@ -1,6 +1,6 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Dashboard;
 
@@ -8,13 +8,13 @@ namespace Nova.Client.Services.Dashboard;
 /// WebAssembly HTTP implementation of <see cref="IDashboardQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQueryService
+internal sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubDashboardResult>> GetDashboardAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(DashboardEndpoints.GetSummary, cancellationToken);
+        using var response = await http.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -81,5 +81,5 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
     private static bool IsRelativePath(string? url)
         => !string.IsNullOrWhiteSpace(url)
             && url.StartsWith('/')
-            && !url.Contains("://");
+            && !url.Contains("://", StringComparison.Ordinal);
 }
