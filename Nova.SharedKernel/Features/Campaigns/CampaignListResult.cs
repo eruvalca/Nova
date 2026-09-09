@@ -42,7 +42,8 @@ public sealed record CampaignListItem
     public required int ParticipantCount { get; init; }
 
     /// <summary>
-    /// Gets the number of participants whose placement remains undecided.
+    /// Gets actionable Needs-placement work in the current season's Active campaign; otherwise zero.
+    /// This differs from missing campaign-local outcomes that can still block close.
     /// </summary>
     public required int UnresolvedCount { get; init; }
 }

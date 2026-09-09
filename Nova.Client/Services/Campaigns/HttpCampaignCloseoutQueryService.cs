@@ -71,6 +71,7 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(input), UriKind.RelativeOrAbsol
     /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
     private static bool IsValidReadiness(CampaignCloseoutReadinessDto result)
         => result is not null
+            && result.NeedsPlacementCount >= 0
             && result.CampaignId > 0
             && IsValidSummary(result.Summary)
             && result.Blockers is not null

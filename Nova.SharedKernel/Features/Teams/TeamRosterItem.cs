@@ -7,6 +7,12 @@ namespace Nova.SharedKernel.Features.Teams;
 /// </summary>
 public sealed record TeamRosterItem
 {
+    /// <summary>Gets the unique active players whose latest same-season decision assigns them to this valid team.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public int EffectiveCurrentSeasonPlacementCount { get; init; }
+    /// <summary>Gets effective members whose source decision belongs to the Active campaign.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public int CurrentCampaignPlacementContribution { get; init; }
     /// <summary>
     /// Gets the team's unique identifier.
     /// </summary>

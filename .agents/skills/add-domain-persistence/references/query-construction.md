@@ -78,5 +78,6 @@ region. `ClubAttentionQueryService` is the canonical pattern:
 
 - Load each region in its own context scope, catch per region, re-throw on cancellation, and return a
   region status enum (`Loaded`/`Unavailable`) plus the count only when loaded.
-- When a count and a resolution target must agree (count + newest campaign), project both under one
-  repeatable-read snapshot transaction so a concurrent change cannot make them disagree.
+- When a count and a resolution target must agree, project both in one SQL statement, as attention
+  does. If multiple statements are needed, read them under one provider-compatible snapshot so a
+  concurrent change cannot make them disagree.

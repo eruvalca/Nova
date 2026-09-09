@@ -76,10 +76,10 @@ public sealed class CampaignQueryServiceTests : IDisposable
         admin.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = seasonB.SeasonId;
         admin.SaveChanges();
 
-        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignA2 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignA3 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A3", StartDate = new DateOnly(2026, 4, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = 999_999, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "B1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubAMemberId };
+        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 3, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignA2 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, SeasonOpeningSequence = 2, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignA3 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A3", StartDate = new DateOnly(2026, 4, 1), Status = CampaignStatus.Closed, SeasonOpeningSequence = 1, ClosedAt = DateTimeOffset.UtcNow, ClosedById = 999_999, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "B1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 1, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubAMemberId };
         admin.Campaigns.AddRange(campaignA, campaignA2, campaignA3, campaignB);
         admin.SaveChanges();
 
@@ -154,7 +154,8 @@ public sealed class CampaignQueryServiceTests : IDisposable
         var rows = result.Value.Seasons.SelectMany(s => s.Campaigns).ToList();
         rows.Count.ShouldBe(1); // bounded to limit
         rows[0].ParticipantCount.ShouldBe(2);
-        rows[0].UnresolvedCount.ShouldBe(1);
+        // Local NotSelected is resolved; the archived participant is unavailable.
+        rows[0].UnresolvedCount.ShouldBe(0);
     }
 
     /// <summary>Verifies all supported status filters are case-insensitive.</summary>

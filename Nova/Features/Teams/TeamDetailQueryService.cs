@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Teams;
 using Nova.SharedKernel.Results;
@@ -123,6 +124,15 @@ internal sealed partial class TeamDetailQueryService(
             .ToList()
             .AsReadOnly();
 
+        var effectiveCounts = await EffectivePlacementQueries.Roster(db, clubId)
+            .Where(assignment => assignment.TeamId == teamId)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.Count(),
+                Contribution = group.Count(assignment => assignment.Campaign.Status == CampaignStatus.Active)
+            }).SingleOrDefaultAsync(cancellationToken);
+
         return new TeamDetailDto(
             team.TeamId,
             team.ClubId,
@@ -132,6 +142,8 @@ internal sealed partial class TeamDetailQueryService(
             activePlacementImpacts,
             placementHistory)
         {
+            EffectiveCurrentSeasonPlacementCount = effectiveCounts?.Total ?? 0,
+            CurrentCampaignPlacementContribution = effectiveCounts?.Contribution ?? 0,
             ActivePlacementImpactTotalCount = await placementQuery
                 .CountAsync(row => row.CampaignStatus == CampaignStatus.Active, cancellationToken),
             PlacementHistoryTotalCount = placementHistoryTotalCount,

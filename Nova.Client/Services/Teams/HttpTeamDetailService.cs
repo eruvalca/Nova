@@ -47,6 +47,9 @@ internal sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailServic
             && detail.ActivePlacementImpacts is not null
             && detail.PlacementHistory is not null
             && detail.ActivePlacementImpactTotalCount >= 0
+            && detail.EffectiveCurrentSeasonPlacementCount >= 0
+            && detail.CurrentCampaignPlacementContribution >= 0
+            && detail.CurrentCampaignPlacementContribution <= detail.EffectiveCurrentSeasonPlacementCount
             && detail.PlacementHistoryTotalCount >= 0
             && detail.ActivePlacementImpacts.Count <= TeamDetailDto.MaxPlacementHistoryItems
             && detail.PlacementHistory.Count <= TeamDetailDto.MaxPlacementHistoryItems

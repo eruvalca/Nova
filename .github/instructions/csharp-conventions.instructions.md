@@ -62,13 +62,14 @@ If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `
 
 ## Entity-to-DTO Mapping
 
-Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extension class per entity in `Nova/Extensions/{Feature}/`, named `{EntityType}Extensions.cs`.
+For already-materialized entities, use **C# 14 extension blocks** to map to DTOs. Place one extension class per entity in `Nova/Extensions/{Feature}/`, named `{EntityType}Extensions.cs`.
 
 - Use C# 14 extension block syntax (`extension(EntityType entity) { ... }`) rather than classic `this`-parameter methods.
 - Mark the containing static class `internal` — mapping extensions are server-only (entities live in `Nova`; DTOs in `Nova.SharedKernel`).
 - Name each mapping method `To{DtoType}()` and return the DTO directly from an expression body.
 - Document every method with XML comments; when a navigation property must be loaded before calling the method, state that requirement explicitly in `<summary>`.
-- **Never call a mapping method directly in an EF LINQ query** (e.g. inside `Select` before `ToListAsync`). EF cannot translate C# extension methods to SQL. Always materialize first (`.ToListAsync()`), then project in memory (`entities.Select(e => e.ToDto())`).
+- For EF reads, project needed fields in SQL with an inline `Select` or a reusable `Expression<Func<...>>`, as in `Nova/Features/Campaigns/PlacementReadProjection.cs`. Keep filtering, ordering, and paging before materialization; the mapping convention does not require loading entities first.
+- Ordinary mapping methods are not SQL-translatable. Call them only on materialized results (`entities.Select(e => e.ToDto())`), not inside an EF query.
 - Canonical example: `Nova/Extensions/Clubs/ClubEntityExtensions.cs`.
 
 ## Documentation

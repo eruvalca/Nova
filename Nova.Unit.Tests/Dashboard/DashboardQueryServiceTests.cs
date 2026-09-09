@@ -153,9 +153,12 @@ public sealed class DashboardQueryServiceTests : IDisposable
         admin.Seasons.AddRange(seasonA, seasonB);
         admin.SaveChanges();
 
-        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignAClosed = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A Closed", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        admin.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = seasonA.SeasonId;
+        admin.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = seasonB.SeasonId;
+
+        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 2, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignAClosed = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A Closed", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, SeasonOpeningSequence = 1, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 1, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Campaigns.AddRange(campaignA, campaignAClosed, campaignB);
         admin.SaveChanges();
 

@@ -495,11 +495,14 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
                 fixture.ConnectionString,
                 fixture.CurrentUser,
                 new NoOpInterceptor()));
+        var creationLock = new AdvisoryLockGateInterceptor();
+        // This test holds the real lock below; use the interceptor only to observe arrival.
+        creationLock.Release();
         var creationService = new ClubService(
             new RetryingAdminDbContextFactory(
                 fixture.ConnectionString,
                 fixture.CurrentUser,
-                new NoOpInterceptor()),
+                creationLock),
             new PostgresReadContextFactory(fixture),
             fixture.CurrentUser,
             fixture.ClubCrestsContainer,
@@ -517,6 +520,17 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
             using var actor = fixture.UseUser(seed.RequesterUserId, clubId: null, isClubAdmin: false);
             return await creationService.CreateClubAsync(input, cancellationToken);
         });
+        // Crest encoding and four blob uploads precede the transaction. Start bounded lock
+        // observation only once creation reaches SQL, and expose any pre-lock failure directly.
+        var creationLockAttempt = creationLock.WaitForAttemptAsync(cancellationToken);
+        if (await Task.WhenAny(creationLockAttempt, creationTask) == creationTask)
+        {
+            var earlyResult = await creationTask;
+            Assert.Fail(earlyResult.Match(
+                created => $"Club creation unexpectedly completed before waiting for the held user-membership lock (club {created.ClubId}).",
+                problem => $"Club creation failed before attempting the user-membership lock: {problem.Kind}: {problem.Detail}"));
+        }
+        await creationLockAttempt;
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
             holdDb,
             lockKey,

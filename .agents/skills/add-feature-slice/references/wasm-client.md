@@ -24,8 +24,11 @@ Canonical files:
   successfully deserialized empty collection (`[]`) is valid when the contract permits it. The
   helper maps an empty body, JSON `null`, malformed JSON, or a contract-invalid payload to
   `ServiceProblem.ServerError`; never disguise those failures with `[]`, `default`, or `!`.
-- C# `required` checks property presence during deserialization but does not reject explicit JSON
-  `null`; guard required nested collections and elements explicitly.
+- Enforce required JSON field presence with C# `required` or `[JsonRequired]` (use
+  `[property: JsonRequired]` on positional record parameters). A missing enum or count can otherwise
+  deserialize to a valid zero and pass value validation. Test omission separately from legitimate
+  zero values. Presence checks do not reject explicit JSON `null`; guard required nested collections
+  and elements explicitly and test nulls separately.
 - Validate portable protocol invariants such as positive IDs, shared bounds, ordering keys, and count
   relationships guaranteed by the consistency contract. Do not compare separately queried totals
   with returned rows, or reproduce database-collated string ordering client-side; an ID tie-breaker

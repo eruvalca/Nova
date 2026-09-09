@@ -53,23 +53,23 @@ public sealed record NeedsPlacementRegion
     public required AttentionRegionStatus Status { get; init; }
 
     /// <summary>
-    /// Gets the count of undecided participant assignments in the target (newest) Active campaign
-    /// awaiting a placement decision, meaningful only when <see cref="Status"/> is
+    /// Gets the effective Needs-placement count in the current season's Active campaign,
+    /// excluding optional reassignment and unavailable players, meaningful only when <see cref="Status"/> is
     /// <see cref="AttentionRegionStatus.Loaded"/>. Scoped to the campaign named by
     /// <see cref="CampaignId"/> so the count and its resolution target always agree.
     /// </summary>
     public required int Count { get; init; }
 
     /// <summary>
-    /// Gets the identifier of the newest campaign (by season start, then campaign start) containing
-    /// assignments still needing placement decisions, meaningful only when the region loaded and
+    /// Gets the identifier of the current season's Active campaign containing
+    /// players needing placement decisions, meaningful only when the region loaded and
     /// the count is non-zero.
     /// </summary>
     public long? CampaignId { get; init; }
 
     /// <summary>
-    /// Gets the display name of the newest campaign (by season start, then campaign start) containing
-    /// assignments still needing placement decisions, meaningful only when the region loaded and
+    /// Gets the display name of the current season's Active campaign containing
+    /// players needing placement decisions, meaningful only when the region loaded and
     /// the count is non-zero.
     /// </summary>
     public string? CampaignName { get; init; }

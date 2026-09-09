@@ -66,6 +66,7 @@ internal sealed partial class CampaignQueryService(
             }
 
             var totalCount = await query.CountAsync(cancellationToken);
+            var needsPlacement = EffectivePlacementQueries.NeedsPlacement(db, clubId);
             var page = input.Page ?? 1;
             var offset = (long)(page - 1) * limit;
             var rows = await query
@@ -95,8 +96,7 @@ internal sealed partial class CampaignQueryService(
                     SeasonEndDate = campaign.Season.EndDate,
                     SeasonConcurrencyToken = campaign.Season.ConcurrencyToken,
                     ParticipantCount = campaign.PlayerAssignments.Count,
-                    UnresolvedCount = campaign.PlayerAssignments.Count(
-                        assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided)
+                    UnresolvedCount = needsPlacement.Count(assignment => assignment.CampaignId == campaign.CampaignId)
                 })
                 .ToListAsync(cancellationToken);
 

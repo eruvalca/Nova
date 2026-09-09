@@ -165,12 +165,10 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
   invocations are not reader-command evidence. The interceptor does not observe synchronous,
   scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
 - Exercise every route independently; prove the least-privileged role (a creator or admin does not establish ordinary-member access). Test independent query-validation paths separately.
-- For clients validating success bodies, trace producer guarantees through serialization, client
-  validation, and rendered use. Cover populated valid payloads, missing required fields, explicit
-  nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and
-  portable ordering. Never reject relationships the producer's consistency contract cannot
-  guarantee. Use exact expected counts when proving lifecycle or tenant exclusion; see the
-  `add-feature-slice` WASM client reference's contract check.
+- For clients validating success bodies, follow the
+  [producer-to-UI contract check](../../.agents/skills/add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check)
+  across serialization, client validation, and rendered use. Use exact expected counts when proving
+  lifecycle or tenant exclusion.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
   following it. Route metadata alone cannot prove the generated URL is usable.
 - For uniqueness-probe patterns, add a PostgreSQL race test that commits a conflicting row through an independent context after the probe, asserting the unique constraint is the final guard and the exception maps to `Conflict`.

@@ -31,4 +31,9 @@ public sealed record CampaignCloseoutReadinessDto(
     CampaignStatus Status,
     bool IsReady,
     CampaignPlacementSummaryDto Summary,
-    IReadOnlyList<CampaignCloseoutBlockerDto> Blockers);
+    IReadOnlyList<CampaignCloseoutBlockerDto> Blockers)
+{
+    /// <summary>Gets actionable current-season placement work. Zero does not waive missing campaign-local outcomes or other close blockers.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public int NeedsPlacementCount { get; init; }
+}

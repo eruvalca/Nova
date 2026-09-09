@@ -80,7 +80,7 @@ internal sealed partial class CampaignCloseoutQueryService(
             .ToListAsync(cancellationToken);
 
         var decision = CampaignClosurePolicy.Evaluate(assignmentStates);
-        return decision.Match(
+        var readiness = decision.Match(
             _ => new CampaignCloseoutReadinessDto(
                 input.CampaignId,
                 campaignStatus.Value,
@@ -88,6 +88,11 @@ internal sealed partial class CampaignCloseoutQueryService(
                 summaryResult.Value,
                 Blockers: []),
             blocked => MapBlocked(input.CampaignId, campaignStatus.Value, summaryResult.Value, blocked));
+        return readiness with
+        {
+            NeedsPlacementCount = await EffectivePlacementQueries.NeedsPlacement(db, currentClubId)
+                .CountAsync(assignment => assignment.CampaignId == input.CampaignId, cancellationToken)
+        };
     }
 
     /// <inheritdoc />

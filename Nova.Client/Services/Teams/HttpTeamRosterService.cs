@@ -66,5 +66,8 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, in
             && team.GraduationYear is >= 2000 and <= 2100
             && (expectedGraduationYear is null
                 || team.GraduationYear == expectedGraduationYear)
-            && team.ActivePlacementCount >= 0;
+            && team.ActivePlacementCount >= 0
+            && team.EffectiveCurrentSeasonPlacementCount >= 0
+            && team.CurrentCampaignPlacementContribution >= 0
+            && team.CurrentCampaignPlacementContribution <= team.EffectiveCurrentSeasonPlacementCount;
 }

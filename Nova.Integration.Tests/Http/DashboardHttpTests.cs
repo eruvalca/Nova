@@ -115,10 +115,12 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
                 .SingleAsync(cancellationToken);
 
             var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = adminUserId };
-            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = club.ClubId, CreatedById = adminUserId };
+            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, SeasonOpeningSequence = 1, ClubId = club.ClubId, CreatedById = adminUserId };
             var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = adminUserId };
             context.AddRange(season, campaign, player);
             await context.SaveChangesAsync(cancellationToken);
+            var persistedClub = await context.Clubs.SingleAsync(candidate => candidate.ClubId == club.ClubId, cancellationToken);
+            persistedClub.CurrentSeasonId = season.SeasonId;
 
             context.AddRange(
                 new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = club.ClubId, CreatedById = adminUserId, PlacementOutcome = PlacementOutcome.Undecided },

@@ -10,8 +10,8 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>
 /// Provider-sensitive evidence that the attention projection's needs-placement region translates on
-/// PostgreSQL: the undecided-assignment filters push into SQL, the target (newest) campaign and its
-/// scoped count are computed in one repeatable-read snapshot, and the region still reports
+/// PostgreSQL: the effective eligibility filters push into SQL, the current-season Active campaign and its
+/// scoped count are computed in one SQL statement snapshot, and the region still reports
 /// <see cref="AttentionRegionStatus.Loaded"/> with the target campaign's count when several
 /// assignments span multiple campaigns.
 /// </summary>
@@ -20,10 +20,9 @@ namespace Nova.Integration.Tests.Data;
 public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
 {
     /// <summary>
-    /// Verifies the needs-placement region scopes its count to the newest Active campaign: three
-    /// undecided assignments across two Active campaigns resolve to the two on the newer campaign,
-    /// which is named in deterministic order, all computed database-side under one snapshot
-    /// transaction.
+    /// Verifies the needs-placement region scopes its count to the current-season Active campaign: three
+    /// undecided assignments across Closed and Active campaigns resolve to the two on the Active campaign,
+    /// which is named with its count in the same SQL statement snapshot.
     /// </summary>
     [Fact]
     public async Task GetClubAttentionPostgresCountsUndecidedAssignmentsAndNamesNewestCampaignAsync()
@@ -88,8 +87,8 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Seeds one club, member, season, two Active campaigns, and three undecided assignments (one on
-    /// the older campaign, two on the newer) plus one already-assigned player that must be excluded.
+    /// Seeds one club, member, authoritative current season, Closed and Active campaigns, and three
+    /// undecided assignments (one Closed, two Active) plus one valid assigned player that is resolved.
     /// </summary>
     /// <returns>The generated identifiers and the expected newest campaign name.</returns>
 #pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
@@ -130,6 +129,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
             };
             db.Seasons.Add(season);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
 
             var olderCampaign = new CampaignEntity
             {
@@ -137,6 +137,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
                 Name = $"Older Campaign {suffix}",
                 StartDate = new DateOnly(2026, 5, 1),
                 Status = CampaignStatus.Closed,
+                SeasonOpeningSequence = 1,
                 ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
                 ClosedById = actorUserId,
                 SeasonId = season.SeasonId,
@@ -149,6 +150,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
                 Name = $"Newer Campaign {suffix}",
                 StartDate = new DateOnly(2026, 6, 1),
                 Status = CampaignStatus.Active,
+                SeasonOpeningSequence = 2,
                 SeasonId = season.SeasonId,
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
