@@ -63,6 +63,7 @@ builder.Services.AddScoped<ICampaignCreationService, HttpCampaignCreationService
 builder.Services.AddScoped<ICampaignQueryService, HttpCampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignParticipantQueryService>();
 builder.Services.AddScoped<ICampaignPlacementQueryService, HttpCampaignPlacementQueryService>();
+builder.Services.AddScoped<IEffectivePlacementQueryService, HttpEffectivePlacementQueryService>();
 builder.Services.AddScoped<ICampaignCloseoutQueryService, HttpCampaignCloseoutQueryService>();
 builder.Services.AddScoped<IDashboardQueryService, HttpDashboardQueryService>();
 builder.Services.AddScoped<IClubActivityQueryService, HttpClubActivityQueryService>();

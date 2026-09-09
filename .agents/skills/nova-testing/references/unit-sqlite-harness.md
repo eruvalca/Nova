@@ -55,6 +55,13 @@ public void TenantContextReturnsOnlyCurrentClubsRows()
 }
 ```
 
+## Campaign lifecycle seeds
+
+Both harnesses use `CampaignTestSeedInterceptor` to fill absent opening metadata and saved-decision
+attribution for direct seeds. It does not set `Club.CurrentSeasonId`. For current-season scenarios,
+set that pointer explicitly; for supersession scenarios, also set `SeasonOpeningSequence` explicitly
+so precedence does not depend on seed order. `EffectivePlacementQueryServiceTests` shows these seeds.
+
 ## Conventions and gotchas
 
 - One behavior per test; use `SubjectOutcomeCondition` names (append `Async` for async methods), e.g.

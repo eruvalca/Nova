@@ -1,9 +1,19 @@
 ﻿#pragma warning disable CA1055 // These relative route strings are consumed by HTTP clients, Razor attributes, and NavigationManager.
+using Nova.SharedKernel.Features.Campaigns;
+
 namespace Nova.SharedKernel.Features.Seasons;
 
 /// <summary>Provides stable routes for season HTTP APIs.</summary>
 public static class SeasonEndpoints
 {
+    /// <summary>The effective current-season roster route relative to the season group.</summary>
+    public const string CurrentRosterRelative = "current/roster";
+    /// <summary>Builds a bounded effective current-season roster request.</summary>
+    public static string CurrentRosterUrl(GetCurrentSeasonRosterInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return PlacementQueryUrls.WithPage($"{GroupPrefix}/{CurrentRosterRelative}", input, input.TeamId, input.GraduationYear, input.Search);
+    }
     /// <summary>Gets the seasons route group prefix.</summary>
     public const string GroupPrefix = "/api/seasons";
 

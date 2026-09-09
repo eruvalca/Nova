@@ -21,6 +21,12 @@ public sealed record TeamDetailDto(
     IReadOnlyList<TeamPlacementImpactDto> ActivePlacementImpacts,
     IReadOnlyList<TeamPlacementImpactDto> PlacementHistory)
 {
+    /// <summary>Gets unique valid effective current-season members, independent of the history page.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public int EffectiveCurrentSeasonPlacementCount { get; init; }
+    /// <summary>Gets effective members whose source decision belongs to the Active campaign.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public int CurrentCampaignPlacementContribution { get; init; }
     /// <summary>
     /// Gets the maximum number of placement-history rows returned by the detail contract.
     /// </summary>

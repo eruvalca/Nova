@@ -9,7 +9,7 @@
 /// <param name="PageSize">The number of items requested per page.</param>
 /// <param name="TotalCount">The total number of items matching the query before paging.</param>
 public sealed record PagedResult<TItem>(
-    IReadOnlyList<TItem> Items,
-    int Page,
-    int PageSize,
-    int TotalCount);
+    [property: System.Text.Json.Serialization.JsonRequired] IReadOnlyList<TItem> Items,
+    [property: System.Text.Json.Serialization.JsonRequired] int Page,
+    [property: System.Text.Json.Serialization.JsonRequired] int PageSize,
+    [property: System.Text.Json.Serialization.JsonRequired] int TotalCount);

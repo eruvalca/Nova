@@ -7,6 +7,23 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// </summary>
 public static class CampaignEndpoints
 {
+    /// <summary>The Active campaign effective working set route.</summary>
+    public const string EffectivePlacementsRelative = "{campaignId:long}/effective-placements";
+    /// <summary>The campaign-local Closed record route.</summary>
+    public const string ClosedRosterRelative = "{campaignId:long}/closed-roster";
+    /// <summary>Builds the effective placement context request.</summary>
+    public static string EffectivePlacementsUrl(GetCampaignEffectivePlacementsInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return PlacementQueryUrls.WithPage($"{GroupPrefix}/{input.CampaignId}/effective-placements", input,
+            input.TeamId, input.GraduationYear, input.Search, input.Eligibility);
+    }
+    /// <summary>Builds a Closed campaign-local roster request.</summary>
+    public static string ClosedRosterUrl(GetClosedCampaignRosterInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return PlacementQueryUrls.WithPage($"{GroupPrefix}/{input.CampaignId}/closed-roster", input);
+    }
     /// <summary>
     /// The group prefix for campaign endpoints.
     /// </summary>

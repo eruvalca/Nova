@@ -71,7 +71,7 @@ public sealed record ActiveCampaignCardDto
     public required int ParticipantCount { get; init; }
 
     /// <summary>
-    /// Gets the number of participants whose placement remains undecided, from the campaign list surface.
+    /// Gets authoritative Needs-placement work from the campaign list, excluding optional reassignment.
     /// </summary>
     public required int UnresolvedCount { get; init; }
 

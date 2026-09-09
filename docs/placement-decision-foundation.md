@@ -52,13 +52,76 @@ existing global membership-mutation retention also prunes expired placement rece
 including deleted clubs, using a CreatedAt-leading index. Receipts are
 not history and are never used to determine effective placement or attribution.
 
-## Handoff to #214
+## Effective placement query foundation (#214)
 
-Reuse the decision snapshot, opening-sequence rule, and pure eligibility facts when adding bounded
-effective rosters and Needs-placement projections. Count a player once, retain invalid latest-team
-truth for correction, and preserve Closed campaign-local records independently of current truth.
-Existing roster counts, attention counts, close-readiness projections, paging, and team/export
-queries are not converted by #213; #214 owns those consumers and their query/provider tests.
+`IEffectivePlacementQueryService` supplies three approved-member reads. Each applies the same input
+validation at its service and HTTP boundaries, uses the authenticated tenant, and returns
+`NotFound` for inaccessible identifiers. Working/Closed reads return `Conflict` when a visible
+campaign has the wrong lifecycle; members cannot discover Drafts.
+
+| Read | Route | Meaning |
+| --- | --- | --- |
+| `GetCurrentSeasonRosterAsync` | `/api/seasons/current/roster` | Unique active players assigned to valid teams by the latest saved current-season decision. An absent current season is explicit, with an empty page. Closed campaigns remain valid sources during an idle season. |
+| `GetCampaignEffectivePlacementsAsync` | `/api/campaigns/{campaignId}/effective-placements` | Current-season Active participation, local decision/token, effective decision/source/team, eligibility, correction reason, and unfiltered section counts. |
+| `GetClosedCampaignRosterAsync` | `/api/campaigns/{campaignId}/closed-roster` | Only this Closed campaign's participants and saved outcomes, including archived players/teams and original decision attribution. Incomplete decision records produce an integrity conflict. |
+
+Pages default to 50 rows, with a maximum of 100. Working pages order by graduation year, last name,
+first name, then player ID; season and Closed pages order by last name, first name, then player ID.
+Season/working reads support literal name search and exact graduation-year/team filters. Working
+search also accepts an exact numeric tryout number and an optional eligibility filter. Filters do
+not change working section totals. Missing/unknown eligibility selects all states.
+
+`EffectivePlacementQueries` selects saved same-season decisions using a SQL anti-newer predicate:
+opening sequence descending, participation ID descending. Validity and team filters occur **after**
+selection. All filters, counts, ordering, and bounds stay in SQL; no per-player history reads are
+needed. A later enrollment never supersedes, and an invalid/teamless latest decision never
+reactivates an older assignment. Assigned membership requires an active player and an active,
+graduation-compatible, tenant-visible team.
+
+Needs placement matches `CampaignPlacementPolicy.GetEligibility`: no saved decision, an earlier
+`NotSelected`, or an invalid latest assignment requires a decision. Valid Assigned is optional
+reassignment; local NotSelected is resolved; Withdrawn and archived players are unavailable.
+Administrator withdrawal-override authority does not inflate the ordinary queue. Invalid saved
+assignments retain their source evidence and correction reason; inaccessible team identifiers and
+names are not disclosed. In that case the query's decision snapshot has a null team ID rather than
+leaking the invalid cross-tenant reference.
+
+Campaign list/dashboard unresolved counts and the attention region use this same predicate. The
+attention count and target are a single SQL aggregate, and regional failures remain independent.
+Team directory/detail add `EffectiveCurrentSeasonPlacementCount` and
+`CurrentCampaignPlacementContribution`; Active-campaign impact/history fields retain their own
+meaning. Current-campaign contribution counts only effective memberships sourced from the Active
+campaign, not every local historical assignment.
+
+Closeout adds `NeedsPlacementCount` without changing the existing campaign-local outcome summary
+or closure policy. **Zero Needs placement does not imply ready to close.** Every participant still
+needs an explicit local Assigned, NotSelected, or Withdrawn outcome. This was confirmed for #214:
+inherited assignments remain optional placement work but do not satisfy the local close record.
+
+Ordinary row totals and working section totals are eventually consistent across SQL statements;
+clients check required metadata, bounds, identities, and portable ordering without comparing totals
+to separately read rows. Closed lifecycle, integrity validation, count, and page share a
+repeatable-read snapshot on PostgreSQL (serializable on SQLite). This guarantees one response, not
+a multi-request snapshot across reopening and re-closing; #221 must maintain a consistent read for
+an entire generated export. Neither receipts nor effective-season queries determine Closed rows.
+
+The existing campaign-local placement roster/summary remains campaign-local. #169/#199/#200/#217
+own UI consumption and #221 owns CSV generation. No UI, mutation controls, or schema migration
+were introduced by this query slice.
+
+### Guidance and validation
+
+Implementation guidance read: `AGENTS.md`; C#, service, validation, API, EF/tenancy, placement,
+season, functional-core, observability, and testing instructions; `add-domain-persistence`
+(query construction and functional-core references), `add-api-endpoint` (all four required
+references), `nova-testing` (SQLite and Aspire integration references), and the WASM contract-check
+reference. Test work also uses the .NET test-generation, static-pairing, and runner skills.
+
+Query/consumer regression evidence is in `EffectivePlacementQueryServiceTests` and
+`EffectivePlacementConsumerTests`; production HTTP and PostgreSQL evidence is in
+`EffectivePlacementHttpTests` and `EffectivePlacementPostgresTests`; strict response handling is
+covered by `HttpEffectivePlacementQueryServiceTests`. The [validation record](issue-214-validation.md)
+records the tested revision, actual commands/results, and separate review disposition.
 
 ## Regression evidence
 

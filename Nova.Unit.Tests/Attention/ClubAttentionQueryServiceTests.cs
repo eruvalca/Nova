@@ -391,12 +391,19 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
         admin.Seasons.Add(season);
         admin.SaveChanges();
 
+        var club = admin.Clubs.Single(row => row.ClubId == clubId);
+        if (campaignStatus == CampaignStatus.Active || club.CurrentSeasonId is null)
+        {
+            club.CurrentSeasonId = season.SeasonId;
+        }
+
         var campaign = new CampaignEntity
         {
             CreationOperationId = Guid.NewGuid(),
             Name = campaignName,
             StartDate = startDate,
             Status = campaignStatus,
+            SeasonOpeningSequence = campaignStatus == CampaignStatus.Draft ? null : 1,
             ClosedAt = campaignStatus == CampaignStatus.Closed ? new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero) : null,
             ClosedById = campaignStatus == CampaignStatus.Closed ? ClubAAdminId : null,
             SeasonId = season.SeasonId,

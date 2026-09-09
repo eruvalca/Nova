@@ -2,6 +2,7 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Campaigns;
 using Nova.Features.Common;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Teams;
@@ -75,6 +76,7 @@ internal sealed partial class TeamRosterQueryService(
             ordered = ordered.Take(limit);
         }
 
+        var effectiveRoster = EffectivePlacementQueries.Roster(db, clubId);
         var rows = await ordered
             .Select(team => new TeamRosterItem
             {
@@ -82,6 +84,9 @@ internal sealed partial class TeamRosterQueryService(
                 Name = team.Name,
                 GraduationYear = team.GraduationYear,
                 LifecycleStatus = team.LifecycleStatus,
+                EffectiveCurrentSeasonPlacementCount = effectiveRoster.Count(assignment => assignment.TeamId == team.TeamId),
+                CurrentCampaignPlacementContribution = effectiveRoster.Count(assignment => assignment.TeamId == team.TeamId
+                    && assignment.Campaign.Status == CampaignStatus.Active),
                 ActivePlacementCount = team.PlayerAssignments.Count(assignment =>
                     assignment.Campaign.Status == CampaignStatus.Active
                     && assignment.PlacementOutcome == PlacementOutcome.Assigned)

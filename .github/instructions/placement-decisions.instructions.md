@@ -22,5 +22,8 @@ contracts and regression evidence; [PRODUCT.md](../../PRODUCT.md) owns product i
   activity. The same outcome/team recorded in a later campaign is a new superseding decision
   with its own attribution and atomic activity.
 
-Use the existing domain-persistence and testing skills. The foundation document identifies which
-read-model consumers still need integration; do not assume existing counts implement these rules.
+Effective roster and Needs-placement consumers share `EffectivePlacementQueries`; the roster read
+endpoints and WASM client use `IEffectivePlacementQueryService`. Keep campaign-local history and
+closeout outcome counts separate: zero Needs placement does not satisfy the explicit local outcomes
+required to close. Use the existing domain-persistence and testing skills; the foundation document
+records the contracts and remaining downstream ownership.

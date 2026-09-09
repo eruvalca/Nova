@@ -55,9 +55,22 @@ operations, and only then release the lock. For one competitor, use
 expected waiter count to its count-aware overload, or use an equivalent count-aware `pg_locks` or
 `pg_stat_activity` observation; repeated one-waiter checks can all observe the same session.
 
+If an operation prepares files or uploads before acquiring its lock, use
+`AdvisoryLockGateInterceptor` to observe the actual lock attempt before starting bounded database
+waiter polling. Surface early operation completion or failure while waiting for that signal;
+`ClubJoinRequestRetryTests` demonstrates this without extending the contention timeout.
+
 When a race test must pause an advisory lock that is not first in the documented global order,
 construct `AdvisoryLockGateInterceptor` with `advisoryLocksToSkip` set to the number of earlier lock
 commands. This gates the intended lock instead of accidentally pausing club-season or club-roster.
+
+## Consistent reads
+
+For a promised snapshot across multiple reads, pause between the reads, commit a competing change
+through an independent context, then resume and assert the original lifecycle and data agree.
+`EffectivePlacementPostgresTests.ClosedRosterSnapshotRetainsClosedLifecycleAndDecisionWhenReopenedBetweenReadsAsync`
+is the Closed-roster example. This proves one response's snapshot, not consistency across separate
+page requests.
 
 ## Probe-then-write uniqueness races
 
@@ -103,6 +116,8 @@ Prefer explicit seed helpers for lifecycle-constrained entities. The fixture's c
 normalizer exists only to keep older direct Active/Closed seeds concise; provider constraint tests
 must use `CreateUnnormalizedAdminContext()` so intentionally invalid metadata is not repaired before
 PostgreSQL evaluates it. Any future compatibility normalizer must provide the same bypass.
+For current-season and supersession scenarios, follow the shared
+[campaign lifecycle seed requirements](unit-sqlite-harness.md#campaign-lifecycle-seeds).
 
 ## HTTP-layer e2e
 
