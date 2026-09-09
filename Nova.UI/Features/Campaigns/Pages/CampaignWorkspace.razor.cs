@@ -43,6 +43,8 @@ public partial class CampaignWorkspace(
     private bool _receiptChecked;
     /// <summary>Targets keyboard focus when a validated opening receipt reaches the Roster landing.</summary>
     private ElementReference _rosterHeading;
+    /// <summary>Targets the route-marker strip for active-marker reveal on narrow screens.</summary>
+    private ElementReference _campaignRoute;
 
     /// <summary>Builds roster navigation while retaining the focused landing route when it is active.</summary>
     /// <param name="state">The roster filters, sorting, and paging to preserve.</param>
@@ -1451,6 +1453,9 @@ public partial class CampaignWorkspace(
     {
         // The roster region is only in the DOM when a loaded roster is rendered; keep the
         // pending scroll work until then so filter changes still scroll after a loading pass.
+        var module = await _moduleTask.Value;
+        await module.InvokeVoidAsync("revealActiveRouteMarker", ComponentCancellationToken, _campaignRoute);
+
         if (_rosterLoading || _roster is null)
         {
             // A prior loaded render may have installed the keydown suppression scoped to the
@@ -1464,9 +1469,6 @@ public partial class CampaignWorkspace(
 
             return;
         }
-
-        var module = await _moduleTask.Value;
-        await module.InvokeVoidAsync("revealActiveRouteMarker", ComponentCancellationToken);
 
         // Check optional opening feedback once when the Roster landing is ready.
         if (IsRosterLanding && !_receiptChecked)

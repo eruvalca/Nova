@@ -388,7 +388,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await narrowPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=close").ToString());
         var closeMarker = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Close" });
         await Expect(closeMarker).ToHaveAttributeAsync("aria-current", "page");
-        await Expect(closeMarker).ToBeInViewportAsync();
+        (await closeMarker.EvaluateAsync<bool>("element => { const marker = element.getBoundingClientRect(); const container = element.closest('.campaign-route').getBoundingClientRect(); return marker.left >= container.left && marker.right <= container.right; }"))
+            .ShouldBeTrue();
 
         await using var noScriptContext = await fixture.NewSignedInContextAsync(
             seed.AdminEmail,
