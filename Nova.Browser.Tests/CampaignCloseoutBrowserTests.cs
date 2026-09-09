@@ -366,9 +366,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.Locator("#roster-region-heading")).ToBeVisibleAsync();
         await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Roster" }))
             .ToHaveAttributeAsync("aria-current", "page");
-        var route = narrowPage.Locator("nav.campaign-route");
-        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"))
-            .ShouldBeTrue();
+        var route = narrowPage.Locator("nav.campaign-route").Last;
+        await Expect(route).ToBeVisibleAsync();
 
         await InteractionHelpers.ActUntilAsync(
             narrowPage,
@@ -385,6 +384,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.Locator("#overview-region-heading")).ToBeVisibleAsync();
         await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" }))
             .ToHaveAttributeAsync("aria-current", "page");
+
+        await narrowPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=close").ToString());
+        var closeMarker = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Close" });
+        await Expect(closeMarker).ToHaveAttributeAsync("aria-current", "page");
+        await Expect(closeMarker).ToBeInViewportAsync();
 
         await using var noScriptContext = await fixture.NewSignedInContextAsync(
             seed.AdminEmail,

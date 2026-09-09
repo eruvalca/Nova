@@ -1466,6 +1466,7 @@ public partial class CampaignWorkspace(
         }
 
         var module = await _moduleTask.Value;
+        await module.InvokeVoidAsync("revealActiveRouteMarker", ComponentCancellationToken);
 
         // Check optional opening feedback once when the Roster landing is ready.
         if (IsRosterLanding && !_receiptChecked)

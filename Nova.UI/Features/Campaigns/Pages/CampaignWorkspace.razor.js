@@ -40,6 +40,24 @@ export function scrollToTop(element) {
     }
 }
 
+// Keeps a directly linked active route marker visible when the marker strip overflows
+// horizontally on narrow screens.
+export function revealActiveRouteMarker() {
+    const marker = document.querySelector('nav.campaign-route .route-marker[aria-current="page"]');
+    const container = marker?.closest('.campaign-route');
+    if (!marker || !container) {
+        return;
+    }
+
+    const markerRect = marker.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (markerRect.left < containerRect.left) {
+        container.scrollLeft -= containerRect.left - markerRect.left;
+    } else if (markerRect.right > containerRect.right) {
+        container.scrollLeft += markerRect.right - containerRect.right;
+    }
+}
+
 // Attaches the keydown suppression on the document in the capture phase. The roster region
 // element is recreated across loading/error/loaded renders, so callers re-invoke this on every
 // render pass where the roster is visible; replace-on-attach keeps exactly one active listener.

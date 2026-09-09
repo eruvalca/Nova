@@ -143,7 +143,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspacePushesTabQueryWhenEvaluateTabSelected()
+    public void CampaignWorkspaceRendersRosterPanelWhenNavigatedByUrl()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -153,7 +153,10 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
         navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10/roster?tab=roster"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
+        cut.Markup.ShouldContain("Roster");
+        cut.FindAll("ul.nav-tabs .nav-link.active").Single()
+            .QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Roster");
     }
 
     [Fact]

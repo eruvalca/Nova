@@ -103,6 +103,7 @@
 .route-marker-list {
     position: relative;
     display: grid;
+    width: max-content;
     min-width: 36rem;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
