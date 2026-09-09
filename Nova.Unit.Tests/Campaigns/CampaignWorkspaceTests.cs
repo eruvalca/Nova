@@ -113,20 +113,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspaceUsesNormalizedRouteWhenSelectingFromRosterLanding()
-    {
-        RegisterServices();
-        var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10/roster?tab=close");
-
-        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
-
-        cut.FindAll("ul.route-marker-list a.route-marker")[3].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=close"));
-    }
-
-    [Fact]
     public void CampaignWorkspaceKeepsEvaluateTabActiveWhenTabQueryIsEvaluate()
     {
         RegisterServices();
@@ -166,7 +152,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.route-marker-list a.nav-link")[0].Click();
+        navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10/roster?tab=roster"));
     }
 
@@ -198,7 +184,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.route-marker-list a.nav-link")[2].Click();
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=place"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
@@ -216,12 +202,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.Markup.ShouldContain("roster-region-heading");
 
         // Evaluate → Placements switches the rendered region.
-        cut.FindAll("ul.route-marker-list a.nav-link")[2].Click();
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
 
         // Placements → Evaluate switches back.
-        cut.FindAll("ul.route-marker-list a.nav-link")[0].Click();
+        navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
         cut.Markup.ShouldNotContain("placements-region-heading");
     }
@@ -238,7 +224,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.route-marker-list a.nav-link")[1].Click();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=evaluate"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("overview-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
@@ -254,7 +240,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.route-marker-list a.nav-link")[3].Click();
+        navigationManager.NavigateTo("/campaigns/10?tab=close");
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=close"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("closeout-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");

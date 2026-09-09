@@ -1010,32 +1010,6 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
-    /// Selects the Evaluate route while retaining anchor navigation when scripting is disabled.
-    /// </summary>
-    private Task SelectEvaluateTabAsync()
-    {
-        if (!string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal))
-        {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId));
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Selects the Place route while retaining anchor navigation when scripting is disabled.
-    /// </summary>
-    private Task SelectPlaceTabAsync()
-    {
-        if (!string.Equals(_activeTab, PlaceTabName, StringComparison.Ordinal))
-        {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState));
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
     /// Selects the Close route, pushing the close workspace URL.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>

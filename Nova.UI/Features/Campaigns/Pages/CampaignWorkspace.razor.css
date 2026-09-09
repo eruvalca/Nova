@@ -59,7 +59,7 @@
 .campaign-season {
     margin-bottom: 0.25rem;
     color: color-mix(in srgb, var(--bs-white) 93%, transparent);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 650;
 }
 
@@ -131,7 +131,7 @@
     min-height: 4.5rem;
     padding: 2.75rem 0.75rem 0.75rem;
     color: var(--bs-secondary-color);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 650;
     text-align: center;
     text-decoration: none;

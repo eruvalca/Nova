@@ -110,8 +110,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         <li>
                             <a class="nav-link route-marker @(_activeTab == RosterTabName ? "active" : null)"
                                href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId)"
-                               aria-current="@(_activeTab == RosterTabName ? "page" : null)"
-                               @onclick="SelectRosterTabAsync">
+                               aria-current="@(_activeTab == RosterTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Roster</span>
                                 <span class="route-marker-state">Participant field</span>
@@ -120,8 +119,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         <li>
                             <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
                                href="@CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId)"
-                               aria-current="@(_activeTab == EvaluateTabName ? "page" : null)"
-                               @onclick="SelectEvaluateTabAsync">
+                               aria-current="@(_activeTab == EvaluateTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Evaluate</span>
                                 <span class="route-marker-state">Observations</span>
@@ -130,8 +128,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         <li>
                             <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
                                href="@CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState)"
-                               aria-current="@(_activeTab == PlaceTabName ? "page" : null)"
-                               @onclick="SelectPlaceTabAsync">
+                               aria-current="@(_activeTab == PlaceTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Place</span>
                                 <span class="route-marker-state">Assignments</span>
@@ -140,8 +137,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         <li>
                             <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
                                href="@CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId)"
-                               aria-current="@(_activeTab == CloseTabName ? "page" : null)"
-                               @onclick="SelectCloseTabAsync">
+                               aria-current="@(_activeTab == CloseTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Close</span>
                                 <span class="route-marker-state">Readiness</span>

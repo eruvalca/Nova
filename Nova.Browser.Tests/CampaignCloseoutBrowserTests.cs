@@ -351,6 +351,46 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
+    public async Task RouteMarkersRemainScrollableKeyboardOperableAndWorkWithoutJavaScriptAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+
+        await using var narrowContext = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            CloseoutSeed.Password,
+            new ViewportSize { Width = 480, Height = 800 });
+        var narrowPage = narrowContext.Pages[0];
+
+        await narrowPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=roster").ToString());
+        await Expect(narrowPage.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Roster" }))
+            .ToHaveAttributeAsync("aria-current", "page");
+        var route = narrowPage.Locator("nav.campaign-route");
+        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth")).ShouldBeTrue();
+
+        var evaluate = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" });
+        await evaluate.FocusAsync();
+        await narrowPage.Keyboard.PressAsync("Enter");
+        await narrowPage.WaitForURLAsync(url => url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase));
+        await Expect(narrowPage.Locator("#overview-region-heading")).ToBeVisibleAsync();
+        await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" }))
+            .ToHaveAttributeAsync("aria-current", "page");
+
+        await using var noScriptContext = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            CloseoutSeed.Password,
+            new ViewportSize { Width = 480, Height = 800 },
+            javaScriptEnabled: false);
+        var noScriptPage = noScriptContext.Pages[0];
+        await noScriptPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=roster").ToString());
+        await Expect(noScriptPage.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await noScriptPage.GetByRole(AriaRole.Link, new() { Name = "Place" }).ClickAsync();
+        await noScriptPage.WaitForURLAsync(url => url.Contains("tab=place", StringComparison.OrdinalIgnoreCase));
+        await Expect(noScriptPage.Locator("#placements-region-heading")).ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task CloseoutA11yEvidenceCapturesScreenshotsAsync()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
