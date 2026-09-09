@@ -372,7 +372,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var evaluate = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" });
         await evaluate.FocusAsync();
         await narrowPage.Keyboard.PressAsync("Enter");
-        await narrowPage.WaitForURLAsync(url => url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase));
+        await narrowPage.WaitForURLAsync(
+            url => url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase),
+            new() { WaitUntil = WaitUntilState.Commit });
         await Expect(narrowPage.Locator("#overview-region-heading")).ToBeVisibleAsync();
         await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" }))
             .ToHaveAttributeAsync("aria-current", "page");
