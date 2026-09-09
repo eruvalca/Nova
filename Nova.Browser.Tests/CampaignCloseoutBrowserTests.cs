@@ -367,11 +367,18 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Roster" }))
             .ToHaveAttributeAsync("aria-current", "page");
         var route = narrowPage.Locator("nav.campaign-route");
-        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth")).ShouldBeTrue();
+        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"))
+            .ShouldBeTrue();
 
-        var evaluate = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" });
-        await evaluate.FocusAsync();
-        await narrowPage.Keyboard.PressAsync("Enter");
+        await InteractionHelpers.ActUntilAsync(
+            narrowPage,
+            async () =>
+            {
+                var evaluate = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" });
+                await evaluate.FocusAsync();
+                await evaluate.PressAsync("Enter");
+            },
+            () => Task.FromResult(narrowPage.Url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase)));
         await narrowPage.WaitForURLAsync(
             url => url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase),
             new() { WaitUntil = WaitUntilState.Commit });

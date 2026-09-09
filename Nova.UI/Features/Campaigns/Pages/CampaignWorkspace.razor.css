@@ -94,6 +94,7 @@
 }
 
 .campaign-route {
+    width: 100%;
     overflow-x: auto;
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;

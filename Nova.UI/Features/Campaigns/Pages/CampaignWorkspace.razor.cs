@@ -1045,7 +1045,7 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
-    /// Cancels the closeout view and returns to the evaluate tab, preserving the current roster state.
+    /// Cancels the closeout view and returns to the roster route, preserving the current roster state.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
     private Task OnCancelCloseoutAsync() => SelectRosterTabAsync();
