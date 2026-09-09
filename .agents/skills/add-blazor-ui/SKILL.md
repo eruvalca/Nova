@@ -70,12 +70,17 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
    for feature UI, no user-controlled strings in inline `style`.
 8. **Add JavaScript only if needed**: use a collocated `{Component}.razor.js` ES module and the
    appropriate C# interop or browser-native lifecycle in [js-interop.md](references/js-interop.md).
-9. **Test** — invoke the `nova-testing` skill and use its
+9. **Wire URL-backed navigation** — for route markers, tabs, filters, or drawers represented in
+   the URL, centralize canonical tokens and compatibility normalization in a feature URL-state
+   helper. Render local `<a href>` destinations with `aria-current="page"` so refresh, deep links,
+   keyboard activation, and scripting-disabled navigation work; use Blazor handlers only as
+   progressive enhancement and never as the sole navigation path.
+10. **Test** — invoke the `nova-testing` skill and use its
    [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). Verify
    effective interactivity through the actual page/host and call sites, including inherited or
    per-instance render modes. A local attribute assertion covers only a mode owned by that component;
    bUnit callback success does not prove deployed interaction.
-10. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
+11. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
     sibling forms/loads/mutations for the same invariant, and record the outcomes actually proved.
     Apply the separate-review requirement in root `AGENTS.md` before PR creation.
 
@@ -94,4 +99,6 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
   cleanup. Both use collocated modules, scoped listeners, and no arbitrary `window.*` globals.
 - If it loads data and is interactive, prerender double-loading is handled and derived state is
   rebuilt on restore.
+- URL-backed navigation has canonical destinations, a valid anchor fallback, and active-state
+  semantics that follow the current URL rather than visit history.
 - `StateHasChanged` is present only where genuinely required (see the lifecycle reference).

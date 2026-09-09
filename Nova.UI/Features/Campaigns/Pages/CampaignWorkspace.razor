@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Nova.SharedKernel.Enums
 @using Nova.SharedKernel.Security
+@using Nova.UI.Features.Campaigns.Services
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
@@ -65,8 +66,8 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
                         <CampaignMenu IsClubAdmin="@_isClubAdmin" IsClosed="@(_detail.Status == CampaignStatus.Closed)"
-                                      OnEditMetadata="BeginEditMetadataAsync" OnCloseCampaign="SelectCloseoutTabAsync"
-                                      OnReopen="SelectCloseoutTabAsync" />
+                                      OnEditMetadata="BeginEditMetadataAsync" OnCloseCampaign="SelectCloseTabAsync"
+                                      OnReopen="SelectCloseTabAsync" />
                     </div>
                 </div>
             </div>
@@ -104,43 +105,52 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     </div>
                 }
 
-                @if (!IsRosterLanding)
-                {
-                    <div class="campaign-route">
-                        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
-                            <li class="nav-item" role="presentation">
-                                <button type="button" class="nav-link @(_activeTab == EvaluateTabName ? "active" : null)" role="tab"
-                                        aria-selected="@(_activeTab == EvaluateTabName ? "true" : "false")"
-                                        @onclick="SelectEvaluateTabAsync">
-                                    Evaluate
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button type="button" class="nav-link @(_activeTab == PlacementsTabName ? "active" : null)" role="tab"
-                                        aria-selected="@(_activeTab == PlacementsTabName ? "true" : "false")"
-                                        @onclick="SelectPlacementsTabAsync">
-                                    Placements
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button type="button" class="nav-link @(_activeTab == OverviewTabName ? "active" : null)" role="tab"
-                                        aria-selected="@(_activeTab == OverviewTabName ? "true" : "false")"
-                                        @onclick="SelectOverviewTabAsync">
-                                    Overview
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button type="button" class="nav-link @(_activeTab == CloseoutTabName ? "active" : null)" role="tab"
-                                        aria-selected="@(_activeTab == CloseoutTabName ? "true" : "false")"
-                                        @onclick="SelectCloseoutTabAsync">
-                                    Closeout
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
-                }
+                <nav class="campaign-route" aria-label="Campaign workspace routes">
+                    <ul class="nav-tabs route-marker-list">
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == RosterTabName ? "active" : null)"
+                               href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId)"
+                               aria-current="@(_activeTab == RosterTabName ? "page" : null)"
+                               @onclick="SelectRosterTabAsync">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Roster</span>
+                                <span class="route-marker-state">Participant field</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId)"
+                               aria-current="@(_activeTab == EvaluateTabName ? "page" : null)"
+                               @onclick="SelectEvaluateTabAsync">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Evaluate</span>
+                                <span class="route-marker-state">Observations</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState)"
+                               aria-current="@(_activeTab == PlaceTabName ? "page" : null)"
+                               @onclick="SelectPlaceTabAsync">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Place</span>
+                                <span class="route-marker-state">Assignments</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId)"
+                               aria-current="@(_activeTab == CloseTabName ? "page" : null)"
+                               @onclick="SelectCloseTabAsync">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Close</span>
+                                <span class="route-marker-state">Readiness</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
 
-                @if (_activeTab == EvaluateTabName)
+                @if (_activeTab == RosterTabName)
                 {
                     <section class="workspace-board" aria-labelledby="roster-region-heading">
                         <div class="workspace-board-heading">
@@ -149,7 +159,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                                     "Evaluate roster")</h2>
                                     @if (IsRosterLanding)
                                     {
-                                        <p><a href="@($"/campaigns/{CampaignId}?tab=evaluate")">Continue to evaluation</a></p>
+                                        <p><a href="@CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId)">Continue to evaluation</a></p>
                                         @if (_openingReceiptMessage is not null)
                                         {
                                             <p role="status">@_openingReceiptMessage</p>
@@ -229,18 +239,18 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                 </div>
                             </section>
                         }
-        else if (_activeTab == PlacementsTabName)
+        else if (_activeTab == PlaceTabName)
                         {
                             <CampaignPlacementsPanel CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
                                                      CanEditPlacements="@_canEditPlacements" State="@_placementState" OnStateChanged="OnPlacementStateChangedAsync"
                                                      OnReloadRequested="OnCampaignReloadRequestedAsync" />
                         }
-                        else if (_activeTab == OverviewTabName)
+                        else if (_activeTab == EvaluateTabName)
                         {
                             <CampaignOverviewPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
                                                    OnOpenCloseout="OnOpenCloseoutAsync" />
                         }
-                        else if (_activeTab == CloseoutTabName)
+                        else if (_activeTab == CloseTabName)
                         {
                             <CampaignCloseoutPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
                                                    OnReviewUnresolved="OnReviewUnresolvedAsync" OnCancel="OnCancelCloseoutAsync"

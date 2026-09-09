@@ -151,7 +151,7 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         var href = cut.Find("a[href*=\"/players/7\"]").GetAttribute("href")!;
         href.ShouldContain("returnUrl=");
         var returnUrl = Uri.UnescapeDataString(href[(href.IndexOf("returnUrl=", StringComparison.Ordinal) + "returnUrl=".Length)..]);
-        returnUrl.ShouldBe("/campaigns/10?placementGraduationYear=2032&unresolvedOnly=true&tab=placements");
+        returnUrl.ShouldBe("/campaigns/10?placementGraduationYear=2032&unresolvedOnly=true&tab=place");
     }
 
     [Fact]
