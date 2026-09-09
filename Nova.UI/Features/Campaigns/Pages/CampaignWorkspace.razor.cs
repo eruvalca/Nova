@@ -15,7 +15,7 @@ using Nova.UI.Features.Campaigns.Services;
 namespace Nova.UI.Features.Campaigns.Pages;
 
 /// <summary>
-/// Renders the campaign workspace: header, tab bar, and the filterable evaluate roster region.
+/// Renders the campaign workspace: header, Route Markers, and the bounded Roster region.
 /// </summary>
 /// <param name="campaignQueryService">The campaign detail query service.</param>
 /// <param name="participantQueryService">The campaign roster query service.</param>
@@ -43,16 +43,21 @@ public partial class CampaignWorkspace(
     private bool _receiptChecked;
     /// <summary>Targets keyboard focus when a validated opening receipt reaches the Roster landing.</summary>
     private ElementReference _rosterHeading;
+    /// <summary>Targets the route-marker strip for active-marker reveal on narrow screens.</summary>
+    private ElementReference _campaignRoute;
 
     /// <summary>Builds roster navigation while retaining the focused landing route when it is active.</summary>
     /// <param name="state">The roster filters, sorting, and paging to preserve.</param>
     /// <param name="tab">The workspace tab encoded in the destination.</param>
     /// <param name="participantId">The participant to open in the detail drawer, if any.</param>
+    /// <param name="useRosterLanding">Whether a destination link explicitly selects the canonical Roster path.</param>
     /// <returns>The local workspace or focused Roster URL.</returns>
-    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null)
+    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null, bool useRosterLanding = false)
     {
         var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);
-        return IsRosterLanding
+        // Intra-roster actions must keep the current path: CampaignEntry recreates this
+        // component on a path change, discarding pending drawer moves and scroll restoration.
+        return (IsRosterLanding || useRosterLanding) && string.Equals(tab, RosterTabName, StringComparison.Ordinal)
             ? url.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal)
             : url;
     }
@@ -67,24 +72,24 @@ public partial class CampaignWorkspace(
     private const int RosterPageSize = GetCampaignParticipantRosterInput.DefaultPageSize;
 
     /// <summary>
-    /// The name of the evaluate workspace tab.
+    /// The name of the focused Roster route.
+    /// </summary>
+    private const string RosterTabName = CampaignWorkspaceUrlState.RosterTab;
+
+    /// <summary>
+    /// The name of the Evaluate route.
     /// </summary>
     private const string EvaluateTabName = CampaignWorkspaceUrlState.EvaluateTab;
 
     /// <summary>
-    /// The name of the placements workspace tab.
+    /// The name of the Place route.
     /// </summary>
-    private const string PlacementsTabName = CampaignWorkspaceUrlState.PlacementsTab;
+    private const string PlaceTabName = CampaignWorkspaceUrlState.PlaceTab;
 
     /// <summary>
-    /// The name of the overview workspace tab.
+    /// The name of the Close route.
     /// </summary>
-    private const string OverviewTabName = CampaignWorkspaceUrlState.OverviewTab;
-
-    /// <summary>
-    /// The name of the closeout workspace tab.
-    /// </summary>
-    private const string CloseoutTabName = CampaignWorkspaceUrlState.CloseoutTab;
+    private const string CloseTabName = CampaignWorkspaceUrlState.CloseTab;
 
     /// <summary>
     /// The scrollable roster results region used for scroll anchoring and keyboard activation suppression.
@@ -293,7 +298,7 @@ public partial class CampaignWorkspace(
     /// <summary>
     /// The active workspace tab.
     /// </summary>
-    private string _activeTab = EvaluateTabName;
+    private string _activeTab = RosterTabName;
 
     /// <summary>
     /// Indicates whether the current user holds the club administrator role.
@@ -499,7 +504,7 @@ public partial class CampaignWorkspace(
         // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
         // The focused Roster route always owns the roster panel, regardless of workspace tab input.
-        _activeTab = IsRosterLanding ? EvaluateTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
+        _activeTab = IsRosterLanding ? RosterTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
 
         // The placements state is independent of the roster state; parse it on every parameter
         // set so the placements panel receives the URL-backed filters regardless of roster state.
@@ -996,56 +1001,28 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
-    /// Selects the evaluate tab, pushing the <c>tab</c> query parameter when absent.
+    /// Selects the focused Roster route.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task SelectEvaluateTabAsync()
+    private Task SelectRosterTabAsync()
     {
-        if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
+        if (!IsRosterLanding)
         {
-            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true));
         }
 
         return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Selects the placements tab, pushing the placements workspace URL.
+    /// Selects the Close route, pushing the close workspace URL.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task SelectPlacementsTabAsync()
+    private Task SelectCloseTabAsync()
     {
-        if (!string.Equals(TabQuery, PlacementsTabName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState));
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Selects the overview tab, pushing the overview workspace URL.
-    /// </summary>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task SelectOverviewTabAsync()
-    {
-        if (!string.Equals(TabQuery, OverviewTabName, StringComparison.OrdinalIgnoreCase))
-        {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId));
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Selects the closeout tab, pushing the closeout workspace URL.
-    /// </summary>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task SelectCloseoutTabAsync()
-    {
-        if (!string.Equals(TabQuery, CloseoutTabName, StringComparison.OrdinalIgnoreCase))
-        {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId));
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId));
         }
 
         return Task.CompletedTask;
@@ -1055,7 +1032,7 @@ public partial class CampaignWorkspace(
     /// Opens the closeout tab from the overview panel.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnOpenCloseoutAsync() => SelectCloseoutTabAsync();
+    private Task OnOpenCloseoutAsync() => SelectCloseTabAsync();
 
     /// <summary>
     /// Navigates to the placements tab, optionally filtered to unresolved placements, in response to
@@ -1067,16 +1044,16 @@ public partial class CampaignWorkspace(
     {
         var url = unresolvedOnly
             ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId)
-            : CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
         navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Cancels the closeout view and returns to the evaluate tab, preserving the current roster state.
+    /// Cancels the closeout view and returns to the roster route, preserving the current roster state.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnCancelCloseoutAsync() => SelectEvaluateTabAsync();
+    private Task OnCancelCloseoutAsync() => SelectRosterTabAsync();
 
     /// <summary>
     /// Applies a placement filter or page change raised by the placements panel and pushes the
@@ -1088,7 +1065,7 @@ public partial class CampaignWorkspace(
     {
         _placementState = next;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, next);
+        var targetUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
         if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
         {
@@ -1479,6 +1456,9 @@ public partial class CampaignWorkspace(
     {
         // The roster region is only in the DOM when a loaded roster is rendered; keep the
         // pending scroll work until then so filter changes still scroll after a loading pass.
+        var module = await _moduleTask.Value;
+        await module.InvokeVoidAsync("revealActiveRouteMarker", ComponentCancellationToken, _campaignRoute);
+
         if (_rosterLoading || _roster is null)
         {
             // A prior loaded render may have installed the keydown suppression scoped to the
@@ -1492,8 +1472,6 @@ public partial class CampaignWorkspace(
 
             return;
         }
-
-        var module = await _moduleTask.Value;
 
         // Check optional opening feedback once when the Roster landing is ready.
         if (IsRosterLanding && !_receiptChecked)

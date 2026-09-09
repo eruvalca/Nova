@@ -40,6 +40,32 @@ export function scrollToTop(element) {
     }
 }
 
+// Keeps a directly linked active route marker visible when the marker strip overflows
+// horizontally on narrow screens.
+export function revealActiveRouteMarker(container) {
+    if (!(container instanceof Element)) {
+        return;
+    }
+
+    const marker = container.querySelector('.route-marker[aria-current="page"]');
+    if (!marker) {
+        return;
+    }
+
+    const markerBounds = marker.getBoundingClientRect();
+    const containerBounds = container.getBoundingClientRect();
+    const left = containerBounds.left + container.clientLeft;
+    const right = left + container.clientWidth;
+
+    // Only move the strip. scrollIntoView would also move the document vertically
+    // when a later render occurs while the user is working below the route.
+    if (markerBounds.left < left) {
+        container.scrollLeft += markerBounds.left - left;
+    } else if (markerBounds.right > right) {
+        container.scrollLeft += markerBounds.right - right;
+    }
+}
+
 // Attaches the keydown suppression on the document in the capture phase. The roster region
 // element is recreated across loading/error/loaded renders, so callers re-invoke this on every
 // render pass where the roster is visible; replace-on-attach keeps exactly one active listener.

@@ -75,7 +75,7 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
             () => drawer.IsHiddenAsync());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeVisibleAsync();
         new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
-        await page.GotoAsync(new Uri(fixture.BaseUri, rosterPath + "?tab=closeout").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, rosterPath + "?tab=close").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeVisibleAsync();
         await Expect(page.Locator("#roster-search")).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(24);

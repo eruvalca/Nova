@@ -925,7 +925,7 @@ public partial class CampaignPlacementsPanel(
     /// <returns>The player-detail URL with an encoded return URL.</returns>
     private string BuildPlayerLink(CampaignPlacementRosterItem item)
     {
-        var returnUrl = CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _appliedState);
+        var returnUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _appliedState);
         return $"/players/{item.PlayerId}?returnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 

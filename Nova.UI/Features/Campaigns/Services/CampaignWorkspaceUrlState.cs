@@ -76,29 +76,29 @@ public sealed record CampaignWorkspacePlacementState
 public static class CampaignWorkspaceUrlState
 {
     /// <summary>
-    /// The evaluate workspace tab token.
+    /// The focused roster workspace route token.
+    /// </summary>
+    public const string RosterTab = "roster";
+
+    /// <summary>
+    /// The evaluation workspace route token.
     /// </summary>
     public const string EvaluateTab = "evaluate";
 
     /// <summary>
-    /// The placements workspace tab token.
+    /// The placement workspace route token.
     /// </summary>
-    public const string PlacementsTab = "placements";
+    public const string PlaceTab = "place";
 
     /// <summary>
-    /// The overview workspace tab token.
+    /// The close workspace route token.
     /// </summary>
-    public const string OverviewTab = "overview";
-
-    /// <summary>
-    /// The closeout workspace tab token.
-    /// </summary>
-    public const string CloseoutTab = "closeout";
+    public const string CloseTab = "close";
 
     /// <summary>
     /// The contract-supported workspace tab tokens, in canonical lowercase form.
     /// </summary>
-    private static readonly string[] _validTabs = [EvaluateTab, PlacementsTab, OverviewTab, CloseoutTab];
+    private static readonly string[] _validTabs = [RosterTab, EvaluateTab, PlaceTab, CloseTab];
 
     /// <summary>
     /// The contract-supported placement-outcome tokens, in canonical lowercase form.
@@ -207,7 +207,7 @@ public static class CampaignWorkspaceUrlState
             : null;
 
     /// <summary>
-    /// Builds the full workspace URL for the supplied state, always carrying the active tab token
+    /// Builds the full workspace URL for the supplied state, always carrying the active route token
     /// and the selected participant when one is open.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
@@ -218,7 +218,7 @@ public static class CampaignWorkspaceUrlState
     public static string BuildWorkspaceUrl(
         long campaignId,
         CampaignWorkspaceRosterState state,
-        string tab = EvaluateTab,
+        string tab = RosterTab,
         long? participantId = null)
     {
         var parts = new List<string>(10);
@@ -239,12 +239,12 @@ public static class CampaignWorkspaceUrlState
     }
 
     /// <summary>
-    /// Normalizes a raw workspace tab token to a canonical tab, falling back to the evaluate tab.
+    /// Normalizes a raw workspace route token to a canonical route, falling back to the roster route.
     /// </summary>
     /// <param name="raw">The raw tab query value.</param>
-    /// <returns>The canonical tab token: <c>evaluate</c>, <c>placements</c>, <c>overview</c>, or <c>closeout</c>; unknown values fall back to <c>evaluate</c>.</returns>
+    /// <returns>The canonical route token: <c>roster</c>, <c>evaluate</c>, <c>place</c>, or <c>close</c>; unknown values fall back to <c>roster</c>.</returns>
     public static string NormalizeTab(string? raw)
-        => NormalizeToken(raw, _validTabs) ?? EvaluateTab;
+        => NormalizeToken(raw?.Trim(), _validTabs) ?? RosterTab;
 
     /// <summary>
     /// Parses raw placement query values into a defensive placement state, falling back to defaults for invalid values.
@@ -290,12 +290,12 @@ public static class CampaignWorkspaceUrlState
 
     /// <summary>
     /// Builds the full placements workspace URL for the supplied state, always carrying the
-    /// placements tab token and only the placement query parameters.
+    /// place route token and only the placement query parameters.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <param name="state">The placement state to serialize.</param>
     /// <returns>The relative placements workspace URL.</returns>
-    public static string BuildPlacementsWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state)
+    public static string BuildPlaceWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state)
     {
         var parts = new List<string>(4);
         var query = BuildPlacementQueryString(state);
@@ -304,26 +304,26 @@ public static class CampaignWorkspaceUrlState
             parts.Add(query);
         }
 
-        parts.Add($"tab={PlacementsTab}");
+        parts.Add($"tab={PlaceTab}");
 
         return $"/campaigns/{campaignId}?{string.Join("&", parts)}";
     }
 
     /// <summary>
-    /// Builds the full overview workspace URL carrying only the overview tab token.
+    /// Builds the full evaluation workspace URL carrying only the evaluation route token.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
-    /// <returns>The relative overview workspace URL.</returns>
-    public static string BuildOverviewWorkspaceUrl(long campaignId)
-        => $"/campaigns/{campaignId}?tab={OverviewTab}";
+    /// <returns>The relative Evaluate workspace URL.</returns>
+    public static string BuildEvaluateWorkspaceUrl(long campaignId)
+        => $"/campaigns/{campaignId}?tab={EvaluateTab}";
 
     /// <summary>
-    /// Builds the full closeout workspace URL carrying only the closeout tab token.
+    /// Builds the full close workspace URL carrying only the close route token.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
-    /// <returns>The relative closeout workspace URL.</returns>
-    public static string BuildCloseoutWorkspaceUrl(long campaignId)
-        => $"/campaigns/{campaignId}?tab={CloseoutTab}";
+    /// <returns>The relative Close workspace URL.</returns>
+    public static string BuildCloseWorkspaceUrl(long campaignId)
+        => $"/campaigns/{campaignId}?tab={CloseTab}";
 
     /// <summary>
     /// Builds the placements workspace URL filtered to unresolved (Undecided) placements, used by the
@@ -332,7 +332,7 @@ public static class CampaignWorkspaceUrlState
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <returns>The relative unresolved-only placements workspace URL.</returns>
     public static string BuildReviewUnresolvedUrl(long campaignId)
-        => BuildPlacementsWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState { UnresolvedOnly = true });
+        => BuildPlaceWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState { UnresolvedOnly = true });
 
     /// <summary>
     /// Determines whether any roster filter (search, years, tags, outcome, or team) is active.

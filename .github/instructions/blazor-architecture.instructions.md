@@ -167,6 +167,11 @@ Nova.UI/
 
 ## Navigation and bounded data
 
+- For URL-backed workspace navigation, make the destination a normal local `<a href>` so direct
+  links, refreshes, keyboard activation, and scripting-disabled navigation remain valid. Blazor
+  event handlers may enhance the same anchor but must not be the only navigation path. Keep
+  canonical route tokens and defensive normalization in the feature URL-state helper; derive
+  active state from the normalized URL and expose it with `aria-current="page"`.
 - Treat query-string return URLs as untrusted. Normalize them to well-formed local relative paths;
   reject absolute URLs, network-path references, and malformed values, then fall back to a known
   local route.

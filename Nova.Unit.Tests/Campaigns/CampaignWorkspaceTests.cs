@@ -78,7 +78,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Tab bar ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspaceShowsAllTabsEnabledAndEvaluateActive()
+    public void CampaignWorkspaceShowsAllRouteMarkersEnabledAndRosterActive()
     {
         RegisterServices();
 
@@ -87,14 +87,29 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         var activeTabs = cut.FindAll("ul.nav-tabs .nav-link.active");
         activeTabs.Count.ShouldBe(1);
-        activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
+        activeTabs[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Roster");
 
-        var tabButtons = cut.FindAll("ul.nav-tabs button.nav-link");
+        var routeMarkers = cut.FindAll("ul.route-marker-list a.nav-link");
 #pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
-        tabButtons.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Evaluate", "Placements", "Overview", "Closeout" });
+        routeMarkers.Select(tab => tab.QuerySelector(".route-marker-label")!.TextContent.Trim()).ShouldBe(new[] { "Roster", "Evaluate", "Place", "Close" });
 #pragma warning restore CA1861
 
         cut.FindAll("ul.nav-tabs .nav-link.disabled").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CampaignWorkspaceRouteMarkersAreAnchorsWithCanonicalDestinations()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        var markers = cut.FindAll("ul.route-marker-list a.route-marker");
+        markers.Count.ShouldBe(4);
+        markers.Select(marker => marker.GetAttribute("href")).ShouldBe(
+            ["/campaigns/10/roster?tab=roster", "/campaigns/10?tab=evaluate", "/campaigns/10?tab=place", "/campaigns/10?tab=close"]);
+        cut.FindAll("ul.route-marker-list button").ShouldBeEmpty();
     }
 
     [Fact]
@@ -109,11 +124,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         var activeTabs = cut.FindAll("ul.nav-tabs .nav-link.active");
         activeTabs.Count.ShouldBe(1);
-        activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
+        activeTabs[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Evaluate");
     }
 
     [Fact]
-    public void CampaignWorkspaceFallsBackToEvaluateTabWhenTabQueryIsUnknown()
+    public void CampaignWorkspaceFallsBackToRosterWhenTabQueryIsUnknown()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -124,21 +139,25 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         var activeTabs = cut.FindAll("ul.nav-tabs .nav-link.active");
         activeTabs.Count.ShouldBe(1);
-        activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
+        activeTabs[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Roster");
     }
 
     [Fact]
-    public void CampaignWorkspacePushesTabQueryWhenEvaluateTabSelected()
+    public void CampaignWorkspaceRendersRosterPanelWhenNavigatedByUrl()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10");
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
 
-        cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=evaluate"));
+        navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
+        cut.Markup.ShouldNotContain("placements-region-heading");
+        cut.Markup.ShouldContain("Roster");
+        cut.FindAll("ul.nav-tabs .nav-link.active").Single()
+            .QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Roster");
     }
 
     [Fact]
@@ -146,14 +165,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=placements");
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
         var activeTabs = cut.FindAll("ul.nav-tabs .nav-link.active");
         activeTabs.Count.ShouldBe(1);
-        activeTabs[0].TextContent.Trim().ShouldBe("Placements");
+        activeTabs[0].TextContent.Trim().ShouldContain("Place");
 
         cut.Markup.ShouldContain("placements-region-heading");
         cut.Markup.ShouldNotContain("roster-region-heading");
@@ -169,8 +188,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=placements"));
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=place"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
     }
@@ -186,13 +205,13 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
         cut.Markup.ShouldContain("roster-region-heading");
 
-        // Evaluate → Placements switches the rendered region.
-        cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
+        // Roster → Place switches the rendered region.
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
 
-        // Placements → Evaluate switches back.
-        cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
+        // Place → Roster switches back.
+        navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
         cut.Markup.ShouldNotContain("placements-region-heading");
     }
@@ -200,7 +219,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Overview / Closeout tabs ──────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspaceOverviewTabClickPushesOverviewUrlAndRendersOverviewRegion()
+    public void CampaignWorkspaceEvaluateUrlRendersOverviewRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -209,14 +228,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.nav-tabs button.nav-link")[2].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=overview"));
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=evaluate"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("overview-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
     }
 
     [Fact]
-    public void CampaignWorkspaceCloseoutTabClickPushesCloseoutUrlAndRendersCloseoutRegion()
+    public void CampaignWorkspaceCloseUrlRendersCloseoutRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -225,37 +244,37 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.nav-tabs button.nav-link")[3].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=closeout"));
+        navigationManager.NavigateTo("/campaigns/10?tab=close");
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=close"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("closeout-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
     }
 
     [Fact]
-    public void CampaignWorkspaceActivatesOverviewTabWhenTabQueryIsOverview()
+    public void CampaignWorkspaceActivatesEvaluateMarkerWhenTabQueryIsEvaluate()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=overview");
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.nav-tabs .nav-link.active")[0].TextContent.Trim().ShouldBe("Overview");
+        cut.FindAll("ul.route-marker-list .nav-link.active")[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Evaluate");
         cut.Markup.ShouldContain("overview-region-heading");
     }
 
     [Fact]
-    public void CampaignWorkspaceActivatesCloseoutTabWhenTabQueryIsCloseout()
+    public void CampaignWorkspaceActivatesCloseMarkerWhenTabQueryIsClose()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=closeout");
+        navigationManager.NavigateTo("/campaigns/10?tab=close");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.FindAll("ul.nav-tabs .nav-link.active")[0].TextContent.Trim().ShouldBe("Closeout");
+        cut.FindAll("ul.route-marker-list .nav-link.active")[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Close");
         cut.Markup.ShouldContain("closeout-region-heading");
     }
 
@@ -417,9 +436,9 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     /// <summary>Verifies stale canonical-workspace tab values cannot replace the dedicated Roster panel.</summary>
     /// <param name="tab">A conflicting tab retained in the query string.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("placements")]
-    [InlineData("overview")]
-    [InlineData("closeout")]
+    [InlineData("place")]
+    [InlineData("evaluate")]
+    [InlineData("close")]
     public void CampaignWorkspaceRosterLandingIgnoresConflictingTab(string tab)
     {
         RegisterServices();
@@ -646,7 +665,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["tab"] = "evaluate",
+            ["tab"] = "roster",
             ["search"] = "avery",
             ["graduationYears"] = "2032,2031",
             ["tagIds"] = "12,11",
@@ -884,7 +903,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
@@ -922,7 +941,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["tab"] = "evaluate",
+            ["tab"] = "roster",
             ["outcome"] = "withdrawn",
         }));
 
@@ -944,7 +963,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         workspaceModule.Setup<double?>("captureScroll", _ => true).SetResult(120);
@@ -978,7 +997,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&outcome=assigned&participant=301");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&outcome=assigned&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         workspaceModule.Setup<double?>("captureScroll", _ => true).SetResult(120);
@@ -994,7 +1013,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.Find("aside.participant-drawer .btn-close").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
-        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=evaluate");
+        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=roster");
         cut.Markup.ShouldContain("Avery Johnson");
 
         cut.WaitForAssertion(() =>
@@ -1010,7 +1029,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1026,7 +1045,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
@@ -1042,7 +1061,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
@@ -1077,7 +1096,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
                 ServiceProblem.NotFound("Participant not found."))));
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=999");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=999");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1092,7 +1111,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=abc");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=abc");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
@@ -1107,7 +1126,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1126,7 +1145,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 3));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo($"/campaigns/10?tab=evaluate&participant={participantId}");
+        navigationManager.NavigateTo($"/campaigns/10?tab=roster&participant={participantId}");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1141,7 +1160,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantService();
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
@@ -1159,7 +1178,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("2 of 142"));
 
         navigationManager.Uri.ShouldNotContain("page=");
-        navigationManager.Uri.ShouldContain("tab=evaluate");
+        navigationManager.Uri.ShouldContain("tab=roster");
         _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
 
@@ -1175,7 +1194,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantService();
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1196,7 +1215,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantService(totalCount: 6);
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var scrollToTop = workspaceModule.SetupVoid("scrollToTop", _ => true);
@@ -1213,6 +1232,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=304"));
         cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("4 of 6"));
         navigationManager.Uri.ShouldContain("page=2");
+        new Uri(navigationManager.Uri).AbsolutePath.ShouldBe("/campaigns/10");
 
         var entries = ((BunitNavigationManager)navigationManager).History.ToList();
         entries.Count.ShouldBe(historyCountBefore + 1);
@@ -1236,7 +1256,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantService(totalCount: 6);
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?page=2&tab=evaluate&participant=304");
+        navigationManager.NavigateTo("/campaigns/10?page=2&tab=roster&participant=304");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1265,7 +1285,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=evaluate&search=lee&sortBy=displayName&sortDirection=asc&participant=302");
+            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=asc&participant=302");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1291,7 +1311,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=999");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=999");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1307,7 +1327,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 6, page2Items: []));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1334,7 +1354,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1364,7 +1384,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1379,7 +1399,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         // initiating participant before the response arrives.
         cut.Find("#participant-drawer-close").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&page=2&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&page=2&participant=303");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
 
         page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
@@ -1402,7 +1422,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1411,7 +1431,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("page=2"));
 
         // Browser Back returns to the workspace URL without the participant query parameter.
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster");
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
 
         page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
@@ -1448,7 +1468,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1458,7 +1478,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
         // Back/Forward lands on the same participant with different filters; the newer request
         // supersedes the page-2 load the move was issued against, so the intent must be cleared.
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&search=jones&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&search=jones&participant=303");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 901"));
 
         cut.Markup.ShouldContain("participant-drawer");
@@ -1482,7 +1502,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=evaluate&search=lee&sortBy=displayName&sortDirection=asc&participant=301");
+            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=asc&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
@@ -1540,7 +1560,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             });
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1570,7 +1590,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 4, page2Items: [304]));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1618,7 +1638,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=evaluate&search=jones&sortBy=displayName&sortDirection=asc&participant=303");
+            "/campaigns/10?tab=roster&search=jones&sortBy=displayName&sortDirection=asc&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1638,7 +1658,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
