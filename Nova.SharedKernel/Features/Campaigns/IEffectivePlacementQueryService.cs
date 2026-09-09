@@ -2,7 +2,7 @@
 
 namespace Nova.SharedKernel.Features.Campaigns;
 
-/// <summary>Authoritative bounded placement reads for approved members; identifiers are tenant scoped.</summary>
+/// <summary>Authoritative bounded placement reads for approved members; tenant-scoped identity and rows share one snapshot per response.</summary>
 public interface IEffectivePlacementQueryService
 {
     /// <summary>Reads valid current-season membership, or an explicit empty no-season result. May return validation, forbidden, or not-found.</summary>

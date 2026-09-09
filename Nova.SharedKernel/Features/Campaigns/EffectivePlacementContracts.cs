@@ -48,7 +48,7 @@ public sealed record CurrentSeasonRosterItem(
     long PlayerId, string FirstName, string LastName, int GraduationYear,
     PlacementDecisionSource Source);
 
-/// <summary>An absent season is explicit; its page is empty. Page totals are eventually consistent.</summary>
+/// <summary>Season identity and membership share one response snapshot. An absent season has an empty page.</summary>
 public sealed record CurrentSeasonRosterResult(
     [property: JsonRequired] PlacementSeasonIdentity? Season,
     PagedResult<CurrentSeasonRosterItem> Roster);
@@ -71,7 +71,7 @@ public sealed record EffectivePlacementCounts(
     [property: JsonRequired] int Resolved,
     [property: JsonRequired] int Unavailable);
 
-/// <summary>The Active campaign working page and independent unfiltered counts.</summary>
+/// <summary>The Active campaign identity, working page, and unfiltered counts share one response snapshot.</summary>
 public sealed record CampaignEffectivePlacementsResult(
     PlacementCampaignIdentity Campaign,
     EffectivePlacementCounts Counts,

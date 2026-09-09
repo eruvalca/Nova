@@ -98,12 +98,14 @@ or closure policy. **Zero Needs placement does not imply ready to close.** Every
 needs an explicit local Assigned, NotSelected, or Withdrawn outcome. This was confirmed for #214:
 inherited assignments remain optional placement work but do not satisfy the local close record.
 
-Ordinary row totals and working section totals are eventually consistent across SQL statements;
-clients check required metadata, bounds, identities, and portable ordering without comparing totals
-to separately read rows. Closed lifecycle, integrity validation, count, and page share a
-repeatable-read snapshot on PostgreSQL (serializable on SQLite). This guarantees one response, not
-a multi-request snapshot across reopening and re-closing; #221 must maintain a consistent read for
-an entire generated export. Neither receipts nor effective-season queries determine Closed rows.
+Each of these three query responses uses a repeatable-read snapshot on PostgreSQL (serializable on
+SQLite), inside the execution strategy. Current-season identity and roster membership therefore
+agree even if the season advances between statements; Active campaign identity, eligibility counts,
+and rows agree even if the campaign closes. Closed lifecycle, integrity validation, count, and page
+share the same guarantee. Other list consumers retain their ordinary eventually consistent totals.
+Clients still validate portable ordering without reproducing database collation. A snapshot covers
+one response, not separate page requests; #221 must maintain a consistent read for an entire generated
+export. Neither receipts nor effective-season queries determine Closed rows.
 
 The existing campaign-local placement roster/summary remains campaign-local. #169/#199/#200/#217
 own UI consumption and #221 owns CSV generation. No UI, mutation controls, or schema migration

@@ -110,3 +110,47 @@ screenshot check skipped). No browser tests, UI behavior, or retry limits were c
 integration and browser reruns passed after the test synchronization correction, serially without
 a competing formatter workload. The seven screenshot checks require the existing
 `NOVA_A11Y_SCREENSHOTS=1` opt-in and were not enabled for this read-foundation change.
+
+## Review round 1 — consistent placement reads
+
+[Copilot's finding](https://github.com/eruvalca/Nova/pull/250#discussion_r3964427055) was applicable:
+the roster read observed a season identity before later statements re-evaluated the current-season
+pointer. The sibling Active working read similarly re-evaluated campaign lifecycle after returning
+its identity. New gated PostgreSQL tests reproduced both failures against the initial production
+code: the roster count became zero after advancement, and the Active section counts became zero
+after closure. The existing Closed snapshot test passed in that same three-test baseline run.
+
+All three placement queries now use the existing retryable snapshot wrapper. Identity, lifecycle,
+counts, and rows therefore agree within a response. The misleading extra season filter was removed;
+the shared resolver observes the authoritative pointer inside the snapshot. Team, campaign-list,
+closeout, and attention siblings were checked; their separate list/history totals or single-statement
+projections do not require expanding this fix. No suppressed findings were present in this round.
+
+Tested base: `8f7fabeba929ba7e565ecb0846a54b2bf14191e3`. The four changed C# source/test files use the
+manifest format above, with SHA-256
+`b200dd8e3ec67d0ab2e597759229ea1ae38ceb5c3644654f72b6a613bc70e19b`.
+Only validation documentation changed after the final source checks.
+
+| Requirement | Evidence |
+| --- | --- |
+| Current-season identity and membership agree during advancement | `CurrentSeasonRosterSnapshotRetainsSeasonAndMembershipWhenSeasonAdvancesBetweenReadsAsync` verifies the complete old row and count while a fresh read sees the new empty season. |
+| Active lifecycle, section counts, and rows agree during closure | `ActivePlacementSnapshotRetainsLifecycleAndWorkWhenCampaignClosesBetweenReadsAsync` verifies the original Active row, local token/evidence, and exact counts while a fresh read reports Conflict. |
+| Closed snapshot behavior remains intact | `ClosedRosterSnapshotRetainsClosedLifecycleAndDecisionWhenReopenedBetweenReadsAsync` still passes with the generalized identity-read gate. |
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx --no-restore` | Passed; zero warnings/errors. |
+| `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed. |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-class '*EffectivePlacementPostgresTests' --filter-method '*Snapshot*'` | Passed: 3, failed: 0, skipped: 0 after the fix. The pre-fix run failed the two new assertions as described above. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 2,668, failed: 0, skipped: 0. |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 561, failed: 0, skipped: 0. |
+
+The focused provider run, unit suite, and full provider suite ran serially. Browser paths, rendered
+contracts, and shared effective-query expressions are unchanged in this round; the initial browser
+result recorded for delivery commit `8f7fabeba929ba7e565ecb0846a54b2bf14191e3` remains applicable.
+The fresh local reviewer `pr250_round1_review` found no actionable findings in the complete fix and
+sibling paths and independently checked the baseline failures, final log summaries, and source
+manifest. Applicable C#, API, service,
+tenancy, season, placement, validation, testing, and functional-core instructions were read, along
+with the domain-persistence query/transaction, feature-slice, Nova testing, and .NET test-generation
+and runner guidance. No new suppressions, skipped tests, or weakened validation were introduced.

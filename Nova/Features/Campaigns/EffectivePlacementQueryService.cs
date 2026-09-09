@@ -31,11 +31,12 @@ internal sealed partial class EffectivePlacementQueryService(
     /// <inheritdoc />
     public Task<ServiceResult<ClosedCampaignRosterResult>> GetClosedCampaignRosterAsync(
         GetClosedCampaignRosterInput input, CancellationToken cancellationToken = default)
-        => ReadAsync(input, (db, clubId, token) => ReadClosedAsync(db, clubId, input, token), cancellationToken, snapshot: true);
+        => ReadAsync(input, (db, clubId, token) => ReadClosedAsync(db, clubId, input, token), cancellationToken);
 
+    /// <summary>Keeps response identity, lifecycle, counts, and rows in one snapshot per retry attempt.</summary>
     private async Task<ServiceResult<T>> ReadAsync<T>(PlacementPageInput input,
         Func<NovaReadDbContext, long, CancellationToken, Task<ServiceResult<T>>> read,
-        CancellationToken cancellationToken, bool snapshot = false)
+        CancellationToken cancellationToken)
     {
         var errors = InputValidator.Validate(input);
         if (errors.Count > 0)
@@ -52,10 +53,6 @@ internal sealed partial class EffectivePlacementQueryService(
             return await strategyDb.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
             {
                 await using var db = await readDbContextFactory.CreateDbContextAsync(token);
-                if (!snapshot)
-                {
-                    return await read(db, clubId, token);
-                }
                 await using var transaction = await db.Database.BeginTransactionAsync(
                     db.Database.IsNpgsql() ? IsolationLevel.RepeatableRead : IsolationLevel.Serializable, token);
                 var result = await read(db, clubId, token);
@@ -88,8 +85,6 @@ internal sealed partial class EffectivePlacementQueryService(
             return new CurrentSeasonRosterResult(null, new([], input.Page ?? 1, Size(input), 0));
         }
         var query = EffectivePlacementQueries.Roster(db, clubId);
-        // Pin subsequent reads to the identity returned in this response if advancement races the page.
-        query = query.Where(a => a.Campaign.SeasonId == season.SeasonId);
         if (input.TeamId is long teamId)
         {
             query = query.Where(a => a.TeamId == teamId);

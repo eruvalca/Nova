@@ -183,6 +183,71 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
+    public async Task CurrentSeasonRosterSnapshotRetainsSeasonAndMembershipWhenSeasonAdvancesBetweenReadsAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(1);
+        await PrepareClosedCampaignAsync(seed);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var original = (await CreateService().GetCurrentSeasonRosterAsync(new(), token)).Value.ShouldBeOfType<CurrentSeasonRosterResult>();
+        var gate = new PlacementReadGateInterceptor("Seasons");
+        var pendingRead = CreateService(gate).GetCurrentSeasonRosterAsync(new(), token);
+        try
+        {
+            await gate.WaitUntilBlockedAsync(token).WaitAsync(TimeSpan.FromSeconds(30), token);
+            gate.CompletedIdentityRead.ShouldBeTrue();
+            var nextSeasonId = await AdvanceSeasonAsync(seed.ClubId);
+            var fresh = (await CreateService().GetCurrentSeasonRosterAsync(new(), token)).Value.ShouldBeOfType<CurrentSeasonRosterResult>();
+            fresh.Season!.SeasonId.ShouldBe(nextSeasonId);
+            fresh.Roster.TotalCount.ShouldBe(0);
+            fresh.Roster.Items.ShouldBeEmpty();
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        var snapshot = (await pendingRead).Value.ShouldBeOfType<CurrentSeasonRosterResult>();
+        snapshot.Season.ShouldBe(original.Season);
+        snapshot.Season!.SeasonId.ShouldBe(seed.SeasonId);
+        snapshot.Roster.TotalCount.ShouldBe(1);
+        snapshot.Roster.Items.ShouldHaveSingleItem().ShouldBe(original.Roster.Items.ShouldHaveSingleItem());
+    }
+
+    [Fact]
+    public async Task ActivePlacementSnapshotRetainsLifecycleAndWorkWhenCampaignClosesBetweenReadsAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(1);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var input = new GetCampaignEffectivePlacementsInput { CampaignId = seed.ActiveId };
+        var original = (await CreateService().GetCampaignEffectivePlacementsAsync(input, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        var gate = new PlacementReadGateInterceptor("Campaigns");
+        var pendingRead = CreateService(gate).GetCampaignEffectivePlacementsAsync(input, token);
+        try
+        {
+            await gate.WaitUntilBlockedAsync(token).WaitAsync(TimeSpan.FromSeconds(30), token);
+            gate.CompletedIdentityRead.ShouldBeTrue();
+            await PrepareClosedCampaignAsync(seed);
+            var fresh = await CreateService().GetCampaignEffectivePlacementsAsync(input, token);
+            fresh.IsProblem.ShouldBeTrue();
+            fresh.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        var snapshot = (await pendingRead).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        snapshot.Campaign.ShouldBe(original.Campaign);
+        snapshot.Campaign.Status.ShouldBe(CampaignStatus.Active);
+        snapshot.Counts.ShouldBe(new EffectivePlacementCounts(0, 1, 0, 0));
+        snapshot.Participants.TotalCount.ShouldBe(1);
+        snapshot.Participants.Items.ShouldHaveSingleItem().ShouldBe(original.Participants.Items.ShouldHaveSingleItem());
+        snapshot.Participants.Items[0].LocalDecision.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task ClosedRosterSnapshotRetainsClosedLifecycleAndDecisionWhenReopenedBetweenReadsAsync()
     {
         var token = TestContext.Current.CancellationToken;
@@ -191,12 +256,12 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
         var input = new GetClosedCampaignRosterInput { CampaignId = seed.ActiveId };
         var original = (await CreateService().GetClosedCampaignRosterAsync(input, token)).Value.ShouldBeOfType<ClosedCampaignRosterResult>();
-        var gate = new ClosedReadGateInterceptor();
+        var gate = new PlacementReadGateInterceptor("Campaigns");
         var pendingRead = CreateService(gate).GetClosedCampaignRosterAsync(input, token);
         try
         {
             await gate.WaitUntilBlockedAsync(token).WaitAsync(TimeSpan.FromSeconds(30), token);
-            gate.CompletedLifecycleRead.ShouldBeTrue();
+            gate.CompletedIdentityRead.ShouldBeTrue();
             await ReopenAndReplaceDecisionAsync(seed.ActiveId);
             // The writer has committed, and the suspended read has already observed Closed.
             var fresh = await CreateService().GetClosedCampaignRosterAsync(input, token);
@@ -214,6 +279,25 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         snapshot.Participants.Items.ShouldHaveSingleItem().ShouldBe(original.Participants.Items.ShouldHaveSingleItem());
         snapshot.Participants.Items[0].Source.Decision.Outcome.ShouldBe(PlacementOutcome.Assigned);
         snapshot.Participants.Items[0].Source.Decision.TeamId.ShouldBe(seed.LatestTeamId);
+    }
+
+    private async Task<long> AdvanceSeasonAsync(long clubId)
+    {
+        await using var db = fixture.CreateAdminContext();
+        var nextSeason = new SeasonEntity
+        {
+            Name = "Next season",
+            StartDate = new(2027, 1, 1),
+            CreationOperationId = Guid.NewGuid(),
+            ClubId = clubId,
+            CreatedById = 1,
+        };
+        db.Seasons.Add(nextSeason);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var club = await db.Clubs.SingleAsync(c => c.ClubId == clubId, TestContext.Current.CancellationToken);
+        club.CurrentSeasonId = nextSeason.SeasonId;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return nextSeason.SeasonId;
     }
 
     private async Task PrepareClosedCampaignAsync(Seed seed)
@@ -343,13 +427,13 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         }
     }
 
-    /// <summary>Suspends the first participant query after EF has consumed the campaign lifecycle row.</summary>
-    private sealed class ClosedReadGateInterceptor : DbCommandInterceptor
+    /// <summary>Suspends the first participant query after EF has consumed the season or campaign identity row.</summary>
+    private sealed class PlacementReadGateInterceptor(string identityTable) : DbCommandInterceptor
     {
         private readonly TaskCompletionSource _blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _gated;
-        public bool CompletedLifecycleRead { get; private set; }
+        public bool CompletedIdentityRead { get; private set; }
 
         public Task WaitUntilBlockedAsync(CancellationToken token) => _blocked.Task.WaitAsync(token);
         public void Release() => _release.TrySetResult();
@@ -357,9 +441,9 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
             DbDataReader result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("FROM \"Campaigns\"", StringComparison.Ordinal))
+            if (command.CommandText.Contains($"FROM \"{identityTable}\"", StringComparison.Ordinal))
             {
-                CompletedLifecycleRead = true;
+                CompletedIdentityRead = true;
             }
             return ValueTask.FromResult(result);
         }
@@ -367,7 +451,7 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
             InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
-            if (!_gated && CompletedLifecycleRead && command.CommandText.Contains("FROM \"PlayerCampaignAssignments\"", StringComparison.Ordinal))
+            if (!_gated && CompletedIdentityRead && command.CommandText.Contains("FROM \"PlayerCampaignAssignments\"", StringComparison.Ordinal))
             {
                 _gated = true;
                 _blocked.TrySetResult();
