@@ -192,6 +192,19 @@
     outline-offset: -0.2rem;
 }
 
+/* Without script, every destination must fit without programmatic scrolling. */
+@media (scripting: none) {
+    .route-marker-list {
+        width: min(100%, 36rem);
+        min-width: 0;
+        grid-template-columns: repeat(4, minmax(min-content, 1fr));
+    }
+
+    .route-marker {
+        padding-inline: 0.125rem;
+    }
+}
+
 .workspace-board-heading {
     padding: 1rem 1.25rem;
     background-color: var(--bs-light);

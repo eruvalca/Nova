@@ -66,7 +66,9 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   (it is the stacked-tab fallback, not the menu sheet).
 - Route-marker pattern (campaign workspace): four stop **anchor links** in a grid with a
   `min-width: 36rem` scroll container (`overflow-x: auto`), markers connected by a line, and the
-  active stop teal + sea glass. Horizontally scrollable at ≤36rem viewport widths. Route Markers
+  active stop teal + sea glass. Horizontally scrollable at ≤36rem viewport widths. With scripting
+  disabled on narrow screens, fit all four markers within the route's width, retaining full labels
+  and captions so direct links keep the selected stop visible without JavaScript. Route Markers
   are destinations, not a visited-step tracker: preserve regular `href` navigation, use
   `aria-current="page"` for the URL-selected stop, and add an `@onclick` enhancement only when it
   does not replace the anchor behavior. The canonical campaign sequence is **Roster → Evaluate →
