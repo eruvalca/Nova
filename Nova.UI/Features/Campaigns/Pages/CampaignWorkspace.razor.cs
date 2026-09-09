@@ -50,11 +50,14 @@ public partial class CampaignWorkspace(
     /// <param name="state">The roster filters, sorting, and paging to preserve.</param>
     /// <param name="tab">The workspace tab encoded in the destination.</param>
     /// <param name="participantId">The participant to open in the detail drawer, if any.</param>
+    /// <param name="useRosterLanding">Whether a destination link explicitly selects the canonical Roster path.</param>
     /// <returns>The local workspace or focused Roster URL.</returns>
-    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null)
+    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null, bool useRosterLanding = false)
     {
         var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);
-        return string.Equals(tab, RosterTabName, StringComparison.Ordinal)
+        // Intra-roster actions must keep the current path: CampaignEntry recreates this
+        // component on a path change, discarding pending drawer moves and scroll restoration.
+        return (IsRosterLanding || useRosterLanding) && string.Equals(tab, RosterTabName, StringComparison.Ordinal)
             ? url.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal)
             : url;
     }
@@ -1005,7 +1008,7 @@ public partial class CampaignWorkspace(
     {
         if (!IsRosterLanding)
         {
-            navigationManager.NavigateTo(BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true));
         }
 
         return Task.CompletedTask;
@@ -1019,7 +1022,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId));
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId));
         }
 
         return Task.CompletedTask;
@@ -1041,7 +1044,7 @@ public partial class CampaignWorkspace(
     {
         var url = unresolvedOnly
             ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId)
-            : CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
         navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
@@ -1062,7 +1065,7 @@ public partial class CampaignWorkspace(
     {
         _placementState = next;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, next);
+        var targetUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
         if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
         {

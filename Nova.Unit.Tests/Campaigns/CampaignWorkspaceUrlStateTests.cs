@@ -191,16 +191,16 @@ public sealed class CampaignWorkspaceUrlStateTests
     [InlineData("ROSTER", "roster")]
     [InlineData("evaluate", "evaluate")]
     [InlineData("EVALUATE", "evaluate")]
-    [InlineData("placements", "place")]
-    [InlineData("PLACEMENTS", "place")]
+    [InlineData("placements", "roster")]
+    [InlineData(" PLACE ", "place")]
     [InlineData("place", "place")]
-    [InlineData("overview", "evaluate")]
-    [InlineData("OVERVIEW", "evaluate")]
-    [InlineData("closeout", "close")]
-    [InlineData("CLOSEOUT", "close")]
+    [InlineData("overview", "roster")]
+    [InlineData(" EVALUATE ", "evaluate")]
+    [InlineData("closeout", "roster")]
+    [InlineData(" CLOSE ", "close")]
     [InlineData("close", "close")]
     [InlineData("garbage", "roster")]
-    public void NormalizeTabReturnsCanonicalTokenOrEvaluateFallback(string? raw, string expected)
+    public void NormalizeTabReturnsCanonicalTokenOrRosterFallback(string? raw, string expected)
     {
         CampaignWorkspaceUrlState.NormalizeTab(raw).ShouldBe(expected);
     }
@@ -237,12 +237,12 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildPlacementsWorkspaceUrlIsolatesPlacementParamsFromRosterParams()
+    public void BuildPlaceWorkspaceUrlIsolatesPlacementParamsFromRosterParams()
     {
-        CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(10, new CampaignWorkspacePlacementState())
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(10, new CampaignWorkspacePlacementState())
             .ShouldBe("/campaigns/10?tab=place");
 
-        CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
                 10,
                 new CampaignWorkspacePlacementState { GraduationYear = 2032, UnresolvedOnly = true, Page = 2 })
             .ShouldBe("/campaigns/10?placementGraduationYear=2032&unresolvedOnly=true&placementPage=2&tab=place");
@@ -258,16 +258,16 @@ public sealed class CampaignWorkspaceUrlStateTests
     // ── Overview / closeout / review-unresolved URLs ──────────────────────────
 
     [Fact]
-    public void BuildOverviewWorkspaceUrlEmitsOnlyOverviewTab()
+    public void BuildEvaluateWorkspaceUrlEmitsOnlyEvaluateTab()
     {
-        CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(10)
+        CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(10)
             .ShouldBe("/campaigns/10?tab=evaluate");
     }
 
     [Fact]
-    public void BuildCloseoutWorkspaceUrlEmitsOnlyCloseoutTab()
+    public void BuildCloseWorkspaceUrlEmitsOnlyCloseTab()
     {
-        CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(10)
+        CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(10)
             .ShouldBe("/campaigns/10?tab=close");
     }
 
@@ -279,12 +279,12 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void OverviewAndCloseoutTabTokensAreCanonicalAndNormalizeRoundTrip()
+    public void EvaluateAndCloseTabTokensAreCanonicalAndNormalizeRoundTrip()
     {
         CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.EvaluateTab).ShouldBe("evaluate");
         CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.CloseTab).ShouldBe("close");
-        CampaignWorkspaceUrlState.NormalizeTab("OVERVIEW").ShouldBe("evaluate");
-        CampaignWorkspaceUrlState.NormalizeTab("CLOSEOUT").ShouldBe("close");
+        CampaignWorkspaceUrlState.NormalizeTab("EVALUATE").ShouldBe("evaluate");
+        CampaignWorkspaceUrlState.NormalizeTab("CLOSE").ShouldBe("close");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

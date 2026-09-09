@@ -217,7 +217,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task DirectCloseoutOverviewUrlsAndBackNavigationPreserveTabContextAsync()
+    public async Task DirectCloseEvaluateUrlsAndBackNavigationPreserveRouteContextAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -225,19 +225,18 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         // Direct closeout and overview URLs render their headings.
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=closeout").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=close").ToString());
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
-        page.Url.ShouldContain("tab=closeout");
+        page.Url.ShouldContain("tab=close");
 
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=overview").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=evaluate").ToString());
         await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
-        page.Url.ShouldContain("tab=overview");
+        page.Url.ShouldContain("tab=evaluate");
 
-        // The workspace route markers track the tab= query parameter via client-side navigation.
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            page.GetByRole(AriaRole.Link, new() { Name = "Place" }),
-            () => page.Locator("#placements-region-heading").IsVisibleAsync());
+        // Native anchors work before attachment. Repeated clicks while a panel loads
+        // would create extra history entries and invalidate this Back-navigation check.
+        await page.GetByRole(AriaRole.Link, new() { Name = "Place" }).ClickAsync();
+        await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("tab=place");
 
         // Browser Back restores the overview tab (client-side history entry).
@@ -245,20 +244,19 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
 
         // From the closeout tab, a blocker drill-down pushes a placements entry; Back returns to closeout.
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            page.GetByRole(AriaRole.Link, new() { Name = "Close" }),
-            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
         var outcomesRow = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = "Undecided" });
         await InteractionHelpers.ClickUntilAsync(
             page,
             outcomesRow.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
-            () => page.Locator("#placements-region-heading").IsVisibleAsync());
+            () => Task.FromResult(page.Url.Contains("unresolvedOnly=true", StringComparison.Ordinal)));
+        await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("unresolvedOnly=true");
 
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
-        page.Url.ShouldContain("tab=closeout");
+        page.Url.ShouldContain("tab=close");
     }
 
     [Fact]
@@ -361,6 +359,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             CloseoutSeed.Password,
             new ViewportSize { Width = 480, Height = 800 });
         var narrowPage = narrowContext.Pages[0];
+        await narrowPage.EmulateMediaAsync(new() { ReducedMotion = ReducedMotion.Reduce });
 
         await narrowPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=roster").ToString());
         await Expect(narrowPage.Locator("#roster-region-heading")).ToBeVisibleAsync();
@@ -388,8 +387,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await narrowPage.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=close").ToString());
         var closeMarker = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Close" });
         await Expect(closeMarker).ToHaveAttributeAsync("aria-current", "page");
-        (await closeMarker.EvaluateAsync<bool>("element => { const marker = element.getBoundingClientRect(); const container = element.closest('.campaign-route').getBoundingClientRect(); return marker.left >= container.left && marker.right <= container.right; }"))
-            .ShouldBeTrue();
+        await AssertMarkerFullyVisibleAsync(narrowPage, closeMarker);
+
+        await AssertRouteRevealPreservesDocumentScrollAsync(narrowPage, closeMarker);
 
         await using var noScriptContext = await fixture.NewSignedInContextAsync(
             seed.AdminEmail,
@@ -402,6 +402,40 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await noScriptPage.GetByRole(AriaRole.Link, new() { Name = "Place" }).ClickAsync();
         await noScriptPage.WaitForURLAsync(url => url.Contains("tab=place", StringComparison.OrdinalIgnoreCase));
         await Expect(noScriptPage.Locator("#placements-region-heading")).ToBeVisibleAsync();
+    }
+
+    private static async Task AssertRouteRevealPreservesDocumentScrollAsync(IPage page, ILocator closeMarker)
+    {
+        // Invoke the same interop operation on the real rendered strip below the fold.
+        // A later workspace render must reveal horizontally without moving the document.
+        var scrollTop = await page.Locator("nav.campaign-route").EvaluateAsync<double>("""
+            async container => {
+                const module = await import('/_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js');
+                window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+                const before = window.scrollY;
+                container.scrollLeft = 0;
+                module.revealActiveRouteMarker(container);
+                if (window.scrollY !== before) throw new Error('Route reveal moved the document vertically');
+                return before;
+            }
+            """);
+        scrollTop.ShouldBeGreaterThan(0);
+        await AssertMarkerFullyVisibleAsync(page, closeMarker);
+    }
+
+    private static async Task AssertMarkerFullyVisibleAsync(IPage page, ILocator marker)
+    {
+        await InteractionHelpers.ActUntilAsync(
+            page,
+            () => Task.CompletedTask,
+            () => marker.EvaluateAsync<bool>("""
+                element => {
+                    const marker = element.getBoundingClientRect();
+                    const container = element.closest('.campaign-route');
+                    const left = container.getBoundingClientRect().left + container.clientLeft;
+                    return marker.width > 0 && marker.left >= left && marker.right <= left + container.clientWidth;
+                }
+                """));
     }
 
     [Fact]
@@ -449,10 +483,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        await InteractionHelpers.ActUntilAsync(
-            page,
-            () => page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync(new() { Timeout = 3000 }),
-            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
         await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
         await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
 
@@ -475,10 +507,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await page.RouteAsync(IsCloseoutReadinessUrl, route => route.FulfillAsync(new() { Status = 500 }));
 
-        await InteractionHelpers.ActUntilAsync(
-            page,
-            () => page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync(new() { Timeout = 3000 }),
-            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
 
         var errorAlert = page.Locator("div.alert-danger[role=alert]");
         await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
@@ -500,14 +530,14 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Navigates to the closeout tab and waits for its heading.</summary>
     private async Task OpenCloseoutAsync(IPage page, long campaignId)
     {
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=closeout").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=close").ToString());
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
     }
 
     /// <summary>Navigates to the overview tab and waits for its heading.</summary>
     private async Task OpenOverviewAsync(IPage page, long campaignId)
     {
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=overview").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=evaluate").ToString());
         await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
     }
 
@@ -544,10 +574,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(placementRow).ToBeVisibleAsync();
         await SavePlacementOutcomeAsync(page, placementRow, PlacementOutcome.NotSelected);
 
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            page.GetByRole(AriaRole.Link, new() { Name = "Close" }),
-            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
     }
 
     /// <summary>Saves a placement outcome on a specific row, retrying through SSR hydration.</summary>

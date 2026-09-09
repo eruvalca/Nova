@@ -128,7 +128,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspaceFallsBackToEvaluateTabWhenTabQueryIsUnknown()
+    public void CampaignWorkspaceFallsBackToRosterWhenTabQueryIsUnknown()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -147,13 +147,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10");
+        navigationManager.NavigateTo("/campaigns/10?tab=place");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
 
         navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
+        cut.Markup.ShouldNotContain("placements-region-heading");
         cut.Markup.ShouldContain("Roster");
         cut.FindAll("ul.nav-tabs .nav-link.active").Single()
             .QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Roster");
@@ -204,12 +205,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
         cut.Markup.ShouldContain("roster-region-heading");
 
-        // Evaluate → Placements switches the rendered region.
+        // Roster → Place switches the rendered region.
         navigationManager.NavigateTo("/campaigns/10?tab=place");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
 
-        // Placements → Evaluate switches back.
+        // Place → Roster switches back.
         navigationManager.NavigateTo("/campaigns/10/roster?tab=roster");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
         cut.Markup.ShouldNotContain("placements-region-heading");
@@ -218,7 +219,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Overview / Closeout tabs ──────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspaceOverviewTabClickPushesOverviewUrlAndRendersOverviewRegion()
+    public void CampaignWorkspaceEvaluateUrlRendersOverviewRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -234,7 +235,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspaceCloseoutTabClickPushesCloseoutUrlAndRendersCloseoutRegion()
+    public void CampaignWorkspaceCloseUrlRendersCloseoutRegion()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -250,7 +251,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspaceActivatesOverviewTabWhenTabQueryIsOverview()
+    public void CampaignWorkspaceActivatesEvaluateMarkerWhenTabQueryIsEvaluate()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -264,7 +265,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspaceActivatesCloseoutTabWhenTabQueryIsCloseout()
+    public void CampaignWorkspaceActivatesCloseMarkerWhenTabQueryIsClose()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -435,9 +436,9 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     /// <summary>Verifies stale canonical-workspace tab values cannot replace the dedicated Roster panel.</summary>
     /// <param name="tab">A conflicting tab retained in the query string.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("placements")]
-    [InlineData("overview")]
-    [InlineData("closeout")]
+    [InlineData("place")]
+    [InlineData("evaluate")]
+    [InlineData("close")]
     public void CampaignWorkspaceRosterLandingIgnoresConflictingTab(string tab)
     {
         RegisterServices();
@@ -1012,7 +1013,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.Find("aside.participant-drawer .btn-close").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
-        navigationManager.Uri.ShouldEndWith("/campaigns/10/roster?outcome=assigned&tab=roster");
+        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=roster");
         cut.Markup.ShouldContain("Avery Johnson");
 
         cut.WaitForAssertion(() =>
@@ -1231,6 +1232,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=304"));
         cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("4 of 6"));
         navigationManager.Uri.ShouldContain("page=2");
+        new Uri(navigationManager.Uri).AbsolutePath.ShouldBe("/campaigns/10");
 
         var entries = ((BunitNavigationManager)navigationManager).History.ToList();
         entries.Count.ShouldBe(historyCountBefore + 1);

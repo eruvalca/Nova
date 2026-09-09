@@ -109,7 +109,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     <ul class="nav-tabs route-marker-list">
                         <li>
                             <a class="nav-link route-marker @(_activeTab == RosterTabName ? "active" : null)"
-                               href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId)"
+                               href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true)"
                                aria-current="@(_activeTab == RosterTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Roster</span>
@@ -118,7 +118,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId)"
+                               href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId)"
                                aria-current="@(_activeTab == EvaluateTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Evaluate</span>
@@ -127,7 +127,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState)"
+                               href="@CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState)"
                                aria-current="@(_activeTab == PlaceTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Place</span>
@@ -136,7 +136,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId)"
+                               href="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId)"
                                aria-current="@(_activeTab == CloseTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Close</span>
@@ -154,7 +154,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                 <h2 id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">Roster</h2>
                                     @if (IsRosterLanding)
                                     {
-                                        <p><a href="@CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId)">Continue to evaluation</a></p>
+                                        <p><a href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId)">Continue to evaluation</a></p>
                                         @if (_openingReceiptMessage is not null)
                                         {
                                             <p role="status">@_openingReceiptMessage</p>

@@ -70,7 +70,7 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   are destinations, not a visited-step tracker: preserve regular `href` navigation, use
   `aria-current="page"` for the URL-selected stop, and add an `@onclick` enhancement only when it
   does not replace the anchor behavior. The canonical campaign sequence is **Roster → Evaluate →
-  Place → Close**; URL tokens and legacy normalization belong in
+  Place → Close**; URL tokens and defensive normalization belong in
   `CampaignWorkspaceUrlState`, not duplicated in markup or tests.
 - Brand lockups keep mark+name+descriptor; on very small screens the mark must not overflow.
 

@@ -71,7 +71,7 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
 8. **Add JavaScript only if needed**: use a collocated `{Component}.razor.js` ES module and the
    appropriate C# interop or browser-native lifecycle in [js-interop.md](references/js-interop.md).
 9. **Wire URL-backed navigation** — for route markers, tabs, filters, or drawers represented in
-   the URL, centralize canonical tokens and compatibility normalization in a feature URL-state
+   the URL, centralize canonical tokens and defensive normalization in a feature URL-state
    helper. Render local `<a href>` destinations with `aria-current="page"` so refresh, deep links,
    keyboard activation, and scripting-disabled navigation work; use Blazor handlers only as
    progressive enhancement and never as the sole navigation path.

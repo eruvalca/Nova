@@ -249,8 +249,10 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#participant-drawer-heading")).ToHaveTextAsync(heading);
     }
 
-    [Fact]
-    public async Task DrawerNavigationCrossesPageBoundaryPreservingSequenceAsync()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DrawerNavigationCrossesPageBoundaryPreservingSequenceAsync(bool rosterLanding)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -261,11 +263,15 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // From the last participant of page 1, Next crosses onto page 2's first participant.
         var lastRow = page.Locator("tbody tr[id^='roster-row-']").Last;
         var lastRowName = (await lastRow.Locator("td").Nth(1).TextContentAsync())!.Trim();
-        await OpenParticipantAsync(page, lastRow);
+        var lastAssignmentId = await ReadAssignmentIdAsync(lastRow);
+        var rosterPath = $"/campaigns/{seed.CampaignId}" + (rosterLanding ? "/roster" : string.Empty);
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"{rosterPath}?participant={lastAssignmentId}").ToString());
         await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
 
-        await page.Locator("#participant-drawer-next").ClickAsync();
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("#participant-drawer-next"),
+            async () => string.Equals(await page.Locator("#participant-drawer-position").TextContentAsync(), "51 of 60", StringComparison.Ordinal));
         await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("51 of 60");
+        new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
         await page.WaitForURLAsync(
             url => url.Contains("page=2", StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
