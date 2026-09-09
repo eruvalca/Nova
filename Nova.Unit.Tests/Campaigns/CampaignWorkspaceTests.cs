@@ -113,6 +113,20 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
+    public void CampaignWorkspaceUsesNormalizedRouteWhenSelectingFromRosterLanding()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10/roster?tab=close");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.route-marker-list a.route-marker")[3].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=close"));
+    }
+
+    [Fact]
     public void CampaignWorkspaceKeepsEvaluateTabActiveWhenTabQueryIsEvaluate()
     {
         RegisterServices();

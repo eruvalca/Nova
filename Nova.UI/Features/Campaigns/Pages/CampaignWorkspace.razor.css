@@ -190,16 +190,6 @@
     outline-offset: -0.2rem;
 }
 
-/*
- * Keep the route as a bounded field on narrow screens. The full labels remain
- * available through horizontal scrolling rather than collapsing into symbols.
- */
-.campaign-route {
-    overflow-x: auto;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
-}
-
 .workspace-board-heading {
     padding: 1rem 1.25rem;
     background-color: var(--bs-light);

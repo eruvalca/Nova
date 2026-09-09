@@ -51,7 +51,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Review requests" }))
             .ToHaveAttributeAsync("href", $"/Clubs/{seed.ClubId}/admin");
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Review placements" }))
-            .ToHaveAttributeAsync("href", $"/campaigns/{seed.FirstUnresolvedCampaignId}?unresolvedOnly=true&tab=placements");
+            .ToHaveAttributeAsync("href", $"/campaigns/{seed.FirstUnresolvedCampaignId}?unresolvedOnly=true&tab=place");
     }
 
     /// <summary>

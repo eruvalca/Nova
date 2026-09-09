@@ -172,7 +172,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         await Expect(page.Locator("text=Page 2 of 2")).ToBeVisibleAsync();
-        page.Url.ShouldContain("tab=placements");
+        page.Url.ShouldContain("tab=place");
         page.Url.ShouldContain("placementGraduationYear=2028");
         page.Url.ShouldContain("unresolvedOnly=true");
         page.Url.ShouldContain("placementPage=2");
@@ -422,7 +422,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 
     private async Task OpenPlacementsAsync(IPage page, long campaignId)
     {
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=placements").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=place").ToString());
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         await Expect(page.Locator("div.placement-summary[role=status]")).ToBeVisibleAsync();
     }

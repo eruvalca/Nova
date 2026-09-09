@@ -233,12 +233,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("tab=overview");
 
-        // The workspace tab buttons track the tab= query parameter via client-side navigation.
+        // The workspace route markers track the tab= query parameter via client-side navigation.
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.GetByRole(AriaRole.Tab, new() { Name = "Placements" }),
+            page.GetByRole(AriaRole.Link, new() { Name = "Place" }),
             () => page.Locator("#placements-region-heading").IsVisibleAsync());
-        page.Url.ShouldContain("tab=placements");
+        page.Url.ShouldContain("tab=place");
 
         // Browser Back restores the overview tab (client-side history entry).
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
@@ -247,7 +247,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         // From the closeout tab, a blocker drill-down pushes a placements entry; Back returns to closeout.
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }),
+            page.GetByRole(AriaRole.Link, new() { Name = "Close" }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
         var outcomesRow = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = "Undecided" });
         await InteractionHelpers.ClickUntilAsync(
@@ -397,7 +397,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await InteractionHelpers.ActUntilAsync(
             page,
-            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync(new() { Timeout = 3000 }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
         await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
         await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
@@ -423,7 +423,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await InteractionHelpers.ActUntilAsync(
             page,
-            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync(new() { Timeout = 3000 }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
 
         var errorAlert = page.Locator("div.alert-danger[role=alert]");
@@ -460,7 +460,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Navigates to the placements tab and waits for its heading.</summary>
     private async Task OpenPlacementsAsync(IPage page, long campaignId)
     {
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=placements").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=place").ToString());
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         await Expect(page.Locator("div.placement-summary[role=status]")).ToBeVisibleAsync();
     }
@@ -492,7 +492,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }),
+            page.GetByRole(AriaRole.Link, new() { Name = "Close" }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
     }
 

@@ -1014,7 +1014,7 @@ public partial class CampaignWorkspace(
     /// </summary>
     private Task SelectEvaluateTabAsync()
     {
-        if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal))
         {
             navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId));
         }
@@ -1027,7 +1027,7 @@ public partial class CampaignWorkspace(
     /// </summary>
     private Task SelectPlaceTabAsync()
     {
-        if (!string.Equals(TabQuery, PlaceTabName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_activeTab, PlaceTabName, StringComparison.Ordinal))
         {
             navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState));
         }
@@ -1041,7 +1041,7 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when navigation is initiated.</returns>
     private Task SelectCloseTabAsync()
     {
-        if (!string.Equals(TabQuery, CloseTabName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal))
         {
             navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId));
         }
