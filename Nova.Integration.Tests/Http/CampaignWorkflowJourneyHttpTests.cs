@@ -113,7 +113,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
 
         using (var addResponse = await evaluatorClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Strong first touch." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Strong first touch." },
             cancellationToken))
         {
             addResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
@@ -128,10 +128,10 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
 
         using (var editResponse = await evaluatorClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(detail.Notes[0].NoteId),
-            new PutEvaluationNoteInput { Content = "Refined after the second drill." },
+            new PutEvaluationNoteInput { OperationId = Guid.CreateVersion7(), ExpectedVersion = detail.Notes[0].Version, Content = "Refined after the second drill." },
             cancellationToken))
         {
-            editResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            editResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
         var updatedDetail = await GetParticipantDetailAsync(adminClient, created.CampaignId, assignmentId, cancellationToken);
@@ -295,7 +295,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, as
 
         using (var noteResponse = await evaluatorClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Late note." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Late note." },
             cancellationToken))
         {
             noteResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -381,7 +381,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, as
 
         using (var noteResponse = await evaluatorClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Reopened note." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Reopened note." },
             cancellationToken))
         {
             noteResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
@@ -601,7 +601,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignPartici
         return roster;
     }
 
-    private static async Task<CampaignParticipantDetailDto> GetParticipantDetailAsync(
+    private static async Task<EvaluationEvidenceSnapshot> GetParticipantDetailAsync(
         HttpClient client,
         long campaignId,
         long assignmentId,
@@ -611,7 +611,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignPartici
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await response.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(response, client, cancellationToken);
         detail.ShouldNotBeNull();
         return detail;
     }

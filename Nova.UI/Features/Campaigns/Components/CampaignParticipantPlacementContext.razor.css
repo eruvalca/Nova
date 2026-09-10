@@ -6,3 +6,9 @@
 .participant-placement-context ::deep .effective-placement-evidence > strong { font-size: 1.25rem; font-weight: 500; }
 .participant-placement-context ::deep .effective-placement-evidence > small,
 .participant-placement-context ::deep .effective-placement-evidence > span { font-size: 1rem; }
+.participant-placement-context.is-compact { padding: 0; margin: 0; border: 0; }
+.participant-placement-context.is-compact > p { font-size: .875rem; margin: .25rem 0; padding: 0; border: 0; line-height: 1.5; }
+.context-label { color: var(--bs-secondary-color); }
+.context-provenance { font-size: .875rem; }
+.context-provenance summary { min-height: 44px; line-height: 44px; color: var(--bs-primary); cursor: pointer; }
+.context-provenance p { margin: .5rem 0; }

@@ -1,5 +1,7 @@
-﻿using Nova.Features.Common;
+﻿using Microsoft.AspNetCore.Mvc;
+using Nova.Features.Common;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
@@ -34,8 +36,19 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName(CampaignEndpoints.ApplyCampaignTagApplicationRouteName);
 
+            group.MapPost(CampaignEndpoints.CreateAndApplyCampaignTagRelative, CreateAndApplyHandlerAsync)
+                .Produces<CampaignTagApplicationMutationSuccess>(StatusCodes.Status201Created)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName(CampaignEndpoints.CreateAndApplyCampaignTagRouteName);
+
             group.MapDelete(CampaignEndpoints.RemoveCampaignTagApplicationRelative, RemoveCampaignTagApplicationHandlerAsync)
-                .Produces(StatusCodes.Status204NoContent)
+                .Produces<CampaignTagApplicationMutationSuccess>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -74,11 +87,21 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
     private static async Task<IResult> RemoveCampaignTagApplicationHandlerAsync(
         long campaignTagApplicationId,
+        [FromBody] RemoveCampaignTagApplicationInput input,
         ICampaignTagApplicationService service,
         CancellationToken cancellationToken)
     {
-        var input = new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = campaignTagApplicationId };
-        var result = await service.RemoveAsync(input, cancellationToken);
-        return result.ToHttpResult(_ => TypedResults.NoContent());
+        ServiceResult<CampaignTagApplicationMutationSuccess> result = campaignTagApplicationId != input.CampaignTagApplicationId
+            ? ServiceProblem.Validation(nameof(input.CampaignTagApplicationId), "The application must match the route.")
+            : await service.RemoveAsync(input, cancellationToken);
+        return result.ToHttpResult(TypedResults.Ok);
+    }
+
+    /// <summary>Resolves a trait, applies it and returns the original atomic receipt.</summary>
+    private static async Task<IResult> CreateAndApplyHandlerAsync(CreateAndApplyCampaignTagInput input,
+        ICampaignTagApplicationService service, CancellationToken cancellationToken)
+    {
+        var result = await service.CreateAndApplyAsync(input, cancellationToken);
+        return result.ToHttpResult(success => TypedResults.Created((string?)null, success));
     }
 }

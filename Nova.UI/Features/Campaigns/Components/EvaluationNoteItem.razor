@@ -1,0 +1,36 @@
+@using Nova.SharedKernel.Features.Campaigns
+<article class="evaluation-note-item">
+    <header><strong>@Note.AuthorDisplayName</strong><time datetime="@Note.CreatedAt.ToString("O")">@Note.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")@(Note.ModifiedAt is not null ? " · edited" : string.Empty)</time></header>
+    @if (Editing)
+    {
+        <label for="@($"edit-note-{Note.NoteId}")">Edit your shared note</label>
+        <textarea id="@($"edit-note-{Note.NoteId}")" class="form-control" rows="4" maxlength="4000" value="@Draft" data-evidence-original="@Note.Content" @oninput="OnDraftChanged" readonly="@(!Writable || Pending)"></textarea>
+        @if (Writable && ExpectedVersion != Note.Version)
+        {
+            <p role="alert">This note has changed. Your draft is kept above.</p><p class="evaluation-note-current">@Note.Content</p>
+            <button class="btn btn-outline-primary" disabled="@Pending" @onclick="OnReviewVersion">Use current version for this edit</button>
+        }
+        @if (Writable)
+        {
+        <button class="btn btn-primary" disabled="@(Pending || ExpectedVersion != Note.Version)" @onclick="OnSave">Save changes</button>
+        }
+        <button class="btn btn-link" disabled="@Pending" @onclick="OnCancel">Cancel edit</button>
+    }
+    else
+    {
+        @if (Note.Content.Length > 220)
+        {
+            <p>@Note.Content[..200]…</p><details><summary>Read full note</summary><p>@Note.Content</p></details>
+        }
+        else { <p>@Note.Content</p> }
+        @if (Writable && Note.CanEdit) { <button class="btn btn-link" disabled="@Pending" @onclick="OnEdit">Edit</button> }
+        @if (Writable && Note.CanDelete)
+        {
+            @if (ConfirmingDelete)
+            {
+                <span>Delete this shared note?</span><button class="btn btn-outline-danger" disabled="@Pending" @onclick="OnConfirmDelete">Delete note</button><button class="btn btn-link" @onclick="OnCancelDelete">Keep note</button>
+            }
+            else { <button class="btn btn-link" disabled="@Pending" @onclick="OnDelete">Delete</button> }
+        }
+    }
+</article>

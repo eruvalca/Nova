@@ -16,7 +16,7 @@ namespace Nova.Integration.Tests.Data;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
+public sealed partial class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>
     /// Verifies PostgreSQL rejects two notes in the same club with the same creation-operation
@@ -79,6 +79,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         var result = await ((ICampaignEvaluationNoteService)service).AddAsync(
             new AddEvaluationNoteInput
             {
+                OperationId = Guid.CreateVersion7(),
                 PlayerCampaignAssignmentId = missingAssignmentId,
                 Content = "New note content"
             },
@@ -118,7 +119,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 
         var content = $"Added note content {suffix}";
         var result = await ((ICampaignEvaluationNoteService)service).AddAsync(
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = content },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = content },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -163,7 +164,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             NullLogger<EvaluationNoteService>.Instance);
 
         var result = await ((ICampaignEvaluationNoteService)service).AddAsync(
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = content },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = content },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -206,7 +207,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.IsClubAdmin = true;
 
         var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
-        var gateInterceptor = new GateReceiptVerificationInterceptor();
+        var gateInterceptor = new EvaluationRecoveryGateInterceptor(failureInterceptor);
         var addFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
@@ -232,6 +233,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             addTask = ((ICampaignEvaluationNoteService)addService).AddAsync(
                 new AddEvaluationNoteInput
                 {
+                    OperationId = Guid.CreateVersion7(),
                     PlayerCampaignAssignmentId = assignmentId,
                     Content = $"Added note content {suffix}"
                 },
@@ -250,8 +252,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
                     .SingleAsync(TestContext.Current.CancellationToken);
             }
 
-            var deleteResult = await ((ICampaignEvaluationNoteService)deleteService).DeleteAsync(
-                noteId,
+            var deleteResult = await ((ICampaignEvaluationNoteService)deleteService).DeleteAsync(new DeleteEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId) },
                 TestContext.Current.CancellationToken);
             deleteResult.IsSuccess.ShouldBeTrue("the delete must commit while the add is paused at verification");
 
@@ -310,7 +311,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             NullLogger<EvaluationNoteService>.Instance);
 
         var result = await ((ICampaignEvaluationNoteService)service).EditAsync(
-            new EditEvaluationNoteInput { NoteId = missingNoteId, Content = "Edited content" },
+            new EditEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = missingNoteId, ExpectedVersion = await NoteVersionAsync(missingNoteId), Content = "Edited content" },
             TestContext.Current.CancellationToken);
 
         failureInterceptor.FailureCount.ShouldBe(1);
@@ -355,7 +356,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 
         var editedContent = $"Edited note content {suffix}";
         var result = await ((ICampaignEvaluationNoteService)service).EditAsync(
-            new EditEvaluationNoteInput { NoteId = noteId, Content = editedContent },
+            new EditEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), Content = editedContent },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -396,7 +397,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.IsClubAdmin = true;
 
         var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
-        var gateInterceptor = new GateReceiptVerificationInterceptor();
+        var gateInterceptor = new EvaluationRecoveryGateInterceptor(failureInterceptor);
         var firstFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
@@ -415,18 +416,18 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             fixture.CurrentUser,
             NullLogger<EvaluationNoteService>.Instance);
 
-        Task<ServiceResult<Success>> firstEdit;
+        Task<ServiceResult<EvaluationNoteMutationSuccess>> firstEdit;
         try
         {
             // The first edit pauses after its ambiguous commit, just before verification reads the receipt.
             firstEdit = ((ICampaignEvaluationNoteService)firstService).EditAsync(
-                new EditEvaluationNoteInput { NoteId = noteId, Content = "First edit content" },
+                new EditEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), Content = "First edit content" },
                 TestContext.Current.CancellationToken);
             await gateInterceptor.WaitForVerificationAttemptAsync(TestContext.Current.CancellationToken);
 
             // A newer edit commits different content while the first edit is paused.
             var newerResult = await ((ICampaignEvaluationNoteService)secondService).EditAsync(
-                new EditEvaluationNoteInput { NoteId = noteId, Content = "Newer edit content" },
+                new EditEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), Content = "Newer edit content" },
                 TestContext.Current.CancellationToken);
             newerResult.IsSuccess.ShouldBeTrue("the newer edit must commit while the first is paused at verification");
 
@@ -487,8 +488,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             fixture.CurrentUser,
             NullLogger<EvaluationNoteService>.Instance);
 
-        var result = await ((ICampaignEvaluationNoteService)service).DeleteAsync(
-            missingNoteId,
+        var result = await ((ICampaignEvaluationNoteService)service).DeleteAsync(new DeleteEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = missingNoteId, ExpectedVersion = await NoteVersionAsync(missingNoteId) },
             TestContext.Current.CancellationToken);
 
         failureInterceptor.FailureCount.ShouldBe(1);
@@ -530,8 +530,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             fixture.CurrentUser,
             NullLogger<EvaluationNoteService>.Instance);
 
-        var result = await ((ICampaignEvaluationNoteService)service).DeleteAsync(
-            noteId,
+        var result = await ((ICampaignEvaluationNoteService)service).DeleteAsync(new DeleteEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId) },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -575,6 +574,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, FirstName = "Retry", LastName = "Member", Club = club });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var season = new SeasonEntity
@@ -660,4 +660,10 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             ClubId = clubId,
             CreatedById = actorUserId
         };
+    private async Task<Guid> NoteVersionAsync(long noteId)
+    {
+        await using var db = fixture.CreateAdminContext();
+        return await db.Notes.Where(note => note.NoteId == noteId).Select(note => (Guid?)note.Version).SingleOrDefaultAsync(TestContext.Current.CancellationToken) ?? Guid.NewGuid();
+    }
+
 }

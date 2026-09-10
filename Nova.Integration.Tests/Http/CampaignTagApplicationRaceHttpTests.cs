@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Nova.Features.Common;
 using Nova.Integration.Tests.Data;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
@@ -10,8 +11,8 @@ namespace Nova.Integration.Tests.Http;
 
 /// <summary>
 /// Cross-slice HTTP coverage for the duplicate tag-application race: when two approved club
-/// members apply the same tag to the same assignment concurrently, exactly one request
-/// succeeds, the other receives a clear conflict, and exactly one durable row exists.
+/// members apply the same tag to the same assignment concurrently, both requests
+/// succeed with one already-applied outcome, and exactly one durable row exists.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
@@ -21,36 +22,74 @@ public sealed class CampaignTagApplicationRaceHttpTests(NovaAppHostFixture fixtu
 
     /// <summary>
     /// Verifies that two concurrent tag applications for the same (assignment, tag) pair yield
-    /// one Created response, one Conflict response, and a single durable database row.
+    /// two Created responses, one already-applied receipt, and a single durable database row.
     /// </summary>
-    [Fact]
-    public async Task ParallelTagApplicationForSameAssignmentAndTagYieldsOneCreatedOneConflictWithSingleDurableRowAsync()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ParallelTagApplicationForSameAssignmentAndTagYieldsOneOriginalOneAlreadyAppliedWithSingleDurableRowAsync(bool createInline)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (firstClient, secondClient, adminEmail, assignmentId) = await SeedTwoMemberClubWithTagAsync(
             "tag-race", cancellationToken);
+        using var firstClientLease = firstClient;
+        using var secondClientLease = secondClient;
         var tagId = await SeedingHelpers.InsertTagDefinitionAsync(fixture, assignmentId, adminEmail, "Winger", "#00CC00", cancellationToken);
 
-        var applyInput = () => new ApplyCampaignTagApplicationInput
-        {
-            PlayerCampaignAssignmentId = assignmentId,
-            PlayerTagId = tagId
-        };
+        var operationA = Guid.CreateVersion7();
+        var operationB = Guid.CreateVersion7();
+        var label = $"Good control {Guid.NewGuid():N}";
+        EvaluationOperationInput firstInput = createInline
+            ? new CreateAndApplyCampaignTagInput { OperationId = operationA, PlayerCampaignAssignmentId = assignmentId, Label = $"  {label}  " }
+            : new ApplyCampaignTagApplicationInput { OperationId = operationA, PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId };
+        EvaluationOperationInput secondInput = createInline
+            ? new CreateAndApplyCampaignTagInput { OperationId = operationB, PlayerCampaignAssignmentId = assignmentId, Label = label.ToUpperInvariant() }
+            : new ApplyCampaignTagApplicationInput { OperationId = operationB, PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId };
+        var route = createInline ? CampaignEndpoints.CreateAndApplyCampaignTag : CampaignEndpoints.ApplyCampaignTagApplication;
+        var (responseA, responseB, clubId) = await SubmitContendedAsync(firstClient, secondClient, firstInput, secondInput, assignmentId, route, cancellationToken);
+        using var responseALease = responseA;
+        using var responseBLease = responseB;
 
-        // Start both requests before awaiting either so they race through the server
-        // simultaneously; either request may win, so both orderings are tolerated.
-#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
-        var applyA = firstClient.PostAsJsonAsync(CampaignEndpoints.ApplyCampaignTagApplication, applyInput(), cancellationToken);
-#pragma warning restore CA2025
-#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
-        var applyB = secondClient.PostAsJsonAsync(CampaignEndpoints.ApplyCampaignTagApplication, applyInput(), cancellationToken);
-#pragma warning restore CA2025
+        var statuses = new[] { responseA.StatusCode, responseB.StatusCode };
+        statuses.ShouldAllBe(status => status == HttpStatusCode.Created);
+        var receiptA = await responseA.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
+        var receiptB = await responseB.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
+        receiptA.CampaignTagApplicationId.ShouldBe(receiptB.CampaignTagApplicationId);
+        receiptA.AlreadyApplied.ShouldNotBe(receiptB.AlreadyApplied);
+
+        await using var context = fixture.CreateAdminContext();
+        var durableRows = await context.CampaignTagApplications
+            .Where(candidate => candidate.PlayerCampaignAssignmentId == assignmentId
+                && candidate.PlayerTagId == receiptA.PlayerTagId)
+            .ToListAsync(cancellationToken);
+        durableRows.Count.ShouldBe(1);
+        var originalReceipt = await context.EvaluationMutationReceipts.SingleAsync(receipt => receipt.ClubId == clubId && receipt.OperationId == (receiptA.AlreadyApplied ? operationB : operationA), cancellationToken);
+        durableRows[0].CreatedById.ShouldBe(originalReceipt.ActorUserId);
+        (await context.PlayerTags.CountAsync(tag => tag.ClubId == clubId && tag.PlayerTagId == receiptA.PlayerTagId, cancellationToken)).ShouldBe(1);
+    }
+
+    /// <summary>Proves both requests are waiting before release; transfers successful response ownership to the caller.</summary>
+    private async Task<(HttpResponseMessage First, HttpResponseMessage Second, long ClubId)> SubmitContendedAsync(
+        HttpClient firstClient, HttpClient secondClient, EvaluationOperationInput firstInput, EvaluationOperationInput secondInput,
+        long assignmentId, string route, CancellationToken cancellationToken)
+    {
+        await using var gate = fixture.CreateAdminContext();
+        var clubId = await gate.PlayerCampaignAssignments.Where(assignment => assignment.PlayerCampaignAssignmentId == assignmentId).Select(assignment => assignment.ClubId).SingleAsync(cancellationToken);
+        await using var transaction = await gate.Database.BeginTransactionAsync(cancellationToken);
+        await gate.AcquireClubMembershipLockAsync(clubId, cancellationToken);
+        var applyA = firstClient.PostAsJsonAsync(route, (object)firstInput, cancellationToken);
+        var applyB = secondClient.PostAsJsonAsync(route, (object)secondInput, cancellationToken);
         try
         {
+            await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(gate, (long.MinValue / 32) + clubId, 2, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             await Task.WhenAll(applyA, applyB);
         }
         catch
         {
+            await transaction.RollbackAsync(cancellationToken);
+            // Observe both requests while preserving the original contention failure.
+            await ((Task)Task.WhenAll(applyA, applyB)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             // Both requests have finished; dispose any successful response before propagating the failure.
             if (applyA.IsCompletedSuccessfully)
             {
@@ -63,19 +102,7 @@ public sealed class CampaignTagApplicationRaceHttpTests(NovaAppHostFixture fixtu
             throw;
         }
 
-        using var responseA = await applyA;
-        using var responseB = await applyB;
-
-        var statuses = new[] { responseA.StatusCode, responseB.StatusCode };
-        statuses.Count(status => status == HttpStatusCode.Created).ShouldBe(1);
-        statuses.Count(status => status == HttpStatusCode.Conflict).ShouldBe(1);
-
-        await using var context = fixture.CreateAdminContext();
-        var durableRows = await context.CampaignTagApplications
-            .Where(candidate => candidate.PlayerCampaignAssignmentId == assignmentId
-                && candidate.PlayerTagId == tagId)
-            .ToListAsync(cancellationToken);
-        durableRows.Count.ShouldBe(1);
+        return (await applyA, await applyB, clubId);
     }
 
     /// <summary>

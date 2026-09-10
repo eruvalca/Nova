@@ -35,7 +35,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-        using var removeResponse = await anonymousClient.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(anonymousClient,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -60,7 +60,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
             cancellationToken);
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var removeResponse = await client.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -128,7 +128,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
 
         using var response = await client.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
-            new { playerCampaignAssignmentId = 0, playerTagId = 0 },
+            new { operationId = Guid.CreateVersion7(), playerCampaignAssignmentId = 0, playerTagId = 0 },
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -138,10 +138,10 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
     }
 
     /// <summary>
-    /// Verifies applying the same tag twice to the same participation returns a conflict.
+    /// Verifies applying the same tag twice recovers the original application without changing its author.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplicationReturnsConflictForDuplicateApplicationAsync()
+    public async Task ApplyCampaignTagApplicationReportsAlreadyAppliedForDuplicateApplicationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -163,12 +163,11 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
             ValidApplyInput(assignmentId, tagId),
             cancellationToken);
 
-        duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        using var document = await JsonDocument.ParseAsync(
-            await duplicate.Content.ReadAsStreamAsync(cancellationToken),
-            cancellationToken: cancellationToken);
-        document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("The selected tag has already been applied to this participation.");
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var original = await first.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
+        var repeated = await duplicate.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
+        repeated.AlreadyApplied.ShouldBeTrue();
+        repeated.CampaignTagApplicationId.ShouldBe(original.CampaignTagApplicationId);
     }
 
     /// <summary>
@@ -200,7 +199,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept tag applications.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
@@ -232,7 +231,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept tag applications.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = fixture.CreateAdminContext();
         var applicationCount = await verify.CampaignTagApplications
@@ -268,7 +267,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Archived tag definitions cannot be applied.");
+            .ShouldBe("This trait is archived. Ask a club administrator to restore it before applying it.");
     }
 
     /// <summary>
@@ -347,7 +346,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeO
         await UpdateUserAsync(otherMemberEmail, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(otherMemberClient, cancellationToken);
 
-        using var removeResponse = await otherMemberClient.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(otherMemberClient,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -356,14 +355,14 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
             await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only the applying user or a club administrator can remove this tag application.");
+            .ShouldBe("Only the person who applied this trait or a club administrator can remove it.");
     }
 
     /// <summary>
     /// Verifies the applying owner can remove their own tag application and the row is deleted.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplicationReturnsNoContentAndDeletesRowForOwnerAsync()
+    public async Task RemoveCampaignTagApplicationReturnsReceiptAndDeletesRowForOwnerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -390,10 +389,10 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
-        using var removeResponse = await memberClient.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(memberClient,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
-        removeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await using var context = fixture.CreateAdminContext();
         var persisted = await context.CampaignTagApplications
@@ -405,7 +404,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
     /// Verifies a club administrator can remove a tag application applied by another member.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplicationReturnsNoContentForClubAdministratorAsync()
+    public async Task RemoveCampaignTagApplicationReturnsReceiptForClubAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -430,10 +429,10 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
-        using var removeResponse = await adminClient.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(adminClient,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
-        removeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>
@@ -458,12 +457,12 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
-        using var firstRemove = await client.DeleteAsync(
+        using var firstRemove = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
-        firstRemove.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        firstRemove.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        using var secondRemove = await client.DeleteAsync(
+        using var secondRemove = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         secondRemove.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -500,7 +499,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
         await RefreshClubMembershipCookieAsync(otherClient, cancellationToken);
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
-        using var removeResponse = await otherClient.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(otherClient,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -528,7 +527,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApp
             campaignStatus: CampaignStatus.Closed);
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
-        using var removeResponse = await client.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -537,7 +536,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can remove tag applications.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertApplicationPersistedAsync(applicationId, cancellationToken);
     }
 
@@ -561,7 +560,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             campaignStatus: CampaignStatus.Draft);
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
-        using var response = await client.DeleteAsync(
+        using var response = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -570,11 +569,11 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can remove tag applications.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertApplicationPersistedAsync(applicationId, cancellationToken);
 
         await using var verify = fixture.CreateAdminContext();
-        var receiptCount = await verify.CampaignTagApplicationRemovalReceipts
+        var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
         receiptCount.ShouldBe(0);
     }
@@ -595,7 +594,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
         var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken, archivedTag: true);
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
-        using var removeResponse = await client.DeleteAsync(
+        using var removeResponse = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -604,7 +603,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Archived tag definitions cannot be changed.");
+            .ShouldBe("Archived trait applications remain part of the shared history and cannot be removed.");
         await AssertApplicationPersistedAsync(applicationId, cancellationToken);
     }
 
@@ -622,7 +621,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
         _ = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.DeleteAsync(
+        using var response = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
 new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(0), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -657,7 +656,7 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(0), UriKind.RelativeOr
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, client, cancellationToken);
         detail.ShouldNotBeNull();
         detail.AppliedTags.ShouldContain(
             tag => tag.CampaignTagApplicationId == applied.CampaignTagApplicationId
@@ -667,7 +666,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 
     private static ApplyCampaignTagApplicationInput ValidApplyInput(long assignmentId, long tagId)
-        => new() { PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId };
+        => new() { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId };
 
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {

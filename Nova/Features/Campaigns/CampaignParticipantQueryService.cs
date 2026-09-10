@@ -216,6 +216,11 @@ internal sealed partial class CampaignParticipantQueryService(
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        if (!await db.Users.AnyAsync(user => user.Id == currentUserId && user.ClubId == currentClubId, cancellationToken))
+        {
+            return ServiceProblem.Forbidden("You must currently belong to this club to view the participant.");
+        }
+
         var campaignExists = await db.Campaigns
             .AsNoTracking()
             .AnyAsync(campaign => campaign.ClubId == currentClubId && campaign.CampaignId == input.CampaignId, cancellationToken);
@@ -252,121 +257,12 @@ internal sealed partial class CampaignParticipantQueryService(
             return ServiceProblem.NotFound();
         }
 
-        var isNpgsql = db.Database.IsNpgsql();
-
-        var notesQuery = db.Notes
-            .AsNoTracking()
-            .Where(note => note.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId);
-
-        var orderedNotes = isNpgsql
-            ? await notesQuery
-                .OrderByDescending(note => note.CreatedAt)
-                .ThenByDescending(note => note.NoteId)
-                .Select(note => new ParticipantNoteProjection(
-                    note.NoteId,
-                    note.Content,
-                    note.CreatedById,
-                    note.CreatedAt,
-                    note.ModifiedAt))
-                .ToListAsync(cancellationToken)
-            : (await notesQuery
-                .Select(note => new ParticipantNoteProjection(
-                    note.NoteId,
-                    note.Content,
-                    note.CreatedById,
-                    note.CreatedAt,
-                    note.ModifiedAt))
-                .ToListAsync(cancellationToken))
-                .OrderByDescending(note => note.CreatedAt)
-                .ThenByDescending(note => note.NoteId)
-                .ToList();
-
-        var tagApplicationsQuery = db.CampaignTagApplications
-            .AsNoTracking()
-            .Where(application => application.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId);
-
-        var orderedTagApplications = isNpgsql
-            ? await tagApplicationsQuery
-                .OrderByDescending(application => application.CreatedAt)
-                .ThenByDescending(application => application.CampaignTagApplicationId)
-                .Select(application => new ParticipantTagProjection(
-                    application.CampaignTagApplicationId,
-                    application.PlayerTagId,
-                    application.PlayerTag.Name,
-                    application.PlayerTag.Color,
-                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
-                    application.CreatedById,
-                    application.CreatedAt))
-                .ToListAsync(cancellationToken)
-            : (await tagApplicationsQuery
-                .Select(application => new ParticipantTagProjection(
-                    application.CampaignTagApplicationId,
-                    application.PlayerTagId,
-                    application.PlayerTag.Name,
-                    application.PlayerTag.Color,
-                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
-                    application.CreatedById,
-                    application.CreatedAt))
-                .ToListAsync(cancellationToken))
-                .OrderByDescending(application => application.CreatedAt)
-                .ThenByDescending(application => application.CampaignTagApplicationId)
-                .ToList();
-
-        var actorIds = orderedNotes
-            .Select(note => note.CreatedById)
-            .Concat(orderedTagApplications.Select(application => application.CreatedById))
-            .Where(id => id > 0)
-            .Distinct()
-            .ToArray();
-
-        var actorDisplayNames = actorIds.Length == 0
-            ? []
-            : (await db.Users
-                .AsNoTracking()
-                .Where(user => actorIds.Contains(user.Id))
-                .Select(user => new { user.Id, user.FirstName, user.LastName })
-                .ToListAsync(cancellationToken))
-                .ToDictionary(
-                    row => row.Id,
-                    row => string.Join(" ", new[] { row.FirstName, row.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))),
-                    EqualityComparer<long>.Default);
-
-        var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active;
+        var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active && assignment.PlayerLifecycleStatus == LifecycleStatus.Active;
         var isClubAdmin = currentUserProvider.IsClubAdmin;
-        var canEditPlacement = isClubAdmin && isActiveCampaign && assignment.PlayerLifecycleStatus == LifecycleStatus.Active;
-        var canAddNote = isActiveCampaign && currentUserId > 0;
-        var canApplyTag = isActiveCampaign && currentUserId > 0;
+        var canEditPlacement = isActiveCampaign;
+        var canAddNote = isActiveCampaign;
+        var canApplyTag = isActiveCampaign;
         var canArchiveTagDefinitions = isClubAdmin;
-
-        var noteDtos = orderedNotes
-            .Select(note =>
-            {
-                var canEditOrDeleteNote = isActiveCampaign && (isClubAdmin || note.CreatedById == currentUserId);
-                return new CampaignParticipantNoteDto(
-                    note.NoteId,
-                    note.Content,
-                    actorDisplayNames.GetValueOrDefault(note.CreatedById) ?? "Unknown user",
-                    note.CreatedAt,
-                    note.ModifiedAt,
-                    canEditOrDeleteNote,
-                    canEditOrDeleteNote);
-            })
-            .ToList()
-            .AsReadOnly();
-
-        var tagDtos = orderedTagApplications
-            .Select(application => new CampaignParticipantTagApplicationDto(
-                application.CampaignTagApplicationId,
-                application.PlayerTagId,
-                application.TagName,
-                application.TagColor,
-                application.IsArchived,
-                actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
-                application.CreatedAt,
-                isActiveCampaign && !application.IsArchived && (isClubAdmin || application.CreatedById == currentUserId)))
-            .ToList()
-            .AsReadOnly();
-
         var capabilities = new CampaignParticipantCapabilitiesDto(
             canEditPlacement,
             canAddNote,
@@ -387,8 +283,6 @@ internal sealed partial class CampaignParticipantQueryService(
             assignment.ModifiedAt,
             assignment.CampaignStatus,
             assignment.ConcurrencyToken,
-            noteDtos,
-            tagDtos,
             capabilities);
     }
 
@@ -560,25 +454,4 @@ internal sealed partial class CampaignParticipantQueryService(
         DateTimeOffset CreatedAt,
         DateTimeOffset? ModifiedAt);
 
-    /// <summary>
-    /// Projection of one note attached to a participant assignment.
-    /// </summary>
-    private sealed record ParticipantNoteProjection(
-        long NoteId,
-        string Content,
-        long CreatedById,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset? ModifiedAt);
-
-    /// <summary>
-    /// Projection of one tag application attached to a participant assignment.
-    /// </summary>
-    private sealed record ParticipantTagProjection(
-        long CampaignTagApplicationId,
-        long PlayerTagId,
-        string TagName,
-        string TagColor,
-        bool IsArchived,
-        long CreatedById,
-        DateTimeOffset CreatedAt);
 }

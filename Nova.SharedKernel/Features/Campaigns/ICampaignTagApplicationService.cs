@@ -1,5 +1,5 @@
 ﻿using Nova.SharedKernel.Results;
-using OneOf.Types;
+
 
 namespace Nova.SharedKernel.Features.Campaigns;
 
@@ -18,13 +18,19 @@ public interface ICampaignTagApplicationService
         ApplyCampaignTagApplicationInput input,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Creates or resolves a trait and applies it atomically.</summary>
+    /// <param name="input">The participant, label and retained operation identity.</param>
+    /// <param name="cancellationToken">Cancels this attempt.</param>
+    /// <returns>The immutable application receipt or a service problem.</returns>
+    Task<ServiceResult<CampaignTagApplicationMutationSuccess>> CreateAndApplyAsync(CreateAndApplyCampaignTagInput input, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Removes one campaign tag application when authorized by ownership or club-administrator role.
     /// </summary>
     /// <param name="input">The campaign tag application to remove.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A success result or a structured service problem.</returns>
-    Task<ServiceResult<Success>> RemoveAsync(
+    Task<ServiceResult<CampaignTagApplicationMutationSuccess>> RemoveAsync(
         RemoveCampaignTagApplicationInput input,
         CancellationToken cancellationToken = default);
 }

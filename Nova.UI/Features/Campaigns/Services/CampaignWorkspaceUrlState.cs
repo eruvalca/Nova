@@ -72,11 +72,58 @@ public sealed record CampaignWorkspacePlacementState
     public int Page { get; init; } = 1;
 }
 
+/// <summary>Independent evaluation lookup and selection, preserved across campaign destinations.</summary>
+public sealed record CampaignWorkspaceEvaluationState
+{
+    /// <summary>The applied name or tryout number, blank until an evaluator searches.</summary>
+    public string? Search { get; init; }
+    /// <summary>The one-based twenty-result page.</summary>
+    public int Page { get; init; } = 1;
+    /// <summary>The explicitly selected assignment, independent of Roster's participant.</summary>
+    public long? ParticipantId { get; init; }
+    /// <summary>Whether returning to Roster should retain its focused pathname.</summary>
+    public bool RosterLanding { get; init; }
+}
+
 /// <summary>
 /// Provides pure, defensive URL round-tripping for the campaign workspace roster and placements.
 /// </summary>
 public static class CampaignWorkspaceUrlState
 {
+    /// <summary>Attaches evaluation context without overwriting roster or placement state.</summary>
+    public static string WithEvaluationContext(string route, CampaignWorkspaceEvaluationState state)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+        ArgumentNullException.ThrowIfNull(state);
+        var parts = new List<string> { "evaluation=true" };
+        if (!string.IsNullOrWhiteSpace(state.Search))
+        {
+            parts.Add($"evalSearch={Uri.EscapeDataString(state.Search.Trim())}");
+        }
+
+        if (state.Page > 1)
+        {
+            parts.Add($"evalPage={state.Page}");
+        }
+
+        if (state.ParticipantId is > 0)
+        {
+            parts.Add($"evalParticipant={state.ParticipantId}");
+        }
+
+        if (state.RosterLanding)
+        {
+            parts.Add("rosterLanding=true");
+        }
+
+        return route + (route.Contains('?', StringComparison.Ordinal) ? "&" : "?") + string.Join("&", parts);
+    }
+
+    /// <summary>Builds a deliberate evaluation lookup or player selection with preserved Roster return context.</summary>
+    public static string BuildEvaluationLookupUrl(long campaignId, CampaignWorkspaceEvaluationState evaluation,
+        CampaignWorkspaceRosterState roster, long? rosterParticipantId) =>
+        WithEvaluationContext(BuildEvaluateWorkspaceUrl(campaignId, roster, rosterParticipantId), evaluation);
+
     /// <summary>
     /// The focused roster workspace route token.
     /// </summary>

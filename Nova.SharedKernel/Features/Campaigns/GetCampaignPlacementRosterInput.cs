@@ -29,6 +29,10 @@ public sealed record GetCampaignPlacementRosterInput : IValidatableObject
     [Range(1, long.MaxValue)]
     public required long CampaignId { get; init; }
 
+    /// <summary>An explicitly selected assignment from Evaluate; omission retains normal placement discovery.</summary>
+    [Range(1, long.MaxValue)]
+    public long? ParticipantId { get; init; }
+
     /// <summary>
     /// Optional exact graduation-year filter. Omission matches every graduation year.
     /// </summary>

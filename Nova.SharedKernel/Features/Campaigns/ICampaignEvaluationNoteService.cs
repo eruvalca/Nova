@@ -1,5 +1,5 @@
 ﻿using Nova.SharedKernel.Results;
-using OneOf.Types;
+
 
 namespace Nova.SharedKernel.Features.Campaigns;
 
@@ -19,22 +19,22 @@ public interface ICampaignEvaluationNoteService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Edits one evaluation note when authorized by ownership or club-administrator role.
+    /// Edits one evaluation note when the author supplies the current version.
     /// </summary>
     /// <param name="input">The note identifier and updated content.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A success result or a structured service problem.</returns>
-    Task<ServiceResult<Success>> EditAsync(
+    Task<ServiceResult<EvaluationNoteMutationSuccess>> EditAsync(
         EditEvaluationNoteInput input,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes one evaluation note when authorized by ownership or club-administrator role.
+    /// Deletes one evaluation note when the author supplies the current version.
     /// </summary>
-    /// <param name="noteId">The note identifier to delete.</param>
+    /// <param name="input">The note identity, expected version and retained operation.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A success result or a structured service problem.</returns>
-    Task<ServiceResult<Success>> DeleteAsync(
-        long noteId,
+    Task<ServiceResult<EvaluationNoteMutationSuccess>> DeleteAsync(
+        DeleteEvaluationNoteInput input,
         CancellationToken cancellationToken = default);
 }

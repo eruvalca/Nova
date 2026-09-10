@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Features.Players;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
@@ -8,7 +9,7 @@ namespace Nova.Browser.Tests;
 
 /// <summary>
 /// Browser-level validation of the campaign closeout cross-slice scenarios: the administrator
-/// overview-to-closeout happy path, blocked-close behavior, the stale blocked-close conflict, the
+/// evaluation-to-closeout happy path, blocked-close behavior, the stale blocked-close conflict, the
 /// reopen confirmation flow, read-only rendering for non-administrators, direct URL/back-navigation
 /// tab preservation, and keyboard/accessibility across viewports.
 /// </summary>
@@ -25,10 +26,10 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         // Overview shows the snapshot, the blocked readiness line, and the administrator closeout link.
-        await OpenOverviewAsync(page, seed.BlockedCampaignId);
-        await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
-        await Expect(page.Locator("span[role=status]")).ToContainTextAsync("Closeout blocked");
-        await OpenCloseoutFromOverviewAsync(page);
+        await OpenEvaluationAsync(page, seed.BlockedCampaignId);
+        await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
+        await Expect(page.Locator(".readiness-context")).ToContainTextAsync("Not ready to close");
+        await OpenCloseoutFromEvaluationAsync(page);
 
         // Closeout shows authoritative counts and the three blocker rows with Count + Message.
         var blockerRows = page.Locator("li.list-group-item.list-group-item-warning");
@@ -56,11 +57,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("div.alert-secondary[role=note]")).ToContainTextAsync("This campaign is closed and read-only.");
         await Expect(page.Locator("[aria-label='Final outcome summary']")).ToBeVisibleAsync();
 
-        // Overview activity now records the closed transition.
-        await OpenOverviewAsync(page, seed.BlockedCampaignId);
-        await Expect(page.Locator("#overview-region-heading")).ToContainTextAsync("Overview");
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Activity" })).ToBeVisibleAsync();
-        await Expect(page.Locator("section[aria-labelledby='overview-region-heading']")).ToContainTextAsync("closed the campaign");
+        // The canonical club activity surface retains the closed transition.
+        await AssertDashboardActivityAsync(page, seed.BlockedCampaignId, "closed");
     }
 
     [Fact]
@@ -177,11 +175,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         // The panel returns to the active checklist.
         await Expect(page.Locator("section[aria-labelledby='closeout-region-heading']")).ToContainTextAsync("Enrolled");
 
-        // Overview activity shows both the closed and reopened transitions.
-        await OpenOverviewAsync(page, seed.ClosedCampaignId);
-        var overviewText = (await page.Locator("section[aria-labelledby='overview-region-heading']").TextContentAsync()) ?? string.Empty;
-        overviewText.Contains("closed the campaign", StringComparison.Ordinal).ShouldBeTrue($"Overview text was: {overviewText}");
-        overviewText.Contains("reopened the campaign", StringComparison.Ordinal).ShouldBeTrue($"Overview text was: {overviewText}");
+        // The canonical activity surface retains both lifecycle transitions.
+        await AssertDashboardActivityAsync(page, seed.ClosedCampaignId, "closed", "reopened");
 
         // Editing is restored and previously decided outcomes are unchanged.
         await OpenPlacementsAsync(page, seed.ClosedCampaignId);
@@ -205,9 +200,10 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" })).ToHaveCountAsync(0);
 
-        // Overview exposes no administrator-only closeout link.
-        await OpenOverviewAsync(page, seed.ClosedCampaignId);
-        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Open closeout" })).ToHaveCountAsync(0);
+        // Evaluation retains shared readiness orientation without administrator commands.
+        await OpenEvaluationAsync(page, seed.ClosedCampaignId);
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Review readiness", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" })).ToHaveCountAsync(0);
 
         // Placements render read-only with no enabled save controls.
         await OpenPlacementsAsync(page, seed.ClosedCampaignId);
@@ -230,7 +226,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         page.Url.ShouldContain("tab=close");
 
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=evaluate").ToString());
-        await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
+        await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("tab=evaluate");
 
         // Native anchors work before attachment. Repeated clicks while a panel loads
@@ -240,7 +236,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Browser Back restores the overview tab (client-side history entry).
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
-        await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
+        await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
 
         // From the closeout tab, a blocker drill-down pushes a placements entry; Back returns to closeout.
         await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
@@ -278,7 +274,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             var initial = new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=evaluate&sortDirection=desc").ToString();
             await page.GotoAsync(initial, new() { WaitUntil = WaitUntilState.DOMContentLoaded });
             await requested.Task.WaitAsync(TimeSpan.FromSeconds(30), token);
-            await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
+            await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
             var destination = new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=place&sortDirection=desc").ToString();
             // Model a browser URL update whose notification was missed before renderer attachment.
             await page.EvaluateAsync("url => history.replaceState(history.state, '', url)", destination);
@@ -384,8 +380,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await using var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
         var page = wideContext.Pages[0];
 
-        await OpenOverviewAsync(page, seed.ReadyCampaignId);
-        var openCloseout = page.GetByRole(AriaRole.Button, new() { Name = "Open closeout" });
+        await OpenEvaluationAsync(page, seed.ReadyCampaignId);
+        var openCloseout = page.GetByRole(AriaRole.Link, new() { Name = "Review readiness", Exact = true });
         await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
@@ -490,7 +486,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await narrowPage.WaitForURLAsync(
             url => url.Contains("tab=evaluate", StringComparison.OrdinalIgnoreCase),
             new() { WaitUntil = WaitUntilState.Commit });
-        await Expect(narrowPage.Locator("#overview-region-heading")).ToBeVisibleAsync();
+        await Expect(narrowPage.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
         await Expect(narrowPage.GetByRole(AriaRole.Link, new() { Name = "Evaluate" }))
             .ToHaveAttributeAsync("aria-current", "page");
 
@@ -644,14 +640,21 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
-        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
-        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-        await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
+        try
+        {
+            await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+            await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
 
-        release.TrySetResult(null);
-        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
-        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+            release.TrySetResult(null);
+            await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+        }
+        finally
+        {
+            release.TrySetResult(null);
+            await page.UnrouteAsync(IsCloseoutReadinessUrl);
+        }
     }
 
     [Fact]
@@ -688,6 +691,17 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         url.Contains("/api/campaigns/", StringComparison.Ordinal)
         && url.Contains("/closeout-readiness", StringComparison.Ordinal);
 
+    private async Task AssertDashboardActivityAsync(IPage page, long campaignId, params string[] verbs)
+    {
+        await using var db = fixture.AppHost.CreateAdminContext();
+        var campaignName = await db.Campaigns.Where(campaign => campaign.CampaignId == campaignId)
+            .Select(campaign => campaign.Name).SingleAsync(TestContext.Current.CancellationToken);
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/dashboard").ToString());
+        foreach (var verb in verbs)
+        {
+            await Expect(page.Locator(".activity-list li").Filter(new() { HasText = $"{verb} {campaignName}" })).ToBeVisibleAsync();
+        }
+    }
     /// <summary>Navigates to the closeout tab and waits for its heading.</summary>
     private async Task OpenCloseoutAsync(IPage page, long campaignId)
     {
@@ -695,11 +709,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
     }
 
-    /// <summary>Navigates to the overview tab and waits for its heading.</summary>
-    private async Task OpenOverviewAsync(IPage page, long campaignId)
+    /// <summary>Navigates to Evaluate and waits for its heading.</summary>
+    private async Task OpenEvaluationAsync(IPage page, long campaignId)
     {
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=evaluate").ToString());
-        await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
+        await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
     }
 
     /// <summary>Navigates to the placements tab and waits for its heading.</summary>
@@ -710,12 +724,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("div.placement-summary[role=status]")).ToBeVisibleAsync();
     }
 
-    /// <summary>Follows the overview "Open closeout" link, retrying through SSR hydration.</summary>
-    private static async Task OpenCloseoutFromOverviewAsync(IPage page)
+    /// <summary>Follows the shared "Review readiness" link, retrying through SSR hydration.</summary>
+    private static async Task OpenCloseoutFromEvaluationAsync(IPage page)
     {
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.GetByRole(AriaRole.Button, new() { Name = "Open closeout" }),
+            page.GetByRole(AriaRole.Link, new() { Name = "Review readiness", Exact = true }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
     }
 

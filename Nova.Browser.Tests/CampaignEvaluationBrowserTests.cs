@@ -348,9 +348,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await WaitForMutationSettlementAsync(firstPage);
         await WaitForMutationSettlementAsync(secondPage);
 
-        // Exactly one session reports success and exactly one reports a clear conflict.
+        // Both sessions receive receipts; one created the application and one reports the existing attribution.
         var successCount = 0;
-        var conflictCount = 0;
+        var alreadyAppliedCount = 0;
         foreach (var page in new[] { firstPage, secondPage })
         {
             if (await page.Locator("div.alert-success[role=status]").IsVisibleAsync())
@@ -358,14 +358,14 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
                 successCount++;
             }
 
-            if (await page.Locator(".participant-drawer-mutation-error").IsVisibleAsync())
+            if ((await page.Locator("div.alert-success[role=status]").InnerTextAsync()).Contains("already applied", StringComparison.Ordinal))
             {
-                conflictCount++;
+                alreadyAppliedCount++;
             }
         }
 
-        successCount.ShouldBe(1);
-        conflictCount.ShouldBe(1);
+        successCount.ShouldBe(2);
+        alreadyAppliedCount.ShouldBe(1);
 
         // After a refresh exactly one tag chip renders: no duplicate UI state.
         await firstPage.ReloadAsync();
@@ -642,15 +642,22 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        await page.Locator("#roster-search").FillAsync("Player 47");
-        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-        await Expect(page.GetByText("Loading roster...")).ToBeVisibleAsync();
+        try
+        {
+            await page.Locator("#roster-search").FillAsync("Player 47");
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(page.GetByText("Loading roster...")).ToBeVisibleAsync();
 
-        release.TrySetResult(null);
-        await WaitForRosterSettlementAsync(page);
-        await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
-        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(1);
-        await page.UnrouteAsync(IsRosterListUrl);
+            release.TrySetResult(null);
+            await WaitForRosterSettlementAsync(page);
+            await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
+            await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(1);
+        }
+        finally
+        {
+            release.TrySetResult(null);
+            await page.UnrouteAsync(IsRosterListUrl);
+        }
     }
 
     // Settle the explicit async boundary with Playwright's default assertion timeout,

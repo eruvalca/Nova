@@ -1,6 +1,14 @@
 @using System.Globalization
 @using Nova.SharedKernel.Enums
 
+@if (SelectedParticipantId is not null)
+{
+    <section class="mb-3" aria-label="Evaluation handoff">
+        <h2 class="h5" tabindex="-1" @ref="_linkedSelectionHeading">Selected player from Evaluate</h2>
+        <p>This selection is independent of the placement filters below.</p>
+        @if (EvaluationReturnPath is not null) { <a class="btn btn-outline-primary" href="@EvaluationReturnPath">Return to evaluation</a> }
+    </section>
+}
 <section class="campaign-placements-panel" aria-labelledby="placements-region-heading">
     <h2 class="h5 mb-3" id="placements-region-heading">Placements</h2>
 
@@ -11,7 +19,7 @@
     else if (!CanEditPlacements)
     {
         <div class="alert alert-secondary py-2 small" role="note">Read-only — placements can only be edited by
-            administrators while the campaign is active.</div>
+            approved club members while the campaign is active.</div>
         }
 
         @if (_conflictMessage is not null)

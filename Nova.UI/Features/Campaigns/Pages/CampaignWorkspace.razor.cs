@@ -56,10 +56,10 @@ public partial class CampaignWorkspace(
     /// <returns>The local workspace or focused Roster URL.</returns>
     private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null, bool useRosterLanding = false)
     {
-        var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);
+        var url = CampaignWorkspaceUrlState.WithEvaluationContext(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId), EvaluationState);
         // Intra-roster actions must keep the current path: CampaignEntry recreates this
         // component on a path change, discarding pending drawer moves and scroll restoration.
-        return (IsRosterLanding || useRosterLanding) && string.Equals(tab, RosterTabName, StringComparison.Ordinal)
+        return (IsRosterLanding || RosterLandingQuery == true || useRosterLanding) && string.Equals(tab, RosterTabName, StringComparison.Ordinal)
             ? url.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal)
             : url;
     }
@@ -449,8 +449,7 @@ public partial class CampaignWorkspace(
     /// </summary>
     private bool _canEditPlacements
         => _detail is not null
-            && _detail.Status == CampaignStatus.Active
-            && _isClubAdmin;
+            && _detail.Status == CampaignStatus.Active;
 
     /// <summary>
     /// Gets the roster item matching the open participant, or <see langword="null"/> when the drawer is closed or the item is not on the loaded page.
@@ -513,7 +512,7 @@ public partial class CampaignWorkspace(
         // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
         // The focused Roster route always owns the roster panel, regardless of workspace tab input.
-        _activeTab = IsRosterLanding ? RosterTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
+        ApplyWorkspaceTab(previousTab);
 
         // The placements state is independent of the roster state; parse it on every parameter
         // set so the placements panel receives the URL-backed filters regardless of roster state.
@@ -571,10 +570,10 @@ public partial class CampaignWorkspace(
     protected override async Task OnParametersSetAsync()
     {
         ReplaceClosedEligibilityUrl();
-        if (_reloadRosterPending && _detail is not null)
+        if (_reloadRosterPending && _detail is not null && !string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal))
         {
             _reloadRosterPending = false;
-            await LoadRosterAsync();
+            await LoadRosterRegionsAsync();
         }
     }
 
@@ -591,6 +590,7 @@ public partial class CampaignWorkspace(
         _isClubAdmin = authenticationState.User.IsInRole(Roles.ClubAdmin);
         var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
         _authorityScope = scope;
+        _captureScope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}";
 
         if (Initialized && string.Equals(PersistedOwner, StateOwner(InitialDetail?.Status ?? PersistedDetail?.Status), StringComparison.Ordinal))
         {
@@ -624,7 +624,7 @@ public partial class CampaignWorkspace(
         {
             _detail = initial;
             _isLoading = false;
-            await Task.WhenAll(LoadChoicesAsync(), LoadRosterAsync());
+            await LoadRosterRegionsAsync();
         }
         else
         {
@@ -650,6 +650,7 @@ public partial class CampaignWorkspace(
         }
 
         _filtersInitialized = true;
+        _activeTab = IsRosterLanding ? RosterTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
         var incoming = CampaignWorkspaceUrlState.Parse(
             SearchQuery,
             GraduationYearsQuery,
@@ -752,7 +753,7 @@ public partial class CampaignWorkspace(
         if (detailLoaded)
         {
             StateHasChanged();
-            await Task.WhenAll(LoadChoicesAsync(), LoadRosterAsync());
+            await LoadRosterRegionsAsync();
         }
     }
 
@@ -1118,17 +1119,12 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId));
+            navigationManager.NavigateTo(CloseUrl);
         }
 
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Opens the closeout tab from the overview panel.
-    /// </summary>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnOpenCloseoutAsync() => SelectCloseTabAsync();
 
     /// <summary>
     /// Navigates to the placements tab, optionally filtered to unresolved placements, in response to
@@ -1161,7 +1157,7 @@ public partial class CampaignWorkspace(
     {
         _placementState = next;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next, _filters, _selectedParticipantId);
+        var targetUrl = CampaignWorkspaceUrlState.WithEvaluationContext(CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next, _filters, _selectedParticipantId), EvaluationState);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
         if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
         {

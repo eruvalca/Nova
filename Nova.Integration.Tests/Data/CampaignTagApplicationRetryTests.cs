@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Data;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>
     /// Verifies a transient failure raised before any commit does not let remove verification
@@ -53,7 +53,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             NullLogger<CampaignTagApplicationService>.Instance);
 
         var result = await ((ICampaignTagApplicationService)service).RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = missingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = missingApplicationId },
             TestContext.Current.CancellationToken);
 
         failureInterceptor.FailureCount.ShouldBe(1);
@@ -71,7 +71,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     /// existing row belongs to an earlier request rather than this one's ambiguous commit.
     /// </remarks>
     [Fact]
-    public async Task ApplyCampaignTagApplicationReportsConflictWhenTransientFailurePrecedesCommitOnAppliedPairAsync()
+    public async Task ApplyCampaignTagApplicationReportsAlreadyAppliedWhenTransientFailurePrecedesCommitOnAppliedPairAsync()
     {
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
@@ -96,14 +96,15 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         var result = await ((ICampaignTagApplicationService)service).ApplyAsync(
             new ApplyCampaignTagApplicationInput
             {
+                OperationId = Guid.CreateVersion7(),
                 PlayerCampaignAssignmentId = assignmentId,
                 PlayerTagId = tagId
             },
             TestContext.Current.CancellationToken);
 
         failureInterceptor.FailureCount.ShouldBe(1);
-        result.IsProblem.ShouldBeTrue("an already-applied pair must still conflict after a pre-commit retry");
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.AlreadyApplied.ShouldBeTrue();
     }
 
     /// <summary>
@@ -136,6 +137,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         var result = await ((ICampaignTagApplicationService)service).ApplyAsync(
             new ApplyCampaignTagApplicationInput
             {
+                OperationId = Guid.CreateVersion7(),
                 PlayerCampaignAssignmentId = assignmentId,
                 PlayerTagId = tagId
             },
@@ -182,7 +184,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             NullLogger<CampaignTagApplicationService>.Instance);
 
         var result = await ((ICampaignTagApplicationService)service).RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = applicationId },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -197,11 +199,11 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies a removal prunes receipts older than the retention window so the durable verification
+    /// Verifies global cleanup prunes receipts older than the retention window so the durable verification
     /// artifact does not accumulate unboundedly, while the current operation's receipt is retained.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplicationPrunesExpiredRemovalReceiptsAsync()
+    public async Task GlobalCleanupPrunesExpiredReceiptsAndPreservesFreshRemovalReceiptAsync()
     {
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
@@ -219,16 +221,17 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         await using (var seed = fixture.CreateAdminContext())
 #pragma warning restore MA0004
         {
-            var staleReceipt = new CampaignTagApplicationRemovalReceiptEntity
+            var staleReceipt = new EvaluationMutationReceiptEntity
             {
-                RemovalOperationId = staleOperationId,
-                CampaignTagApplicationId = applicationId,
+                OperationId = staleOperationId,
+                ActorUserId = actorUserId,
+                RequestSha256 = new string('A', 64),
+                ResultJson = "{}",
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddDays(-2),
                 ClubId = clubId,
                 CreatedById = actorUserId
             };
-            seed.CampaignTagApplicationRemovalReceipts.Add(staleReceipt);
-            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            staleReceipt.CreatedAt = DateTimeOffset.UtcNow.AddDays(-2);
+            seed.EvaluationMutationReceipts.Add(staleReceipt);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -242,28 +245,29 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             NullLogger<CampaignTagApplicationService>.Instance);
 
         var result = await ((ICampaignTagApplicationService)service).RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = applicationId },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
 
         await using var verify = fixture.CreateAdminContext();
-        var staleRemains = await verify.CampaignTagApplicationRemovalReceipts
-            .AnyAsync(receipt => receipt.RemovalOperationId == staleOperationId, TestContext.Current.CancellationToken);
-        staleRemains.ShouldBeFalse("expired receipts must be pruned during removal");
-        var freshReceiptCount = await verify.CampaignTagApplicationRemovalReceipts
-            .CountAsync(receipt => receipt.CampaignTagApplicationId == applicationId, TestContext.Current.CancellationToken);
+        await EvaluationReceiptCleanupService.PruneAsync(verify, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+        var staleRemains = await verify.EvaluationMutationReceipts
+            .AnyAsync(receipt => receipt.OperationId == staleOperationId, TestContext.Current.CancellationToken);
+        staleRemains.ShouldBeFalse("the global retention pass removes expired receipts");
+        var freshReceiptCount = await verify.EvaluationMutationReceipts
+            .CountAsync(receipt => receipt.ClubId == clubId, TestContext.Current.CancellationToken);
         freshReceiptCount.ShouldBe(1, "the current removal's receipt must survive for verification");
     }
 
     /// <summary>
     /// Verifies two concurrent removals in the same club and its sole Active campaign both succeed
-    /// while pruning an expired receipt. The campaign advisory lock serializes these valid mutations,
+    /// before global cleanup prunes an expired receipt. Membership locks serialize these valid mutations,
     /// and each removal must preserve its own durable idempotency receipt.
     /// </summary>
     [Fact]
 #pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
-    public async Task RemoveCampaignTagApplicationConcurrentSameActiveCampaignPrunesBothSucceedAsync()
+    public async Task ConcurrentRemovalsSerializeAndGlobalCleanupPreservesBothReceiptsAsync()
 #pragma warning restore MA0051
     {
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
@@ -281,32 +285,31 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = true;
 
-        // Backdate a receipt so both removals would be eligible to prune it.
+        // Seed an expired receipt for the subsequent global cleanup.
         var staleOperationId = Guid.CreateVersion7();
 #pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var seed = fixture.CreateAdminContext())
 #pragma warning restore MA0004
         {
-            var staleReceipt = new CampaignTagApplicationRemovalReceiptEntity
+            var staleReceipt = new EvaluationMutationReceiptEntity
             {
-                RemovalOperationId = staleOperationId,
-                CampaignTagApplicationId = applicationId,
+                OperationId = staleOperationId,
+                ActorUserId = actorUserId,
+                RequestSha256 = new string('A', 64),
+                ResultJson = "{}",
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddDays(-2),
                 ClubId = clubId,
                 CreatedById = actorUserId
             };
-            seed.CampaignTagApplicationRemovalReceipts.Add(staleReceipt);
-            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            staleReceipt.CreatedAt = DateTimeOffset.UtcNow.AddDays(-2);
+            seed.EvaluationMutationReceipts.Add(staleReceipt);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var firstLockGate = new AdvisoryLockGateInterceptor();
-        var firstPruneGate = new GateReceiptDeleteInterceptor();
         var firstFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
-            firstLockGate,
-            firstPruneGate);
+            firstLockGate);
         var secondFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
@@ -320,20 +323,17 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             fixture.CurrentUser,
             NullLogger<CampaignTagApplicationService>.Instance);
 
-        Task<ServiceResult<Success>> firstRemove;
+        Task<ServiceResult<CampaignTagApplicationMutationSuccess>> firstRemove;
         try
         {
-            // First prove the removal acquired its campaign lock, then let it advance to the receipt
-            // prune gate. It remains paused there with the transaction-scoped campaign lock held.
+            // Prove the first removal holds its membership lock before starting the second mutation.
             firstRemove = ((ICampaignTagApplicationService)firstService).RemoveAsync(
-                new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
+                new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = applicationId },
                 TestContext.Current.CancellationToken);
             await firstLockGate.WaitForAcquiredAsync(TestContext.Current.CancellationToken);
-            firstLockGate.Release();
-            await firstPruneGate.WaitForDeleteAttemptAsync(TestContext.Current.CancellationToken);
 
             var secondRemove = ((ICampaignTagApplicationService)secondService).RemoveAsync(
-                new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = secondApplicationId },
+                new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = secondApplicationId },
                 TestContext.Current.CancellationToken);
 
             // Do not release the first removal until PostgreSQL confirms that the second transaction
@@ -341,25 +341,25 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             await using var lockProbe = fixture.CreateAdminContext();
             await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
                 lockProbe,
-                long.MinValue + campaignId,
+                (long.MinValue / 64) + actorUserId,
                 TestContext.Current.CancellationToken);
             secondRemove.IsCompleted.ShouldBeFalse();
 
-            firstPruneGate.Release();
+            firstLockGate.Release();
             var results = await Task.WhenAll(firstRemove, secondRemove);
             results.ShouldAllBe(result => result.IsSuccess);
         }
         finally
         {
             firstLockGate.Release();
-            firstPruneGate.Release();
         }
 
         await using var verify = fixture.CreateAdminContext();
-        var staleRemains = await verify.CampaignTagApplicationRemovalReceipts
-            .AnyAsync(receipt => receipt.RemovalOperationId == staleOperationId, TestContext.Current.CancellationToken);
+        await EvaluationReceiptCleanupService.PruneAsync(verify, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+        var staleRemains = await verify.EvaluationMutationReceipts
+            .AnyAsync(receipt => receipt.OperationId == staleOperationId, TestContext.Current.CancellationToken);
         staleRemains.ShouldBeFalse("the expired receipt must be pruned exactly once");
-        var receiptCount = await verify.CampaignTagApplicationRemovalReceipts
+        var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == clubId, TestContext.Current.CancellationToken);
         receiptCount.ShouldBe(2, "each removal keeps its own durable receipt");
         var applicationsRemain = await verify.CampaignTagApplications
@@ -467,6 +467,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, FirstName = "Retry", LastName = "Member", Club = club });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var season = new SeasonEntity

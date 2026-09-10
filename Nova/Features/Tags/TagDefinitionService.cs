@@ -154,8 +154,8 @@ internal sealed partial class TagDefinitionService(
         // probe and the insert observe the same snapshot.
         await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
 
-        var name = input.Name.Trim();
-        var normalizedName = name.ToUpperInvariant();
+        var name = CollaborativeTagPolicy.NormalizeDisplayName(input.Name);
+        var normalizedName = CollaborativeTagPolicy.NormalizeKey(name);
 
         if (await TagNormalizedNameExistsAsync(db, clubId, normalizedName, excludedTagId: null, cancellationToken))
         {
@@ -262,6 +262,7 @@ internal sealed partial class TagDefinitionService(
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
+        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquireTagMutationLockAsync(input.TagId, cancellationToken);
 
         var tagDefinition = await db.PlayerTags
@@ -279,8 +280,8 @@ internal sealed partial class TagDefinitionService(
             return ServiceProblem.Conflict("Archived tag definitions cannot be edited through this workflow. Restore the tag definition first.");
         }
 
-        var name = input.Name.Trim();
-        var normalizedName = name.ToUpperInvariant();
+        var name = CollaborativeTagPolicy.NormalizeDisplayName(input.Name);
+        var normalizedName = CollaborativeTagPolicy.NormalizeKey(name);
 
         if (!string.Equals(normalizedName, tagDefinition.NormalizedName, StringComparison.Ordinal)
             && await TagNormalizedNameExistsAsync(db, clubId, normalizedName, input.TagId, cancellationToken))

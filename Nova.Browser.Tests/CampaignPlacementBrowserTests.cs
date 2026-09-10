@@ -7,7 +7,7 @@ namespace Nova.Browser.Tests;
 
 /// <summary>
 /// Browser-level validation of the campaign placements workspace: the primary administrator
-/// assignment workflow, read-only views for approved non-administrators and closed campaigns, and
+/// assignment workflow for approved members, read-only closed campaigns, and
 /// the URL/history round-trip plus touch-target accessibility of the row controls.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
@@ -269,7 +269,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task PlacementsTabRendersReadOnlyForApprovedNonAdminAsync()
+    public async Task PlacementsTabAllowsApprovedMemberToSaveAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -277,10 +277,14 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlacementsAsync(page, seed.CampaignId);
 
-        await Expect(page.Locator(".campaign-placements-panel")).ToContainTextAsync("Read-only");
-        await Expect(page.Locator("select[aria-label^='Outcome for']")).ToHaveCountAsync(0);
-        await Expect(page.Locator("select[aria-label^='Team for']")).ToHaveCountAsync(0);
-        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Save" })).ToHaveCountAsync(0);
+        var row = page.Locator("tbody tr[id^='placement-row-']").First;
+        await Expect(row.Locator("select[aria-label^='Outcome for']")).ToBeEnabledAsync();
+        await InteractionHelpers.ActUntilAsync(page,
+            () => row.Locator("select[aria-label^='Outcome for']").SelectOptionAsync("2"),
+            async () => await row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).CountAsync() > 0
+                && await row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).IsEnabledAsync());
+        await row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).ClickAsync();
+        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
     }
 
     [Fact]
@@ -365,14 +369,21 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        await CheckUnresolvedOnlyAsync(page);
-        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-        await Expect(page.GetByText("Loading placements...")).ToBeVisibleAsync();
+        try
+        {
+            await CheckUnresolvedOnlyAsync(page);
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(page.GetByText("Loading placements...")).ToBeVisibleAsync();
 
-        release.TrySetResult(null);
-        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
-        await Expect(page.Locator("tbody tr[id^='placement-row-']")).ToHaveCountAsync(50);
-        await page.UnrouteAsync(IsPlacementRosterUrl);
+            release.TrySetResult(null);
+            await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
+            await Expect(page.Locator("tbody tr[id^='placement-row-']")).ToHaveCountAsync(50);
+        }
+        finally
+        {
+            release.TrySetResult(null);
+            await page.UnrouteAsync(IsPlacementRosterUrl);
+        }
     }
 
     [Fact]

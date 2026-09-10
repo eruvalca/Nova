@@ -73,6 +73,7 @@ builder.Services.AddScoped<ISeasonCommandService, HttpSeasonCommandService>();
 builder.Services.AddScoped<ISeasonQueryService, HttpSeasonQueryService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();
 builder.Services.AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>();
+builder.Services.AddScoped<ICampaignEvaluationQueryService, HttpCampaignEvaluationQueryService>();
 builder.Services.AddScoped<ICampaignPlacementService, HttpCampaignPlacementService>();
 builder.Services.AddScoped<ICampaignLifecycleService, HttpCampaignLifecycleService>();
 builder.Services.AddScoped<ITagDefinitionService, HttpTagDefinitionService>();

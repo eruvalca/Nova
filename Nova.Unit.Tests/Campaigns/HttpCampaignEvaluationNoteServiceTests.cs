@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
-using Nova.Client.Services;
+using Nova.Client.Services.Campaigns;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
 using Shouldly;
@@ -11,8 +11,13 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>
 /// Verifies the WebAssembly evaluation note client route and response contract.
 /// </summary>
-public sealed class HttpCampaignEvaluationNoteServiceTests
+public sealed partial class HttpCampaignEvaluationNoteServiceTests
 {
+    private readonly Guid _operationId = Guid.CreateVersion7();
+    private readonly Guid _version = Guid.NewGuid();
+
+    private EvaluationMutationReceipt Receipt() => new(_operationId, 100, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(23));
+
     /// <summary>
     /// Captures the request and returns one configured response.
     /// </summary>
@@ -50,7 +55,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7))
+            Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, _version, Receipt()))
         };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -197,7 +202,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-        result.Problem.Detail.ShouldBe("The server returned an invalid evaluation note response.");
+        result.Problem.Detail.ShouldBe("The server did not return a valid note receipt. Retry the original operation to recover its result.");
     }
 
     /// <summary>
@@ -208,7 +213,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = JsonContent.Create(new EvaluationNoteMutationSuccess(0))
+            Content = JsonContent.Create(new EvaluationNoteMutationSuccess(0, _version, Receipt()))
         };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -222,12 +227,12 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     }
 
     /// <summary>
-    /// Verifies a successful edit puts to the shared route and returns success for a no-content response.
+    /// Verifies a successful edit puts to the shared route and returns the immutable mutation receipt.
     /// </summary>
     [Fact]
     public async Task EditAsyncPutsToSharedRouteAndReturnsSuccessAsync()
     {
-        using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, _version, Receipt())) };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
@@ -272,17 +277,17 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     }
 
     /// <summary>
-    /// Verifies a successful delete deletes the shared route and returns success for a no-content response.
+    /// Verifies a successful delete deletes the shared route and returns the immutable mutation receipt.
     /// </summary>
     [Fact]
     public async Task DeleteAsyncDeletesToSharedRouteAndReturnsSuccessAsync()
     {
-        using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, _version, Receipt())) };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).DeleteAsync(
-            7,
+            new DeleteEvaluationNoteInput { NoteId = 7, ExpectedVersion = _version, OperationId = _operationId },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -310,7 +315,7 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignEvaluationNoteService(http).DeleteAsync(
-            7,
+            new DeleteEvaluationNoteInput { NoteId = 7, ExpectedVersion = _version, OperationId = _operationId },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -322,8 +327,9 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Creates a valid add request.
     /// </summary>
     /// <returns>A valid request for client serialization.</returns>
-    private static AddEvaluationNoteInput ValidAddInput() => new()
+    private AddEvaluationNoteInput ValidAddInput() => new()
     {
+        OperationId = _operationId,
         PlayerCampaignAssignmentId = 100,
         Content = "Showing solid tactical awareness in transition."
     };
@@ -332,9 +338,11 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
     /// Creates a valid edit request.
     /// </summary>
     /// <returns>A valid request for client serialization.</returns>
-    private static EditEvaluationNoteInput ValidEditInput() => new()
+    private EditEvaluationNoteInput ValidEditInput() => new()
     {
+        OperationId = _operationId,
         NoteId = 7,
+        ExpectedVersion = _version,
         Content = "Updated evaluation note content."
     };
 }

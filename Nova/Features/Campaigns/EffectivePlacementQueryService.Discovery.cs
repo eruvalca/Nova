@@ -68,6 +68,15 @@ internal sealed partial class EffectivePlacementQueryService
 
     private static IOrderedQueryable<PlayerCampaignAssignmentEntity> OrderAssignments(IQueryable<PlayerCampaignAssignmentEntity> query, CampaignRosterDiscoveryInput input)
     {
+        if (string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase))
+        {
+            var number = int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? (int?)parsed : null;
+            return query.OrderByDescending(assignment => number.HasValue && assignment.TryoutNumber == number)
+                .ThenBy(assignment => assignment.Player.LastName).ThenBy(assignment => assignment.Player.FirstName)
+                .ThenBy(assignment => assignment.PlayerCampaignAssignmentId);
+        }
+
         var descending = string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
         return input.SortBy?.ToUpperInvariant() switch
         {
@@ -94,6 +103,15 @@ internal sealed partial class EffectivePlacementQueryService
 
     private static IOrderedQueryable<PlacementWorkingState> OrderWorking(IQueryable<PlacementWorkingState> query, CampaignRosterDiscoveryInput input)
     {
+        if (string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase))
+        {
+            var number = int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? (int?)parsed : null;
+            return query.OrderByDescending(row => number.HasValue && row.Participation.TryoutNumber == number)
+                .ThenBy(row => row.Participation.Player.LastName).ThenBy(row => row.Participation.Player.FirstName)
+                .ThenBy(row => row.Participation.PlayerCampaignAssignmentId);
+        }
+
         var descending = string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
         return input.SortBy?.ToUpperInvariant() switch
         {

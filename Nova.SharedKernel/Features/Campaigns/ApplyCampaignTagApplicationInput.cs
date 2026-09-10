@@ -5,7 +5,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// <summary>
 /// Input model for applying a tag definition to a campaign participation.
 /// </summary>
-public sealed record ApplyCampaignTagApplicationInput
+public sealed record ApplyCampaignTagApplicationInput : EvaluationOperationInput
 {
     /// <summary>The campaign participation identifier to tag.</summary>
     [Required]

@@ -1,4 +1,5 @@
-﻿using Nova.Data;
+﻿using Microsoft.EntityFrameworkCore;
+using Nova.Data;
 using Nova.Entities;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
@@ -44,16 +45,25 @@ internal static class EffectivePlacementQueries
             && a.Campaign.Status == CampaignStatus.Active
             && a.Campaign.SeasonId == a.Campaign.Club.CurrentSeasonId);
         var saved = SavedDecisions(db, clubId);
-        // Correlate before choosing the latest decision. Joining the whole season's
-        // anti-join here lets provider join ordering repeat that graph per participant.
-        // The nullable scalar key remains relational on both PostgreSQL and SQLite.
-        return from local in participants
-               let latestId = saved.Where(candidate => candidate.PlayerId == local.PlayerId)
-                   .OrderByDescending(candidate => candidate.Campaign.SeasonOpeningSequence)
-                   .ThenByDescending(candidate => candidate.PlayerCampaignAssignmentId)
-                   .Select(candidate => (long?)candidate.PlayerCampaignAssignmentId).FirstOrDefault()
-               join decision in saved on latestId equals (long?)decision.PlayerCampaignAssignmentId into decisions
-               from decision in decisions.DefaultIfEmpty()
+        // PostgreSQL can select the latest visible decision directly through a lateral join.
+        // SQLite needs the nullable scalar key shape because it does not support APPLY.
+        var pairs = db.Database.IsNpgsql()
+            ? from local in participants
+              from decision in saved.Where(candidate => candidate.PlayerId == local.PlayerId)
+                  .OrderByDescending(candidate => candidate.Campaign.SeasonOpeningSequence)
+                  .ThenByDescending(candidate => candidate.PlayerCampaignAssignmentId).Take(1).DefaultIfEmpty()
+              select new PlacementWorkingState { Participation = local, Decision = decision }
+            : from local in participants
+              let latestId = saved.Where(candidate => candidate.PlayerId == local.PlayerId)
+                  .OrderByDescending(candidate => candidate.Campaign.SeasonOpeningSequence)
+                  .ThenByDescending(candidate => candidate.PlayerCampaignAssignmentId)
+                  .Select(candidate => (long?)candidate.PlayerCampaignAssignmentId).FirstOrDefault()
+              join decision in saved on latestId equals (long?)decision.PlayerCampaignAssignmentId into decisions
+              from decision in decisions.DefaultIfEmpty()
+              select new PlacementWorkingState { Participation = local, Decision = decision };
+        return from pair in pairs
+               let local = pair.Participation
+               let decision = pair.Decision
                let validTeam = decision != null && decision.PlacementOutcome == PlacementOutcome.Assigned
                    && decision.Team != null && decision.Team.ClubId == clubId
                    && decision.Team.LifecycleStatus == LifecycleStatus.Active

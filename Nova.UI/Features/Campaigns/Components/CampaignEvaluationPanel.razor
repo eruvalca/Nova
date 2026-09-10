@@ -1,0 +1,201 @@
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
+@using Microsoft.AspNetCore.Components.Routing
+@inherits Nova.UI.Components.NovaComponentBase
+
+<NavigationLock ConfirmExternalNavigation="Protected" OnBeforeInternalNavigation="GuardNavigationAsync" />
+<div class="evaluation-workspace @(State.ParticipantId is null ? "is-finding" : "has-selection")" @ref="_root" data-evaluation-workspace data-evidence-protected="@Protected.ToString().ToLowerInvariant()">
+    @if (_leaveTarget is not null)
+    {
+        <section class="evaluation-protection" role="alert" aria-label="Protect your work">
+            @if (_pending is not null)
+            {
+                <p>Resolve the pending submission before changing players or leaving this workspace.</p>
+                <button type="button" class="btn btn-primary" disabled="@_dispatching" @onclick="DispatchPendingAsync">Retry original operation</button>
+            }
+            else
+            {
+                <p>Your text has not been saved as shared evidence.</p>
+                <button type="button" class="btn btn-primary" @onclick="() => _leaveTarget = null">Keep working</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="DiscardAndLeaveAsync">Discard and leave</button>
+            }
+        </section>
+    }
+    <section class="evaluation-finder" aria-labelledby="evaluation-finder-heading">
+        <h2 id="evaluation-finder-heading">Find a player</h2>
+        <form method="get" action="@($"/campaigns/{CampaignId}")" @onsubmit="ApplySearch" @onsubmit:preventDefault>
+            <input type="hidden" name="tab" value="evaluate" />
+            <input type="hidden" name="evaluation" value="true" />
+            @foreach (var pair in RosterQueryFields)
+            {
+                <input type="hidden" name="@pair.Key" value="@pair.Value" />
+            }
+            <label for="evaluation-search">Name or tryout number</label>
+            <div class="evaluation-search-row">
+                <input id="evaluation-search" name="evalSearch" class="form-control" type="search" maxlength="200"
+                       value="@_search" @oninput="SearchChangedAsync" @ref="_finder" autocomplete="off" />
+                <button type="submit" class="btn btn-outline-primary">Find</button>
+            </div>
+        </form>
+        @if (string.IsNullOrWhiteSpace(State.Search))
+        {
+            <p class="evaluation-empty">Start with a name or tryout number. Check the player’s identity before capturing evidence.</p>
+        }
+        else if (_finderLoading)
+        {
+            <p role="status">Finding players…</p>
+        }
+        else if (_finderError is not null)
+        {
+            <p role="alert">@_finderError</p><button type="button" class="btn btn-outline-primary" @onclick="LoadFinderAsync">Retry search</button>
+        }
+        else
+        {
+            <p class="evaluation-result-count" role="status">@_total @(_total == 1 ? "player matches" : "players match") “@State.Search”</p>
+            <ol class="evaluation-results" data-evaluation-results>
+                @foreach (var row in _results)
+                {
+                    <li @key="row.Id"><a href="@PlayerUrl(row.Id)" data-eval-result aria-current="@(row.Id == State.ParticipantId ? "true" : null)">
+                        <span class="evaluation-result-number">@(row.TryoutNumber is { } number ? $"#{number}" : "No number")</span>
+                        <span><strong>@row.Name</strong><span class="evaluation-result-year">Graduation year @row.GraduationYear</span><span class="evaluation-result-placement">@row.PlacementContext</span></span>
+                        <span class="evaluation-result-action">Select</span>
+                    </a></li>
+                }
+            </ol>
+            <nav class="evaluation-paging" aria-label="Player search pages">
+                @if (State.Page > 1) { <a class="btn btn-outline-primary" href="@LookupUrl(State with { Page = State.Page - 1, ParticipantId = null })">Previous page</a> }
+                @if (_total > 0) { <span>Page @State.Page of @Math.Max(1, (int)Math.Ceiling(_total.Value / 20d))</span> }
+                @if (_total > State.Page * 20L) { <a class="btn btn-outline-primary" href="@LookupUrl(State with { Page = State.Page + 1, ParticipantId = null })">Next page</a> }
+            </nav>
+        }
+    </section>
+    @if (State.ParticipantId is { } participantId)
+    {
+        <section class="evaluation-sheet" aria-labelledby="evaluation-player-heading">
+            <a class="evaluation-back" href="@LookupUrl(State with { ParticipantId = null })"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12H4m6-6-6 6 6 6" /></svg>Back to results</a>
+            @if (_identityLoading) { <p role="status">Loading player identity…</p> }
+            @if (_identityError is not null) { <p role="alert">@_identityError</p><button type="button" class="btn btn-outline-primary" @onclick="LoadIdentityAsync">Retry identity</button> }
+            @if (_identity is { } player)
+            {
+                <header class="evaluation-identity">
+                    <h2 id="evaluation-player-heading" tabindex="-1">@(player.TryoutNumber is { } number ? $"#{number} " : string.Empty)@player.DisplayName</h2>
+                    <p>Graduation year @player.GraduationYear</p>
+                    <div class="evaluation-context">
+                        <CampaignParticipantPlacementContext CampaignId="CampaignId" ParticipantId="participantId" Status="Status" Compact="true" Owner="@AuthorityScope" OnLifecycleChanged="OnLifecycleChanged" />
+                        @if (Writable)
+                        {
+                            <a href="@PlacePlayerUrl" class="evaluation-place">Place player<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16m-6-6 6 6-6 6" /></svg></a>
+                        }
+                    </div>
+                </header>
+                @if (!Writable && (Status == CampaignStatus.Closed || !_identityLoading))
+                {
+                    <p class="evaluation-readonly" role="status">This campaign is read-only. Shared notes and traits remain available; you can keep or copy any unsubmitted text.</p>
+                }
+                <section class="evaluation-traits" aria-labelledby="evaluation-traits-heading">
+                    <h3 id="evaluation-traits-heading">Applied traits</h3>
+                    @if (_applicationsError is not null) { <p role="alert">@_applicationsError <button class="btn btn-outline-primary" @onclick="() => LoadApplicationsAsync(false)">Retry traits</button></p> }
+                    @if (_applicationsLoading && _applications.Count == 0) { <p role="status">Loading applied traits…</p> }
+                    <ul class="evaluation-trait-list">
+                        @foreach (var application in _applications)
+                        {
+                            <li @key="application.CampaignTagApplicationId">
+                                <details class="evaluation-trait-details">
+                                <summary class="evaluation-trait">@application.TagName@(application.IsArchived ? " · archived" : string.Empty)<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 9 6 6 6-6" /></svg></summary>
+                                <span class="evaluation-trait-attribution">@application.ActorDisplayName · @application.AppliedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span>
+                                @if (Writable && application.CanRemove)
+                                {
+                                    @if (_removeApplicationId == application.CampaignTagApplicationId)
+                                    {
+                                        <button class="btn btn-outline-danger" disabled="@(_pending is not null)" @onclick='() => SubmitAsync("remove", application.CampaignTagApplicationId)'>Confirm removal</button>
+                                        <button class="btn btn-link" @onclick="() => _removeApplicationId = null">Keep trait</button>
+                                    }
+                                    else { <button class="btn btn-link" disabled="@(_pending is not null)" @onclick="() => _removeApplicationId = application.CampaignTagApplicationId" aria-label="@($"Remove {application.TagName}")">Remove</button> }
+                                }
+                                </details>
+                            </li>
+                        }
+                        @if (Writable)
+                        {
+                            <li><button class="btn btn-outline-primary" disabled="@(_pending is not null)" @onclick="() => _traitPicker = !_traitPicker">Add a trait</button></li>
+                        }
+                    </ul>
+                    @if (_applications.Count == 0 && !_applicationsLoading && _applicationsError is null) { <p>No traits applied yet.</p> }
+                    @if (_applicationsNext is not null) { <button class="btn btn-link" disabled="@_applicationsLoading" @onclick="() => LoadApplicationsAsync(true)">Show older trait applications</button> }
+                    @if (Writable && _traitPicker)
+                        {
+                            <div class="evaluation-trait-picker">
+                                <label for="evaluation-trait-search">Find or create a shared trait</label>
+                                <input id="evaluation-trait-search" class="form-control" maxlength="100" @bind="_traitSearch" @bind:event="oninput" />
+                                @if (_choicesError is not null) { <p role="alert">@_choicesError <button class="btn btn-outline-primary" @onclick="LoadChoicesAsync">Retry choices</button></p> }
+                                @if (_choicesLoading) { <p role="status">Loading choices…</p> }
+                                <ul class="evaluation-trait-choices">
+                                    @foreach (var choice in MatchingChoices)
+                                    {
+                                        <li><button type="button" class="btn btn-outline-primary" disabled="@(choice.ApplicationId is not null || _pending is not null)" @onclick='() => SubmitAsync("apply", choice.PlayerTagId)'>@choice.Name@(choice.ApplicationId is not null ? " · applied" : string.Empty)</button></li>
+                                    }
+                                </ul>
+                                @if (!string.IsNullOrWhiteSpace(_traitSearch))
+                                {
+                                    <button type="button" class="btn btn-primary" disabled="@(_pending is not null || _choicesLoading || _choicesError is not null)" @onclick='() => SubmitAsync("create", label: _traitSearch)'>Create and apply “@_traitSearch.Trim()”</button>
+                                }
+                            </div>
+                        }
+                </section>
+                @if (_storageError is not null) { <p role="alert">@_storageError <button class="btn btn-outline-primary" @onclick="RetryStorageAsync">Retry storage</button></p> }
+                @if (_captureError is not null) { <p class="evaluation-capture-error" role="alert">@_captureError</p> }
+                @if (_pending is not null) { <button type="button" class="btn btn-primary" disabled="@_dispatching" @onclick="DispatchPendingAsync">@(_dispatching ? "Waiting for receipt…" : "Retry original operation")</button> }
+                @if (_statusMessage is not null) { <p class="evaluation-status" role="status">@_statusMessage</p> }
+                <section class="evaluation-observations" aria-labelledby="evaluation-observations-heading">
+                    <h3 id="evaluation-observations-heading">Recent observations</h3>
+                    @if (_notesLoading && _notes.Count == 0) { <p role="status">Loading shared notes…</p> }
+                    @if (_notesError is not null) { <p role="alert">@_notesError <button class="btn btn-outline-primary" @onclick="() => LoadNotesAsync(false)">Retry notes</button></p> }
+                    @if (_notes.Count == 0 && !_notesLoading && _notesError is null) { <p>No shared notes yet.</p> }
+                    @foreach (var note in _notes.Take(2))
+                    {
+                        <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNoteId == note.NoteId)"
+                            OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => _deleteNoteId = note.NoteId" OnCancelDelete="() => _deleteNoteId = null" OnConfirmDelete='() => SubmitAsync("delete", note.NoteId, note.Version)' OnReviewVersion="() => ReviewVersionAsync(note)" />
+                    }
+                </section>
+                @if (_editingNoteId is { } editedId && _notes.All(note => note.NoteId != editedId))
+                {
+                    <section class="evaluation-retained-edit" aria-label="Retained edit">
+                        <label for="evaluation-retained-edit">Your retained edit</label>
+                        <p>The original note is no longer in the loaded history. Copy your text to keep it, or cancel this edit.</p>
+                        <textarea id="evaluation-retained-edit" class="form-control" readonly rows="4" value="@_editContent"></textarea>
+                        <button type="button" class="btn btn-outline-primary" disabled="@(_pending is not null)" @onclick="CancelEditAsync">Cancel retained edit</button>
+                    </section>
+                }
+                @if (Writable || _draft.Length > 0)
+                {
+                    <section class="evaluation-composer" aria-labelledby="evaluation-note-label">
+                        <div class="evaluation-composer-label"><label for="evaluation-note" id="evaluation-note-label">Your note</label><p id="evaluation-note-help">Shared with your club · @_draft.Length / 4000</p></div>
+                        @if (!_storageReady && _storageError is null) { <p role="status">Restoring the draft before editing…</p> }
+                        <textarea id="evaluation-note" class="form-control" rows="2" maxlength="4000" value="@_draft" data-evidence-original="" @oninput="DraftChangedAsync" readonly="@(!Writable || _pending is not null || !_storageReady)" aria-describedby="evaluation-note-help"></textarea>
+                        @if (Writable) { <button type="button" class="btn btn-primary evaluation-save" disabled="@(_pending is not null || !_storageReady)" @onclick='() => SubmitAsync("add")'>Save note</button> }
+                    </section>
+                }
+                <a class="btn btn-outline-primary evaluation-another" href="@LookupUrl(State with { Search = null, Page = 1, ParticipantId = null })">Find another player</a>
+                @if (_notes.Count > 2 || _notesNext is not null)
+                {
+                    <button class="btn btn-link evaluation-older" @onclick="() => _historyExpanded = !_historyExpanded">@(_historyExpanded ? "Hide older notes" : "Show older notes")</button>
+                }
+                @if (_historyExpanded)
+                {
+                    <section aria-label="Older shared notes" class="evaluation-older-notes">
+                        @foreach (var note in _notes.Skip(2))
+                        {
+                            <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNoteId == note.NoteId)"
+                                OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => _deleteNoteId = note.NoteId" OnCancelDelete="() => _deleteNoteId = null" OnConfirmDelete='() => SubmitAsync("delete", note.NoteId, note.Version)' OnReviewVersion="() => ReviewVersionAsync(note)" />
+                        }
+                        @if (_notesNext is not null) { <button class="btn btn-outline-primary" disabled="@_notesLoading" @onclick="() => LoadNotesAsync(true)">Load older notes</button> }
+                    </section>
+                }
+                <nav class="evaluation-sequence" aria-label="Players in these search results">
+                    @if (SelectedIndex > 0) { <a class="btn btn-outline-primary" href="@PlayerUrl(_results[SelectedIndex - 1].Id)">Previous player</a> }
+                    @if (SelectedIndex >= 0 && SelectedIndex < _results.Count - 1) { <a class="btn btn-outline-primary" href="@PlayerUrl(_results[SelectedIndex + 1].Id)">Next player</a> }
+                </nav>
+            }
+        </section>
+    }
+</div>

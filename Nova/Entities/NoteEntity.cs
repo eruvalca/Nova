@@ -13,6 +13,9 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public long NoteId { get; set; }
 
+    /// <summary>Gets or sets the opaque version required for author edits and deletion.</summary>
+    public Guid Version { get; set; } = Guid.NewGuid();
+
     /// <summary>
     /// Gets or sets the stable identifier for the logical note-creation operation.
     /// </summary>

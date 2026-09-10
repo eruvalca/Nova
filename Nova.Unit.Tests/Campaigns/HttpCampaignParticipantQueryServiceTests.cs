@@ -64,88 +64,12 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         capturedRequest.RequestUri.Query.ShouldContain("pageSize=1");
     }
 
-    [Fact]
-    public async Task GetParticipantDetailAsyncReturnsServerErrorForMalformedNestedPayloadAsync()
-    {
-        using var handler = new RecordingHandler(_ =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new CampaignParticipantDetailDto(
-                    101,
-                    202,
-                    "Avery Adams",
-                    2028,
-                    7,
-                    PlacementOutcome.Assigned,
-                    new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                    DateTimeOffset.UtcNow,
-                    null,
-                    CampaignStatus.Active,
-                    Guid.NewGuid(),
-                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, null, true, true)],
-                    [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow, true)],
-                    new CampaignParticipantCapabilitiesDto(true, true, true, true)))
-            }));
 
-        using var http = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://example.com")
-        };
-        var service = new HttpCampaignParticipantQueryService(http);
 
-        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
-        {
-            CampaignId = 42,
-            PlayerCampaignAssignmentId = 101
-        }, TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
 
     [Fact]
-    public async Task GetParticipantDetailAsyncReturnsServerErrorForNullOrBlankNestedTagDataAsync()
-    {
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(new CampaignParticipantDetailDto(
-                101,
-                202,
-                "Avery Adams",
-                2028,
-                7,
-                PlacementOutcome.Assigned,
-                new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                DateTimeOffset.UtcNow,
-                null,
-                CampaignStatus.Active,
-                Guid.NewGuid(),
-                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, null, true, true)],
-                [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow, true)],
-                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
-        };
-#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
-        using var handler = new RecordingHandler(_ => Task.FromResult(response));
-#pragma warning restore CA2025
-
-        using var http = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://example.com")
-        };
-        var service = new HttpCampaignParticipantQueryService(http);
-
-        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
-        {
-            CampaignId = 42,
-            PlayerCampaignAssignmentId = 101
-        }, TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
-
-    [Fact]
-    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenPlacementAndOrderingContractIsViolatedAsync()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenPlacementContractIsViolatedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -161,11 +85,6 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 DateTimeOffset.UtcNow.AddMinutes(-1),
                 CampaignStatus.Active,
                 Guid.NewGuid(),
-                [
-                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), null, true, true),
-                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, null, true, true)
-                ],
-                [new CampaignParticipantTagApplicationDto(2, 401, "Blue", "Blue", false, "A Member", DateTimeOffset.UtcNow.AddMinutes(-2), true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
 #pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
@@ -188,89 +107,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    [Fact]
-    public async Task GetParticipantDetailAsyncReturnsSuccessWhenNoteModifiedAtFollowsCreatedAtAsync()
-    {
-        var now = DateTimeOffset.UtcNow;
-        var payload = new CampaignParticipantDetailDto(
-            101,
-            202,
-            "Avery Adams",
-            2028,
-            7,
-            PlacementOutcome.Assigned,
-            new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-            now,
-            null,
-            CampaignStatus.Active,
-            Guid.NewGuid(),
-            [new CampaignParticipantNoteDto(1, "Hello", "A Member", now, now.AddMinutes(5), true, true)],
-            [new CampaignParticipantTagApplicationDto(1, 401, "Blue", "Blue", false, "A Member", now, true)],
-            new CampaignParticipantCapabilitiesDto(true, true, true, true));
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(payload)
-        };
-#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
-        using var handler = new RecordingHandler(_ => Task.FromResult(response));
-#pragma warning restore CA2025
-        using var http = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://example.com")
-        };
-        var service = new HttpCampaignParticipantQueryService(http);
 
-        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
-        {
-            CampaignId = 42,
-            PlayerCampaignAssignmentId = 101
-        }, TestContext.Current.CancellationToken);
 
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.Notes.Count.ShouldBe(1);
-        result.Value.Notes[0].ModifiedAt.ShouldBe(now.AddMinutes(5));
-    }
 
-    [Fact]
-    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenNoteModifiedAtPrecedesCreatedAtAsync()
-    {
-        var now = DateTimeOffset.UtcNow;
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(new CampaignParticipantDetailDto(
-                101,
-                202,
-                "Avery Adams",
-                2028,
-                7,
-                PlacementOutcome.Assigned,
-                new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                now,
-                null,
-                CampaignStatus.Active,
-                Guid.NewGuid(),
-                [new CampaignParticipantNoteDto(1, "Hello", "A Member", now, now.AddMinutes(-5), true, true)],
-                [new CampaignParticipantTagApplicationDto(1, 401, "Blue", "Blue", false, "A Member", now, true)],
-                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
-        };
-#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
-        using var handler = new RecordingHandler(_ => Task.FromResult(response));
-#pragma warning restore CA2025
-        using var http = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://example.com")
-        };
-        var service = new HttpCampaignParticipantQueryService(http);
-
-        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
-        {
-            CampaignId = 42,
-            PlayerCampaignAssignmentId = 101
-        }, TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
 
     [Fact]
 #pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
@@ -290,14 +129,6 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             null,
             CampaignStatus.Active,
             Guid.NewGuid(),
-            [
-                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, null, true, true),
-                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), null, true, true)
-            ],
-            [
-                new CampaignParticipantTagApplicationDto(3, 401, "Blue", "Blue", false, "A Member", now, true),
-                new CampaignParticipantTagApplicationDto(2, 402, "Gold", "Gold", false, "A Member", now.AddMinutes(-2), true)
-            ],
             new CampaignParticipantCapabilitiesDto(true, true, true, true));
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -333,17 +164,6 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Value.Capabilities.ShouldNotBeNull();
         result.Value.Capabilities.CanAddNote.ShouldBeTrue();
         result.Value.Capabilities.CanApplyTag.ShouldBeTrue();
-        result.Value.Notes.Count.ShouldBe(2);
-        result.Value.Notes[0].NoteId.ShouldBe(2);
-        result.Value.Notes[0].Content.ShouldBe("Newer note");
-        result.Value.Notes[0].CanEdit.ShouldBeTrue();
-        result.Value.Notes[0].CanDelete.ShouldBeTrue();
-        result.Value.Notes[1].NoteId.ShouldBe(1);
-        result.Value.AppliedTags.Count.ShouldBe(2);
-        result.Value.AppliedTags[0].CampaignTagApplicationId.ShouldBe(3);
-        result.Value.AppliedTags[0].TagName.ShouldBe("Blue");
-        result.Value.AppliedTags[0].CanRemove.ShouldBeTrue();
-        result.Value.AppliedTags[1].CampaignTagApplicationId.ShouldBe(2);
     }
 
     /// <summary>
@@ -364,8 +184,6 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             null,
             CampaignStatus.Draft,
             Guid.NewGuid(),
-            [],
-            [],
             new CampaignParticipantCapabilitiesDto(false, false, false, true));
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -412,8 +230,6 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             null,
             (CampaignStatus)99,
             Guid.NewGuid(),
-            [],
-            [],
             new CampaignParticipantCapabilitiesDto(false, false, false, true));
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {

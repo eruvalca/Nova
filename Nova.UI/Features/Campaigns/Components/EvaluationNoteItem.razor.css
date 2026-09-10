@@ -1,0 +1,13 @@
+.evaluation-note-item { padding: .5rem 0; border-bottom: 1px solid var(--bs-border-color); overflow-wrap: anywhere; }
+.evaluation-note-item header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; margin-bottom: .35rem; }
+.evaluation-note-item time { color: var(--bs-secondary-color); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.evaluation-note-item p { white-space: pre-wrap; margin-bottom: .3rem; max-width: 70ch; }
+.evaluation-note-item .btn, .evaluation-note-item summary { min-height: 44px; }
+.evaluation-note-item .btn-link { padding-inline: .4rem; }
+.evaluation-note-item .btn { min-width: 44px; }
+.evaluation-note-item header { line-height: 1.25; }
+.evaluation-note-item p { line-height: 1.45; }
+.evaluation-note-item label { display: block; margin: .75rem 0 .5rem; }
+.evaluation-note-item textarea { margin-bottom: .5rem; caret-color: var(--bs-primary); }
+.evaluation-note-item :focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+.evaluation-note-current { padding: .75rem; background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }

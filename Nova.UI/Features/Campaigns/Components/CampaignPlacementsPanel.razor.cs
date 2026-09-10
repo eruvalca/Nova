@@ -52,6 +52,14 @@ public partial class CampaignPlacementsPanel(
     [Parameter]
     public long CampaignId { get; set; }
 
+    /// <summary>The deliberately selected participant handed off from evaluation.</summary>
+    [Parameter] public long? SelectedParticipantId { get; set; }
+    /// <summary>The canonical evaluation destination with lookup and Roster context preserved.</summary>
+    [Parameter] public string? EvaluationReturnPath { get; set; }
+    private long? _appliedSelection;
+    private ElementReference _linkedSelectionHeading;
+    private bool _focusLinkedSelection;
+
     /// <summary>
     /// Gets or sets the campaign lifecycle status, controlling the read-only frozen view.
     /// </summary>
@@ -287,7 +295,7 @@ public partial class CampaignPlacementsPanel(
             _reloading = false;
         }
 
-        if (State != _appliedState)
+        if (State != _appliedState || SelectedParticipantId != _appliedSelection)
         {
             if (saveInFlight)
             {
@@ -299,6 +307,8 @@ public partial class CampaignPlacementsPanel(
             }
 
             _appliedState = State;
+            _appliedSelection = SelectedParticipantId;
+            _focusLinkedSelection = SelectedParticipantId is not null;
             await ReloadRosterHoldingLoadingAsync();
         }
         else
@@ -314,6 +324,11 @@ public partial class CampaignPlacementsPanel(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_focusLinkedSelection && SelectedParticipantId is not null)
+        {
+            _focusLinkedSelection = false;
+            await _linkedSelectionHeading.FocusAsync();
+        }
         if (_shouldFocusConflict)
         {
             _shouldFocusConflict = false;
@@ -351,9 +366,10 @@ public partial class CampaignPlacementsPanel(
         var input = new GetCampaignPlacementRosterInput
         {
             CampaignId = CampaignId,
-            GraduationYear = _appliedState.GraduationYear,
-            UnresolvedOnly = _appliedState.UnresolvedOnly ? true : null,
-            Page = _appliedState.Page,
+            ParticipantId = SelectedParticipantId,
+            GraduationYear = SelectedParticipantId is null ? _appliedState.GraduationYear : null,
+            UnresolvedOnly = SelectedParticipantId is null && _appliedState.UnresolvedOnly ? true : null,
+            Page = SelectedParticipantId is null ? _appliedState.Page : 1,
             PageSize = PlacementPageSize
         };
 

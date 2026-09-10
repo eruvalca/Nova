@@ -33,7 +33,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
 
         using var addResponse = await authorClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Strong first touch." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Strong first touch." },
             cancellationToken);
         addResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
 
@@ -41,7 +41,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, observerClient, cancellationToken);
         detail.ShouldNotBeNull();
 
         var note = detail.Notes.ShouldHaveSingleItem();
@@ -69,7 +69,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var applyResponse = await authorClient.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, PlayerTagId = tagId },
             cancellationToken);
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
 
@@ -77,7 +77,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, observerClient, cancellationToken);
         detail.ShouldNotBeNull();
 
         var application = detail.AppliedTags.ShouldHaveSingleItem();
@@ -102,13 +102,13 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var firstAdd = await authorClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Alice's observation." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Alice's observation." },
             cancellationToken);
         firstAdd.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         using var secondAdd = await observerClient.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = "Bob's observation." },
+            new AddEvaluationNoteInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = "Bob's observation." },
             cancellationToken);
         secondAdd.StatusCode.ShouldBe(HttpStatusCode.Created);
 
@@ -116,7 +116,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, observerClient, cancellationToken);
         detail.ShouldNotBeNull();
 
         detail.Notes.Count.ShouldBe(2);

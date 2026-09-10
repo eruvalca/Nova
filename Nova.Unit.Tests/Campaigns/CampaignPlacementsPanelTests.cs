@@ -127,7 +127,7 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     [Fact]
-    public void PanelRendersStaticRowsAndReadOnlyNoteForNonAdminActiveCampaign()
+    public void PanelRendersStaticRowsAndReadOnlyNoteWithoutEditCapability()
     {
         RegisterServices();
 
@@ -1205,6 +1205,25 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void EvaluationHandoffSelectsExactParticipantBeyondPlacementFiltersAndPreservesReturnAnchor()
+    {
+        var query = Substitute.For<ICampaignPlacementQueryService>();
+        query.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        query.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+        RegisterServices(placementQueryService: query);
+        const string ReturnPath = "/campaigns/10?tab=evaluate&evaluation=true&evalSearch=42&evalParticipant=301&search=Roster&page=4";
+        var cut = Render<CampaignPlacementsPanel>(p => p.Add(c => c.CampaignId, 10).Add(c => c.CampaignStatus, CampaignStatus.Active)
+            .Add(c => c.CanEditPlacements, true).Add(c => c.SelectedParticipantId, 301).Add(c => c.EvaluationReturnPath, ReturnPath)
+            .Add(c => c.State, new CampaignWorkspacePlacementState { GraduationYear = 2033, UnresolvedOnly = true, Page = 4 }));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal)).GetAttribute("href").ShouldBe(ReturnPath);
+        _ = query.Received().GetPlacementRosterAsync(Arg.Is<GetCampaignPlacementRosterInput>(input =>
+            input.ParticipantId == 301 && input.GraduationYear == null && input.UnresolvedOnly == null && input.Page == 1), Arg.Any<CancellationToken>());
+    }
 
     private void RegisterServices(
         ICampaignPlacementQueryService? placementQueryService = null,

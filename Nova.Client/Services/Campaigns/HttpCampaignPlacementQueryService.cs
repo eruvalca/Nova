@@ -36,7 +36,8 @@ new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(input), UriKind.Relative
 
         return await response.Content.ReadRequiredJsonAsync<PagedResult<CampaignPlacementRosterItem>>(
             "The server returned an invalid campaign placement roster response.",
-            result => IsValidRoster(result, expectedPage, expectedPageSize, input.GraduationYear, unresolvedOnly, input.CampaignId),
+            result => IsValidRoster(result, expectedPage, expectedPageSize, input.GraduationYear, unresolvedOnly, input.CampaignId)
+                && (input.ParticipantId is null || (result.TotalCount <= 1 && result.Items.All(item => item.PlayerCampaignAssignmentId == input.ParticipantId))),
             cancellationToken);
     }
 

@@ -10,7 +10,7 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
-public sealed class HttpEffectivePlacementQueryServiceTests
+public sealed partial class HttpEffectivePlacementQueryServiceTests
 {
     private static readonly Guid _decisionToken = new("829a9916-05b7-4bfe-896d-ed61c4ed6e18");
 

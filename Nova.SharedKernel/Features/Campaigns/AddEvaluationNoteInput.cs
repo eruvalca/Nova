@@ -6,7 +6,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// <summary>
 /// Input model for adding a new evaluation note to a campaign participation record.
 /// </summary>
-public sealed record AddEvaluationNoteInput
+public sealed record AddEvaluationNoteInput : EvaluationOperationInput
 {
     /// <summary>The campaign participation identifier the note belongs to.</summary>
     [Required, Range(1, long.MaxValue, ErrorMessage = "A valid campaign participation identifier is required.")]

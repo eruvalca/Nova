@@ -76,7 +76,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+                               href="@EvaluationUrl"
                                aria-current="@(_activeTab == EvaluateTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Evaluate</span>
@@ -85,7 +85,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState, _filters, _selectedParticipantId)"
+                               href="@PlaceUrl"
                                aria-current="@(_activeTab == PlaceTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Place</span>
@@ -94,7 +94,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         </li>
                         <li>
                             <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+                               href="@CloseUrl"
                                aria-current="@(_activeTab == CloseTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Close</span>
@@ -104,7 +104,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                     </ul>
                 </nav></div>
         <CampaignWorkspaceReadiness CampaignId="CampaignId" Status="_detail.Status" Owner="@($"{_authorityScope}:{_detailSequence}")"
-            CloseDestination="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+            CloseDestination="@CloseUrl"
             OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
 
         @if (!string.IsNullOrWhiteSpace(_statusMessage))
@@ -147,7 +147,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         <h2 class="visually-hidden" id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">Roster</h2>
                         @if (_openingReceiptMessage is not null)
                         {
-                            <p class="opening-receipt" role="status">@_openingReceiptMessage <a href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)">Continue to evaluation</a></p>
+                            <p class="opening-receipt" role="status">@_openingReceiptMessage <a href="@EvaluationUrl">Continue to evaluation</a></p>
                         }                            <div class="workspace-board-body">
 
                                 @if (_choicesLoadFailed)
@@ -220,7 +220,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                             </section>
                         @if (_selectedParticipantId is not null)
                         {
-                            <CampaignParticipantDrawer CampaignId="@CampaignId" ParticipantId="_selectedParticipantId.Value"
+                            <CampaignParticipantDrawer CaptureScope="@_captureScope" CampaignId="@CampaignId" ParticipantId="_selectedParticipantId.Value"
                                                        WorkingRow="@_workingRows.FirstOrDefault(row => row.PlayerCampaignAssignmentId == _selectedParticipantId)" RosterItem="@SelectedRosterItem" AuthorizedStatus="_detail.Status" AuthorityScope="@_authorityScope" OnDataChanged="OnParticipantDataChangedAsync" OnLifecycleChanged="OnCampaignReloadRequestedAsync" Position="@SelectedParticipantPosition" TotalCount="@ParticipantSequenceCount"
                                                        HasPrevious="@HasPreviousParticipant" HasNext="@HasNextParticipant" OnPrevious="OnPreviousParticipantAsync"
                                                        OnNext="OnNextParticipantAsync" OnClose="OnCloseParticipantAsync" />
@@ -233,14 +233,13 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         }
         else if (_activeTab == PlaceTabName)
                         {
-                            <CampaignPlacementsPanel CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
+                            <CampaignPlacementsPanel SelectedParticipantId="PlacementParticipantQuery" EvaluationReturnPath="@(ReturnToEvaluationQuery == true ? EvaluationUrl : null)" CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
                                                      CanEditPlacements="@_canEditPlacements" State="@_placementState" OnStateChanged="OnPlacementStateChangedAsync"
                                                      OnReloadRequested="OnCampaignReloadRequestedAsync" />
                         }
                         else if (_activeTab == EvaluateTabName)
                         {
-                            <CampaignOverviewPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
-                                                   OnOpenCloseout="OnOpenCloseoutAsync" />
+                            <CampaignEvaluationPanel CaptureScope="@_captureScope" CampaignId="CampaignId" Status="_detail.Status" AuthorityScope="@_authorityScope" State="EvaluationState" RosterState="_filters" RosterParticipantId="_selectedParticipantId" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
                         else if (_activeTab == CloseTabName)
                         {

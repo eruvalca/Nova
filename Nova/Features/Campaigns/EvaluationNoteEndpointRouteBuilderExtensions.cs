@@ -1,5 +1,7 @@
-﻿using Nova.Features.Common;
+﻿using Microsoft.AspNetCore.Mvc;
+using Nova.Features.Common;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
@@ -35,7 +37,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .WithName(CampaignEndpoints.AddEvaluationNoteRouteName);
 
             group.MapPut(CampaignEndpoints.EditEvaluationNoteRelative, EditEvaluationNoteHandlerAsync)
-                .Produces(StatusCodes.Status204NoContent)
+                .Produces<EvaluationNoteMutationSuccess>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -46,7 +48,8 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .WithName(CampaignEndpoints.EditEvaluationNoteRouteName);
 
             group.MapDelete(CampaignEndpoints.DeleteEvaluationNoteRelative, DeleteEvaluationNoteHandlerAsync)
-                .Produces(StatusCodes.Status204NoContent)
+                .Produces<EvaluationNoteMutationSuccess>(StatusCodes.Status200OK)
+                .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
@@ -90,9 +93,9 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await service.EditAsync(
-            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content },
+            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content, ExpectedVersion = body.ExpectedVersion, OperationId = body.OperationId },
             cancellationToken);
-        return result.ToHttpResult(_ => TypedResults.NoContent());
+        return result.ToHttpResult(TypedResults.Ok);
     }
 
     /// <summary>
@@ -104,10 +107,13 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
     private static async Task<IResult> DeleteEvaluationNoteHandlerAsync(
         long noteId,
+        [FromBody] DeleteEvaluationNoteInput input,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)
     {
-        var result = await service.DeleteAsync(noteId, cancellationToken);
-        return result.ToHttpResult(_ => TypedResults.NoContent());
+        ServiceResult<EvaluationNoteMutationSuccess> result = noteId != input.NoteId
+            ? ServiceProblem.Validation(nameof(input.NoteId), "The note must match the route.")
+            : await service.DeleteAsync(input, cancellationToken);
+        return result.ToHttpResult(TypedResults.Ok);
     }
 }

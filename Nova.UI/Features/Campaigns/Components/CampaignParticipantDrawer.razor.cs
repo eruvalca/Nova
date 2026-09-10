@@ -43,6 +43,7 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// <param name="jsRuntime">The JavaScript runtime used to import the collocated drawer module.</param>
 public partial class CampaignParticipantDrawer(
     ICampaignParticipantQueryService participantQueryService,
+    ICampaignEvaluationQueryService evaluationQueryService,
     ICampaignEvaluationNoteService noteService,
     ICampaignTagApplicationService tagApplicationService,
     ITagDefinitionQueryService tagDefinitionQueryService,
@@ -121,6 +122,8 @@ public partial class CampaignParticipantDrawer(
     [Parameter] public CampaignStatus? AuthorizedStatus { get; set; }
     /// <summary>The user, club and authority owning the participant context.</summary>
     [Parameter] public string? AuthorityScope { get; set; }
+    /// <summary>The stable authenticated user and club owning retained operations.</summary>
+    [Parameter] public string? CaptureScope { get; set; }
     /// <summary>Refreshes roster and tag evidence after a successful capture.</summary>
     [Parameter] public EventCallback OnDataChanged { get; set; }
     /// <summary>Reconciles participant lifecycle evidence through authorized campaign detail.</summary>
@@ -382,7 +385,7 @@ public partial class CampaignParticipantDrawer(
         _tagChoices is null
             ? []
             : _tagChoices
-                .Where(choice => _detail is null || _detail.AppliedTags.All(applied => applied.PlayerTagId != choice.PlayerTagId))
+                .Where(choice => _detail is null || _applications.All(applied => applied.PlayerTagId != choice.PlayerTagId))
                 .OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -419,8 +422,15 @@ public partial class CampaignParticipantDrawer(
             {
                 _statusMessage = null;
                 _mutationError = null;
+                ResetMutationUiState();
+                ResetEvidenceOwner();
             }
-            ResetMutationUiState();
+            else
+            {
+                ++_mutationSequence;
+                _isMutating = false;
+                _mutatingKind = null;
+            }
             await LoadDetailAsync();
         }
     }
@@ -439,10 +449,12 @@ public partial class CampaignParticipantDrawer(
             await module.InvokeVoidAsync("open", _dialog, _closeButton);
             _focusTrapInstalled = true;
             _lastRenderedParticipantId = ParticipantId;
+            await RestoreDrawerOperationAsync(module);
             return;
         }
 
-        if (_focusErrorSummary && _detail is not null && _mutationError is not null)
+        await RestoreDrawerOperationAsync(module);
+        if (_focusErrorSummary && _mutationError is not null)
         {
             _focusErrorSummary = false;
             await _errorSummary.FocusAsync();
@@ -486,6 +498,10 @@ public partial class CampaignParticipantDrawer(
         }
 
         await LoadTagChoicesIfNeededAsync();
+        if (PersistedNotes is { } notesPage) { _notes = [.. notesPage.Items]; _notesNext = notesPage.Next; }
+        else { await LoadNotesAsync(false); }
+        if (PersistedApplications is { } applicationsPage) { _applications = [.. applicationsPage.Items]; _applicationsNext = applicationsPage.Next; }
+        else { await LoadApplicationsAsync(false); }
     }
 
     /// <summary>
@@ -549,6 +565,8 @@ public partial class CampaignParticipantDrawer(
                 return;
             }
             await LoadTagChoicesIfNeededAsync();
+            await LoadNotesAsync(false);
+            await LoadApplicationsAsync(false);
         }
     }
 
@@ -642,7 +660,7 @@ public partial class CampaignParticipantDrawer(
     /// selected participant's roster row after the parent accepts navigation.
     /// </summary>
     /// <returns>A task that completes when the callback is delivered.</returns>
-    private Task CloseAsync() => OnClose.InvokeAsync();
+    private Task CloseAsync() => GuardDrawerMoveAsync(() => OnClose.InvokeAsync());
 
     /// <summary>
     /// Removes the focus trap when the component is disposed. Disposal also happens when browser
@@ -658,6 +676,7 @@ public partial class CampaignParticipantDrawer(
         ++_mutationSequence;
         ++_tagChoiceSequence;
         await base.DisposeAsyncCore();
+        _drawerNavigationReceiver?.Dispose();
         if (!_moduleTask.IsValueCreated)
         {
             return;
@@ -763,7 +782,7 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the mutation settles.</returns>
     private async Task RunMutationAsync(MutationKind kind, Func<MutationOwner, Task> serviceCall)
     {
-        if (_isMutating || IsReadOnly)
+        if (DrawerMutationBlocked || IsReadOnly)
         {
             return;
         }
@@ -778,14 +797,14 @@ public partial class CampaignParticipantDrawer(
         {
             await serviceCall(owner);
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JSException)
         {
             if (!OwnsMutation(owner))
             {
                 return;
             }
 
-            _mutationError = "Could not reach the server. Check your connection and retry.";
+            _mutationError = "The submission could not finish. If recovery storage failed, nothing was dispatched. Otherwise, recover the original operation before retrying.";
             FocusMutationError();
         }
         finally
@@ -883,6 +902,11 @@ public partial class CampaignParticipantDrawer(
     private void ResetMutationUiState()
     {
         ++_mutationSequence;
+        _storedOperation = null;
+        _drawerStorageReady = false;
+        _recoveryOwner = null;
+        _drawerLeaveAction = null;
+        _drawerAllowNavigation = false;
         _isMutating = false;
         _mutatingKind = null;
         _showAddNoteForm = false;
@@ -903,6 +927,7 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     private void ShowAddNoteForm()
     {
+        if (DrawerMutationBlocked) { return; }
         _showAddNoteForm = true;
         _addNoteContent = string.Empty;
         _addNoteErrors = [];
@@ -938,6 +963,7 @@ public partial class CampaignParticipantDrawer(
         var input = new AddEvaluationNoteInput
         {
             PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId,
+            OperationId = Guid.CreateVersion7(),
             Content = _addNoteContent
         };
         _addNoteErrors = InputValidator.Validate(input);
@@ -950,7 +976,7 @@ public partial class CampaignParticipantDrawer(
             MutationKind.AddNote,
             async lease =>
             {
-                var result = await noteService.AddAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => noteService.AddAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note added.",
@@ -971,6 +997,8 @@ public partial class CampaignParticipantDrawer(
     {
         _editingNoteId = note.NoteId;
         _editNoteContent = note.Content;
+        _editNoteOriginal = note.Content;
+        _editExpectedVersion = note.Version;
         _editNoteErrors = [];
         _showAddNoteForm = false;
         _addNoteContent = string.Empty;
@@ -1005,6 +1033,8 @@ public partial class CampaignParticipantDrawer(
         var input = new EditEvaluationNoteInput
         {
             NoteId = note.NoteId,
+            OperationId = Guid.CreateVersion7(),
+            ExpectedVersion = _editExpectedVersion,
             Content = _editNoteContent
         };
         _editNoteErrors = InputValidator.Validate(input);
@@ -1017,7 +1047,7 @@ public partial class CampaignParticipantDrawer(
             MutationKind.EditNote,
             async lease =>
             {
-                var result = await noteService.EditAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => noteService.EditAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note updated.",
@@ -1068,7 +1098,8 @@ public partial class CampaignParticipantDrawer(
             MutationKind.DeleteNote,
             async lease =>
             {
-                var result = await noteService.DeleteAsync(note.NoteId, ComponentCancellationToken);
+                var input = new DeleteEvaluationNoteInput { NoteId = note.NoteId, ExpectedVersion = note.Version, OperationId = Guid.CreateVersion7() };
+                var result = await CallStoredAsync(input, token => noteService.DeleteAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note deleted.",
@@ -1094,6 +1125,7 @@ public partial class CampaignParticipantDrawer(
         var input = new ApplyCampaignTagApplicationInput
         {
             PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId,
+            OperationId = Guid.CreateVersion7(),
             PlayerTagId = _selectedTagId.Value
         };
 
@@ -1101,10 +1133,10 @@ public partial class CampaignParticipantDrawer(
             MutationKind.ApplyTag,
             async lease =>
             {
-                var result = await tagApplicationService.ApplyAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => tagApplicationService.ApplyAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
-                    "Tag applied.",
+                    result.IsSuccess && result.Value.AlreadyApplied ? "Tag was already applied; its original author is unchanged." : "Tag applied.",
                     () => _selectedTagId = null);
             });
     }
@@ -1145,9 +1177,8 @@ public partial class CampaignParticipantDrawer(
             MutationKind.RemoveTag,
             async lease =>
             {
-                var result = await tagApplicationService.RemoveAsync(
-                    new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = tag.CampaignTagApplicationId },
-                    ComponentCancellationToken);
+                var input = new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = tag.CampaignTagApplicationId, OperationId = Guid.CreateVersion7() };
+                var result = await CallStoredAsync(input, token => tagApplicationService.RemoveAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Tag removed.",
