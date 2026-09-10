@@ -1,5 +1,4 @@
-﻿using System.Data.Common;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 
 namespace Nova.Features.Campaigns;
@@ -15,17 +14,24 @@ internal sealed partial class EvaluationReceiptCleanupService(IServiceScopeFacto
         using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<NovaAdminDbContext>>();
-                await using var db = await factory.CreateDbContextAsync(stoppingToken);
-                await PruneAsync(db, DateTimeOffset.UtcNow, stoppingToken);
-            }
-            catch (DbException exception)
-            {
-                LogCleanupFailed(exception);
-            }
+            await RunPassAsync(stoppingToken);
+        }
+    }
+
+    /// <summary>Isolates retention failures for retry while allowing shutdown cancellation to propagate.</summary>
+    internal async Task RunPassAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            stoppingToken.ThrowIfCancellationRequested();
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<NovaAdminDbContext>>();
+            await using var db = await factory.CreateDbContextAsync(stoppingToken);
+            await PruneAsync(db, DateTimeOffset.UtcNow, stoppingToken);
+        }
+        catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+        {
+            LogCleanupFailed(exception);
         }
     }
 

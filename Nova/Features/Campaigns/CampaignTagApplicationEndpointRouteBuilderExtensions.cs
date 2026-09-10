@@ -65,10 +65,10 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
     /// <summary>
     /// Applies one tag definition to one campaign participation.
     /// </summary>
-    /// <param name="input">The target participation and tag-definition identifiers.</param>
+    /// <param name="input">The target participation, tag-definition and replayable operation identifiers.</param>
     /// <param name="service">The campaign tag application service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
-    /// <returns>A 201 response containing the created application identifier, or ProblemDetails.</returns>
+    /// <returns>A 201 response containing the application identity, already-applied outcome and immutable receipt, or ProblemDetails.</returns>
     private static async Task<IResult> ApplyCampaignTagApplicationHandlerAsync(
         ApplyCampaignTagApplicationInput input,
         ICampaignTagApplicationService service,
@@ -82,9 +82,10 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
     /// Removes one campaign tag application.
     /// </summary>
     /// <param name="campaignTagApplicationId">The campaign tag application identifier to remove.</param>
+    /// <param name="input">The matching application identifier and original operation identity.</param>
     /// <param name="service">The campaign tag application service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
-    /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
+    /// <returns>A 200 response containing the immutable mutation receipt, or ProblemDetails on failure.</returns>
     private static async Task<IResult> RemoveCampaignTagApplicationHandlerAsync(
         long campaignTagApplicationId,
         [FromBody] RemoveCampaignTagApplicationInput input,

@@ -101,6 +101,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         using var db = _harness.CreateTenantContext();
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = ClubBAssignmentId,
             PlayerTagId = ClubBTagId,
@@ -361,6 +362,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubAApplicationId,
                 PlayerCampaignAssignmentId = ClubAAssignmentId,
@@ -370,6 +372,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubBApplicationId,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
@@ -379,6 +382,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubADraftApplicationId,
                 PlayerCampaignAssignmentId = ClubADraftAssignmentId,

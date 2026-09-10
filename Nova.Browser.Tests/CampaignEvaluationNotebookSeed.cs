@@ -114,11 +114,11 @@ internal static class CampaignEvaluationNotebookSeed
             tags[index].Name = index == 0 ? "Strong" : "Good awareness";
             tags[index].NormalizedName = CollaborativeTagPolicy.NormalizeKey(tags[index].Name);
             tags[index].Color = CollaborativeTagPolicy.DefaultColor;
-            db.CampaignTagApplications.Add(new() { ClubId = seed.ClubId, CreatedById = seed.EvaluatorUserId, PlayerCampaignAssignmentId = participantId, PlayerTagId = tags[index].PlayerTagId, CreationOperationId = Guid.NewGuid() });
+            db.CampaignTagApplications.Add(new() { ClubId = seed.ClubId, CreatedById = seed.EvaluatorUserId, AuthorDisplayName = "Alex Morgan", PlayerCampaignAssignmentId = participantId, PlayerTagId = tags[index].PlayerTagId, CreationOperationId = Guid.NewGuid() });
         }
-        var alex = Note(seed.ClubId, participantId, seed.EvaluatorUserId, "Keeps looking for passing options.");
-        var sam = Note(seed.ClubId, participantId, samId, "Confident receiving under pressure.");
-        var older = Note(seed.ClubId, participantId, seed.EvaluatorUserId, "Earlier observation: checks space before receiving.");
+        var alex = Note(seed.ClubId, participantId, seed.EvaluatorUserId, "Alex Morgan", "Keeps looking for passing options.");
+        var sam = Note(seed.ClubId, participantId, samId, "Sam Chen", "Confident receiving under pressure.");
+        var older = Note(seed.ClubId, participantId, seed.EvaluatorUserId, "Alex Morgan", "Earlier observation: checks space before receiving.");
         db.Notes.AddRange(alex, sam, older);
         await db.SaveChangesAsync(token);
         // Audit stamping runs at insert; historical fixture timestamps are set afterward as real stored data.
@@ -131,11 +131,12 @@ internal static class CampaignEvaluationNotebookSeed
         await db.Notes.Where(note => note.NoteId == older.NoteId).ExecuteUpdateAsync(set => set.SetProperty(note => note.CreatedAt, oldestTime), token);
     }
 
-    private static NoteEntity Note(long clubId, long participantId, long authorId, string content) => new()
+    private static NoteEntity Note(long clubId, long participantId, long authorId, string authorDisplayName, string content) => new()
     {
         ClubId = clubId,
         PlayerCampaignAssignmentId = participantId,
         CreatedById = authorId,
+        AuthorDisplayName = authorDisplayName,
         Content = content,
         CreationOperationId = Guid.NewGuid(),
         Version = Guid.NewGuid(),

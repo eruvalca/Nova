@@ -9,6 +9,21 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignQueryContractTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, "/api/campaigns/42/placements?page=1&pageSize=50")]
+    [InlineData(-1L, "/api/campaigns/42/placements?page=1&pageSize=50")]
+    [InlineData(0L, "/api/campaigns/42/placements?page=1&pageSize=50")]
+    [InlineData(1L, "/api/campaigns/42/placements?participantId=1&page=1&pageSize=50")]
+    [InlineData(long.MaxValue, "/api/campaigns/42/placements?participantId=9223372036854775807&page=1&pageSize=50")]
+    public void PlacementRosterUrlIncludesOnlyPositiveParticipantIds(long? participantId, string expected)
+    {
+        CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+        {
+            CampaignId = 42,
+            ParticipantId = participantId
+        }).ShouldBe(expected);
+    }
+
     /// <summary>Verifies campaign pages are one-based, including the largest supported integer.</summary>
     /// <param name="page">The requested page.</param>
     /// <param name="isValid">Whether the page satisfies the contract.</param>

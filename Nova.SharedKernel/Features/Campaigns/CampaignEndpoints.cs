@@ -530,9 +530,9 @@ public static class CampaignEndpoints
     {
         ArgumentNullException.ThrowIfNull(input);
         var querySegments = new List<string>();
-        if (input.ParticipantId is { } participantId)
+        if (input.ParticipantId is > 0)
         {
-            querySegments.Add($"participantId={participantId}");
+            querySegments.Add($"participantId={input.ParticipantId.Value}");
         }
 
         if (input.GraduationYear is > 0)

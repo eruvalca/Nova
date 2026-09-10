@@ -19,7 +19,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// stale-response discard, parameter-change reloads, close/Escape callbacks, focus-trap management,
 /// and persisted-state restoration.
 /// </summary>
-public sealed class CampaignParticipantDrawerTests : BunitContext
+public sealed partial class CampaignParticipantDrawerTests : BunitContext
 {
     private readonly Dictionary<long, (IReadOnlyList<CampaignParticipantNoteDto> Notes, IReadOnlyList<CampaignParticipantTagApplicationDto> Applications)> _evidence = [];
 

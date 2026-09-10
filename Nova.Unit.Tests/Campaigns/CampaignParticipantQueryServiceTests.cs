@@ -111,6 +111,7 @@ public sealed partial class CampaignParticipantQueryServiceTests : IDisposable
 
             admin.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "A Member",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                 PlayerTagId = _tagAId,
@@ -255,8 +256,8 @@ public sealed partial class CampaignParticipantQueryServiceTests : IDisposable
         {
             var sameInstant = DateTimeOffset.UtcNow;
             admin.Notes.AddRange(
-                new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
-                new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+                new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var otherTag = (await admin.PlayerTags.SingleAsync(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag", TestContext.Current.CancellationToken));
@@ -265,8 +266,8 @@ public sealed partial class CampaignParticipantQueryServiceTests : IDisposable
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             admin.CampaignTagApplications.AddRange(
-                new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
-                new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+                new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -698,11 +699,11 @@ public sealed partial class CampaignParticipantQueryServiceTests : IDisposable
         _tagAId = tagA.PlayerTagId;
 
         admin.CampaignTagApplications.AddRange(
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId },
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentB.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId });
+            new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentB.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId });
 
         admin.Notes.AddRange(
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = ClubAId, Content = "Seed note", CreatedById = ClubAMemberId });
+            new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = ClubAId, Content = "Seed note", CreatedById = ClubAMemberId });
 
         admin.SaveChanges();
     }

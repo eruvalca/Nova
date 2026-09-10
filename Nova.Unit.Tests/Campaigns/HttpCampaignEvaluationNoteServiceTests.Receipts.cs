@@ -9,6 +9,22 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class HttpCampaignEvaluationNoteServiceTests
 {
+    [Fact]
+    public async Task EditRejectsReceiptThatRetainsExpectedVersionAsync()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, _version, Receipt())) };
+        using var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignEvaluationNoteService(http).EditAsync(ValidEditInput(), TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        handler.LastRequestBody.ShouldNotBeNull();
+        handler.LastRequestBody.ShouldContain(_version.ToString());
+        handler.LastRequestBody.ShouldContain(_operationId.ToString());
+    }
+
     [Theory]
     [InlineData("null-receipt")]
     [InlineData("wrong-operation")]

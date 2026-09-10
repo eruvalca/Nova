@@ -72,9 +72,9 @@ public sealed partial class EvaluationNoteRetryTests
         await using var db = fixture.CreateAdminContext();
         for (var index = 0; index < 25; index++)
         {
-            db.Notes.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = $"Observation {index}", PlayerCampaignAssignmentId = assignmentId, ClubId = clubId, CreatedById = actor });
+            db.Notes.Add(new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = $"Observation {index}", PlayerCampaignAssignmentId = assignmentId, ClubId = clubId, CreatedById = actor });
             var tag = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = $"Trait {index}", NormalizedName = $"TRAIT {index}", Color = "#006B6B", ClubId = clubId, CreatedById = actor };
-            db.CampaignTagApplications.Add(new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerTag = tag, PlayerTagId = 0, PlayerCampaignAssignmentId = assignmentId, ClubId = clubId, CreatedById = actor });
+            db.CampaignTagApplications.Add(new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerTag = tag, PlayerTagId = 0, PlayerCampaignAssignmentId = assignmentId, ClubId = clubId, CreatedById = actor });
         }
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }

@@ -192,6 +192,14 @@ internal sealed class EvaluationMutationExecutor(IDbContextFactory<NovaDbContext
             : ServiceProblem.Conflict("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
+    /// <summary>Captures the authorized actor's name inside the creation transaction under membership locks.</summary>
+    public static async Task<string> GetActorDisplayNameAsync(NovaDbContext db, long actor, CancellationToken token)
+    {
+        var name = await db.Users.Where(user => user.Id == actor)
+            .Select(user => new { user.FirstName, user.LastName }).SingleAsync(token);
+        return $"{name.FirstName} {name.LastName}".Trim();
+    }
+
     /// <summary>Reads the current administrator role under the already-held membership locks.</summary>
     public static Task<bool> IsAdministratorAsync(NovaDbContext db, long actor, CancellationToken token)
     {

@@ -36,6 +36,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         await using var db = fixture.CreateTenantContext();
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = seed.ClubAAssignmentId,
             PlayerTagId = seed.ClubATagId,
@@ -66,6 +67,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         // index cannot fire first.
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = seed.ClubAAssignmentId,
             PlayerTagId = seed.ClubBTagId,
@@ -219,6 +221,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
             db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId,
                 PlayerTagId = tagA.PlayerTagId,

@@ -233,6 +233,7 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
 
         admin.Notes.Add(new NoteEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = histAssignment.PlayerCampaignAssignmentId,
             Content = "Closed campaign note.",

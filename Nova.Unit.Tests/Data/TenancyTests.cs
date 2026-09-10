@@ -281,10 +281,10 @@ public sealed class TenancyTests : IDisposable
 
         // Active and Draft evaluation rows exercise role-shaped visibility on the dependent graph.
         context.Notes.AddRange(
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId },
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Draft Note A", PlayerCampaignAssignmentId = _clubADraftAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Draft Note B", PlayerCampaignAssignmentId = _clubBDraftAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId },
+            new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = "Draft Note A", PlayerCampaignAssignmentId = _clubADraftAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = "Draft Note B", PlayerCampaignAssignmentId = _clubBDraftAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
 
         var tagA = new PlayerTagEntity
         {
@@ -308,10 +308,10 @@ public sealed class TenancyTests : IDisposable
         context.SaveChanges();
 
         context.CampaignTagApplications.AddRange(
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubAAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubADraftAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId },
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBDraftAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubAAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubADraftAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId },
+            new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBDraftAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId });
         context.SaveChanges();
     }
 
@@ -749,6 +749,7 @@ public sealed class TenancyTests : IDisposable
 
         context.Notes.Add(new NoteEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             Content = "Cross-tenant attempt.",
             PlayerCampaignAssignmentId = _clubBAssignmentId,

@@ -479,6 +479,8 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when restoration is finished.</returns>
     private async Task RestorePersistedStateAsync()
     {
+        var owner = ContextOwner;
+        var request = _detailRequestSequence;
         _detail = PersistedDetail;
         _detailError = PersistedDetailError;
         _loadedParticipantId = ParticipantId;
@@ -498,8 +500,12 @@ public partial class CampaignParticipantDrawer(
         }
 
         await LoadTagChoicesIfNeededAsync();
+        if (request != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested) { return; }
         if (PersistedNotes is { } notesPage) { _notes = [.. notesPage.Items]; _notesNext = notesPage.Next; }
         else { await LoadNotesAsync(false); }
+        if (request != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested) { return; }
         if (PersistedApplications is { } applicationsPage) { _applications = [.. applicationsPage.Items]; _applicationsNext = applicationsPage.Next; }
         else { await LoadApplicationsAsync(false); }
     }
@@ -519,19 +525,52 @@ public partial class CampaignParticipantDrawer(
         _loadedParticipantOwner = ParticipantOwner;
 
         var requestId = ++_detailRequestSequence;
+        var owner = ContextOwner;
         var input = new GetCampaignParticipantDetailInput
         {
             CampaignId = CampaignId,
             PlayerCampaignAssignmentId = ParticipantId
         };
 
-        var result = await participantQueryService.GetParticipantDetailAsync(input, ComponentCancellationToken);
+        ServiceResult<CampaignParticipantDetailDto> result;
+        try
+        {
+            result = await participantQueryService.GetParticipantDetailAsync(input, ComponentCancellationToken);
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
+        {
+            result = ServiceProblem.ServerError("Participant details are unavailable. Please retry.");
+        }
 
-        if (requestId != _detailRequestSequence || ComponentCancellationToken.IsCancellationRequested)
+        if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
 
+        ApplyDetailResult(result);
+
+        if (_detailState == DetailLoadState.Loaded)
+        {
+            if (AuthorizedStatus is not null && _detail?.CampaignStatus != AuthorizedStatus)
+            {
+                _enteredReadOnlyFromConflict = true;
+                await OnLifecycleChanged.InvokeAsync();
+                return;
+            }
+            await LoadTagChoicesIfNeededAsync();
+            if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested) { return; }
+            await LoadNotesAsync(false);
+            if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested) { return; }
+            await LoadApplicationsAsync(false);
+        }
+    }
+
+    /// <summary>Applies a current owner's authoritative identity result and persists its startup state.</summary>
+    private void ApplyDetailResult(ServiceResult<CampaignParticipantDetailDto> result)
+    {
         result.Switch(
             detail =>
             {
@@ -555,19 +594,6 @@ public partial class CampaignParticipantDrawer(
         PersistedOwner = _loadedOwner;
         PersistedDetailError = _detailError;
         Initialized = true;
-
-        if (_detailState == DetailLoadState.Loaded)
-        {
-            if (AuthorizedStatus is not null && _detail?.CampaignStatus != AuthorizedStatus)
-            {
-                _enteredReadOnlyFromConflict = true;
-                await OnLifecycleChanged.InvokeAsync();
-                return;
-            }
-            await LoadTagChoicesIfNeededAsync();
-            await LoadNotesAsync(false);
-            await LoadApplicationsAsync(false);
-        }
     }
 
     /// <summary>
@@ -631,22 +657,32 @@ public partial class CampaignParticipantDrawer(
         var owner = ContextOwner;
         _tagChoicesError = null;
 
-        var result = await tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
-
-        if (request != _tagChoiceSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
-            || ComponentCancellationToken.IsCancellationRequested)
+        try
         {
-            return;
-        }
+            var result = await tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
 
-        result.Switch(
-            choices =>
+            if (request != _tagChoiceSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested)
             {
-                _tagChoices = choices;
-                _tagChoicesLoaded = true;
-                PersistedTagChoices = _tagChoices;
-            },
-            problem => _tagChoicesError = FirstNonBlank(problem.Detail, "Couldn't load tag choices."));
+                return;
+            }
+
+            result.Switch(
+                choices =>
+                {
+                    _tagChoices = choices;
+                    _tagChoicesLoaded = true;
+                    PersistedTagChoices = _tagChoices;
+                },
+                problem => _tagChoicesError = FirstNonBlank(problem.Detail, "Couldn't load tag choices."));
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
+        {
+            if (request == _tagChoiceSequence && string.Equals(owner, ContextOwner, StringComparison.Ordinal))
+            {
+                _tagChoicesError = "Couldn't load tag choices.";
+            }
+        }
     }
 
     /// <summary>

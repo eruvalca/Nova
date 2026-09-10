@@ -540,6 +540,7 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ExistingApplicationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -549,6 +550,7 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClosedCampaignApplicationId,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
@@ -558,6 +560,7 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ArchivedTagApplicationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,

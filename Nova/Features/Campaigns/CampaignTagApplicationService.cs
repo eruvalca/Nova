@@ -55,6 +55,7 @@ internal sealed partial class CampaignTagApplicationService(
                 application = new CampaignTagApplicationEntity
                 {
                     PlayerCampaignAssignmentId = assignmentId,
+                    AuthorDisplayName = await EvaluationMutationExecutor.GetActorDisplayNameAsync(db, actor, token),
                     PlayerTagId = tag.PlayerTagId,
                     ClubId = club,
                     CreatedById = actor,

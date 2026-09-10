@@ -348,6 +348,7 @@ public sealed class PlayerServiceTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = bobbyAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = keeperTag.PlayerTagId,
@@ -356,6 +357,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = caseyAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = defenderTag.PlayerTagId,

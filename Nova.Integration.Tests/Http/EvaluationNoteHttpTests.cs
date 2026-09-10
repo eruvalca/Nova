@@ -965,6 +965,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 #pragma warning restore CA1862
             var note = new NoteEntity
             {
+                AuthorDisplayName = "Test User",
                 CreationOperationId = Guid.NewGuid(),
                 Content = content,
                 PlayerCampaignAssignmentId = assignmentId,

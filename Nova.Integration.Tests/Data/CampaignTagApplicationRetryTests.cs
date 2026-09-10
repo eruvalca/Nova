@@ -424,6 +424,7 @@ public sealed partial class CampaignTagApplicationRetryTests(NovaAppHostFixture 
 
             var application = new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                 PlayerTagId = playerTag.PlayerTagId,
@@ -531,6 +532,7 @@ public sealed partial class CampaignTagApplicationRetryTests(NovaAppHostFixture 
             {
                 var application = new CampaignTagApplicationEntity
                 {
+                    AuthorDisplayName = "Seeded evaluator",
                     CreationOperationId = Guid.NewGuid(),
                     PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                     PlayerTagId = playerTag.PlayerTagId,

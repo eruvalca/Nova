@@ -333,6 +333,7 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         var assignments = await db.PlayerCampaignAssignments.Where(a => a.CampaignId == campaignId).ToListAsync(token);
         db.CampaignTagApplications.AddRange(assignments.Select(row => new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId,
             PlayerTagId = tag.PlayerTagId,
             ClubId = clubId,

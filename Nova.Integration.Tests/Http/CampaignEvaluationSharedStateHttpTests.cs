@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 

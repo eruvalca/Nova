@@ -515,8 +515,8 @@ new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignPartici
             context.Add(assignment);
             await context.SaveChangesAsync(cancellationToken);
 
-            context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
-            context.Notes.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
+            context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
+            context.Notes.Add(new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
             await context.SaveChangesAsync(cancellationToken);
 
             return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);

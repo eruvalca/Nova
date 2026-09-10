@@ -211,6 +211,7 @@ public sealed partial class EffectivePlacementQueryServiceTests
         db.SaveChanges();
         db.CampaignTagApplications.AddRange(assignments.Select(assignment => new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             ClubId = ClubId,
             CreatedById = MemberId,

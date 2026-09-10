@@ -805,6 +805,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 #pragma warning restore CA1862
             var application = new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignmentId,
                 PlayerTagId = tagId,

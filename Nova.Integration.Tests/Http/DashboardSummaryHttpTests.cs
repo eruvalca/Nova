@@ -282,7 +282,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             var assignmentA = new PlayerCampaignAssignmentEntity { PlayerId = playerA.PlayerId, CampaignId = campaignA.CampaignId, ClubId = clubA.ClubId, CreatedById = adminAUserId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = teamA.TeamId };
             context.Add(assignmentA);
             await context.SaveChangesAsync(cancellationToken);
-            context.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
+            context.Add(new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
             context.Add(new ActivityEventEntity
             {
                 ClubId = clubA.ClubId,

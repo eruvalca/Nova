@@ -16,7 +16,7 @@ using Shouldly;
 namespace Nova.Unit.Tests.Campaigns;
 
 /// <summary>Evaluation lookup, independent evidence regions, lifecycle and receipt recovery transitions.</summary>
-public sealed class CampaignEvaluationPanelTests : BunitContext
+public sealed partial class CampaignEvaluationPanelTests : BunitContext
 {
     private readonly ICampaignParticipantQueryService _participants = Substitute.For<ICampaignParticipantQueryService>();
     private readonly IEffectivePlacementQueryService _placements = Substitute.For<IEffectivePlacementQueryService>();

@@ -17,7 +17,7 @@ internal sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICamp
     public Task<ServiceResult<EvaluationNoteMutationSuccess>> EditAsync(EditEvaluationNoteInput input, CancellationToken cancellationToken = default) =>
         SendAsync(HttpMethod.Put, CampaignEndpoints.EditEvaluationNoteUrl(input.NoteId),
             new PutEvaluationNoteInput { Content = input.Content, ExpectedVersion = input.ExpectedVersion, OperationId = input.OperationId },
-            input.OperationId, result => result.NoteId == input.NoteId, cancellationToken);
+            input.OperationId, result => result.NoteId == input.NoteId && result.Version != input.ExpectedVersion, cancellationToken);
 
     /// <inheritdoc />
     public Task<ServiceResult<EvaluationNoteMutationSuccess>> DeleteAsync(DeleteEvaluationNoteInput input, CancellationToken cancellationToken = default) =>

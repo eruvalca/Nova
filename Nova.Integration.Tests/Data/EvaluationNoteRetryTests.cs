@@ -628,6 +628,7 @@ public sealed partial class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
             {
                 var note = new NoteEntity
                 {
+                    AuthorDisplayName = "Seeded evaluator",
                     CreationOperationId = Guid.NewGuid(),
                     Content = $"Original note content {suffix}",
                     PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
@@ -654,6 +655,7 @@ public sealed partial class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         Guid creationOperationId)
         => new()
         {
+            AuthorDisplayName = "Seeded evaluator",
             Content = content,
             CreationOperationId = creationOperationId,
             PlayerCampaignAssignmentId = assignmentId,

@@ -26,6 +26,9 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public required string Content { get; set; }
 
+    /// <summary>Gets or sets the author's display name captured at creation, independent of later account changes.</summary>
+    public required string AuthorDisplayName { get; set; }
+
     /// <summary>
     /// Gets or sets the campaign participation this note belongs to.
     /// Player and campaign context is derived from the participation.

@@ -31,6 +31,7 @@ internal sealed partial class EvaluationNoteService(
             var note = new NoteEntity
             {
                 Content = input.Content,
+                AuthorDisplayName = await EvaluationMutationExecutor.GetActorDisplayNameAsync(db, actor, cancellationToken),
                 CreationOperationId = input.OperationId,
                 PlayerCampaignAssignmentId = input.PlayerCampaignAssignmentId,
                 ClubId = club,

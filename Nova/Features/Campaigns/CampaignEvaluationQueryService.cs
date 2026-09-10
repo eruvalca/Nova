@@ -44,9 +44,8 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
                 .OrderByDescending(note => note.CreatedAt).ThenByDescending(note => note.NoteId).Take(21).ToList();
         }
 
-        var names = await GetNamesAsync(db, rows.Select(note => note.CreatedById), cancellationToken);
         var items = rows.Take(20).Select(note => new CampaignParticipantNoteDto(note.NoteId, note.Content,
-            names.GetValueOrDefault(note.CreatedById, "Unknown user"), note.CreatedAt, note.ModifiedAt,
+            note.AuthorDisplayName, note.CreatedAt, note.ModifiedAt,
             access.Value.Writable && note.CreatedById == access.Value.Actor,
             access.Value.Writable && note.CreatedById == access.Value.Actor, note.Version)).ToList();
         return new EvaluationHistoryPage<CampaignParticipantNoteDto>(items,
@@ -82,10 +81,9 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
                 .OrderByDescending(application => application.CreatedAt).ThenByDescending(application => application.CampaignTagApplicationId).Take(21).ToList();
         }
 
-        var names = await GetNamesAsync(db, rows.Select(application => application.CreatedById), cancellationToken);
         var items = rows.Take(20).Select(application => new CampaignParticipantTagApplicationDto(application.CampaignTagApplicationId,
             application.PlayerTagId, application.PlayerTag.Name, application.PlayerTag.Color,
-            application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived, names.GetValueOrDefault(application.CreatedById, "Unknown user"),
+            application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived, application.AuthorDisplayName,
             application.CreatedAt, access.Value.Writable && application.PlayerTag.LifecycleStatus == LifecycleStatus.Active
                 && (application.CreatedById == access.Value.Actor || access.Value.IsAdministrator))).ToList();
         return new EvaluationHistoryPage<CampaignParticipantTagApplicationDto>(items,
@@ -145,14 +143,6 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
                                    where userRole.UserId == actor && role.NormalizedName == normalizedRole
                                    select userRole.UserId).AnyAsync(token);
         return new EvidenceAccess(actor, participant.Status == CampaignStatus.Active && participant.LifecycleStatus == LifecycleStatus.Active, administrator);
-    }
-
-    /// <summary>Resolves only the actors referenced by this bounded page.</summary>
-    private static async Task<Dictionary<long, string>> GetNamesAsync(NovaReadDbContext db, IEnumerable<long> actorIds, CancellationToken token)
-    {
-        var ids = actorIds.Distinct().ToArray();
-        var users = await db.Users.Where(user => ids.Contains(user.Id)).Select(user => new { user.Id, user.FirstName, user.LastName }).ToListAsync(token);
-        return users.ToDictionary(user => user.Id, user => $"{user.FirstName} {user.LastName}".Trim());
     }
 
     /// <summary>Applies the same exclusive cursor to the SQLite harness's in-memory ordering.</summary>

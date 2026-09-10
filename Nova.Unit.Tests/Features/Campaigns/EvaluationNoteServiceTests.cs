@@ -556,6 +556,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
         // Seed one note authored by ClubAMember1Id for edit/delete tests.
         var existingNote = new NoteEntity
         {
+            AuthorDisplayName = "Alice A",
             CreationOperationId = Guid.NewGuid(),
             Content = "Initial note.",
             PlayerCampaignAssignmentId = _assignmentId,
@@ -580,6 +581,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
         var note = new NoteEntity
         {
+            AuthorDisplayName = "Alice A",
             CreationOperationId = Guid.NewGuid(),
             Content = "Seeded note.",
             PlayerCampaignAssignmentId = assignmentId,

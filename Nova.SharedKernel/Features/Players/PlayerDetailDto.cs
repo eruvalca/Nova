@@ -83,7 +83,7 @@ public sealed record PlayerTeamSummaryDto(
 /// <param name="NoteId">The note identifier.</param>
 /// <param name="Content">The note text.</param>
 /// <param name="AuthorUserId">The note author identifier.</param>
-/// <param name="AuthorDisplayName">The note author display name, or fallback text when unavailable.</param>
+/// <param name="AuthorDisplayName">The author's display name captured when the note was created.</param>
 /// <param name="CreatedAt">The note creation timestamp.</param>
 public sealed record PlayerEvaluationNoteDto(
     long NoteId,
@@ -101,7 +101,7 @@ public sealed record PlayerEvaluationNoteDto(
 /// <param name="TagColor">The tag-definition color token.</param>
 /// <param name="IsTagArchived"><see langword="true"/> when the referenced tag definition is archived.</param>
 /// <param name="ApplyingUserId">The applying user identifier.</param>
-/// <param name="ApplyingUserDisplayName">The applying user display name, or fallback text when unavailable.</param>
+/// <param name="ApplyingUserDisplayName">The original actor's display name captured when the trait was applied.</param>
 /// <param name="AppliedAt">The application timestamp.</param>
 public sealed record PlayerTagApplicationDto(
     long CampaignTagApplicationId,

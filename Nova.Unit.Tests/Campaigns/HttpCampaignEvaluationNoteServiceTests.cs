@@ -232,7 +232,8 @@ public sealed partial class HttpCampaignEvaluationNoteServiceTests
     [Fact]
     public async Task EditAsyncPutsToSharedRouteAndReturnsSuccessAsync()
     {
-        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, _version, Receipt())) };
+        var updatedVersion = Guid.NewGuid();
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new EvaluationNoteMutationSuccess(7, updatedVersion, Receipt())) };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
@@ -241,6 +242,7 @@ public sealed partial class HttpCampaignEvaluationNoteServiceTests
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
+        result.Value.Version.ShouldBe(updatedVersion);
         handler.LastRequest.ShouldNotBeNull();
         handler.LastRequest.Method.ShouldBe(HttpMethod.Put);
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.EditEvaluationNoteUrl(7));

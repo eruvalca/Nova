@@ -61,7 +61,7 @@ internal sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
             // by retention, but neither tenant nor administrative contexts may rewrite them.
             if (entry.State == EntityState.Modified && entry.Entity is PlacementMutationReceiptEntity or EvaluationMutationReceiptEntity)
             {
-                throw new InvalidOperationException("Placement mutation receipts cannot be modified.");
+                throw new InvalidOperationException("Mutation receipts cannot be modified.");
             }
 
             if (enforceTenant && entry.Entity is ITenantOwnedEntity tenantOwned)

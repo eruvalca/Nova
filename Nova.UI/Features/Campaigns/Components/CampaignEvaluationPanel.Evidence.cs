@@ -58,7 +58,7 @@ public partial class CampaignEvaluationPanel
                 _notesError = null;
             }, problem => _notesError = problem.Detail ?? "Shared notes could not be loaded.");
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
         {
             if (Owns(owner) && sequence == _notesSequence)
             {
@@ -100,7 +100,7 @@ public partial class CampaignEvaluationPanel
                 _applicationsError = null;
             }, problem => _applicationsError = problem.Detail ?? "Applied traits could not be loaded.");
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
         {
             if (Owns(owner) && sequence == _applicationsSequence)
             {
@@ -136,7 +136,7 @@ public partial class CampaignEvaluationPanel
 
             result.Switch(value => { _choices = value; PersistedChoices = value; _choicesError = null; }, problem => _choicesError = problem.Detail ?? "Trait choices could not be loaded.");
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
         {
             if (Owns(owner) && sequence == _choicesSequence)
             {

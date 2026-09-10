@@ -5,7 +5,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 
 /// <summary>
 /// The HTTP PUT body for editing an existing evaluation note. The note identifier travels in the
-/// route so the body carries only the updated content.
+/// route; the body carries the expected version, operation identity, and updated content.
 /// </summary>
 public sealed record PutEvaluationNoteInput : EvaluationOperationInput
 {

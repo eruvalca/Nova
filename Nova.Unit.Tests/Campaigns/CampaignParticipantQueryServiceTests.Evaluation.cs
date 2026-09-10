@@ -24,7 +24,9 @@ public sealed partial class CampaignParticipantQueryServiceTests
             db.Users.Add(new NovaUserEntity { Id = AuthorId, ClubId = ClubAId, FirstName = "Original", LastName = "Author" });
             db.Roles.Add(new Microsoft.AspNetCore.Identity.IdentityRole<long> { Id = 10, Name = Nova.SharedKernel.Security.Roles.ClubAdmin, NormalizedName = Nova.SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant() });
             db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = ClubAMemberId, RoleId = 10 });
-            (await db.Notes.SingleAsync(note => note.PlayerCampaignAssignmentId == _assignmentAId, TestContext.Current.CancellationToken)).CreatedById = AuthorId;
+            var seededNote = await db.Notes.SingleAsync(note => note.PlayerCampaignAssignmentId == _assignmentAId, TestContext.Current.CancellationToken);
+            seededNote.CreatedById = AuthorId;
+            seededNote.AuthorDisplayName = "Original Author";
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var result = await EvaluationQuery().GetNotesAsync(HistoryInput(), TestContext.Current.CancellationToken);
@@ -45,7 +47,7 @@ public sealed partial class CampaignParticipantQueryServiceTests
             for (var index = 0; index < 25; index++)
             {
                 var tag = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = $"Trait {index}", NormalizedName = $"TRAIT {index}", Color = "#006B6B", ClubId = ClubAId, CreatedById = ClubAMemberId };
-                db.CampaignTagApplications.Add(new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTag = tag, PlayerTagId = 0, ClubId = ClubAId, CreatedById = ClubAMemberId });
+                db.CampaignTagApplications.Add(new CampaignTagApplicationEntity { AuthorDisplayName = "Member A", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTag = tag, PlayerTagId = 0, ClubId = ClubAId, CreatedById = ClubAMemberId });
             }
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
@@ -78,7 +80,7 @@ public sealed partial class CampaignParticipantQueryServiceTests
             var sameTime = DateTimeOffset.UtcNow;
             for (var index = 0; index < 25; index++)
             {
-                db.Notes.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameTime, Content = $"Observation {index}" });
+                db.Notes.Add(new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameTime, Content = $"Observation {index}" });
             }
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
