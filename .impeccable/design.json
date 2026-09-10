@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-31T00:59:39.044Z",
+  "generatedAt": "2026-09-10T18:56:47.050Z",
   "title": "Design System: Nova",
   "extensions": {
     "colorMeta": {
@@ -95,6 +95,20 @@
     ]
   },
   "components": [
+    {
+      "name": "Shared Trait Disclosure",
+      "kind": "chip",
+      "description": "An applied shared trait with inline actor/time provenance. Extends the Shared Evidence Sheet in DESIGN.md using incumbent semantic colors and control radius; color does not encode trait meaning.",
+      "html": "<details class=\"ds-trait-details\"><summary class=\"ds-trait\">Good vision<svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"m6 9 6 6 6-6\" /></svg></summary><span class=\"ds-trait-attribution\">Example evaluator · Sep 10, 12:59 PM</span></details>",
+      "css": ".ds-trait-details { max-width: 100%; font-family: var(--bs-body-font-family); } .ds-trait { display: flex; align-items: center; gap: .35rem; min-height: 44px; cursor: pointer; background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-radius: .25rem; padding: .45rem .65rem; font-weight: 600; overflow-wrap: anywhere; } .ds-trait svg { flex-shrink: 0; } .ds-trait-details[open] > summary svg { transform: rotate(180deg); } .ds-trait-attribution { display: block; margin-top: .5rem; color: var(--bs-secondary-color); font-size: .875rem; } .ds-trait:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }"
+    },
+    {
+      "name": "Shared Observation Row",
+      "kind": "custom",
+      "description": "A flat, ruled author-attributed observation with bounded reading width. The issue #198 surface brief and finish record own composition and gate status: visual fixes 1–7 resolved; the user-funded correction round scores 73.43% against 72%. Fix 8 remains partial because regional comparison coordinates are misregistered against the preserved shell. The user decision between sheet-relative comparison and a revised reference is pending; the gate remains open without a waiver, override, or final visual approval. This record is not shipment or independent behavioral certification.",
+      "html": "<article class=\"ds-observation\"><header><strong>Example evaluator</strong><time datetime=\"2026-09-10T12:59:00\">Sep 10, 12:59 PM</time></header><p>Quick first step. Watch positioning when play switches.</p></article>",
+      "css": ".ds-observation { padding: .5rem 0; border-bottom: 1px solid var(--bs-border-color); overflow-wrap: anywhere; color: var(--bs-body-color); font-family: var(--bs-body-font-family); } .ds-observation header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; margin-bottom: .35rem; line-height: 1.25; } .ds-observation time { color: var(--bs-secondary-color); font-size: .875rem; font-variant-numeric: tabular-nums; } .ds-observation p { white-space: pre-wrap; margin: 0 0 .3rem; max-width: 70ch; line-height: 1.45; }"
+    },
     {
       "name": "Primary Button",
       "kind": "button",

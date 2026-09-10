@@ -1,0 +1,40 @@
+{
+  "title": "Evaluation beside the field",
+  "question": "Choose the working sheet for a verified player. Every option keeps the same finder, shared evidence, ownership, recovery, and Closed read-only behavior.",
+  "options": [
+    {
+      "id": "traits-first",
+      "label": "Traits-first field slip",
+      "kicker": "THE ROLL",
+      "thesis": "Verify the number, add a trait in one action, and capture a short note without changing players.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#95651A"],
+      "materials": ["Flat field sheet", "Precise hairlines", "System typography"],
+      "viewport": "A number-led identity header sits above applied traits, tag lookup, a compact composer, and Save note.",
+      "risk": "Frequent note writers reach past the trait lookup before entering text.",
+      "comp": ".impeccable/mocks/decision/issue-198-traits-first.png"
+    },
+    {
+      "id": "note-first",
+      "label": "Note-first capture",
+      "thesis": "A generous composer makes writing the main action, with traits and history close below.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#95651A"],
+      "materials": ["Flat field sheet", "Precise hairlines", "System typography"],
+      "viewport": "Compact identity and applied traits lead directly into a generous note field; tag lookup follows the save action.",
+      "risk": "Applying a new trait takes more vertical movement on a short phone screen.",
+      "comp": ".impeccable/mocks/decision/issue-198-note-first.png"
+    },
+    {
+      "id": "shared-notebook",
+      "label": "Shared evidence notebook",
+      "thesis": "Two recent observations give context immediately before an always-visible composer.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#95651A"],
+      "materials": ["Flat field sheet", "Precise hairlines", "System typography"],
+      "viewport": "Identity, applied traits and compact shared observations sit above the composer, with older history below.",
+      "risk": "Shared observations consume space before writing; their preview must remain tightly bounded.",
+      "comp": ".impeccable/mocks/decision/issue-198-shared-notebook.png"
+    }
+  ],
+  "reroll": true,
+  "steer": true,
+  "buildPath": {"value": "comp", "toggle": true}
+}

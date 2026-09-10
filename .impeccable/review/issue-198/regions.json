@@ -1,0 +1,312 @@
+{
+  "regions": [
+    {
+      "id": "campaign-back",
+      "kind": "control",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.014269406392694063,
+        "w": 0.36789297658862874,
+        "h": 0.0182648401826484
+      },
+      "note": "Semantic campaign back region in the approved evaluation sheet"
+    },
+    {
+      "id": "campaign-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.04680365296803653,
+        "w": 0.45707915273132665,
+        "h": 0.0319634703196347
+      },
+      "note": "Semantic campaign heading region in the approved evaluation sheet"
+    },
+    {
+      "id": "season",
+      "kind": "text",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.08561643835616438,
+        "w": 0.5239687848383501,
+        "h": 0.0228310502283105
+      },
+      "note": "Semantic season region in the approved evaluation sheet"
+    },
+    {
+      "id": "participant-count",
+      "kind": "text",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.11244292237442922,
+        "w": 0.2564102564102564,
+        "h": 0.01769406392694064
+      },
+      "note": "Semantic participant count region in the approved evaluation sheet"
+    },
+    {
+      "id": "menu",
+      "kind": "control",
+      "box": {
+        "x": 0.8249721293199554,
+        "y": 0.0776255707762557,
+        "w": 0.09253065774804906,
+        "h": 0.04737442922374429
+      },
+      "note": "Semantic menu region in the approved evaluation sheet"
+    },
+    {
+      "id": "route",
+      "kind": "chrome",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.1432648401826484,
+        "w": 0.8249721293199554,
+        "h": 0.06107305936073059
+      },
+      "note": "Semantic route region in the approved evaluation sheet"
+    },
+    {
+      "id": "readiness",
+      "kind": "control",
+      "box": {
+        "x": 0.08918617614269789,
+        "y": 0.23230593607305935,
+        "w": 0.6465997770345596,
+        "h": 0.0228310502283105
+      },
+      "note": "Semantic readiness region in the approved evaluation sheet"
+    },
+    {
+      "id": "back",
+      "kind": "control",
+      "box": {
+        "x": 0.0947603121516165,
+        "y": 0.2831050228310502,
+        "w": 0.2564102564102564,
+        "h": 0.0228310502283105
+      },
+      "note": "Semantic back region in the approved evaluation sheet"
+    },
+    {
+      "id": "identity",
+      "kind": "text",
+      "box": {
+        "x": 0.0947603121516165,
+        "y": 0.3242009132420091,
+        "w": 0.496098104793757,
+        "h": 0.0273972602739726
+      },
+      "note": "Semantic identity region in the approved evaluation sheet"
+    },
+    {
+      "id": "year",
+      "kind": "text",
+      "box": {
+        "x": 0.09587513935340022,
+        "y": 0.3595890410958904,
+        "w": 0.35674470457079155,
+        "h": 0.018835616438356163
+      },
+      "note": "Semantic year region in the approved evaluation sheet"
+    },
+    {
+      "id": "local-outcome",
+      "kind": "text",
+      "box": {
+        "x": 0.09587513935340022,
+        "y": 0.3818493150684932,
+        "w": 0.4013377926421405,
+        "h": 0.0182648401826484
+      },
+      "note": "Semantic local outcome region in the approved evaluation sheet"
+    },
+    {
+      "id": "season-team",
+      "kind": "text",
+      "box": {
+        "x": 0.09587513935340022,
+        "y": 0.4029680365296804,
+        "w": 0.4013377926421405,
+        "h": 0.0182648401826484
+      },
+      "note": "Semantic season team region in the approved evaluation sheet"
+    },
+    {
+      "id": "place",
+      "kind": "control",
+      "box": {
+        "x": 0.7201783723522854,
+        "y": 0.3584474885844749,
+        "w": 0.189520624303233,
+        "h": 0.023401826484018264
+      },
+      "note": "Semantic place region in the approved evaluation sheet"
+    },
+    {
+      "id": "traits-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.09587513935340022,
+        "y": 0.4440639269406393,
+        "w": 0.26755852842809363,
+        "h": 0.02054794520547945
+      },
+      "note": "Semantic traits heading region in the approved evaluation sheet"
+    },
+    {
+      "id": "traits",
+      "kind": "control",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.4714611872146119,
+        "w": 0.6767001114827201,
+        "h": 0.03824200913242009
+      },
+      "note": "Semantic traits region in the approved evaluation sheet"
+    },
+    {
+      "id": "observations-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.531392694063927,
+        "w": 0.36789297658862874,
+        "h": 0.02226027397260274
+      },
+      "note": "Semantic observations heading region in the approved evaluation sheet"
+    },
+    {
+      "id": "first-author",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.5582191780821918,
+        "w": 0.4013377926421405,
+        "h": 0.02054794520547945
+      },
+      "note": "Semantic first author region in the approved evaluation sheet"
+    },
+    {
+      "id": "first-time",
+      "kind": "text",
+      "box": {
+        "x": 0.7971014492753623,
+        "y": 0.5582191780821918,
+        "w": 0.11371237458193979,
+        "h": 0.02054794520547945
+      },
+      "note": "Semantic first time region in the approved evaluation sheet"
+    },
+    {
+      "id": "first-note",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.579337899543379,
+        "w": 0.5462653288740246,
+        "h": 0.018835616438356163
+      },
+      "note": "Semantic first note region in the approved evaluation sheet"
+    },
+    {
+      "id": "second-author",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.617579908675799,
+        "w": 0.4013377926421405,
+        "h": 0.021689497716894976
+      },
+      "note": "Semantic second author region in the approved evaluation sheet"
+    },
+    {
+      "id": "second-time",
+      "kind": "text",
+      "box": {
+        "x": 0.7971014492753623,
+        "y": 0.617579908675799,
+        "w": 0.11371237458193979,
+        "h": 0.021689497716894976
+      },
+      "note": "Semantic second time region in the approved evaluation sheet"
+    },
+    {
+      "id": "second-note",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.6404109589041096,
+        "w": 0.5797101449275363,
+        "h": 0.01997716894977169
+      },
+      "note": "Semantic second note region in the approved evaluation sheet"
+    },
+    {
+      "id": "composer-label",
+      "kind": "text",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.6820776255707762,
+        "w": 0.2787068004459309,
+        "h": 0.021118721461187213
+      },
+      "note": "Semantic composer label region in the approved evaluation sheet"
+    },
+    {
+      "id": "composer",
+      "kind": "control",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.704337899543379,
+        "w": 0.8127090301003345,
+        "h": 0.0702054794520548
+      },
+      "note": "Semantic composer region in the approved evaluation sheet"
+    },
+    {
+      "id": "save",
+      "kind": "control",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.7802511415525114,
+        "w": 0.8127090301003345,
+        "h": 0.04337899543378995
+      },
+      "note": "Semantic save region in the approved evaluation sheet"
+    },
+    {
+      "id": "another",
+      "kind": "control",
+      "box": {
+        "x": 0.09698996655518395,
+        "y": 0.8276255707762558,
+        "w": 0.8127090301003345,
+        "h": 0.041666666666666664
+      },
+      "note": "Semantic another region in the approved evaluation sheet"
+    },
+    {
+      "id": "older",
+      "kind": "control",
+      "box": {
+        "x": 0.3734671125975474,
+        "y": 0.8841324200913242,
+        "w": 0.2697881828316611,
+        "h": 0.02454337899543379
+      },
+      "note": "Semantic older region in the approved evaluation sheet"
+    },
+    {
+      "id": "bottom-nav",
+      "kind": "chrome",
+      "box": {
+        "x": 0,
+        "y": 0.9320776255707762,
+        "w": 1,
+        "h": 0.06792237442922375
+      },
+      "note": "Semantic bottom nav region in the approved evaluation sheet"
+    }
+  ]
+}

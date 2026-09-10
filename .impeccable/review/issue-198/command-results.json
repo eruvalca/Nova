@@ -1,0 +1,67 @@
+{
+  "sourceRevision": "381d501950d064d426ddce7c772fe449c485cfde",
+  "note": "Exit statuses recorded from completed command-tool results; empty logs are normal for successful format verification and node syntax checks.",
+  "checks": [
+    {
+      "exitCode": 0,
+      "warnings": 0,
+      "log": "build-33.log",
+      "errors": 0,
+      "command": "dotnet build Nova.slnx"
+    },
+    {
+      "exitCode": 0,
+      "log": "format-round6.log",
+      "command": "dotnet format Nova.slnx --verify-no-changes"
+    },
+    {
+      "command": "dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build",
+      "log": "unit-round6.log",
+      "failed": 0,
+      "passed": 2946,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    {
+      "exitCode": 0,
+      "workingDirectory": "Nova",
+      "log": "contrast-round5.log",
+      "command": "npm run check:contrast"
+    },
+    {
+      "exitCode": 0,
+      "log": "model-round5.log",
+      "note": "No pending model changes; tool 10.0.8 reports runtime 10.0.12 version advisory.",
+      "command": "dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build"
+    },
+    {
+      "exitCode": 0,
+      "files": [
+        "Nova.UI/wwwroot/js/evaluationNavigationGuard.js",
+        "Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.js",
+        "Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js"
+      ],
+      "command": "node --check"
+    },
+    {
+      "command": "dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build",
+      "log": "integration-final.log",
+      "exitCode": 0,
+      "passed": 598,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --output Detailed --long-running 90 --xunit-diagnostics on",
+      "environment": {
+        "NOVA_A11Y_SCREENSHOTS": "1",
+        "NOVA_EVALUATION_EVIDENCE": ".impeccable/review/issue-198/captures"
+      },
+      "log": "browser-round6.log",
+      "exitCode": 0,
+      "passed": 148,
+      "failed": 0,
+      "skipped": 0
+    }
+  ]
+}

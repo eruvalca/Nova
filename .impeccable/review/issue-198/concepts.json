@@ -1,0 +1,16 @@
+{
+  "seed": "d6060110",
+  "mode": "operate",
+  "dealtIndices": [6, 2, 7],
+  "candidates": [
+    {"rank": 1, "name": "Finder beside field record", "structure": "A persistent desktop finder beside the selected record; phone stages alternate."},
+    {"rank": 2, "name": "Note-first capture", "structure": "A compact verified identity and applied-trait line lead into a large composer; tag lookup and shared history follow."},
+    {"rank": 3, "name": "Result becomes record", "structure": "The deliberately selected lookup row expands into the full working stage, retaining the result's identity position."},
+    {"rank": 4, "name": "Lookup above field record", "structure": "A horizontal finder sits above a broad desktop record with split note and trait fields; phones switch stages."},
+    {"rank": 5, "name": "Two-column capture sheet", "structure": "Verified identity spans a desktop sheet with note capture left and trait capture right; phones stack both fields."},
+    {"rank": 6, "name": "Traits-first field slip", "structure": "Tryout number and identity form a compact header; applied traits and one-action trait lookup lead into a compact note and explicit save."},
+    {"rank": 7, "name": "Shared evidence notebook", "structure": "Verified identity and applied traits precede two compact recent observations and an immediately visible note composer; older history is disclosed below."}
+  ],
+  "reference": ".impeccable/review/issue-197/mobile.png",
+  "syntheticFixture": "Jordan Lee, tryout 42, graduation 2030, North U16, Fall evaluation; all comp-only observations are illustrative."
+}

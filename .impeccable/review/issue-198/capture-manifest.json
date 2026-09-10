@@ -1,0 +1,88 @@
+{
+  "sourceRevision": "381d501950d064d426ddce7c772fe449c485cfde",
+  "sourceRun": "browser-round6.log",
+  "captures": [
+    {
+      "file": "captures/closed.png",
+      "sha256": "35D25A7D437F1B8E832ED982853C20D382B40465A993FBB05D793EB97F665911",
+      "geometry": {
+        "cssWidth": 1280,
+        "cssHeight": 960,
+        "devicePixelRatio": 1,
+        "scrollY": 0,
+        "documentHeight": 1138
+      }
+    },
+    {
+      "file": "captures/desktop.png",
+      "sha256": "DF0F6C4E9ECAAD50C9A6762E985FF041ABDEFB0851B25E63649DB3B5B1677BA6",
+      "geometry": {
+        "cssWidth": 1440,
+        "cssHeight": 1000,
+        "devicePixelRatio": 1.5,
+        "documentHeight": 1130,
+        "campaignId": 154,
+        "participants": 60
+      }
+    },
+    {
+      "file": "captures/finder-landscape.png",
+      "sha256": "0F7F4FD607CA3B81C2E742DE3438165A73FDCC4FE02ED667E2A8AA75762F2740",
+      "geometry": {
+        "cssWidth": 844,
+        "cssHeight": 390,
+        "devicePixelRatio": 1,
+        "documentHeight": 2778,
+        "campaignId": 157,
+        "participants": 1000
+      }
+    },
+    {
+      "file": "captures/hero.png",
+      "sha256": "247FDA0674AA60C13EC79687F899FF842FC5B8C0A455DE5C178F652396932F99",
+      "geometry": {
+        "cssWidth": 598,
+        "cssHeight": 1168,
+        "devicePixelRatio": 1.5,
+        "documentHeight": 1307,
+        "campaignId": 154,
+        "participants": 60
+      }
+    },
+    {
+      "file": "captures/landscape.png",
+      "sha256": "04D9C86615E4EF126A82BAAA9A7FD95884831A75314ECD186948B6099472E05D",
+      "geometry": {
+        "cssWidth": 844,
+        "cssHeight": 390,
+        "devicePixelRatio": 1.5,
+        "documentHeight": 1240,
+        "campaignId": 154,
+        "participants": 60
+      }
+    },
+    {
+      "file": "captures/mobile.png",
+      "sha256": "4F7169B51F1D19CF4C0E579A26E4DB80CF48C2AFCFFD7FA38A6352316D516638",
+      "geometry": {
+        "cssWidth": 390,
+        "cssHeight": 844,
+        "devicePixelRatio": 1.5,
+        "documentHeight": 1375,
+        "campaignId": 154,
+        "participants": 60
+      }
+    },
+    {
+      "file": "captures/own-note.png",
+      "sha256": "AA034D9F4CE456A7BCC24CC8343E8C8DF7FFFC8740805160295D3A227C19699A",
+      "geometry": {
+        "cssWidth": 390,
+        "cssHeight": 844,
+        "devicePixelRatio": 1,
+        "scrollY": 247,
+        "documentHeight": 1426
+      }
+    }
+  ]
+}
