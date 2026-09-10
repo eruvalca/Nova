@@ -79,6 +79,61 @@ public sealed partial class EffectivePlacementQueryServiceTests
             .ShouldBe(sortBy is "tryoutNumber" or "assignmentId" ? second.PlayerCampaignAssignmentId : first.PlayerCampaignAssignmentId);
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, null)]
+    [InlineData(false, "asc")]
+    [InlineData(false, "desc")]
+    [InlineData(true, null)]
+    [InlineData(true, "asc")]
+    [InlineData(true, "desc")]
+    public async Task DirectionOnlyDiscoveryUsesNameAndAssignmentTiesWhileOmittedSortKeepsLifecycleDefaultAsync(bool closed, string? direction)
+    {
+        var campaignId = closed ? PriorCampaignId : ActiveCampaignId;
+        var firstPlayer = AddPlayer("Alex", "Able", graduationYear: 2028);
+        var secondPlayer = AddPlayer("Alex", "Able", graduationYear: 2030);
+        var second = AddDecision(secondPlayer, campaignId, PlacementOutcome.NotSelected);
+        var first = AddDecision(firstPlayer, campaignId, PlacementOutcome.NotSelected);
+        var last = AddDecision(AddPlayer("Zoe", "Zulu", graduationYear: 2027), campaignId, PlacementOutcome.NotSelected);
+        long[] expected = direction switch
+        {
+            "asc" => [second.PlayerCampaignAssignmentId, first.PlayerCampaignAssignmentId, last.PlayerCampaignAssignmentId],
+            "desc" => [last.PlayerCampaignAssignmentId, second.PlayerCampaignAssignmentId, first.PlayerCampaignAssignmentId],
+            null when closed => [first.PlayerCampaignAssignmentId, second.PlayerCampaignAssignmentId, last.PlayerCampaignAssignmentId],
+            _ => [last.PlayerCampaignAssignmentId, first.PlayerCampaignAssignmentId, second.PlayerCampaignAssignmentId],
+        };
+
+        for (var page = 1; page <= expected.Length; page++)
+        {
+            if (closed)
+            {
+                var result = await CreateService().GetClosedCampaignRosterAsync(new()
+                {
+                    CampaignId = campaignId,
+                    SortDirection = direction,
+                    Page = page,
+                    PageSize = 1,
+                }, TestContext.Current.CancellationToken);
+                result.IsSuccess.ShouldBeTrue();
+                result.Value.ParticipantCount.ShouldBe(3);
+                result.Value.Participants.TotalCount.ShouldBe(3);
+                result.Value.Participants.Items.ShouldHaveSingleItem().PlayerCampaignAssignmentId.ShouldBe(expected[page - 1]);
+            }
+            else
+            {
+                var result = await WorkAsync(new()
+                {
+                    CampaignId = campaignId,
+                    SortDirection = direction,
+                    Page = page,
+                    PageSize = 1,
+                });
+                result.Counts.ShouldBe(new EffectivePlacementCounts(0, 0, 3, 0));
+                result.Participants.TotalCount.ShouldBe(3);
+                result.Participants.Items.ShouldHaveSingleItem().PlayerCampaignAssignmentId.ShouldBe(expected[page - 1]);
+            }
+        }
+    }
+
     [Fact]
     public async Task ClosedDiscoveryRetainsWholeCountLocalEvidenceAndArchivedTagsAsync()
     {

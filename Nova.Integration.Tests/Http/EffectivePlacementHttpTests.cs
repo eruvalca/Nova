@@ -241,6 +241,60 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("working", null)]
+    [InlineData("working", "asc")]
+    [InlineData("working", "desc")]
+    [InlineData("closed", null)]
+    [InlineData("closed", "asc")]
+    [InlineData("closed", "desc")]
+    public async Task DirectionOnlyDiscoveryOrdersSqlPagesByNameWhileOmittedSortRetainsLifecycleDefaultAsync(string route, string? direction)
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, string.Equals(route, "closed", StringComparison.Ordinal));
+        long[] assignmentIds;
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var assignments = await db.PlayerCampaignAssignments.Include(assignment => assignment.Player)
+                .Where(assignment => assignment.CampaignId == seed.CampaignId)
+                .OrderBy(assignment => assignment.TryoutNumber).ToListAsync(token);
+            assignments.Count.ShouldBe(3);
+            assignmentIds = assignments.Select(assignment => assignment.PlayerCampaignAssignmentId).ToArray();
+            assignments[0].Player.FirstName = "Alex";
+            assignments[0].Player.LastName = "Zulu";
+            assignments[1].Player.FirstName = "Zoe";
+            assignments[1].Player.LastName = "Able";
+            assignments[2].Player.FirstName = "Blake";
+            assignments[2].Player.LastName = "Middle";
+            assignments.Select(assignment => assignment.Player.GraduationYear).ShouldBe([2031, 2032, 2030]);
+            await db.SaveChangesAsync(token);
+        }
+        int[] expectedIndexes = direction switch
+        {
+            "desc" => [0, 2, 1],
+            null when string.Equals(route, "working", StringComparison.Ordinal) => [2, 0, 1],
+            _ => [1, 2, 0],
+        };
+
+        for (var page = 1; page <= expectedIndexes.Length; page++)
+        {
+            var query = $"page={page}&pageSize=1";
+            if (direction is not null) { query += $"&sortDirection={direction}"; }
+            using var response = await client.GetAsync(Route(route, seed.CampaignId, query), token);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var body = await response.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>(token);
+            body.ShouldNotBeNull();
+            var participants = body["participants"]!;
+            participants["page"]!.GetValue<int>().ShouldBe(page);
+            participants["pageSize"]!.GetValue<int>().ShouldBe(1);
+            participants["totalCount"]!.GetValue<int>().ShouldBe(3);
+            participants["items"]!.AsArray().ShouldHaveSingleItem()!["playerCampaignAssignmentId"]!.GetValue<long>()
+                .ShouldBe(assignmentIds[expectedIndexes[page - 1]]);
+        }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("working")]
     [InlineData("closed")]
     public async Task DiscoveryRejectsInvalidExplicitValuesAndForeignIdentifiersAsync(string route)

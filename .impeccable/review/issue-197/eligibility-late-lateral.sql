@@ -1,9 +1,11 @@
+-- Corrected diagnostic SQL, not an executed capture: the original plan used an invalid
+-- NotSelected literal (22 instead of 2) and has been withdrawn. See validation.md.
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, FORMAT JSON) SELECT s6."Key", count(*)::int
 FROM (
     SELECT CASE
         WHEN p1."LifecycleStatus" <> 0 OR (s5."PlayerCampaignAssignmentId" IS NOT NULL AND s5."PlacementOutcome" = 3) THEN 3
         WHEN s5."PlayerCampaignAssignmentId" IS NOT NULL AND s5."PlacementOutcome" = 1 AND t0."TeamId" IS NOT NULL AND t0."ClubId" = 22 AND t0."LifecycleStatus" = 0 AND p1."GraduationYear" >= t0."GraduationYear" THEN 1
-        WHEN s5."PlayerCampaignAssignmentId" IS NOT NULL AND s5."PlacementOutcome" = 22 AND s5."CampaignId" = p."CampaignId" THEN 2
+        WHEN s5."PlayerCampaignAssignmentId" IS NOT NULL AND s5."PlacementOutcome" = 2 AND s5."CampaignId" = p."CampaignId" THEN 2
         ELSE 0
     END AS "Key"
     FROM "PlayerCampaignAssignments" AS p

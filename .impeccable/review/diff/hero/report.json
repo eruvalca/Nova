@@ -1,7 +1,7 @@
 {
   "tool": "comp-diff",
   "version": 1,
-  "createdAt": "2026-09-10T04:44:23.738Z",
+  "createdAt": "2026-09-10T05:29:35.057Z",
   "label": "hero",
   "comp": ".impeccable/mocks/decision/issue-197-side-context.png",
   "build": ".impeccable/review/hero-repro.png",
@@ -9,16 +9,16 @@
   "compSize": "1536x1024",
   "buildSize": "1536x1024",
   "align": "top",
-  "overall": 0.7971,
+  "overall": 0.7968,
   "verdict": "drift",
   "scores": {
-    "overall": 0.7971,
+    "overall": 0.7968,
     "structure": 0.8158,
-    "color": 0.8508,
+    "color": 0.85,
     "colorIntersection": 0.7725,
-    "paletteMatch": 0.8929,
-    "detail": 0.6794,
-    "detailRaw": 0.721,
+    "paletteMatch": 0.8917,
+    "detail": 0.679,
+    "detailRaw": 0.7207,
     "detailAdded": 0.0833,
     "bands": 0.86
   },
@@ -71,7 +71,7 @@
         "coverage": 0.0021
       },
       {
-        "hex": "#a8e0f8",
+        "hex": "#f8e1a9",
         "coverage": 0.0013
       }
     ]
@@ -85,13 +85,13 @@
       "h": 1,
       "kind": "chrome",
       "score": {
-        "overall": 0.795,
-        "structure": 0.9158,
-        "color": 0.6391,
+        "overall": 0.7953,
+        "structure": 0.9155,
+        "color": 0.639,
         "colorIntersection": 0.2814,
-        "paletteMatch": 0.8317,
-        "detail": 0.7187,
-        "detailRaw": 0.7187,
+        "paletteMatch": 0.8316,
+        "detail": 0.7204,
+        "detailRaw": 0.7204,
         "detailAdded": 0,
         "bands": 0.9
       },
@@ -106,7 +106,7 @@
         "build": {
           "x": 18,
           "y": 20,
-          "w": 191,
+          "w": 192,
           "h": 966
         }
       }
@@ -867,13 +867,13 @@
       "h": 0.1133,
       "kind": "text",
       "score": {
-        "overall": 0.7083,
-        "structure": 0.6503,
-        "color": 0.8976,
-        "colorIntersection": 0.8576,
-        "paletteMatch": 0.9191,
-        "detail": 0.6064,
-        "detailRaw": 0.7106,
+        "overall": 0.7081,
+        "structure": 0.6497,
+        "color": 0.8972,
+        "colorIntersection": 0.8568,
+        "paletteMatch": 0.919,
+        "detail": 0.6068,
+        "detailRaw": 0.711,
         "detailAdded": 0.2083,
         "bands": 0.6786
       },
@@ -1071,11 +1071,11 @@
       "h": 0.745,
       "kind": "chrome",
       "score": {
-        "overall": 0.8286,
-        "structure": 0.792,
-        "color": 0.9614,
-        "colorIntersection": 0.9277,
-        "paletteMatch": 0.9796,
+        "overall": 0.8287,
+        "structure": 0.7922,
+        "color": 0.9612,
+        "colorIntersection": 0.9276,
+        "paletteMatch": 0.9793,
         "detail": 0.6558,
         "detailRaw": 0.7756,
         "detailAdded": 0.2396,

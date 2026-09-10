@@ -60,7 +60,7 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
             && result.Participants.TotalCount <= (long)result.Counts.NeedsPlacement + result.Counts.OptionalReassignment + result.Counts.Resolved + result.Counts.Unavailable
-            && (input.SortBy is null
+            && (input.SortBy is null && input.SortDirection is null
                 ? Ordered(result.Participants.Items.Select(row => new OrderKey(row.GraduationYear, row.LastName, row.FirstName, row.PlayerId)))
                 : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
                     row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber,
@@ -147,7 +147,7 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
                     row.Source.Decision.Outcome, row.Source.Team, row.AppliedTags))
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
-            && (input.SortBy is null
+            && (input.SortBy is null && input.SortDirection is null
                 ? Ordered(result.Participants.Items.Select(row => new OrderKey(0, row.LastName, row.FirstName, row.PlayerId)))
                 : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
                     row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber, row.Source.Decision.Outcome, row.Source.Team)), input));

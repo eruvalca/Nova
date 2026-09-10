@@ -326,8 +326,9 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     public async Task NewCampaignIgnoresLateInputStorageFailureAfterClubChangesAsync()
     {
         var (module, authentication, _) = Register();
-        var pendingWrite = module.SetupVoid("write", invocation => invocation.Arguments.Contains("101:42:True")
-            && invocation.Arguments.Contains("create-form"));
+        using var pendingWrite = new ControlledWriteHandler(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal)
+            && invocation.Arguments.Contains("101:42:True") && invocation.Arguments.Contains("create-form"));
+        module.AddInvocationHandler(pendingWrite);
         var cut = Render<NewCampaign>();
         await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
 #pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
@@ -337,14 +338,39 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         await cut.WaitForAssertionAsync(() => pendingWrite.Invocations.Count.ShouldBe(1));
 
         await cut.InvokeAsync(() => authentication.ChangeClub(43));
-        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
-        pendingWrite.SetException(new JSException("Old storage failed late"));
+        await cut.WaitForAssertionAsync(() =>
+        {
+            cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+            cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        });
+        change.IsCompleted.ShouldBeFalse();
+        pendingWrite.Fail(new JSException("Old storage failed late"));
         await change;
 
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty);
         cut.Markup.ShouldNotContain("Retry recovery storage");
         cut.FindComponent<CampaignCreateForm>().Instance.ErrorMessage.ShouldBeNull();
+    }
+
+    /// <summary>Owns an intentional delayed write without bUnit's unconfigured-handler timeout.</summary>
+    private sealed class ControlledWriteHandler : JSRuntimeInvocationHandler
+    {
+        private readonly TaskCompletionSource<Microsoft.JSInterop.Infrastructure.IJSVoidResult> _completion
+            = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ControlledWriteHandler(InvocationMatcher matcher) : base(matcher, isCatchAllHandler: false)
+        {
+            SetVoidResult();
+        }
+
+        public void Fail(JSException exception) => _completion.SetException(exception);
+
+        protected override async Task<Microsoft.JSInterop.Infrastructure.IJSVoidResult> HandleAsync(JSRuntimeInvocation invocation)
+        {
+            await base.HandleAsync(invocation);
+            return await _completion.Task;
+        }
     }
 
     /// <summary>Builds distinctive saved input to detect replacement by newly initialized defaults.</summary>

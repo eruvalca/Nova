@@ -129,7 +129,7 @@ internal sealed partial class EffectivePlacementQueryService(
         }
         var count = input.TeamId is null && input.Eligibility is null
             ? await playerFilter.CountAsync(token) : await query.CountAsync(token);
-        var ordered = input.SortBy is null ? query.OrderBy(row => row.Participation.Player.GraduationYear)
+        var ordered = input.SortBy is null && input.SortDirection is null ? query.OrderBy(row => row.Participation.Player.GraduationYear)
             .ThenBy(row => row.Participation.Player.LastName).ThenBy(row => row.Participation.Player.FirstName)
             .ThenBy(row => row.Participation.PlayerId) : OrderWorking(query, input);
         var rows = await ordered.Skip(Offset(input)).Take(Size(input))
@@ -171,7 +171,7 @@ internal sealed partial class EffectivePlacementQueryService(
         }
         query = FilterDiscovery(db, query, input);
         var count = await query.CountAsync(token);
-        var ordered = input.SortBy is null ? query.OrderBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerId)
+        var ordered = input.SortBy is null && input.SortDirection is null ? query.OrderBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerId)
             : OrderAssignments(query, input);
         var rows = await ordered
             .Skip(Offset(input)).Take(Size(input)).Select(PlacementReadProjection.ClosedRow(clubId)).ToListAsync(token);

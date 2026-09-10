@@ -182,3 +182,24 @@ No further visual patch is prescribed by this bounded scoring pass. The parent c
 Packet housekeeping: the supplied `issue-197/hero-gate.log` currently contains an older 70.4% run; refresh that evidence artifact before presenting it as the final gate log. This is not a new visual finding and does not replace the current state/report values.
 
 disposition: fix
+
+## verdict
+
+PR #252 route-contract correction, bounded to the removed mobile width override. All seven established captures were reopened and remain valid: hero-repro, desktop, mobile, mobile-context, closed-desktop, closed-no-matches and closed-integrity-error. The mobile route's partial next marker is valid evidence of its intended horizontally scrolling surface; it is not an invalid capture.
+
+| Scored item | Verdict | Evidence |
+|---|---|---|
+| Restore scripted mobile Route Markers | resolved in visual/source scope | `CampaignWorkspace.razor.css` now retains `min-width: 36rem` on the route list and `overflow-x: auto` on its container. The late mobile `min-width: 0` override is gone. At 390px, the capture shows full-size Roster/Evaluate stops and the continuation of Place, rather than squeezing all four stops into the viewport. |
+| Preserve no-script fitted fallback | resolved in source scope | The `@media (scripting: none)` rule still sets `min-width: 0` and fits the four labels/captions. This distinct fallback is required by `.github/instructions/ui-design.instructions.md` lines 67–71. No no-script capture was added to this bounded packet; execution proof remains with the browser test owner. |
+| Existing desktop/context visual corrections | resolved within prior scored scope | Refreshed desktop and context captures retain the previously accepted composition. No material regression attributable to removing the mobile route override is visible. |
+| Existing mechanical gate findings | unresolved, unchanged | Current hero is **79.68%**, final desktop **75.47%**. Both exceed the 72% hero overall threshold, but state is still open with forced null and the same Apply-tag 65% / five extra-ink-cell vetoes. |
+
+Correction to this review's earlier mobile guidance: the recommendation to fit all four markers at once on scripted phones was inconsistent with the specific established route contract. That recommendation and the later visual approval of the squeezed mobile layout are superseded by this entry. The authoritative rule requires horizontal scrolling with script and the fitted four-marker treatment only without script. Preserving the complete route means keeping all destinations reachable through that interaction, not requiring all four to occupy the initial phone viewport.
+
+The parent reports enhanced browser assertions for actual overflow and positive `scrollLeft`, alongside keyboard/current-marker/no-document-scroll/no-script checks. This reviewer inspected captures and source only; the still-running full suite and behavioral verdict remain owned by the parent/code reviewer.
+
+## remaining
+
+No additional visual correction is prescribed for this route fix. Preserve the full score/disposition history above. The parent records the user's subsequent explicit authorization to create the PR when the required image-score threshold and issue work are complete; this review does not introduce a further permission requirement for that already-authorized PR action. That publication condition does not convert the two disclosed non-score vetoes into a passed or forced mechanical gate. Keep those vetoes and the pending behavioral evidence visible in the PR record.
+
+disposition: fix

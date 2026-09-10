@@ -367,6 +367,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             .ToHaveAttributeAsync("aria-current", "page");
         var route = narrowPage.Locator("nav.campaign-route").Last;
         await Expect(route).ToBeVisibleAsync();
+        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"))
+            .ShouldBeTrue("Scripted narrow viewports keep the full-width route in a scrolling strip.");
 
         await InteractionHelpers.ActUntilAsync(
             narrowPage,
@@ -388,6 +390,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var closeMarker = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Close" });
         await Expect(closeMarker).ToHaveAttributeAsync("aria-current", "page");
         await AssertMarkerFullyVisibleAsync(narrowPage, closeMarker);
+        (await route.EvaluateAsync<double>("element => element.scrollLeft")).ShouldBeGreaterThan(0);
 
         await AssertRouteRevealPreservesDocumentScrollAsync(narrowPage, closeMarker);
     }

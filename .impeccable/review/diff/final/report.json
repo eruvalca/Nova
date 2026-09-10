@@ -1,7 +1,7 @@
 {
   "tool": "comp-diff",
   "version": 1,
-  "createdAt": "2026-09-10T04:42:35.444Z",
+  "createdAt": "2026-09-10T05:30:11.911Z",
   "label": "desktop",
   "comp": ".impeccable/mocks/decision/issue-197-side-context.png",
   "build": ".impeccable/review/desktop.png",
@@ -9,16 +9,16 @@
   "compSize": "1536x1024",
   "buildSize": "1440x1141",
   "align": "top",
-  "overall": 0.7546,
+  "overall": 0.7547,
   "verdict": "drift",
   "scores": {
-    "overall": 0.7546,
+    "overall": 0.7547,
     "structure": 0.6998,
-    "color": 0.8538,
+    "color": 0.8542,
     "colorIntersection": 0.7688,
-    "paletteMatch": 0.8996,
-    "detail": 0.6368,
-    "detailRaw": 0.6941,
+    "paletteMatch": 0.9002,
+    "detail": 0.6367,
+    "detailRaw": 0.694,
     "detailAdded": 0.1146,
     "bands": 0.9136
   },
@@ -52,15 +52,15 @@
     "build": [
       {
         "hex": "#f7f8f8",
-        "coverage": 0.739
+        "coverage": 0.7386
       },
       {
         "hex": "#d8f8e8",
-        "coverage": 0.2548
+        "coverage": 0.2546
       },
       {
-        "hex": "#8b9393",
-        "coverage": 0.0025
+        "hex": "#909a9a",
+        "coverage": 0.003
       },
       {
         "hex": "#182828",
@@ -85,14 +85,14 @@
       "h": 1,
       "kind": "chrome",
       "score": {
-        "overall": 0.7772,
-        "structure": 0.8741,
-        "color": 0.643,
-        "colorIntersection": 0.291,
-        "paletteMatch": 0.8326,
-        "detail": 0.6422,
-        "detailRaw": 0.6422,
-        "detailAdded": 0,
+        "overall": 0.7768,
+        "structure": 0.8733,
+        "color": 0.6443,
+        "colorIntersection": 0.2911,
+        "paletteMatch": 0.8345,
+        "detail": 0.6401,
+        "detailRaw": 0.6453,
+        "detailAdded": 0.0104,
         "bands": 1
       },
       "verdict": "drift",
@@ -106,7 +106,7 @@
         "build": {
           "x": 19,
           "y": 0,
-          "w": 204,
+          "w": 205,
           "h": 974
         }
       }
@@ -867,13 +867,13 @@
       "h": 0.1133,
       "kind": "text",
       "score": {
-        "overall": 0.6572,
-        "structure": 0.6569,
-        "color": 0.9139,
-        "colorIntersection": 0.8625,
-        "paletteMatch": 0.9416,
-        "detail": 0.3256,
-        "detailRaw": 0.435,
+        "overall": 0.6573,
+        "structure": 0.6565,
+        "color": 0.9146,
+        "colorIntersection": 0.8628,
+        "paletteMatch": 0.9424,
+        "detail": 0.3269,
+        "detailRaw": 0.4363,
         "detailAdded": 0.2188,
         "bands": 0.5143
       },
@@ -1071,13 +1071,13 @@
       "h": 0.745,
       "kind": "chrome",
       "score": {
-        "overall": 0.7707,
-        "structure": 0.692,
-        "color": 0.9614,
-        "colorIntersection": 0.9298,
+        "overall": 0.7706,
+        "structure": 0.6919,
+        "color": 0.9613,
+        "colorIntersection": 0.9296,
         "paletteMatch": 0.9784,
-        "detail": 0.5641,
-        "detailRaw": 0.6996,
+        "detail": 0.564,
+        "detailRaw": 0.6994,
         "detailAdded": 0.2708,
         "bands": 0.981
       },

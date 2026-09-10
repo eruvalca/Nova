@@ -712,6 +712,45 @@ public sealed class HttpEffectivePlacementQueryServiceTests
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "asc")]
+    [InlineData(1, "desc")]
+    [InlineData(2, "asc")]
+    [InlineData(2, "desc")]
+    public async Task DirectionOnlyDiscoveryValidatesAssignmentTiesWithoutApplyingLegacyOrTextCollationOrderAsync(int endpoint, string direction)
+    {
+        var payload = TwoRowPayload(endpoint);
+        var second = payload["participants"]!["items"]![1]!;
+        second["playerId"] = 201;
+        second[SourceName(endpoint)]!["decision"]!["playerId"] = 201;
+        if (endpoint == 1) { second["localDecision"]!["playerId"] = 201; }
+        CampaignRosterDiscoveryInput input = endpoint == 1
+            ? new GetCampaignEffectivePlacementsInput { CampaignId = 42, SortDirection = direction }
+            : new GetClosedCampaignRosterInput { CampaignId = 42, SortDirection = direction };
+        string? path = null;
+        using var handler = new RecordingHandler(request =>
+        {
+            path = request.RequestUri!.PathAndQuery;
+            return Response(payload.ToJsonString());
+        });
+        using var http = CreateHttp(handler);
+        var service = new HttpEffectivePlacementQueryService(http);
+
+        (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue("Direction-only name ties use assignment IDs, not player IDs.");
+        var route = endpoint == 1 ? "effective-placements" : "closed-roster";
+        path.ShouldBe($"/api/campaigns/42/{route}?page=1&pageSize=50&sortDirection={direction}");
+        (await ReadAsync(service, endpoint)).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        ReverseRows(payload);
+        (await ReadDiscoveryAsync(service, input)).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        (await ReadAsync(service, endpoint)).IsSuccess.ShouldBeTrue("Omitting both sort properties retains the original player-ID tie order.");
+
+        Row(payload, endpoint)["graduationYear"] = 2029;
+        Row(payload, endpoint)["lastName"] = "Öberg";
+        (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue("Distinct text retains database collation regardless of graduation year.");
+        ReverseRows(payload);
+        (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue("The client must not approximate database string ordering in either direction.");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1)]
     [InlineData(2)]
     public async Task InvalidDiscoveryIsRejectedBeforeSendingAnyRequestAsync(int endpoint)

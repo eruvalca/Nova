@@ -5,13 +5,13 @@ score-threshold condition below. Automated comparison vetoes remain recorded, wi
 
 Baseline: `54c1da3abb16a6d02afbaaf14b59f9cbb870c8ff` on
 `codex/issue-197-workspace-roster`. The initial checkout was clean and included #250 and #251.
-Tested implementation: `49e8915bedbc431e1b0304fae2e87538af2a11df`. Tests ran before this
+Initial tested implementation: `49e8915bedbc431e1b0304fae2e87538af2a11df`. Tests ran before this
 commit against the same production and test behavior; only the BOM/comment changes described below
 followed test execution. The subsequent commit updates validation/review/PR-description evidence only.
 Baseline solution build, format verification and 2,673 unit tests passed. The baseline build
 reported the existing Sass warnings. No baseline integration/browser result is claimed.
 
-## Behavior and evidence
+## Initial behavior and evidence
 
 - Active and Closed discovery: service, strict HTTP, PostgreSQL and HTTP integration cases cover
   combined years/tags/local outcome/local team/effective eligibility, sorting, bounded exact
@@ -26,7 +26,7 @@ reported the existing Sass warnings. No baseline integration/browser result is c
   zero Needs placement with an authoritative Close blocker, archived Closed evidence, no matches
   and a Closed integrity failure hidden by neither search nor an exact participant link.
 
-The current solution build passes with zero warnings/errors. Unit tests pass 2,783/2,783 and
+The initial solution build passed with zero warnings/errors. Unit tests passed 2,783/2,783 and
 PostgreSQL integration passes 580/580, with no skips, including the bounded latest-decision query
 and cancellation regressions. The final strict browser run passed 135/135 with no failures or skips
 in 5m01.670s, using the original five-second assertion allowance. An earlier Name-sort navigation
@@ -97,11 +97,56 @@ shape; see `provider-actual-ef-aggregate.sql` and the separate review. Prototype
 diagnostic evidence, not a guaranteed product latency budget. SQLite and PostgreSQL behavioral
 suites pass the implemented construction.
 
+PR review identified two invalid auxiliary diagnostics: `eligibility-late-fixture.sql` and
+`eligibility-late-lateral.sql` used outcome 22 instead of NotSelected (2). Their literals are now
+corrected and the files explicitly identify themselves as unexecuted corrected diagnostic SQL.
+The corresponding `*-plan.json` files have been withdrawn rather than edited into purported
+execution evidence. Their former 3.312ms/2.392ms timings are not evidence for this change. The
+separate early/late original plans, scalar/count proposals and actual EF SQL above use the correct
+outcome and remain the supporting provider evidence. All SQL and plan outcome predicates were
+checked for the same corruption. No production query contained that invalid literal.
+
 The temporary 15-second settlement allowance used during diagnosis has been removed. The shipping
 tests retain explicit URL/response synchronization and original five-second assertions, plus exact
 counts, ordering, identity and empty/error expectations. The sort diagnostic records pointer events
 on failure and asserts ascending-to-descending state; it never retries a toggle. No tests are skipped,
 global timeouts/concurrency are unchanged, and no provider setting or migration was introduced.
+
+## PR #252 — first review round
+
+Review `5162991451` on `e12b886c23d5c006332b39717836ea0d8dc23a3e` contained four actionable
+comments and no suppressed findings. All four are addressed in one review-round commit:
+
+- Scripted narrow Route Markers retain the 36rem scrolling strip; the scripting-disabled fitted
+  fallback remains separate. The existing browser journey now checks actual overflow and positive
+  horizontal scroll as well as keyboard activation, full selected-marker visibility and preserved
+  document scroll. Updated desktop/mobile captures use the corrected source.
+- Direction-only sort inputs use display name with the requested direction in both SQL producers
+  and WASM validators. Both omitted fields retain each read's original default. Ten new unit and
+  six HTTP integration cases distinguish name/year ordering, player/assignment-ID ties, paging,
+  omitted defaults, and portable client validation without emulating PostgreSQL text collation.
+- The two invalid auxiliary SQL literals and their withdrawn plan claims are documented above.
+
+The first full unit run also exposed bUnit's automatic timeout for an intentionally unconfigured
+pending write in `NewCampaignIgnoresLateInputStorageFailureAfterClubChangesAsync`. Its controlled
+handler now records the invocation through bUnit and owns the delayed task explicitly. The test
+proves that the new club scope is enabled while the old write remains pending, then releases the
+old failure and verifies that it cannot contaminate the new form. No production behavior, global
+timeouts or existing error assertions changed. The separate local reviewer inspected this correction.
+
+Round validation: solution build passed with zero warnings/errors; unit 2,793/2,793 passed in
+35.912s; integration 586/586 passed in 3m20.355s, with no skips. Integration used the same production
+source before the test-only pending-write harness rebuild. Browser 135/135 passed in 5m09.747s,
+with no skips and all seven optional accessibility journeys enabled. Contrast and final format
+verification passed. After the suites, only line-break formatting in two new test initializers and
+documentation/evidence changed. The local code reviewer inspected all fixes and passing suites; the finish
+reviewer marked the mobile route correction resolved and all seven fresh captures valid.
+Round logs use the `round-1-` prefix. The live PR's Validation section records the resulting commit
+SHA after the single round commit is created; no later source change is covered by these results.
+
+Fresh captures score **79.68%** at the approved viewport and **75.47%** at 1440px. Both exceed 72%.
+The two previously disclosed hero vetoes remain unchanged and unforced. The score-based publication
+instruction above still applies; these numbers do not relabel the mechanical comparison as passed.
 
 ## Guidance actually read
 

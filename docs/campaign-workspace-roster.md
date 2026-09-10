@@ -32,7 +32,8 @@ Both campaign reads accept these discovery parameters in addition to paging:
 Filter groups combine with AND. Active's existing single `graduationYear` and effective `teamId`
 filters retain their meanings and combine with the new groups. Active `eligibility` selects Needs
 placement, optional reassignment, resolved or unavailable without changing whole-campaign counts.
-Omitting explicit ordering retains the existing read defaults documented in
+Supplying a direction without a sort field orders by display name in that direction, consistently
+across the SQL producers and strict client validation. Omitting both ordering fields retains the existing read defaults documented in
 [the placement foundation](placement-decision-foundation.md). The UI explicitly requests name
 ascending and 50 rows; the API maximum remains 100. Null tryout numbers sort last in either direction.
 

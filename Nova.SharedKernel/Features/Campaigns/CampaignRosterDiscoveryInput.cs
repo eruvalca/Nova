@@ -34,7 +34,7 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
     [Range(1, long.MaxValue)]
     public long? ParticipantId { get; init; }
 
-    /// <summary>The explicit roster sort; omission preserves each read's existing default.</summary>
+    /// <summary>The roster sort; a direction alone uses display name. Omitting both fields preserves the read's default.</summary>
     [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName)$")]
     public string? SortBy { get; init; }
 
