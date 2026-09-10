@@ -4,7 +4,7 @@
 
 Branch `codex/issue-198-evaluation` starts at `3e0253c28677838858b1887b2351a133eac7bc16` (merged #252). The surface implements the confirmed find → verify → capture → move-on workflow. Parent campaign-loop acceptance stays with #170; Place #199 and Close #200 redesigns remain separate.
 
-Production and test source is frozen at `381d501950d064d426ddce7c772fe449c485cfde`. Build, format, all three local suites, contrast, JS syntax and migration-model checks pass for this source. The visual gate remains open pending the user-selected comparison scope; later changes are validation/design records only.
+Production and test source is frozen at `381d501950d064d426ddce7c772fe449c485cfde`. Build, format, all three local suites, contrast, JS syntax and migration-model checks pass for this source. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately; later changes are validation/design records only. The final visual disposition is recorded in `finish-review.md`.
 
 ## Locked direction
 
@@ -29,7 +29,7 @@ The user required preserving the existing design system. Shared campaign chrome 
 - Aspire router, orchestration, browser validation and Playwright CLI skills; `.github/pull_request_template.md`.
 - Separate reviewer read the code-review skill and applicable repository boundary guidance; its findings and dispositions are in `local-code-review.md`.
 
-## Validation in progress
+## Validation
 
 Build-capable commands are serialized. Aspire-backed suites are serialized across the machine; all test commands use `--no-build`. Raw command logs are ignored local artifacts under this directory.
 
@@ -48,7 +48,7 @@ Initial failures are retained as diagnostic evidence, never represented as passi
 
 ## Separate review
 
-`evaluation_boundary_review` reviewed the complete production diff, including untracked files, against authorization, concurrency, recovery, HTTP and provider constraints. All reported production findings R1–R14 and the subsequent regional-feedback defect are source-resolved, including stale drawer ownership, UTC cursors, receipt expiry at commit, exact retained edit versions, storage restoration races and copyable rejected replay text. Final tested revision and evidence approval remain pending.
+`evaluation_boundary_review` reviewed the complete production diff, including untracked files, against authorization, concurrency, recovery, HTTP and provider constraints. All reported production findings R1–R14 and the subsequent regional-feedback defect are source-resolved, including stale drawer ownership, UTC cursors, receipt expiry at commit, exact retained edit versions, storage restoration races and copyable rejected replay text. The final review of source `381d5019` verified the completed command evidence and records no unresolved code-review blocker in `local-code-review.md`.
 Browser iteration 3 (build 21) was interrupted after remaining active for over 19 minutes without a final summary. It reported a canonical Roster navigation timeout; the 1,000-participant evidence completed in 1,952 ms. This aborted run is not counted as a passing suite. Ctrl+C stopped its scoped AppHost and containers; the subsequent Aspire stop reported no active AppHost.
 
 The build-28 full browser run (browser-final.log) was interrupted after about 12 minutes without a final summary or reported assertion failure. It is not counted as passing. Four existing held-route tests lacked failure-path release; finally blocks now release and unregister those routes without changing assertions. This cleanup defect is not a proven explanation of the stall. The next run enables individual results and xUnit long-running diagnostics. A help probe using an extra '--' hit a native MTP CLI help-protocol error; direct --help succeeded, and its supported flags are used.
@@ -57,4 +57,10 @@ Build 29 passed with zero warnings/errors; unit round 4 passed 2,943/2,943 and f
 
 Browser round 5 completed 147/148 passing. Its only failure was the 1,000-player read still loading at Playwright's implicit five-second assertion window. The new same-URI search guard prevents repeated submission from restarting the identical destination; two unit regressions cover pending reads and explicit retry. Separate review approved a finite 15-second limit only for this scale-read settlement, because no five-second SLO was specified. The check fails immediately on a retrieval error, preserves exact full count text, URL, 20 rows and page 2/50, and records actual elapsed time with LatencyTargetSpecified=false. No search retries, global timeout increases, skips or suppressed failures were added. SQL evidence shows latest-decision ROW_NUMBER ranking in these query paths; earlier expectation of a lateral translation is not runtime evidence.
 
-Final source validation: build 33; format round 6; 2,946 unit, 598 integration and 148 browser tests passed with zero skipped cases. Browser round 6 completed in 3m 26s. Its separate 1,000-player lookup measured 1,988ms with exactly 999 matches, 20 results and page 2/50. Final portrait comparison reproduces the reviewed 73.43% overall score; regional coordinate failures remain open without a scope change or waiver. The final code review records the same source revision; user input is still required before completing visual gate/PR delivery.
+Final source validation: build 33; format round 6; 2,946 unit, 598 integration and 148 browser tests passed with zero skipped cases. Browser round 6 completed in 3m 26s. Its separate 1,000-player lookup measured 1,988ms with exactly 999 matches, 20 results and page 2/50. Final portrait comparison reproduces the reviewed 73.43% overall score; its original regional failures remain preserved. The user subsequently approved sheet-relative measurement and separate shell review. `sheet-relative/manifest.json` records that approval, native border registration and explicit viewport coverage; `sheet-relative/report.json` scores 76.11% against the unchanged 72% overall threshold. Raw regional labels are preserved and individually reviewed in the final finish disposition. Older history is reviewed in full-page captures without claiming a same-scale quantitative score.
+
+## Polish, accessibility and copy
+
+The single detector pass in `detector.json` reported nine advisories. The implemented correction replaced off-scale radii with .25rem/.375rem, the finder heading with 1.25rem, the identity's fluid lower endpoint with 2rem, and the three .8rem metadata declarations with .875rem. No detector rule was disabled and no second detector scan is claimed. The retained `detector-status.txt` reflects the then-open hero gate, not the final disposition.
+
+The bounded visual correction batch restored compact context, trait disclosures, directional icons, Paper White inputs and 44px note ownership controls. Passing browser checks and authentic portrait, landscape, desktop, Closed and own-note captures cover visible focus, target sizes, long content and the separate phone stages. Contrast checks passed. Reduced-motion preferences disable the short sheet arrival animation. Copy distinguishes shared notes, explicit Save and Find another actions, campaign-local versus season placement, Closed read-only state, and retained recovery text. Separate local review covers the corresponding behavior; no new source change was introduced for the final measurement scope.

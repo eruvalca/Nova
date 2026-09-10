@@ -34,3 +34,26 @@ The user chose another visual correction round instead of waiving the 71.59% mea
 Funded-round verdict: fix 8 partial. Overall 73.43% exceeds 72%; fixes 1–7 remain resolved with no material regression. The reviewer inspected corresponding crops: identity samples sheet border, season-team samples name, first-note samples traits, save samples textarea. Those readings establish coordinate misregistration, not missing UI. The preserved shell places the sheet about 76 CSS px lower than the original comp. No further production styling correction is justified; the user has been asked to approve sheet-relative comparison or a revised comp incorporating the shell. Original report/capture retained in before-funded-round/. No override or final visual pass is recorded.
 
 Final validation capture is byte-identical to the funded-round hero (SHA-256 247FDA0674AA60C13EC79687F899FF842FC5B8C0A455DE5C178F652396932F99). The final comparison remains 73.43%, with the same regional registration failures. No new visual round or gate waiver was inferred from the passing behavioral suites. Source `381d5019` passes build/format and all 2,946 unit, 598 integration, and 148 browser cases. Fix 8 and PR delivery remain pending the user's comparison-scope decision.
+
+## Approved comparison scope — final disposition
+
+The user answered **“Yes please feel free to do so”** to **“May I measure Evaluate relative to its sheet, reviewing the shell separately? Implementation is committed; PR delivery remains pending this decision.”** This authorizes the measurement scope recorded in `sheet-relative/manifest.json`; it does not lower the overall threshold or turn the original full-frame regional report into a pass.
+
+The same independent finish reviewer prescribed and verified one native-pixel border registration: comp top row 475, build top row 588, one 113px translation, no resizing or additional regional shifts. The long-border rows are confirmed programmatically. `measure-sheet.mjs` reproduces the crops, spec, raw scores and manifest. A direct unshifted `scorePair` assertion confirms **76.11% overall**, above the unchanged **72%** threshold. The standard comparator's extra-shift output is separately retained; the final regional report omits that shift while preserving the same scoring and minimum-crop rules.
+
+Reviewer disposition of the retained raw `missing` labels:
+
+| Regions | Evidence and disposition |
+|---|---|
+| local-outcome, place | Both present in the touch-sized context row required by the brief; accepted adaptation. |
+| traits-heading | Present; the thin crop misses the heading after that context row's additional height. |
+| observations-heading, first/second author, time and note | Present and ordered correctly. Paired crops truncate vertically displaced lettering; existing typography and attribution follow the approved system and brief. |
+| composer-label, save | Present in the complete registered view, with the focused composer and full Save control. |
+
+The other measured regions retain their raw drift labels without content omissions. These are reviewed measurement interpretations, not deleted findings or threshold waivers. Show older notes is explicitly outside unobscured hero measurement and visibly follows Find another in the separately reviewed authentic mobile/desktop full-page captures; no same-scale quantitative score is claimed for it. `sheet-relative/shell-review.md` records the preserved campaign shell separately.
+
+**Final independent verdict: ship for the scored fixes.** Fix 8 is resolved under the approved scope; fixes 1–7 remain resolved, with no material regression and no remaining visual correction. This bounded visual verdict does not independently certify the whole surface's behavior; the passing suites and separate local code review provide that evidence at source `381d5019`.
+
+Build-phase closure records the approved scope explicitly wherever the original absolute-coordinate gate cannot represent this measurement. Original comp/captures/reports remain available; production source and test expectations are unchanged.
+
+The build state now closes hero and responsive with explicit scope-override reasons and records `ship`. Their retained original mechanical readings are 73.43% for the hero and 57.76% for the desktop scaled against the portrait comp. Neither is presented as a full-frame regional pass. The approved sheet-relative comparison and separately reviewed responsive composition govern the final disposition. Sections and motion are retrospectively closed against the already-tested implementation; this record does not imply they were newly built after measurement.

@@ -6,7 +6,7 @@
   "direction": null,
   "breakpoint": "897x1752",
   "artifact": null,
-  "phase": "hero",
+  "phase": "review",
   "phases": {
     "comps": {
       "status": "skipped",
@@ -51,10 +51,10 @@
       "forced": null
     },
     "hero": {
-      "status": "open",
+      "status": "closed",
       "openedAt": "2026-09-10T15:40:36.571Z",
-      "closedAt": null,
-      "attempts": 0,
+      "closedAt": "2026-09-10T19:08:54.133Z",
+      "attempts": 1,
       "notes": [
         {
           "at": "2026-09-10T17:13:11.888Z",
@@ -160,12 +160,13 @@
           "(advisory, above the 72% bar; fix in the polish pass before responsive) 8 readings:",
           "  text local-outcome: cap height 11.1px in the build, 17.7px in the comp (-37%); set font-size so the cap height renders at 17.7px",
           "  text season-team: letter-spacing is wider than the comp's (gap 0.255 vs 0.113 of the cap height); set letter-spacing to close it by about 3px",
-          "  text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px",
           "  text year: the face renders 26% heavier than the comp's (ink density 0.58 vs 0.46); drop a weight step or use the ranked face",
           "  text season-team: the face renders 52% heavier than the comp's (ink density 0.66 vs 0.43); drop a weight step or use the ranked face",
           "  text year: ink is #097979 in the build, #bfbfc0 in the comp; use the comp's colour",
           "  text local-outcome: its first line starts 16px lower than in the comp (21px vs 5px into the region box); the spacing above it is too large",
           "  control composer: its rule sits 2px into the box in the comp and 76px in the build (+74px), so the strip is taller than the comp's; match the height, not only the position",
+          "  control another: its rule sits 2px into the box in the comp and 40px in the build (+38px), so the strip is taller than the comp's; match the height, not only the position",
+          "(advisory, unchanged for 3+ attempts) text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px",
           "(advisory, unchanged for 3+ attempts) text participant-count: ink is #19282b in the build, #b0c0c0 in the comp; use the comp's colour"
         ],
         "regionVerdicts": {
@@ -198,9 +199,35 @@
           "older": "drift",
           "bottom-nav": "drift"
         },
-        "at": "2026-09-10T18:55:16.555Z"
+        "at": "2026-09-10T19:08:54.131Z"
       },
-      "forced": null,
+      "forced": {
+        "at": "2026-09-10T19:08:54.133Z",
+        "reason": "The user approved measuring Evaluate relative to its sheet and reviewing the preserved shell separately, replying \"Yes please feel free to do so\" to that explicit comparison-scope question. The original absolute-coordinate comp gate is superseded by this approved scope, not a lower threshold. Border-only score 76.11% exceeds 72%; the independent finish reviewer resolved every retained regional finding using paired crops. See .impeccable/review/issue-198/sheet-relative/manifest.json and finish-review.md. Original full-frame report remains archived.",
+        "reasons": [
+          "region menu is missing (detail 4%, structure 76%): the comp shows material the build does not",
+          "region route is missing (detail 0%, structure 95%): the comp shows material the build does not",
+          "region readiness is missing (detail 11%, structure 72%): the comp shows material the build does not",
+          "region back is missing (detail 0%, structure 67%): the comp shows material the build does not",
+          "region identity is missing (detail 2%, structure 55%): the comp shows material the build does not",
+          "region local-outcome is missing (detail 0%, structure 57%): the comp shows material the build does not",
+          "region place is missing (detail 0%, structure 63%): the comp shows material the build does not",
+          "region traits-heading is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region traits is missing (detail 0%, structure 67%): the comp shows material the build does not",
+          "region first-time is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region first-note is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region second-author is missing (detail 0%, structure 80%): the comp shows material the build does not",
+          "region second-time is missing (detail 0%, structure 62%): the comp shows material the build does not",
+          "region second-note is missing (detail 7%, structure 72%): the comp shows material the build does not",
+          "region composer-label is missing (detail 0%, structure 73%): the comp shows material the build does not",
+          "region another is missing (detail 0%, structure 78%): the comp shows material the build does not",
+          "region participant-count (text) is contradicted (structure 48%, detail added 31%): the composition of this text region differs from the comp; re-derive it from the spec box",
+          "region season-team (text) is contradicted (structure 36%, detail added 41%): the composition of this text region differs from the comp; re-derive it from the spec box",
+          "control save drifts to 46% (structure 51%, color 56%): its chrome differs from the comp's; open .impeccable\\review\\diff\\hero\\regions\\save.png and match the border, fill, radius, chevron or arrow, and label size",
+          "control older drifts to 52% (structure 50%, color 79%): its chrome differs from the comp's; open .impeccable\\review\\diff\\hero\\regions\\older.png and match the border, fill, radius, chevron or arrow, and label size",
+          "the build carries ink in 10 grid cells where the comp is calm (G2, I2, G5, G7, H7, I7, C8, A9, E9, F9); nothing exists on the page that the comp does not show (a kicker, an extra nav item, a divider, a second row of controls); remove it or name it in a stated decision after the hero passes"
+        ]
+      },
       "readingsSeen": {
         "text year: cap height 10.1px in the build, 17.6px in the comp (-43%); set font-size so the cap height renders at 17.6px": 1,
         "text season-team: cap height 12.1px in the build, 17.8px in the comp (-32%); set font-size so the cap height renders at 17.8px": 1,
@@ -250,8 +277,8 @@
         "text first-author: cap height 7.1px in the build, 18.3px in the comp (-61%); set font-size so the cap height renders at 18.3px": 1,
         "text first-note: cap height 10px in the build, 18.5px in the comp (-46%); set font-size so the cap height renders at 18.5px": 1,
         "text second-author: cap height 7px in the build, 18.5px in the comp (-62%); set font-size so the cap height renders at 18.5px": 1,
-        "text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px": 3,
-        "text participant-count: ink is #19282b in the build, #b0c0c0 in the comp; use the comp's colour": 4,
+        "text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px": 4,
+        "text participant-count: ink is #19282b in the build, #b0c0c0 in the comp; use the comp's colour": 5,
         "text observations-heading: ink is #127a7a in the build, #0b1524 in the comp; use the comp's colour": 1,
         "text first-note: ink is #182829 in the build, #b5babe in the comp; use the comp's colour": 1,
         "text first-author: its first line starts 22px lower than in the comp (29px vs 7px into the region box); the spacing above it is too large": 1,
@@ -269,54 +296,194 @@
         "control save: its rule sits 1px into the box in the comp and 18px in the build (+17px), so the strip is taller than the comp's; match the height, not only the position": 1,
         "control another: its rule sits 2px into the box in the comp and 52px in the build (+50px), so the strip is taller than the comp's; match the height, not only the position": 1,
         "control older: its rule sits 15px into the box in the comp and 31px in the build (+16px), so the strip is taller than the comp's; match the height, not only the position": 1,
-        "text local-outcome: cap height 11.1px in the build, 17.7px in the comp (-37%); set font-size so the cap height renders at 17.7px": 2,
-        "text season-team: letter-spacing is wider than the comp's (gap 0.255 vs 0.113 of the cap height); set letter-spacing to close it by about 3px": 2,
-        "text year: the face renders 26% heavier than the comp's (ink density 0.58 vs 0.46); drop a weight step or use the ranked face": 2,
-        "text season-team: the face renders 52% heavier than the comp's (ink density 0.66 vs 0.43); drop a weight step or use the ranked face": 2,
-        "text year: ink is #097979 in the build, #bfbfc0 in the comp; use the comp's colour": 2,
-        "text local-outcome: its first line starts 16px lower than in the comp (21px vs 5px into the region box); the spacing above it is too large": 2,
-        "control composer: its rule sits 2px into the box in the comp and 76px in the build (+74px), so the strip is taller than the comp's; match the height, not only the position": 2,
-        "control another: its rule sits 2px into the box in the comp and 40px in the build (+38px), so the strip is taller than the comp's; match the height, not only the position": 2
+        "text local-outcome: cap height 11.1px in the build, 17.7px in the comp (-37%); set font-size so the cap height renders at 17.7px": 3,
+        "text season-team: letter-spacing is wider than the comp's (gap 0.255 vs 0.113 of the cap height); set letter-spacing to close it by about 3px": 3,
+        "text year: the face renders 26% heavier than the comp's (ink density 0.58 vs 0.46); drop a weight step or use the ranked face": 3,
+        "text season-team: the face renders 52% heavier than the comp's (ink density 0.66 vs 0.43); drop a weight step or use the ranked face": 3,
+        "text year: ink is #097979 in the build, #bfbfc0 in the comp; use the comp's colour": 3,
+        "text local-outcome: its first line starts 16px lower than in the comp (21px vs 5px into the region box); the spacing above it is too large": 3,
+        "control composer: its rule sits 2px into the box in the comp and 76px in the build (+74px), so the strip is taller than the comp's; match the height, not only the position": 3,
+        "control another: its rule sits 2px into the box in the comp and 40px in the build (+38px), so the strip is taller than the comp's; match the height, not only the position": 3
       },
-      "records": 6
+      "records": 6,
+      "history": [
+        {
+          "at": "2026-09-10T19:08:54.132Z",
+          "score": 0.7343,
+          "worstIds": [
+            "save",
+            "identity",
+            "season-team"
+          ],
+          "regionVerdicts": {
+            "campaign-back": "drift",
+            "campaign-heading": "drift",
+            "season": "drift",
+            "participant-count": "contradicted",
+            "menu": "missing",
+            "route": "missing",
+            "readiness": "missing",
+            "back": "missing",
+            "identity": "missing",
+            "year": "drift",
+            "local-outcome": "missing",
+            "season-team": "contradicted",
+            "place": "missing",
+            "traits-heading": "missing",
+            "traits": "missing",
+            "observations-heading": "drift",
+            "first-author": "drift",
+            "first-time": "missing",
+            "first-note": "missing",
+            "second-author": "missing",
+            "second-time": "missing",
+            "second-note": "missing",
+            "composer-label": "missing",
+            "composer": "match",
+            "save": "drift",
+            "another": "missing",
+            "older": "drift",
+            "bottom-nav": "drift"
+          },
+          "artifactHash": null
+        }
+      ]
     },
     "sections": {
-      "status": "pending",
-      "openedAt": null,
-      "closedAt": null,
-      "attempts": 0,
-      "notes": [],
-      "gate": null,
+      "status": "closed",
+      "openedAt": "2026-09-10T19:08:54.133Z",
+      "closedAt": "2026-09-10T19:09:20.173Z",
+      "attempts": 1,
+      "notes": [
+        {
+          "at": "2026-09-10T19:09:19.013Z",
+          "text": "Retrospective phase accounting: finder, evidence history, trait catalog, Closed state and retained recovery are implemented and validated at381d5019. Final scored visual fixes resolved under the user-approved sheet-relative scope; see issue-198/finish-review.md."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-10T19:09:20.172Z"
+      },
       "forced": null
     },
     "motion": {
-      "status": "pending",
-      "openedAt": null,
-      "closedAt": null,
-      "attempts": 0,
-      "notes": [],
-      "gate": null,
+      "status": "closed",
+      "openedAt": "2026-09-10T19:09:20.173Z",
+      "closedAt": "2026-09-10T19:09:21.072Z",
+      "attempts": 1,
+      "notes": [
+        {
+          "at": "2026-09-10T19:09:20.714Z",
+          "text": "The implemented sheet arrival animation lasts160ms and only applies when prefers-reduced-motion is no-preference. Final captures are settled; no motion edit for this documentation closure."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-10T19:09:21.071Z"
+      },
       "forced": null
     },
     "responsive": {
-      "status": "pending",
-      "openedAt": null,
-      "closedAt": null,
-      "attempts": 0,
+      "status": "closed",
+      "openedAt": "2026-09-10T19:09:21.072Z",
+      "closedAt": "2026-09-10T19:09:23.355Z",
+      "attempts": 1,
       "notes": [],
-      "gate": null,
-      "forced": null
+      "gate": {
+        "ok": false,
+        "reasons": [
+          "the desktop capture (2160x1695; the top 897x1752 rows scaled to the comp's width are compared, a full-page capture is fine) scores 58% against the comp, under 65%: the first viewport does not survive a common desktop width. The hero passed at 897x1752; the layout must hold from ~1280 up, not only at the comp's exact width (grid columns in fr / minmax, not fixed px that overflow and wrap).",
+          "at desktop width, region season is missing",
+          "at desktop width, region participant-count is missing",
+          "at desktop width, region menu is missing",
+          "at desktop width, region route is missing",
+          "at desktop width, region readiness is missing",
+          "at desktop width, region back is missing",
+          "at desktop width, region identity is missing",
+          "at desktop width, region year is missing",
+          "at desktop width, region local-outcome is missing",
+          "at desktop width, region season-team is missing",
+          "at desktop width, region place is missing",
+          "at desktop width, region traits-heading is missing",
+          "at desktop width, region traits is missing",
+          "at desktop width, region observations-heading is missing",
+          "at desktop width, region first-author is missing",
+          "at desktop width, region first-time is missing",
+          "at desktop width, region first-note is missing",
+          "at desktop width, region second-author is missing",
+          "at desktop width, region second-time is missing",
+          "at desktop width, region second-note is missing",
+          "at desktop width, region composer-label is missing",
+          "at desktop width, region composer is missing",
+          "at desktop width, region save is missing",
+          "at desktop width, region another is missing",
+          "at desktop width, region older is missing",
+          "at desktop width, region bottom-nav is missing",
+          "at desktop width, region campaign-heading (text) is contradicted (structure 37%)"
+        ],
+        "summary": "desktop 58% (missing)",
+        "score": 0.5776,
+        "sideBySide": ".impeccable\\review\\diff\\desktop\\side-by-side.png",
+        "at": "2026-09-10T19:09:23.353Z"
+      },
+      "forced": {
+        "at": "2026-09-10T19:09:23.355Z",
+        "reason": "The user approved Evaluate sheet-relative comp measurement with preserved shell reviewed separately, replying \"Yes please feel free to do so\" to the recorded question. The original desktop-to-portrait full-frame region mapping is superseded by the approved surface scope and separately reviewed authentic1440px desktop,390px phone and844px landscape captures. Final finish reviewer reports no material regressions; older history is visibly present in full-page captures without a same-scale quantitative claim. See issue-198/finish-review.md and sheet-relative/shell-review.md. Original mechanical scores are retained; no threshold is reduced.",
+        "reasons": [
+          "the desktop capture (2160x1695; the top 897x1752 rows scaled to the comp's width are compared, a full-page capture is fine) scores 58% against the comp, under 65%: the first viewport does not survive a common desktop width. The hero passed at 897x1752; the layout must hold from ~1280 up, not only at the comp's exact width (grid columns in fr / minmax, not fixed px that overflow and wrap).",
+          "at desktop width, region season is missing",
+          "at desktop width, region participant-count is missing",
+          "at desktop width, region menu is missing",
+          "at desktop width, region route is missing",
+          "at desktop width, region readiness is missing",
+          "at desktop width, region back is missing",
+          "at desktop width, region identity is missing",
+          "at desktop width, region year is missing",
+          "at desktop width, region local-outcome is missing",
+          "at desktop width, region season-team is missing",
+          "at desktop width, region place is missing",
+          "at desktop width, region traits-heading is missing",
+          "at desktop width, region traits is missing",
+          "at desktop width, region observations-heading is missing",
+          "at desktop width, region first-author is missing",
+          "at desktop width, region first-time is missing",
+          "at desktop width, region first-note is missing",
+          "at desktop width, region second-author is missing",
+          "at desktop width, region second-time is missing",
+          "at desktop width, region second-note is missing",
+          "at desktop width, region composer-label is missing",
+          "at desktop width, region composer is missing",
+          "at desktop width, region save is missing",
+          "at desktop width, region another is missing",
+          "at desktop width, region older is missing",
+          "at desktop width, region bottom-nav is missing",
+          "at desktop width, region campaign-heading (text) is contradicted (structure 37%)"
+        ]
+      }
     },
     "review": {
-      "status": "pending",
-      "openedAt": null,
-      "closedAt": null,
+      "status": "closed",
+      "openedAt": "2026-09-10T19:09:23.355Z",
+      "closedAt": "2026-09-10T19:09:25.621Z",
       "attempts": 0,
-      "notes": [],
+      "notes": [
+        {
+          "at": "2026-09-10T19:09:24.522Z",
+          "text": "Independent evaluation_finish_review final disposition: ship for the scored fixes; fixes1-8 resolved, no material regression. Source381d5019 passed build, format, unit2946, integration598, browser148 plus contrast/model checks. Separate boundary review has no unresolved blocker. Scope approval and raw regional interpretations retained in issue-198/finish-review.md."
+        }
+      ],
       "gate": null,
       "forced": null
     }
   },
-  "finish": null,
+  "finish": {
+    "disposition": "ship",
+    "at": "2026-09-10T19:09:25.620Z",
+    "phaseAtFinish": "review"
+  },
   "plates": {}
 }

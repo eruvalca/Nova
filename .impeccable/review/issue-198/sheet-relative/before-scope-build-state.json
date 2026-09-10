@@ -1,0 +1,322 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-09-10T15:24:30.080Z",
+  "comp": ".impeccable/mocks/decision/issue-198-shared-notebook.png",
+  "direction": null,
+  "breakpoint": "897x1752",
+  "artifact": null,
+  "phase": "hero",
+  "phases": {
+    "comps": {
+      "status": "skipped",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [
+        {
+          "at": "2026-09-10T15:24:30.080Z",
+          "text": "started with an approved comp; the comp round happened before this state (surface round or manual)"
+        }
+      ],
+      "gate": null,
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-09-10T15:24:30.078Z",
+      "closedAt": "2026-09-10T15:40:36.409Z",
+      "attempts": 3,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "28 regions, 0 plates, 16 text regions measured",
+        "at": "2026-09-10T15:40:36.408Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "closed",
+      "openedAt": "2026-09-10T15:40:36.409Z",
+      "closedAt": "2026-09-10T15:40:36.571Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no plates owed",
+        "at": "2026-09-10T15:40:36.569Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "open",
+      "openedAt": "2026-09-10T15:40:36.571Z",
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [
+        {
+          "at": "2026-09-10T17:13:11.888Z",
+          "text": "Hero measurement remains open. User plan requires preserving the existing design system, and the locked direction keeps shared campaign chrome authoritative. The generated mobile comp raster is 897x1752, but live 897 CSS px uses the existing desktop sidebar. No override or visual pass is claimed. Await final captures and independent finish review."
+        },
+        {
+          "at": "2026-09-10T18:12:18.952Z",
+          "text": "The user chose Run another visual correction round instead of waiving the 71.59 percent gate. Reviewer directs one bounded batch: match authentic synthetic comparison records, center single-stage notebook at approximately 520 CSS px, tighten leading inset to the existing .5rem spacing step, then recapture. Existing shared-shell typography, full route labels/captions and readiness remain authoritative; no override is authorized."
+        }
+      ],
+      "gate": {
+        "ok": false,
+        "reasons": [
+          "region menu is missing (detail 4%, structure 76%): the comp shows material the build does not",
+          "region route is missing (detail 0%, structure 95%): the comp shows material the build does not",
+          "region readiness is missing (detail 11%, structure 72%): the comp shows material the build does not",
+          "region back is missing (detail 0%, structure 67%): the comp shows material the build does not",
+          "region identity is missing (detail 2%, structure 55%): the comp shows material the build does not",
+          "region local-outcome is missing (detail 0%, structure 57%): the comp shows material the build does not",
+          "region place is missing (detail 0%, structure 63%): the comp shows material the build does not",
+          "region traits-heading is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region traits is missing (detail 0%, structure 67%): the comp shows material the build does not",
+          "region first-time is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region first-note is missing (detail 0%, structure 69%): the comp shows material the build does not",
+          "region second-author is missing (detail 0%, structure 80%): the comp shows material the build does not",
+          "region second-time is missing (detail 0%, structure 62%): the comp shows material the build does not",
+          "region second-note is missing (detail 7%, structure 72%): the comp shows material the build does not",
+          "region composer-label is missing (detail 0%, structure 73%): the comp shows material the build does not",
+          "region another is missing (detail 0%, structure 78%): the comp shows material the build does not",
+          "region participant-count (text) is contradicted (structure 48%, detail added 31%): the composition of this text region differs from the comp; re-derive it from the spec box",
+          "region season-team (text) is contradicted (structure 36%, detail added 41%): the composition of this text region differs from the comp; re-derive it from the spec box",
+          "control save drifts to 46% (structure 51%, color 56%): its chrome differs from the comp's; open .impeccable\\review\\diff\\hero\\regions\\save.png and match the border, fill, radius, chevron or arrow, and label size",
+          "control older drifts to 52% (structure 50%, color 79%): its chrome differs from the comp's; open .impeccable\\review\\diff\\hero\\regions\\older.png and match the border, fill, radius, chevron or arrow, and label size",
+          "the build carries ink in 10 grid cells where the comp is calm (G2, I2, G5, G7, H7, I7, C8, A9, E9, F9); nothing exists on the page that the comp does not show (a kicker, an extra nav item, a divider, a second row of controls); remove it or name it in a stated decision after the hero passes"
+        ],
+        "summary": "hero 73% (drift)",
+        "score": 0.7343,
+        "verdict": "drift",
+        "report": ".impeccable\\review\\diff\\hero\\report.json",
+        "sideBySide": ".impeccable\\review\\diff\\hero\\side-by-side.png",
+        "worst": [
+          "save drift 46%",
+          "identity missing 46%",
+          "season-team contradicted 46%"
+        ],
+        "worstIds": [
+          "save",
+          "identity",
+          "season-team"
+        ],
+        "worstCrops": [
+          {
+            "id": "save",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.4574,
+              "structure": 0.5118,
+              "color": 0.5556,
+              "colorIntersection": 0.1201,
+              "paletteMatch": 0.79,
+              "detail": 0.1633,
+              "detailRaw": 0.3247,
+              "detailAdded": 0.3229,
+              "bands": 0.3571
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\save.png"
+          },
+          {
+            "id": "identity",
+            "verdict": "missing",
+            "score": {
+              "overall": 0.4607,
+              "structure": 0.5496,
+              "color": 0.7345,
+              "colorIntersection": 0.7266,
+              "paletteMatch": 0.7387,
+              "detail": 0.0155,
+              "detailRaw": 0.0311,
+              "detailAdded": 0.0313,
+              "bands": 0
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\identity.png"
+          },
+          {
+            "id": "season-team",
+            "verdict": "contradicted",
+            "score": {
+              "overall": 0.462,
+              "structure": 0.3596,
+              "color": 0.8531,
+              "colorIntersection": 0.7208,
+              "paletteMatch": 0.9244,
+              "detail": 0.2,
+              "detailRaw": 0.4031,
+              "detailAdded": 0.4063,
+              "bands": 0.3889
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\season-team.png"
+          }
+        ],
+        "advisories": [
+          "(advisory, above the 72% bar) region campaign-back: its ink sits in a 236x24px box in the comp and 158x21px in the build (padding, row height, or size); match the box, not only the position",
+          "(advisory, above the 72% bar; fix in the polish pass before responsive) 8 readings:",
+          "  text local-outcome: cap height 11.1px in the build, 17.7px in the comp (-37%); set font-size so the cap height renders at 17.7px",
+          "  text season-team: letter-spacing is wider than the comp's (gap 0.255 vs 0.113 of the cap height); set letter-spacing to close it by about 3px",
+          "  text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px",
+          "  text year: the face renders 26% heavier than the comp's (ink density 0.58 vs 0.46); drop a weight step or use the ranked face",
+          "  text season-team: the face renders 52% heavier than the comp's (ink density 0.66 vs 0.43); drop a weight step or use the ranked face",
+          "  text year: ink is #097979 in the build, #bfbfc0 in the comp; use the comp's colour",
+          "  text local-outcome: its first line starts 16px lower than in the comp (21px vs 5px into the region box); the spacing above it is too large",
+          "  control composer: its rule sits 2px into the box in the comp and 76px in the build (+74px), so the strip is taller than the comp's; match the height, not only the position",
+          "(advisory, unchanged for 3+ attempts) text participant-count: ink is #19282b in the build, #b0c0c0 in the comp; use the comp's colour"
+        ],
+        "regionVerdicts": {
+          "campaign-back": "drift",
+          "campaign-heading": "drift",
+          "season": "drift",
+          "participant-count": "contradicted",
+          "menu": "missing",
+          "route": "missing",
+          "readiness": "missing",
+          "back": "missing",
+          "identity": "missing",
+          "year": "drift",
+          "local-outcome": "missing",
+          "season-team": "contradicted",
+          "place": "missing",
+          "traits-heading": "missing",
+          "traits": "missing",
+          "observations-heading": "drift",
+          "first-author": "drift",
+          "first-time": "missing",
+          "first-note": "missing",
+          "second-author": "missing",
+          "second-time": "missing",
+          "second-note": "missing",
+          "composer-label": "missing",
+          "composer": "match",
+          "save": "drift",
+          "another": "missing",
+          "older": "drift",
+          "bottom-nav": "drift"
+        },
+        "at": "2026-09-10T18:55:16.555Z"
+      },
+      "forced": null,
+      "readingsSeen": {
+        "text year: cap height 10.1px in the build, 17.6px in the comp (-43%); set font-size so the cap height renders at 17.6px": 1,
+        "text season-team: cap height 12.1px in the build, 17.8px in the comp (-32%); set font-size so the cap height renders at 17.8px": 1,
+        "text traits-heading: cap height 12.1px in the build, 18.1px in the comp (-33%); set font-size so the cap height renders at 18.1px": 1,
+        "text observations-heading: cap height 10.1px in the build, 17.5px in the comp (-42%); set font-size so the cap height renders at 17.5px": 1,
+        "text first-author: cap height 12.1px in the build, 18.3px in the comp (-34%); set font-size so the cap height renders at 18.3px": 1,
+        "text first-note: cap height 10.3px in the build, 18.5px in the comp (-44%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-note: cap height 12.1px in the build, 18.3px in the comp (-34%); set font-size so the cap height renders at 18.3px": 1,
+        "text composer-label: cap height 12.1px in the build, 17.2px in the comp (-30%); set font-size so the cap height renders at 17.2px": 1,
+        "text participant-count: ink is #d2bd7d in the build, #b0c0c0 in the comp; use the comp's colour": 1,
+        "text identity: ink is #f0ba6c in the build, #09222d in the comp; use the comp's colour": 1,
+        "text year: ink is #a2daf3 in the build, #bfbfc0 in the comp; use the comp's colour": 1,
+        "text season-team: ink is #4b6868 in the build, #111519 in the comp; use the comp's colour": 1,
+        "text traits-heading: ink is #0888b8 in the build, #67767d in the comp; use the comp's colour": 1,
+        "text observations-heading: ink is #d89e6b in the build, #0b1524 in the comp; use the comp's colour": 1,
+        "text first-note: ink is #dea474 in the build, #b5babe in the comp; use the comp's colour": 1,
+        "text second-note: ink is #f8cb7b in the build, #2b3642 in the comp; use the comp's colour": 1,
+        "text composer-label: ink is #985828 in the build, #081220 in the comp; use the comp's colour": 1,
+        "text year: it starts 211px further right than in the comp": 1,
+        "text local-outcome: it starts 211px further right than in the comp": 1,
+        "text season-team: it starts 210px further right than in the comp": 1,
+        "text traits-heading: its first line starts 15px lower than in the comp (21px vs 6px into the region box); the spacing above it is too large": 1,
+        "text traits-heading: it starts 211px further right than in the comp": 1,
+        "text observations-heading: it starts 209px further right than in the comp": 1,
+        "text first-author: it starts 220px further right than in the comp": 1,
+        "text first-note: it starts 208px further right than in the comp": 1,
+        "text second-note: it starts 209px further right than in the comp": 1,
+        "text composer-label: it starts 210px further right than in the comp": 1,
+        "control back: its ink is 40px tall in the build and 18px in the comp (+22px); match the height, not only the position": 1,
+        "control composer: its rule sits 2px into the box in the comp and 13px in the build (+11px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control save: its rule sits 1px into the box in the comp and 20px in the build (+19px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control another: its rule sits 2px into the box in the comp and 54px in the build (+52px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control older: its rule sits 15px into the box in the comp and 37px in the build (+22px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "text season: cap height 6px in the build, 20.3px in the comp (-70%); set font-size so the cap height renders at 20.3px": 1,
+        "text year: cap height 8.2px in the build, 17.6px in the comp (-53%); set font-size so the cap height renders at 17.6px": 1,
+        "text season-team: cap height 31.5px in the build, 17.8px in the comp (+77%); set font-size so the cap height renders at 17.8px": 3,
+        "text observations-heading: cap height 23px in the build, 17.5px in the comp (+31%); set font-size so the cap height renders at 17.5px": 1,
+        "text first-note: cap height 13.9px in the build, 18.5px in the comp (-25%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-author: the face renders 70% heavier than the comp's (ink density 0.94 vs 0.55); drop a weight step or use the ranked face": 1,
+        "text participant-count: ink is #1a2a2b in the build, #b0c0c0 in the comp; use the comp's colour": 1,
+        "text year: ink is #09797a in the build, #bfbfc0 in the comp; use the comp's colour": 1,
+        "text first-author: ink is #4c6969 in the build, #0c1b2c in the comp; use the comp's colour": 1,
+        "text first-note: ink is #583809 in the build, #b5babe in the comp; use the comp's colour": 1,
+        "text second-author: ink is #0d7a79 in the build, #0a2031 in the comp; use the comp's colour": 1,
+        "text traits-heading: cap height 8.2px in the build, 18.1px in the comp (-55%); set font-size so the cap height renders at 18.1px": 2,
+        "text observations-heading: cap height 7.2px in the build, 17.5px in the comp (-59%); set font-size so the cap height renders at 17.5px": 1,
+        "text first-author: cap height 7.1px in the build, 18.3px in the comp (-61%); set font-size so the cap height renders at 18.3px": 1,
+        "text first-note: cap height 10px in the build, 18.5px in the comp (-46%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-author: cap height 7px in the build, 18.5px in the comp (-62%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-note: cap height 13.9px in the build, 18.3px in the comp (-24%); set font-size so the cap height renders at 18.3px": 3,
+        "text participant-count: ink is #19282b in the build, #b0c0c0 in the comp; use the comp's colour": 4,
+        "text observations-heading: ink is #127a7a in the build, #0b1524 in the comp; use the comp's colour": 1,
+        "text first-note: ink is #182829 in the build, #b5babe in the comp; use the comp's colour": 1,
+        "text first-author: its first line starts 22px lower than in the comp (29px vs 7px into the region box); the spacing above it is too large": 1,
+        "text second-note: its first line starts 15px lower than in the comp (21px vs 6px into the region box); the spacing above it is too large": 1,
+        "control composer: its rule sits 2px into the box in the comp and 55px in the build (+53px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control save: its rule sits 1px into the box in the comp and 27px in the build (+26px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "text observations-heading: letter-spacing is wider than the comp's (gap 0.139 vs 0.086 of the cap height); set letter-spacing to close it by about 1px": 1,
+        "text first-author: cap height 3.7px in the build, 18.3px in the comp (-80%); set font-size so the cap height renders at 18.3px": 1,
+        "text first-note: cap height 8.2px in the build, 18.5px in the comp (-56%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-author: cap height 12.9px in the build, 18.5px in the comp (-30%); set font-size so the cap height renders at 18.5px": 1,
+        "text second-note: the face renders 30% heavier than the comp's (ink density 0.58 vs 0.45); drop a weight step or use the ranked face": 1,
+        "text first-note: ink is #093838 in the build, #b5babe in the comp; use the comp's colour": 1,
+        "text first-author: its first line starts 20px lower than in the comp (27px vs 7px into the region box); the spacing above it is too large": 1,
+        "control composer: its rule sits 2px into the box in the comp and 88px in the build (+86px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control save: its rule sits 1px into the box in the comp and 18px in the build (+17px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control another: its rule sits 2px into the box in the comp and 52px in the build (+50px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control older: its rule sits 15px into the box in the comp and 31px in the build (+16px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "text local-outcome: cap height 11.1px in the build, 17.7px in the comp (-37%); set font-size so the cap height renders at 17.7px": 2,
+        "text season-team: letter-spacing is wider than the comp's (gap 0.255 vs 0.113 of the cap height); set letter-spacing to close it by about 3px": 2,
+        "text year: the face renders 26% heavier than the comp's (ink density 0.58 vs 0.46); drop a weight step or use the ranked face": 2,
+        "text season-team: the face renders 52% heavier than the comp's (ink density 0.66 vs 0.43); drop a weight step or use the ranked face": 2,
+        "text year: ink is #097979 in the build, #bfbfc0 in the comp; use the comp's colour": 2,
+        "text local-outcome: its first line starts 16px lower than in the comp (21px vs 5px into the region box); the spacing above it is too large": 2,
+        "control composer: its rule sits 2px into the box in the comp and 76px in the build (+74px), so the strip is taller than the comp's; match the height, not only the position": 2,
+        "control another: its rule sits 2px into the box in the comp and 40px in the build (+38px), so the strip is taller than the comp's; match the height, not only the position": 2
+      },
+      "records": 6
+    },
+    "sections": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "motion": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "responsive": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "review": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": null,
+  "plates": {}
+}

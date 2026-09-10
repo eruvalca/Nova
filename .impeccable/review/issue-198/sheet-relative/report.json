@@ -1,0 +1,739 @@
+{
+  "tool": "comp-diff",
+  "version": 1,
+  "createdAt": "2026-09-10T19:06:59.081Z",
+  "comp": ".impeccable/review/issue-198/sheet-relative/comp.png",
+  "build": ".impeccable/review/issue-198/sheet-relative/build.png",
+  "spec": ".impeccable/review/issue-198/sheet-relative/spec.json",
+  "align": "top",
+  "overall": 0.7611,
+  "verdict": "drift",
+  "scores": {
+    "overall": 0.7611,
+    "structure": 0.6862,
+    "color": 0.9401,
+    "colorIntersection": 0.8809,
+    "paletteMatch": 0.972,
+    "detail": 0.5795,
+    "detailRaw": 0.6837,
+    "detailAdded": 0.2083,
+    "bands": 0.94
+  },
+  "palette": {
+    "comp": [
+      {
+        "hex": "#f7f7f8",
+        "coverage": 0.8908
+      },
+      {
+        "hex": "#148587",
+        "coverage": 0.0659
+      },
+      {
+        "hex": "#d9f8e8",
+        "coverage": 0.022
+      },
+      {
+        "hex": "#0a1d28",
+        "coverage": 0.0099
+      },
+      {
+        "hex": "#c9cdd2",
+        "coverage": 0.0081
+      },
+      {
+        "hex": "#3d505d",
+        "coverage": 0.0033
+      }
+    ],
+    "build": [
+      {
+        "hex": "#f8f8f8",
+        "coverage": 0.8868
+      },
+      {
+        "hex": "#087878",
+        "coverage": 0.0723
+      },
+      {
+        "hex": "#d8f8e8",
+        "coverage": 0.029
+      },
+      {
+        "hex": "#172929",
+        "coverage": 0.0101
+      },
+      {
+        "hex": "#486868",
+        "coverage": 0.0012
+      },
+      {
+        "hex": "#182858",
+        "coverage": 0.0006
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "back",
+      "x": 0.03337897435897436,
+      "y": 0.019454309545875858,
+      "w": 0.29486,
+      "h": 0.0370209453197405,
+      "kind": "control",
+      "score": {
+        "overall": 0.7278,
+        "structure": 0.7308,
+        "color": 0.8868,
+        "colorIntersection": 0.8652,
+        "paletteMatch": 0.8984,
+        "detail": 0.4429,
+        "detailRaw": 0.5314,
+        "detailAdded": 0.1771,
+        "bands": 0.34
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 6,
+          "y": 16,
+          "w": 190,
+          "h": 18
+        },
+        "build": {
+          "x": 2,
+          "y": 21,
+          "w": 189,
+          "h": 24
+        }
+      }
+    },
+    {
+      "id": "identity",
+      "x": 0.03337897435897436,
+      "y": 0.08618943466172377,
+      "w": 0.570515,
+      "h": 0.04449008341056534,
+      "kind": "text",
+      "score": {
+        "overall": 0.7016,
+        "structure": 0.7,
+        "color": 0.8214,
+        "colorIntersection": 0.7403,
+        "paletteMatch": 0.8651,
+        "detail": 0.6415,
+        "detailRaw": 0.704,
+        "detailAdded": 0.125,
+        "bands": 0.5
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 3,
+          "y": 5,
+          "w": 332,
+          "h": 38
+        },
+        "build": {
+          "x": 0,
+          "y": 9,
+          "w": 339,
+          "h": 36
+        }
+      }
+    },
+    {
+      "id": "year",
+      "x": 0.03464397435897436,
+      "y": 0.14366932344763667,
+      "w": 0.410205,
+      "h": 0.030526042632066732,
+      "kind": "text",
+      "score": {
+        "overall": 0.646,
+        "structure": 0.7211,
+        "color": 0.9225,
+        "colorIntersection": 0.8977,
+        "paletteMatch": 0.9359,
+        "detail": 0.3655,
+        "detailRaw": 0.4593,
+        "detailAdded": 0.1875,
+        "bands": 0
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 15,
+          "w": 162,
+          "h": 24
+        },
+        "build": {
+          "x": 0,
+          "y": 21,
+          "w": 226,
+          "h": 24
+        }
+      }
+    },
+    {
+      "id": "local-outcome",
+      "x": 0.03464397435897436,
+      "y": 0.17971603336422612,
+      "w": 0.461495,
+      "h": 0.029714179796107507,
+      "kind": "text",
+      "score": {
+        "overall": 0.6305,
+        "structure": 0.7291,
+        "color": 0.9039,
+        "colorIntersection": 0.8866,
+        "paletteMatch": 0.9132,
+        "detail": 0,
+        "detailRaw": 0,
+        "detailAdded": 0.0729,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 13,
+          "w": 242,
+          "h": 24
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 209,
+          "h": 48
+        }
+      }
+    },
+    {
+      "id": "season-team",
+      "x": 0.03464397435897436,
+      "y": 0.21413901760889717,
+      "w": 0.461495,
+      "h": 0.029714179796107507,
+      "kind": "text",
+      "score": {
+        "overall": 0.6379,
+        "structure": 0.7628,
+        "color": 0.9062,
+        "colorIntersection": 0.878,
+        "paletteMatch": 0.9214,
+        "detail": 0.2001,
+        "detailRaw": 0.2731,
+        "detailAdded": 0.1458,
+        "bands": 0
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 2,
+          "y": 14,
+          "w": 256,
+          "h": 19
+        },
+        "build": {
+          "x": 0,
+          "y": 7,
+          "w": 234,
+          "h": 21
+        }
+      }
+    },
+    {
+      "id": "place",
+      "x": 0.7525889743589742,
+      "y": 0.14172085264133455,
+      "w": 0.217925,
+      "h": 0.03799518072289157,
+      "kind": "control",
+      "score": {
+        "overall": 0.5808,
+        "structure": 0.6297,
+        "color": 0.8499,
+        "colorIntersection": 0.8284,
+        "paletteMatch": 0.8614,
+        "detail": 0,
+        "detailRaw": 0,
+        "detailAdded": 0,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 7,
+          "y": 9,
+          "w": 159,
+          "h": 24
+        },
+        "build": null
+      }
+    },
+    {
+      "id": "traits-heading",
+      "x": 0.03464397435897436,
+      "y": 0.2808741427247451,
+      "w": 0.30774,
+      "h": 0.03328637627432809,
+      "kind": "text",
+      "score": {
+        "overall": 0.6457,
+        "structure": 0.7273,
+        "color": 0.876,
+        "colorIntersection": 0.8708,
+        "paletteMatch": 0.8788,
+        "detail": 0.0204,
+        "detailRaw": 0.0412,
+        "detailAdded": 0.0417,
+        "bands": 0.6
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 12,
+          "w": 141,
+          "h": 25
+        },
+        "build": null
+      }
+    },
+    {
+      "id": "traits",
+      "x": 0.03590897435897436,
+      "y": 0.32536422613531046,
+      "w": 0.778205,
+      "h": 0.06202632066728452,
+      "kind": "control",
+      "score": {
+        "overall": 0.6189,
+        "structure": 0.6823,
+        "color": 0.8658,
+        "colorIntersection": 0.7217,
+        "paletteMatch": 0.9434,
+        "detail": 0.0441,
+        "detailRaw": 0.1587,
+        "detailAdded": 0.2292,
+        "bands": 0.23
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 25,
+          "y": 3,
+          "w": 577,
+          "h": 60
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 563,
+          "h": 67
+        }
+      }
+    },
+    {
+      "id": "observations-heading",
+      "x": 0.03590897435897436,
+      "y": 0.4226253938832252,
+      "w": 0.423085,
+      "h": 0.03620908248378128,
+      "kind": "text",
+      "score": {
+        "overall": 0.6189,
+        "structure": 0.7526,
+        "color": 0.8984,
+        "colorIntersection": 0.879,
+        "paletteMatch": 0.9088,
+        "detail": 0,
+        "detailRaw": 0.0592,
+        "detailAdded": 0.25,
+        "bands": 0.18
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 10,
+          "w": 212,
+          "h": 19
+        },
+        "build": {
+          "x": 0,
+          "y": 25,
+          "w": 217,
+          "h": 18
+        }
+      }
+    },
+    {
+      "id": "first-author",
+      "x": 0.03590897435897436,
+      "y": 0.4661412418906395,
+      "w": 0.461495,
+      "h": 0.03328637627432809,
+      "kind": "text",
+      "score": {
+        "overall": 0.6292,
+        "structure": 0.793,
+        "color": 0.9296,
+        "colorIntersection": 0.9005,
+        "paletteMatch": 0.9454,
+        "detail": 0.0017,
+        "detailRaw": 0.0538,
+        "detailAdded": 0.1042,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 13,
+          "w": 146,
+          "h": 26
+        },
+        "build": {
+          "x": 0,
+          "y": 33,
+          "w": 142,
+          "h": 15
+        }
+      }
+    },
+    {
+      "id": "first-time",
+      "x": 0.8410239743589744,
+      "y": 0.4661412418906395,
+      "w": 0.130755,
+      "h": 0.03328637627432809,
+      "kind": "text",
+      "score": {
+        "overall": 0.5399,
+        "structure": 0.5115,
+        "color": 0.8966,
+        "colorIntersection": 0.8603,
+        "paletteMatch": 0.9162,
+        "detail": 0,
+        "detailRaw": 0.1014,
+        "detailAdded": 0.2292,
+        "bands": 0.6
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 4,
+          "y": 16,
+          "w": 92,
+          "h": 17
+        },
+        "build": {
+          "x": 1,
+          "y": 33,
+          "w": 96,
+          "h": 15
+        }
+      }
+    },
+    {
+      "id": "first-note",
+      "x": 0.03590897435897436,
+      "y": 0.5004018535681187,
+      "w": 0.6282449999999999,
+      "h": 0.030526042632066732,
+      "kind": "text",
+      "score": {
+        "overall": 0.6178,
+        "structure": 0.7819,
+        "color": 0.9074,
+        "colorIntersection": 0.8837,
+        "paletteMatch": 0.9202,
+        "detail": 0,
+        "detailRaw": 0.0363,
+        "detailAdded": 0.2396,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 2,
+          "y": 0,
+          "w": 354,
+          "h": 40
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 354,
+          "h": 48
+        }
+      }
+    },
+    {
+      "id": "second-author",
+      "x": 0.03590897435897436,
+      "y": 0.562590546802595,
+      "w": 0.461495,
+      "h": 0.03523484708063021,
+      "kind": "text",
+      "score": {
+        "overall": 0.6713,
+        "structure": 0.8216,
+        "color": 0.942,
+        "colorIntersection": 0.9225,
+        "paletteMatch": 0.9525,
+        "detail": 0,
+        "detailRaw": 0.0779,
+        "detailAdded": 0.1667,
+        "bands": 0.25
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 13,
+          "w": 113,
+          "h": 20
+        },
+        "build": {
+          "x": 0,
+          "y": 34,
+          "w": 108,
+          "h": 14
+        }
+      }
+    },
+    {
+      "id": "second-time",
+      "x": 0.8410239743589744,
+      "y": 0.562590546802595,
+      "w": 0.130755,
+      "h": 0.03523484708063021,
+      "kind": "text",
+      "score": {
+        "overall": 0.5232,
+        "structure": 0.5122,
+        "color": 0.9013,
+        "colorIntersection": 0.8644,
+        "paletteMatch": 0.9211,
+        "detail": 0.0008,
+        "detailRaw": 0.131,
+        "detailAdded": 0.2604,
+        "bands": 0.4167
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 4,
+          "y": 16,
+          "w": 92,
+          "h": 17
+        },
+        "build": {
+          "x": 1,
+          "y": 34,
+          "w": 96,
+          "h": 14
+        }
+      }
+    },
+    {
+      "id": "second-note",
+      "x": 0.03590897435897436,
+      "y": 0.5996114921223356,
+      "w": 0.666655,
+      "h": 0.03247451343836886,
+      "kind": "text",
+      "score": {
+        "overall": 0.6256,
+        "structure": 0.7934,
+        "color": 0.9158,
+        "colorIntersection": 0.8905,
+        "paletteMatch": 0.9294,
+        "detail": 0,
+        "detailRaw": 0.047,
+        "detailAdded": 0.25,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 12,
+          "w": 363,
+          "h": 24
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 368,
+          "h": 48
+        }
+      }
+    },
+    {
+      "id": "composer-label",
+      "x": 0.03590897435897436,
+      "y": 0.6673208526413347,
+      "w": 0.320505,
+      "h": 0.034260611677479146,
+      "kind": "text",
+      "score": {
+        "overall": 0.6467,
+        "structure": 0.7646,
+        "color": 0.9295,
+        "colorIntersection": 0.895,
+        "paletteMatch": 0.9481,
+        "detail": 0,
+        "detailRaw": 0.0196,
+        "detailAdded": 0.1771,
+        "bands": 0.32
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 11,
+          "w": 250,
+          "h": 37
+        },
+        "build": {
+          "x": 0,
+          "y": 42,
+          "w": 99,
+          "h": 6
+        }
+      }
+    },
+    {
+      "id": "composer",
+      "x": 0.03590897435897436,
+      "y": 0.7033675625579241,
+      "w": 0.934605,
+      "h": 0.1139855421686747,
+      "kind": "control",
+      "score": {
+        "overall": 0.6929,
+        "structure": 0.8081,
+        "color": 0.9345,
+        "colorIntersection": 0.895,
+        "paletteMatch": 0.9558,
+        "detail": 0.0107,
+        "detailRaw": 0.1826,
+        "detailAdded": 0.3438,
+        "bands": 0.1771
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 3,
+          "w": 725,
+          "h": 117
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 729,
+          "h": 80
+        }
+      }
+    },
+    {
+      "id": "save",
+      "x": 0.03590897435897436,
+      "y": 0.8267707136237256,
+      "w": 0.934605,
+      "h": 0.07046969416126042,
+      "kind": "control",
+      "score": {
+        "overall": 0.5856,
+        "structure": 0.8657,
+        "color": 0.5602,
+        "colorIntersection": 0.1241,
+        "paletteMatch": 0.795,
+        "detail": 0,
+        "detailRaw": 0.0906,
+        "detailAdded": 0.2917,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 0,
+          "w": 729,
+          "h": 76
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 729,
+          "h": 76
+        }
+      }
+    },
+    {
+      "id": "another",
+      "x": 0.03590897435897436,
+      "y": 0.9035729379054681,
+      "w": 0.934605,
+      "h": 0.06770936051899908,
+      "kind": "control",
+      "score": {
+        "overall": 0.7609,
+        "structure": 0.7951,
+        "color": 0.9481,
+        "colorIntersection": 0.8886,
+        "paletteMatch": 0.9802,
+        "detail": 0.3563,
+        "detailRaw": 0.4397,
+        "detailAdded": 0.1667,
+        "bands": 0.23
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 3,
+          "w": 725,
+          "h": 67
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 726,
+          "h": 73
+        }
+      }
+    }
+  ],
+  "files": {
+    "sideBySide": ".impeccable\\review\\issue-198\\sheet-relative\\side-by-side.png",
+    "heatmap": ".impeccable\\review\\issue-198\\sheet-relative\\heatmap.png",
+    "regionFiles": [
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\back.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\identity.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\year.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\local-outcome.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\season-team.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\place.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\traits-heading.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\traits.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\observations-heading.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\first-author.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\first-time.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\first-note.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\second-author.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\second-time.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\second-note.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\composer-label.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\composer.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\save.png",
+      ".impeccable\\review\\issue-198\\sheet-relative\\regions\\another.png"
+    ]
+  }
+}
