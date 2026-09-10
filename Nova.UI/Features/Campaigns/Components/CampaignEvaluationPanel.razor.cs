@@ -257,7 +257,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
                 await OnLifecycleChanged.InvokeAsync();
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or JSException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or JSException or OperationCanceledException)
         {
             if (Owns(owner) && sequence == _identitySequence)
             {
@@ -308,7 +308,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
                 await OnLifecycleChanged.InvokeAsync();
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
         {
             if (OwnsFinder(owner, sequence))
             {

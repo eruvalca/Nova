@@ -164,7 +164,7 @@ public partial class CampaignParticipantDrawer
                 default: _mutationError = "This retained operation is not recognized. Its text remains available in this tab."; break;
             }
         }
-        catch (Exception exception) when (exception is JSException or JsonException or HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is JSException or JsonException or HttpRequestException or OperationCanceledException)
         {
             if (OwnsMutation(lease))
             {

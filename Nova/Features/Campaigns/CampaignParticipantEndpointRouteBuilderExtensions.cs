@@ -6,14 +6,14 @@ using Nova.SharedKernel.Security;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Maps campaign participant roster, detail, and graduation-years endpoints.
+/// Maps campaign participant discovery, detail, and independent evaluation evidence endpoints.
 /// </summary>
 internal static class CampaignParticipantEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
         /// <summary>
-        /// Maps campaign participant roster, detail, and graduation-years GET endpoints.
+        /// Maps campaign participant discovery, detail, and evaluation evidence GET endpoints.
         /// </summary>
         /// <returns>The endpoint route builder for chaining.</returns>
         public IEndpointRouteBuilder MapCampaignParticipantEndpoints()
@@ -59,14 +59,11 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
     /// <summary>Maps independently recoverable evaluation reads with complete HTTP metadata.</summary>
     private static void MapEvidenceReads(RouteGroupBuilder group)
     {
-        var notes = group.MapGet(CampaignEndpoints.EvaluationNotesRelative, async ([AsParameters] GetEvaluationHistoryInput input,
-            ICampaignEvaluationQueryService service, CancellationToken token) => (await service.GetNotesAsync(input, token)).ToHttpResult())
+        var notes = group.MapGet(CampaignEndpoints.EvaluationNotesRelative, GetEvaluationNotesHandlerAsync)
             .Produces<EvaluationHistoryPage<CampaignParticipantNoteDto>>().WithName("Campaigns.EvaluationNotes");
-        var applications = group.MapGet(CampaignEndpoints.EvaluationApplicationsRelative, async ([AsParameters] GetEvaluationHistoryInput input,
-            ICampaignEvaluationQueryService service, CancellationToken token) => (await service.GetApplicationsAsync(input, token)).ToHttpResult())
+        var applications = group.MapGet(CampaignEndpoints.EvaluationApplicationsRelative, GetEvaluationApplicationsHandlerAsync)
             .Produces<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>().WithName("Campaigns.EvaluationApplications");
-        var choices = group.MapGet(CampaignEndpoints.EvaluationTagChoicesRelative, async ([AsParameters] GetCampaignParticipantDetailInput input,
-            ICampaignEvaluationQueryService service, CancellationToken token) => (await service.GetTagChoicesAsync(input, token)).ToHttpResult())
+        var choices = group.MapGet(CampaignEndpoints.EvaluationTagChoicesRelative, GetEvaluationTagChoicesHandlerAsync)
             .Produces<IReadOnlyList<EvaluationTagChoice>>().WithName("Campaigns.EvaluationTagChoices");
         foreach (var endpoint in new[] { notes, applications, choices })
         {
@@ -74,6 +71,48 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status500InternalServerError);
         }
+    }
+
+    /// <summary>Reads a bounded page of shared participant notes.</summary>
+    /// <param name="input">The participant identity and optional history cursor.</param>
+    /// <param name="service">The authorized evaluation query service.</param>
+    /// <param name="cancellationToken">Propagates request cancellation.</param>
+    /// <returns>The note history page or a structured problem.</returns>
+    private static async Task<IResult> GetEvaluationNotesHandlerAsync(
+        [AsParameters] GetEvaluationHistoryInput input,
+        ICampaignEvaluationQueryService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetNotesAsync(input, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>Reads a bounded page of participant trait applications.</summary>
+    /// <param name="input">The participant identity and optional history cursor.</param>
+    /// <param name="service">The authorized evaluation query service.</param>
+    /// <param name="cancellationToken">Propagates request cancellation.</param>
+    /// <returns>The application history page or a structured problem.</returns>
+    private static async Task<IResult> GetEvaluationApplicationsHandlerAsync(
+        [AsParameters] GetEvaluationHistoryInput input,
+        ICampaignEvaluationQueryService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetApplicationsAsync(input, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>Reads available trait definitions with participant application status.</summary>
+    /// <param name="input">The participant identity.</param>
+    /// <param name="service">The authorized evaluation query service.</param>
+    /// <param name="cancellationToken">Propagates request cancellation.</param>
+    /// <returns>The trait choices or a structured problem.</returns>
+    private static async Task<IResult> GetEvaluationTagChoicesHandlerAsync(
+        [AsParameters] GetCampaignParticipantDetailInput input,
+        ICampaignEvaluationQueryService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetTagChoicesAsync(input, cancellationToken);
+        return result.ToHttpResult();
     }
 
     /// <summary>

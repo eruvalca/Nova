@@ -31,7 +31,7 @@ The user required preserving the existing design system. Shared campaign chrome 
 
 ## Validation
 
-The subsequent [PR review round 1 record](review-round-1.md) supersedes the application/test validation below for its source changes and links the separate local review. The original design and measurement evidence remains applicable.
+The subsequent [PR review round 1](review-round-1.md) and [round 2](review-round-2.md) records supersede the application/test validation below for their source changes and link separate local reviews. The original design and measurement evidence remains applicable.
 
 Build-capable commands are serialized. Aspire-backed suites are serialized across the machine; all test commands use `--no-build`. Raw command logs are ignored local artifacts under this directory.
 

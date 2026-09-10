@@ -226,7 +226,7 @@ public partial class CampaignEvaluationPanel
                 await HandleCommittedCaptureAsync(pending, owner, result.Value);
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or JSException or OperationCanceledException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or JSException or OperationCanceledException)
         {
             if (Owns(owner))
             {

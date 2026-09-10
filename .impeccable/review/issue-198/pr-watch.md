@@ -2,6 +2,11 @@
 
 ## Scope and current round
 
+- Round one was pushed once as `af99924213e2cbf455bbfca12cef5551f5bc36db`; all six threads were explained and resolved after the push, and the three withheld findings were covered in the PR summary comment. Both CI checks passed.
+- Fresh review `PRR_kwDOSz2VcM8AAAABNEZlCg` recommends changes. [Round two](review-round-2.md) collects all six new threads and eight matching raw stored entries. Production corrections passed all three local suites; the single combined round-two commit will carry final validation evidence. Its fresh remote CI and automatic review remain the next gate. No review was requested manually.
+
+## Round-one history
+
 - PR: https://github.com/eruvalca/Nova/pull/253
 - Watcher: `watch-nova-pr-253`; use GitHub MCP or GitHub CLI for all further GitHub operations.
 - Round starts at `63235f98d61d58d4dd80c3f19f057206852ccde4`; Build and Unit Tests succeeded.

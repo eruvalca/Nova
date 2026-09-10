@@ -833,7 +833,7 @@ public partial class CampaignParticipantDrawer(
         {
             await serviceCall(owner);
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JSException)
+        catch (Exception ex) when (!ComponentCancellationToken.IsCancellationRequested && ex is HttpRequestException or OperationCanceledException or JSException)
         {
             if (!OwnsMutation(owner))
             {
