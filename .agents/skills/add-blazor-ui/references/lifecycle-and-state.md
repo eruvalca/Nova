@@ -179,9 +179,9 @@ same unavailable state as an unknown campaign; do not turn it into a revealing a
 Other routes may require AccessDenied, and onboarding may use NotFound as an empty state. Field-level
 validation belongs in the [form recipe](forms-and-validation.md), not a generic page-error branch.
 
-**Preserve mutation feedback across refreshes**: when a successful mutation sets a status message and
-then reloads data, the reload helper must not clear that message before it can render. Clear feedback
-at an intentional user-action boundary instead.
+Render mutation/recovery feedback independently of an identity or history loading branch. Verify it
+while the refresh is held, not only after it completes. `CampaignParticipantDrawer` and its component
+tests cover a close rejection whose draft and explanation must remain available during identity reload.
 
 ## Pending-command recovery
 
@@ -199,6 +199,13 @@ command. An already Active campaign may still need replay to obtain this operati
 `CampaignEntry.razor.cs` demonstrates opening replay and receipt handoff; `NewCampaign.razor.cs`
 demonstrates retention of the original creation payload. `CampaignEntryTests` covers a failed storage
 write followed by confirmation, replay after opening, and unavailable data despite failed cleanup.
+
+For participant evidence, `CampaignEvaluationPanel` and the retained `CampaignParticipantDrawer`
+both consume the evaluation replay contract. Keep pending note text and its
+expected version independently of history rows: deletion, paging or a conflicting edit can remove the
+row without resolving the retained command. A delayed storage restore must also check whether the
+user has started newer work. These examples implement evaluation's recovery window; do not impose
+that duration on unrelated features.
 
 ## Bounded data
 

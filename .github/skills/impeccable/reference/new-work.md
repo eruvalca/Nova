@@ -32,6 +32,15 @@ Inherit its world and composition. Resolve only the new purpose, content, hierar
 
 ### Create a whole surface inside an established world
 
+Before locking a comp inside an existing shell, record the intended CSS viewport, device pixel ratio,
+required shell content and measurement boundary in the surface brief. Reference the real shell at
+that breakpoint, including required navigation labels, captions and metadata; raster dimensions alone
+do not identify a CSS viewport. The comp and configured comparison must use the same frame. If a
+surface-only comparison is appropriate, establish its supported measurement method and separate shell
+review before production work; a whole-frame checker does not automatically support cropped regions.
+Resolve a conflict with an already approved comp through the user's explicit scope decision, preserving
+the original evidence. A new comparison scope is not a lower threshold or a retroactive raw-score pass.
+
 Keep the visual system fixed. Derive five to seven materially different structures from the content, task, and user behavior, ordered by resonance. For a genuinely open whole page, screen, or flow, run:
 
 `node .github/skills/impeccable/scripts/concept-seed.mjs --scope surface --mode <mode>`

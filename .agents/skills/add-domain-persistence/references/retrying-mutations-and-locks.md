@@ -98,6 +98,14 @@ receipt may support recovery after confirmation expiry when the feature contract
 receipt absence must not let an expired confirmation execute. Import lifetimes and row-selection
 policy belong in `PlayerImportConstraints` and the import contract, not in universal mutation rules.
 
+For evaluation evidence, `EvaluationMutationExecutor` binds the operation to tenant, actor, operation
+kind, subject and original payload; `EvaluationReceiptCleanupService` prunes expired evidence even
+after aggregate deletion. Evaluation's UUIDv7-derived deadline rejects an old operation even when its
+receipt has already been pruned. Check the deadline again after waits and before commit, not only at
+request entry: later campaign/tag locks can consume the remaining window. Recover a committed receipt
+before enforcing Active-only execution, while still requiring current membership. These are scoped
+examples, not a requirement that every feature adopt evaluation's 24-hour lifetime or UUID encoding.
+
 For preview/confirm flows that promise to import only reviewed eligible rows, bind the reviewed
 classification as well as the exact bytes into the confirmation. Revalidate eligible rows at commit;
 previously excluded rows cannot become silently eligible. Inspect all writers of the checked

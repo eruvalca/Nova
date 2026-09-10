@@ -143,11 +143,11 @@ export function detachRosterActivationSuppression() {
 
 Rules:
 
-- Hold module-level state only for the listener and its scoping container — module state is shared
-  by every component instance of that component type, so keep it minimal and idempotent.
-- **Replace-on-attach**: if Blazor recreates the element the listener scopes to (any `@if` render
-  branch), the same module may be attached again on the next render. `attach` must detach first so
-  exactly one listener is live.
+- Module state is shared across component instances. Keep listener and browser-protocol state
+  keyed to its owning element/lease; one instance must not detach or overwrite another's work.
+- **Replace listeners on attach**: a recreated element needs exactly one live listener. Replacing
+  listeners for the same logical owner must not reset an in-flight navigation guard or history
+  rollback. Keep that state separate from the DOM attachment and protect cleanup with ownership.
 - **Attach only when the container element is rendered.** A listener whose container lives in a
   conditional branch must not be attached with an unset `ElementReference` — an empty roster never
   renders the region, and the serialized reference arrives in JS as a plain object whose
@@ -207,9 +207,13 @@ Rules:
   on every render pass where the element is visible (see Step 4).
 - **`DisposeAsyncCore` ordering.** Detach listeners before disposing the module; after
   `DisposeAsync()` the module reference is unusable.
-- **No page-wide helpers.** Do not add helpers to `Nova/wwwroot/js/` or `window.*` globals. If two
-  components share JS, prefer separate collocated modules over a shared global; reconsider the
-  component split before sharing.
+- **Shared modules remain scoped.** Reuse an ES module under `Nova.UI/wwwroot/js/` when multiple
+  collocated adapters implement the same browser protocol. `evaluationNavigationGuard.js` is the
+  example for Evaluate and the retained drawer; it owns listeners through an explicit attachment
+  lease, not `window.*` globals. Its native-link/history protection is needed in addition to Blazor
+  navigation callbacks. Same-owner reattachment preserves pending rollback; newer draft or mutation
+  work revokes a previously granted discard/replay permission. Exercise ordinary and modified links,
+  back/forward and reload in the browser when changing that protocol.
 - **No speculative empty `site.js`.** `site.js` was deleted in the scoped-interop refactor and must
   not be recreated. An empty script still costs a request/parse on every page and invites
   page-global helpers back. If site-wide JS ever becomes necessary, use one of: a layout-collocated

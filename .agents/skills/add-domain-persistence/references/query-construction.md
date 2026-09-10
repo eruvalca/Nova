@@ -33,6 +33,12 @@ canonical pattern: campaign-active flag, campaign start date, campaign ID, playe
 player ID are applied before `Take`, and the materialized rows are projected without a second sort
 that could use different collation semantics.
 
+A bounded result is not proof of bounded database work. For a query-performance change, inspect the
+actual PostgreSQL translation and relevant counts as well as the page query. An ordered correlated
+collection can translate to `ROW_NUMBER` over a larger candidate set rather than a per-page lateral
+lookup; do not claim either plan from LINQ shape alone. Keep provider evidence and measured latency
+separate from any product latency target.
+
 ## Count and page consistency
 
 `CountAsync` followed by a bounded projection is two reads. Under normal read-committed behavior,

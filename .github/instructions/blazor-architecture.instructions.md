@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova/Program.cs,Nova.Client/Program.cs"
+applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova.UI/wwwroot/js/**,Nova/Program.cs,Nova.Client/Program.cs"
 description: "Blazor architecture: placement, SSR-first render modes, persisted state, safe navigation/rendering, bounded data, feature organization, component service access, and JavaScript interop."
 ---
 
@@ -118,9 +118,9 @@ Nova.UI/
   `string` parameter is a literal unless it is marked as a C# expression. Use
   `ErrorMessage="@_formError"` to pass a backing field; `ErrorMessage="_formError"` renders the field
   name. This is separate from the rule that the receiving `[Parameter]` member is a public property.
-- **Preserve mutation feedback across refreshes**: when a successful mutation sets a status message
-  and then reloads data, the reload helper must not clear that message before it can render. Clear
-  feedback at an intentional user-action boundary instead.
+- **Preserve mutation feedback across refreshes**: keep success, conflict and recovery feedback
+  visible while affected data reloads; retaining a field is insufficient if a loading branch hides
+  its markup. Clear feedback at an intentional user-action or ownership boundary.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 

@@ -4,7 +4,7 @@
 
 Branch `codex/issue-198-evaluation` starts at `3e0253c28677838858b1887b2351a133eac7bc16` (merged #252). The surface implements the confirmed find → verify → capture → move-on workflow. Parent campaign-loop acceptance stays with #170; Place #199 and Close #200 redesigns remain separate.
 
-Production and test source is frozen at `381d501950d064d426ddce7c772fe449c485cfde`. Build, format, all three local suites, contrast, JS syntax and migration-model checks pass for this source. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately; later changes are validation/design records only. The final visual disposition is recorded in `finish-review.md`.
+Production and test source is frozen at `381d501950d064d426ddce7c772fe449c485cfde`. Build, format, all three local suites, contrast, JS syntax and migration-model checks pass for this source. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately; later changes are guidance and validation/design records only. The final visual disposition is recorded in `finish-review.md`.
 
 ## Locked direction
 
@@ -60,6 +60,8 @@ Browser round 5 completed 147/148 passing. Its only failure was the 1,000-player
 Final source validation: build 33; format round 6; 2,946 unit, 598 integration and 148 browser tests passed with zero skipped cases. Browser round 6 completed in 3m 26s. Its separate 1,000-player lookup measured 1,988ms with exactly 999 matches, 20 results and page 2/50. Final portrait comparison reproduces the reviewed 73.43% overall score; its original regional failures remain preserved. The user subsequently approved sheet-relative measurement and separate shell review. `sheet-relative/manifest.json` records that approval, native border registration and explicit viewport coverage; `sheet-relative/report.json` scores 76.11% against the unchanged 72% overall threshold. Raw regional labels are preserved and individually reviewed in the final finish disposition. Older history is reviewed in full-page captures without claiming a same-scale quantitative score.
 
 ## Polish, accessibility and copy
+
+The subsequent [instructions and skills review](instructions-hygiene-review.md) records focused guidance updates, independent review and repeated format/unit validation without changing application source.
 
 The single detector pass in `detector.json` reported nine advisories. The implemented correction replaced off-scale radii with .25rem/.375rem, the finder heading with 1.25rem, the identity's fluid lower endpoint with 2rem, and the three .8rem metadata declarations with .875rem. No detector rule was disabled and no second detector scan is claimed. The retained `detector-status.txt` reflects the then-open hero gate, not the final disposition.
 
