@@ -1,8 +1,9 @@
 @if (IsClubAdmin)
 {
     <div class="campaign-menu">
-        <button type="button" class="btn btn-outline-secondary btn-sm" aria-haspopup="menu" aria-expanded="@(_isOpen ? "true" : "false")" @onclick="ToggleMenu" @onkeydown="OnKeyDown">
-            Campaign menu
+        <button type="button" class="btn @(Compact ? "btn-outline-primary campaign-menu-compact" : "btn-outline-secondary") btn-sm" aria-haspopup="menu" aria-expanded="@(_isOpen ? "true" : "false")" @onclick="ToggleMenu" @onkeydown="OnKeyDown">
+            <span class="@(Compact ? "visually-hidden" : null)">Campaign menu</span>
+            @if (Compact) { <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg> }
         </button>
 
         @if (_isOpen)

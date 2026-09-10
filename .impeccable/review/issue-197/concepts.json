@@ -1,0 +1,17 @@
+{
+  "seed": "16fb136e",
+  "scope": "surface",
+  "mode": "operate",
+  "rankedCandidates": [
+    "Full-width ledger with participant drawer",
+    "Filter rail beside the roster",
+    "Compact participant index beside a full working record",
+    "Expandable participant rows",
+    "Roster beside participant context",
+    "Roster above a participant workbench",
+    "Search-first roster with a collapsible filter shelf"
+  ],
+  "dealtIndices": [7, 5, 6],
+  "reference": ".impeccable/review/issue-196/desktop.png",
+  "content": "Synthetic representative campaign and participant data; no product claims."
+}

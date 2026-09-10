@@ -111,6 +111,10 @@ The existing campaign-local placement roster/summary remains campaign-local. #16
 own UI consumption and #221 owns CSV generation. No UI, mutation controls, or schema migration
 were introduced by this query slice.
 
+#197 extends the two campaign reads with shared discovery, campaign-applied tag enrichment and
+explicit local-team evidence. See [Campaign workspace and Roster](campaign-workspace-roster.md)
+for the extended contract and downstream UI handoffs.
+
 ### Guidance and validation
 
 Implementation guidance read: `AGENTS.md`; C#, service, validation, API, EF/tenancy, placement,

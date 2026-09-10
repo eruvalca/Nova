@@ -59,7 +59,12 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
             && result.Participants.Items.All(row => ValidWorkingRow(row, result.Campaign, input))
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
-            && Ordered(result.Participants.Items.Select(row => new OrderKey(row.GraduationYear, row.LastName, row.FirstName, row.PlayerId)));
+            && result.Participants.TotalCount <= (long)result.Counts.NeedsPlacement + result.Counts.OptionalReassignment + result.Counts.Resolved + result.Counts.Unavailable
+            && (input.SortBy is null && input.SortDirection is null
+                ? Ordered(result.Participants.Items.Select(row => new OrderKey(row.GraduationYear, row.LastName, row.FirstName, row.PlayerId)))
+                : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
+                    row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber,
+                    row.LocalDecision?.Outcome ?? PlacementOutcome.Undecided, row.LocalTeam)), input));
 
     private static bool ValidWorkingRow(CampaignEffectivePlacementItem row, PlacementCampaignIdentity campaign,
         GetCampaignEffectivePlacementsInput input)
@@ -68,7 +73,10 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
             || row.PlayerCampaignAssignmentId <= 0 || row.ConcurrencyToken == Guid.Empty
             || !Enum.IsDefined(row.PlayerLifecycleStatus) || !Enum.IsDefined(row.Eligibility) || !Enum.IsDefined(row.CorrectionReason)
             || row.TryoutNumber is <= 0
-            || input.GraduationYear is int year && row.GraduationYear != year)
+            || input.GraduationYear is int year && row.GraduationYear != year
+            || !ValidDiscovery(input, row.PlayerCampaignAssignmentId, row.GraduationYear,
+                row.LocalDecision?.Outcome ?? PlacementOutcome.Undecided, row.LocalTeam, row.AppliedTags)
+            || !ValidLocalTeam(row.LocalTeam, row.LocalDecision))
         {
             return false;
         }
@@ -128,20 +136,74 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
     private static bool ValidClosed(ClosedCampaignRosterResult result, GetClosedCampaignRosterInput input)
         => result is not null && ValidCampaign(result.Campaign, input.CampaignId, CampaignStatus.Closed)
             && ValidPage(result.Participants, input)
+            && result.ParticipantCount >= result.Participants.TotalCount
             && result.Participants.Items.All(row => row is not null && row.PlayerCampaignAssignmentId > 0
                 && row.TryoutNumber is null or > 0
                 && ValidPlayer(row.PlayerId, row.FirstName, row.LastName, row.GraduationYear)
                 && ValidSource(row.Source, row.PlayerId, result.Campaign.Season.SeasonId, allowUnavailableTeam: false)
                 && row.Source.Decision.CampaignId == input.CampaignId
-                && row.Source.Decision.PlayerCampaignAssignmentId == row.PlayerCampaignAssignmentId)
+                && row.Source.Decision.PlayerCampaignAssignmentId == row.PlayerCampaignAssignmentId
+                && ValidDiscovery(input, row.PlayerCampaignAssignmentId, row.GraduationYear,
+                    row.Source.Decision.Outcome, row.Source.Team, row.AppliedTags))
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
-            && Ordered(result.Participants.Items.Select(row => new OrderKey(0, row.LastName, row.FirstName, row.PlayerId)));
+            && (input.SortBy is null && input.SortDirection is null
+                ? Ordered(result.Participants.Items.Select(row => new OrderKey(0, row.LastName, row.FirstName, row.PlayerId)))
+                : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
+                    row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber, row.Source.Decision.Outcome, row.Source.Team)), input));
+
+    private static bool ValidLocalTeam(CampaignParticipantTeamSummaryDto? team, CampaignSavedPlacementDecision? decision)
+        => decision?.TeamId is null ? team is null
+            : team is { TeamId: > 0 } && team.TeamId == decision.TeamId && !string.IsNullOrWhiteSpace(team.TeamName);
+
+    private static bool ValidDiscovery(CampaignRosterDiscoveryInput input, long assignmentId, int year,
+        PlacementOutcome outcome, CampaignParticipantTeamSummaryDto? team, IReadOnlyList<CampaignParticipantTagSummaryDto> tags)
+        => tags is not null && tags.All(tag => tag is not null && tag.PlayerTagId > 0
+                && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor))
+            && Unique(tags.Select(tag => tag.PlayerTagId))
+            && (input.ParticipantId is null || assignmentId == input.ParticipantId)
+            && (input.GraduationYears is not { Length: > 0 } || input.GraduationYears.Contains(year))
+            && (input.TagDefinitionIds is not { Length: > 0 } || tags.Any(tag => input.TagDefinitionIds.Contains(tag.PlayerTagId)))
+            && (input.LocalTeamId is null || team?.TeamId == input.LocalTeamId)
+            && (!Enum.TryParse<PlacementOutcome>(input.LocalOutcome, true, out var requested) || outcome == requested);
+
+    private static DiscoveryOrderKey DiscoveryKey(CampaignRosterDiscoveryInput input, long id, string first, string last,
+        int year, int? tryout, PlacementOutcome outcome, CampaignParticipantTeamSummaryDto? team)
+        => input.SortBy?.ToUpperInvariant() switch
+        {
+            "ASSIGNMENTID" => new(id, null, null, id),
+            "GRADUATIONYEAR" => new(year, null, null, id),
+            "TRYOUTNUMBER" => new(tryout ?? (string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? int.MinValue : int.MaxValue), null, null, id),
+            "OUTCOME" => new((int)outcome, null, null, id),
+            "TEAMNAME" => new(0, team?.TeamName ?? string.Empty, null, id),
+            _ => new(0, last, first, id),
+        };
+
+    // Names follow database collation. Validate numeric order and exact-text ties without emulating it.
+    private static bool OrderedDiscovery(IEnumerable<DiscoveryOrderKey> keys, CampaignRosterDiscoveryInput input)
+    {
+        var descending = string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+        DiscoveryOrderKey? previous = null;
+        foreach (var key in keys)
+        {
+            if (previous is not null && ((descending ? previous.Number < key.Number : previous.Number > key.Number)
+                || previous.Number == key.Number && string.Equals(previous.Text, key.Text, StringComparison.Ordinal)
+                    && string.Equals(previous.SecondText, key.SecondText, StringComparison.Ordinal) && previous.Id >= key.Id))
+            {
+                return false;
+            }
+            previous = key;
+        }
+        return true;
+    }
+
+    private sealed record DiscoveryOrderKey(long Number, string? Text, string? SecondText, long Id);
 
     private static bool ValidPage<T>(PagedResult<T> page, PlacementPageInput input)
         => page is not null && page.Items is not null && page.Items.All(row => row is not null)
             && page.Page == (input.Page ?? 1) && page.PageSize == (input.PageSize ?? PlacementPageInput.DefaultPageSize)
-            && page.Items.Count <= page.PageSize && page.TotalCount >= 0;
+            && page.Items.Count <= page.PageSize && page.TotalCount >= 0
+            && page.Items.Count == Math.Min(page.PageSize, Math.Max(0L, (long)page.TotalCount - ((long)page.Page - 1) * page.PageSize));
 
     private static bool ValidPlayer(long id, string firstName, string lastName, int year)
         => id > 0 && year > 0 && !string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName);

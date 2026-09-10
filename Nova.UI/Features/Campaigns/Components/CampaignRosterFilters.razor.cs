@@ -1,6 +1,7 @@
 ﻿
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Features.Teams;
 using Nova.UI.Features.Players;
@@ -9,10 +10,26 @@ namespace Nova.UI.Features.Campaigns.Components;
 
 /// <summary>
 /// Renders the campaign roster filter bar: debounced search, graduation-year and tag multi-selects,
-/// outcome and team selects, a conditional clear button, and the participant count.
+/// outcome, local team and effective eligibility choices.
 /// </summary>
 public partial class CampaignRosterFilters
 {
+    private bool _expanded = true;
+    /// <summary>Whether Active eligibility discovery is available.</summary>
+    [Parameter] public bool ShowEligibility { get; set; }
+    /// <summary>The selected Active work eligibility.</summary>
+    [Parameter] public string? Eligibility { get; set; }
+    /// <summary>Whole-campaign work counts, independent of the current discovery page.</summary>
+    [Parameter] public EffectivePlacementCounts? EligibilityCounts { get; set; }
+    private static string CountSuffix(int? count) => count is null ? string.Empty : $" ({count})";
+    /// <summary>Applies an eligibility filter and resets paging.</summary>
+    [Parameter] public EventCallback<string> OnEligibilityChanged { get; set; }
+    /// <summary>The independent team-choice search.</summary>
+    [Parameter] public string? TeamSearch { get; set; }
+    /// <summary>Whether the bounded team choices require a narrower search.</summary>
+    [Parameter] public bool TeamChoicesTruncated { get; set; }
+    /// <summary>Searches bounded active and archived team choices.</summary>
+    [Parameter] public EventCallback<string> OnTeamSearchChanged { get; set; }
     /// <summary>
     /// Gets or sets the current search text draft owned by the parent page.
     /// </summary>
@@ -62,18 +79,6 @@ public partial class CampaignRosterFilters
     public long? TeamId { get; set; }
 
     /// <summary>
-    /// Gets or sets the total matching participant count, or <see langword="null"/> while loading.
-    /// </summary>
-    [Parameter]
-    public int? TotalCount { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether any roster filter is active, controlling the clear button visibility.
-    /// </summary>
-    [Parameter]
-    public bool HasActiveFilters { get; set; }
-
-    /// <summary>
     /// Gets or sets the callback invoked on every search input change with the raw draft text.
     /// </summary>
     [Parameter]
@@ -102,12 +107,6 @@ public partial class CampaignRosterFilters
     /// </summary>
     [Parameter]
     public EventCallback<long?> OnTeamChanged { get; set; }
-
-    /// <summary>
-    /// Gets or sets the callback invoked when the clear-filters button is clicked.
-    /// </summary>
-    [Parameter]
-    public EventCallback OnClearFilters { get; set; }
 
     /// <summary>
     /// Gets the selected team identifier as a select-binding string.
@@ -163,11 +162,7 @@ public partial class CampaignRosterFilters
         return OnTeamChanged.InvokeAsync(teamId);
     }
 
-    /// <summary>
-    /// Forwards a clear-filters click to the parent page.
-    /// </summary>
-    /// <returns>A task that completes when the callback is delivered.</returns>
-    private Task ClearFiltersAsync() => OnClearFilters.InvokeAsync();
+
 
     /// <summary>
     /// Builds a safe inline swatch style for a tag color.

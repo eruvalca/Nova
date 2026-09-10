@@ -1,34 +1,15 @@
-.roster-sort-header {
-    color: inherit;
-    white-space: nowrap;
-}
-
-.roster-sort-arrow {
-    display: inline-block;
-    margin-left: 0.25rem;
-    min-width: 0.5rem;
-    font-size: 0.75rem;
-}
-
-.roster-tag {
-    font-weight: 500;
-    margin-right: 0.25rem;
-}
-
-.roster-tag-archived {
-    opacity: 0.6;
-    text-decoration: line-through;
-}
-
-.roster-row {
-    cursor: pointer;
-}
-
-.roster-row:focus-visible {
-    outline: 0.15rem solid var(--bs-primary);
-    outline-offset: -0.15rem;
-}
-
-.roster-row-selected {
-    background-color: var(--bs-primary-bg-subtle);
-}
+.roster-sort-header { color: inherit; text-align: left; font-size: inherit; font-weight: 600; padding: .5rem 0; min-height: 2.75rem; text-decoration: none; }
+.table { table-layout: fixed; font-size: .875rem; --bs-table-bg: var(--bs-white); }
+.table th:first-child { width: 40%; }
+.table th { color: var(--bs-secondary-color); font-weight: 600; vertical-align: middle; background: var(--bs-tertiary-bg); }
+.table th, .table td { padding: .5rem .75rem; overflow-wrap: anywhere; }
+.table th { padding-block: 0; }
+.roster-player-name { display: block; font-weight: 600; }
+.roster-player-meta, .roster-player-tags { display: block; margin-top: .25rem; color: var(--bs-secondary-color); }
+.roster-player-tags span + span::before { content: " · "; }
+.roster-row { cursor: pointer; height: 4.75rem; }
+.roster-row:focus-visible { outline: .15rem solid var(--bs-primary); outline-offset: -.15rem; }
+.roster-row-selected > td { --bs-table-bg: var(--bs-primary-bg-subtle); }
+.roster-person { display: flex; align-items: center; gap: .75rem; }
+.roster-person > div { min-width: 0; }
+.table { line-height: 1.35; }

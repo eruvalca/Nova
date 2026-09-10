@@ -1,7 +1,27 @@
-.roster-tag-swatch {
-    display: inline-block;
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 50%;
-    margin-right: 0.25rem;
+.roster-discovery { padding: 1rem 1rem 0; }
+.roster-search-line { display: flex; gap: .75rem; position: relative; }
+.roster-search-line button { display: inline-flex; align-items: center; gap: .5rem; }
+.roster-search-icon { position: absolute; top: .8125rem; left: .875rem; color: var(--bs-secondary-color); }
+#roster-search { padding-left: 2.5rem; }
+.roster-search-line > input { min-width: 0; }
+.roster-discovery .form-control, .roster-discovery .form-select, .roster-discovery button, .filter-choice > summary { min-height: 2.75rem; font-size: .875rem; }
+.roster-filter-shelf { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; margin: .75rem -1rem 0; padding: .75rem 1rem; background: var(--bs-primary-bg-subtle); }
+.roster-discovery .form-control, .roster-discovery .form-select, .filter-choice > summary { background-color: var(--bs-white); }
+.roster-filter-shelf[hidden] { display: none; }
+.filter-choice { position: relative; min-width: 0; margin-top: 1.5rem; }
+.filter-label { display: block; font-size: .875rem; line-height: 1.25rem; margin-bottom: .25rem; white-space: nowrap; }
+.filter-choice .filter-label { position: absolute; top: -1.5rem; left: 0; }
+.filter-choice > summary { display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); cursor: pointer; list-style: none; }
+.filter-choice > summary > svg { margin-inline-start: auto; flex-shrink: 0; }
+.filter-choice > summary:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+.filter-choice-panel { position: absolute; top: calc(100% + .25rem); inset-inline-start: 0; z-index: 10; min-width: 15rem; max-width: min(22rem, 85vw); max-height: 20rem; overflow-y: auto; padding: .75rem; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); }
+.filter-check { display: flex; align-items: center; gap: .5rem; min-height: 2.75rem; overflow-wrap: anywhere; }
+.filter-check input { width: 1rem; height: 1rem; flex-shrink: 0; }
+.roster-tag-swatch { display: inline-block; flex-shrink: 0; width: .6rem; height: .6rem; border-radius: 50%; }
+.discovery-status { display: flex; justify-content: space-between; align-items: center; min-height: 1.75rem; font-size: .8125rem; }
+@media (min-width: 1280px) { .roster-filter-shelf { padding-block: 1.125rem; } }
+@media (max-width: 767px) {
+    .roster-filter-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filter-choice-panel { position: static; min-width: 0; max-width: 100%; margin-top: .25rem; }
+    .filter-select label.visually-hidden { position: static !important; width: auto !important; height: auto !important; margin: 0 0 .25rem !important; clip: auto !important; overflow: visible !important; display: block; font-size: .75rem; }
 }

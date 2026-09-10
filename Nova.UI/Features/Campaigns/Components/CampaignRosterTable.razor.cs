@@ -10,6 +10,8 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignRosterTable
 {
+    /// <summary>Active evidence loaded in the roster response; null denotes a campaign-local record.</summary>
+    [Parameter] public IReadOnlyList<CampaignEffectivePlacementItem>? WorkingRows { get; set; }
     /// <summary>
     /// Gets or sets the roster rows to display.
     /// </summary>
@@ -106,7 +108,7 @@ public partial class CampaignRosterTable
     /// <returns><c>ascending</c>, <c>descending</c>, or <c>none</c>.</returns>
     private string AriaSort(string column)
     {
-        if (!string.Equals(SortBy, column, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(SortBy ?? "displayName", column, StringComparison.OrdinalIgnoreCase))
         {
             return "none";
         }
@@ -116,20 +118,4 @@ public partial class CampaignRosterTable
             : "ascending";
     }
 
-    /// <summary>
-    /// Computes the decorative sort arrow for a column header.
-    /// </summary>
-    /// <param name="column">The column's sort field token.</param>
-    /// <returns>The arrow character, or an empty string when the column is not sorted.</returns>
-    private string SortArrow(string column)
-    {
-        if (!string.Equals(SortBy, column, StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        return string.Equals(SortDirection, "desc", StringComparison.OrdinalIgnoreCase)
-            ? "↓"
-            : "↑";
-    }
 }

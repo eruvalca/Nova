@@ -21,6 +21,7 @@ internal static class PlacementQueryUrls
         {
             values.Add("graduationYear=" + graduationYear.Value.ToString(CultureInfo.InvariantCulture));
         }
+        search ??= (input as CampaignRosterDiscoveryInput)?.Search;
         if (!string.IsNullOrWhiteSpace(search))
         {
             values.Add("search=" + Uri.EscapeDataString(search));
@@ -29,6 +30,30 @@ internal static class PlacementQueryUrls
         {
             values.Add("eligibility=" + state);
         }
+        if (input is CampaignRosterDiscoveryInput discovery)
+        {
+            foreach (var year in discovery.GraduationYears ?? [])
+            {
+                values.Add("graduationYears=" + year.ToString(CultureInfo.InvariantCulture));
+            }
+            foreach (var id in discovery.TagDefinitionIds ?? [])
+            {
+                values.Add("tagDefinitionIds=" + id.ToString(CultureInfo.InvariantCulture));
+            }
+            Add("localOutcome", discovery.LocalOutcome);
+            Add("localTeamId", discovery.LocalTeamId?.ToString(CultureInfo.InvariantCulture));
+            Add("participantId", discovery.ParticipantId?.ToString(CultureInfo.InvariantCulture));
+            Add("sortBy", discovery.SortBy);
+            Add("sortDirection", discovery.SortDirection);
+        }
         return path + "?" + string.Join('&', values);
+
+        void Add(string name, string? value)
+        {
+            if (value is not null)
+            {
+                values.Add(name + "=" + Uri.EscapeDataString(value));
+            }
+        }
     }
 }

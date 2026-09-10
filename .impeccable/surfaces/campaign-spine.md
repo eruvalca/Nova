@@ -2,6 +2,41 @@
 
 Status: Confirmed
 
+## Issue 197 direction contract
+
+Approved: **Roster beside context**, selected on the served surface decision page. Comp: `.impeccable/mocks/decision/issue-197-side-context.png`; seed `16fb136e`; Operate; comp-led.
+
+THESIS: A searchable participant field and adjacent context keep club staff oriented while working.
+
+OWN-WORLD: Fieldhouse semantic teal, sea-glass navigation, white boards, system typography and hairlines.
+
+STORY: Confirm campaign authority, find a participant, distinguish local outcomes from effective placement, capture observations, continue.
+
+FIRST VIEWPORT: Compact identity and complete route precede readiness; a broad roster sits beside a narrower participant panel. Mobile uses a full-screen detail sheet.
+
+FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+The comp's sample records are illustrative. Preserve existing global navigation and system font; correct generated captions to Observations/Readiness and attention colors to semantic amber. Placement facts are read-only. The existing note/tag capabilities remain; multi-year/tag selection and every existing sort remain available. Closed context is campaign-local and immutable. No new global design rule is introduced.
+
+### Issue 197 implemented surface record
+
+Recorded from the current `CampaignWorkspace.razor` source, its collocated styles, and the Roster filters, footer, table/cards, readiness, participant drawer, and placement-context components on 2026-09-10. This records implementation evidence, not visual acceptance: the image-comparison gate and fresh finish verdict remain separate in [the issue 197 review packet](../review/issue-197/finish-review.md). The approved decision comp above establishes the direction; it does not certify the resulting build.
+
+- **Orientation and route:** campaign name, season, written lifecycle, dates, and whole-campaign participant count precede the work. At `1280px` and above, identity sits beside the complete four-stop route; below that width the route follows identity. The selected native anchor receives a teal stop, sea-glass field, bottom rail, and `aria-current="page"`. Full Roster, Evaluate, Place, and Close labels remain present: scripted phones use the established `36rem` horizontal scrolling strip, while the scripting-disabled fallback fits all four stops. The readiness strip remains independent of destination content. Evaluate, Place, and Close retain their existing panels.
+- **Discovery board:** a white search field leads a sea-glass shelf containing graduation years, campaign-applied tags, Active placement eligibility, campaign outcome, and campaign team. Years and tags support multiple choices. Team choices expose a search and an explicit bounded-results explanation. Closed omits the eligibility control. At `767px` and below the shelf has two columns and expanded choice panels enter normal flow. The footer groups the filtered participant count, clear action, every existing sort, and the page controls; it stacks below `1280px`, and its sort control spans the available line on phones. The header's campaign scale remains distinct from this filtered count.
+- **Participant field:** desktop uses compact white rows separated by hairlines, with a sea-glass selected row and visible keyboard focus. Person markers support names rather than replacing them. Below the Bootstrap medium breakpoint, labeled participant records replace the table. The bounded roster scroll area contains a 50-row page; the footer stays outside that area. This local density and the board/context proportions are composition values, not new global spacing tokens.
+- **Placement meaning:** Active rows and detail separately name Campaign outcome and Effective season placement. A missing local decision reads “No campaign decision”; source campaign, eligibility, and a correction reason remain written evidence. A valid inherited assignment can read “Optional reassignment.” Closed detail instead names the campaign record and its attributed decision; archived participant/team evidence remains readable. Neither row styling nor filter counts imply Close readiness.
+- **Context and capture:** at `1200px` and above, the participant panel is a sticky, flat adjacent region with its own scrolling body. With no selection, a quiet context prompt occupies that column. Below `1200px`, selection opens a modal overlay; it is `26rem` wide from `768px` through `1199px` and full width below `768px`. The modal traps Tab, supports Escape, and restores focus on close. Previous/Next keeps the participant sequence visible. Names wrap, close/navigation actions retain touch-safe targets, and the note author shares a row with permitted edit/delete actions. Note text follows underneath; a full-width Add note action follows the list. Successful note feedback stays visibly beside the Notes heading with status semantics. Existing note ownership and tag capture remain; Closed displays read-only context and removes mutation controls.
+- **Regional states:** campaign loading/not-found/failure, roster loading/failure, unavailable filter choices, no participants, no matches, participant-detail failure, and placement-context failure each retain their own wording. Readiness distinguishes checking, ready/not ready with authoritative blockers, unavailable with Retry readiness, and Closed read-only. A failed same-query roster refresh may retain successful rows alongside its error; changing the owned query does not present those rows as current results. Regional retry actions preserve neighboring content. Valid opening-receipt feedback reports the original enrollment operation and supplies the special Roster-heading focus; ordinary visits do not imitate that handoff.
+
+**System boundary:** Fieldhouse's semantic palette, native font commitment, flat working boards, hairlines, and full-label navigation remain incumbent. No new global token, component primitive, or named rule is established here; `DESIGN.md` and `.impeccable/design.json` retain their definitions. The local title scale, filter/footer spacing, two-column ratios, and responsive thresholds above describe this source only. They do not change the system's working-text floor or authorize copying a comparison defect onto another surface.
+
+**Source corrections recorded:** the back link uses an authored SVG, the explanatory comment names the approved adjacent-context direction, and filter labels meet the existing `0.875rem` Working Text floor. The desktop close control retains its `2.75rem` target with local positioning inside the panel header; this alignment adjustment introduces no new component token. These statements reflect current source; captures predating these edits do not validate them.
+
+**Not canonized:** local comparison-driven offsets and any unresolved comparison vetoes do not become system rules. The existing native display typography is a preserved user commitment, not a new general recommendation. The visual gate remains open; this record grants no gate exception.
+
 ## Issue 196 approved composition
 
 The user selected **Details and readiness** on the served decision page, confirmed in this task. Approved comp: `.impeccable/mocks/decision/issue-196-readiness-split.png` (sidecar records approval). Seed: `cb82d130`; surface / Operate; build path: comp.

@@ -42,7 +42,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenWorkspaceAsync(page, seed.CampaignId);
 
         var firstRow = page.Locator("tbody tr[id^='roster-row-']").First;
-        var participantName = (await firstRow.Locator("td").Nth(1).TextContentAsync())!.Trim();
+        var participantName = (await firstRow.Locator(".roster-player-name").TextContentAsync())!.Trim();
         await OpenParticipantAsync(page, firstRow);
 
         // Initial focus lands on the drawer close button.
@@ -58,7 +58,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Note added.");
         var noteItem = page.Locator("li.participant-drawer-note").First;
         await Expect(noteItem).ToContainTextAsync("Fast feet and good vision.");
-        (await noteItem.Locator(".participant-drawer-note-meta").TextContentAsync())!
+        (await noteItem.Locator(".note-author").TextContentAsync())!
             .ShouldContain("Alice Author");
 
         // Apply a tag through the real form.
@@ -114,7 +114,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(evaluatorPage.Locator("#participant-drawer-heading")).ToBeVisibleAsync();
         var noteItem = evaluatorPage.Locator("li.participant-drawer-note").First;
         await Expect(noteItem).ToContainTextAsync("Watches the passing lanes.");
-        (await noteItem.Locator(".participant-drawer-note-meta").TextContentAsync())!
+        (await noteItem.Locator(".note-author").TextContentAsync())!
             .ShouldContain("Alice Author");
         var tagItem = evaluatorPage.Locator("li.participant-drawer-tag-item").First;
         await Expect(tagItem).ToContainTextAsync(seed.ActiveTagName);
@@ -175,7 +175,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
         await OpenWorkspaceAsync(page, seed.CampaignId);
         var firstRow = page.Locator("tbody tr[id^='roster-row-']").First;
-        var participantName = (await firstRow.Locator("td").Nth(1).TextContentAsync())!.Trim();
+        var participantName = (await firstRow.Locator(".roster-player-name").TextContentAsync())!.Trim();
         await OpenParticipantAsync(page, firstRow);
         await page.GetByRole(AriaRole.Button, new() { Name = "Add note" }).ClickAsync();
         await Expect(page.Locator("#participant-drawer-note-content")).ToBeVisibleAsync();
@@ -218,11 +218,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await page.WaitForURLAsync(
             url => url.Contains("search=", StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
+        await WaitForRosterSettlementAsync(page);
         await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
-        await page.Locator("button.roster-sort-header", new() { HasText = "Name" }).ClickAsync();
-        await page.WaitForURLAsync(
-            url => url.Contains("sortBy=", StringComparison.Ordinal),
-            new() { WaitUntil = WaitUntilState.Commit });
+        await SortNameDescendingWithEvidenceAsync(page);
 
         // Open the drawer; the participant lands in the URL.
         var row = page.Locator("tbody tr[id^='roster-row-']").First;
@@ -249,6 +247,36 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#participant-drawer-heading")).ToHaveTextAsync(heading);
     }
 
+    private static async Task SortNameDescendingWithEvidenceAsync(IPage page)
+    {
+        var nameSort = page.Locator("button.roster-sort-header", new() { HasText = "Name" });
+        await Expect(nameSort.Locator("..")).ToHaveAttributeAsync("aria-sort", "ascending");
+        await page.EvaluateAsync("""
+            () => {
+                window.__novaRosterSortProbe = [];
+                for (const type of ['pointerdown', 'pointerup', 'click']) {
+                    document.addEventListener(type, event => {
+                        window.__novaRosterSortProbe.push({ type, target: event.target.outerHTML,
+                            prevented: event.defaultPrevented, url: location.href });
+                    }, { capture: true, once: true });
+                }
+            }
+            """);
+        try
+        {
+            await nameSort.ClickAsync();
+            await Expect(nameSort.Locator("..")).ToHaveAttributeAsync("aria-sort", "descending");
+            await page.WaitForURLAsync(
+                url => url.Contains("sortBy=", StringComparison.Ordinal),
+                new() { WaitUntil = WaitUntilState.Commit });
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            var evidence = await page.EvaluateAsync<string>("JSON.stringify({ url: location.href, events: window.__novaRosterSortProbe })");
+            throw new InvalidOperationException($"Roster sort interaction failed: {evidence}", exception);
+        }
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
@@ -262,7 +290,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
         // From the last participant of page 1, Next crosses onto page 2's first participant.
         var lastRow = page.Locator("tbody tr[id^='roster-row-']").Last;
-        var lastRowName = (await lastRow.Locator("td").Nth(1).TextContentAsync())!.Trim();
+        var lastRowName = (await lastRow.Locator(".roster-player-name").TextContentAsync())!.Trim();
         var lastAssignmentId = await ReadAssignmentIdAsync(lastRow);
         var rosterPath = $"/campaigns/{seed.CampaignId}" + (rosterLanding ? "/roster" : string.Empty);
         await page.GotoAsync(new Uri(fixture.BaseUri, $"{rosterPath}?participant={lastAssignmentId}").ToString());
@@ -275,16 +303,17 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await page.WaitForURLAsync(
             url => url.Contains("page=2", StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
-        var firstRowOnPageTwoName = (await page.Locator("tbody tr[id^='roster-row-']").First.Locator("td").Nth(1).TextContentAsync())!.Trim();
+        var firstRowOnPageTwoName = (await page.Locator("tbody tr[id^='roster-row-']").First.Locator(".roster-player-name").TextContentAsync())!.Trim();
         await Expect(page.Locator("#participant-drawer-heading")).ToHaveTextAsync(firstRowOnPageTwoName);
 
         // Previous crosses back to page 1's last participant. The URL builder omits the default
         // page, so wait for the page=2 parameter to disappear rather than for page=1 to appear.
         await page.Locator("#participant-drawer-previous").ClickAsync();
-        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
         await page.WaitForURLAsync(
             url => !url.Contains("page=2", StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
+        await WaitForRosterSettlementAsync(page);
+        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
         await Expect(page.Locator("#participant-drawer-heading")).ToHaveTextAsync(lastRowName);
 
         // At the true sequence ends the navigation controls disable correctly.
@@ -411,7 +440,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
-        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password, new ViewportSize { Width = 1024, Height = 800 });
         var page = context.Pages[0];
         await OpenWorkspaceAsync(page, seed.CampaignId);
 
@@ -424,8 +453,8 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         {
             var size = await page.Locator($"#{controlId}").EvaluateAsync<double[]>(
                 "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
-            size[0].ShouldBeGreaterThanOrEqualTo(24, $"touch-target width for {controlId}");
-            size[1].ShouldBeGreaterThanOrEqualTo(24, $"touch-target height for {controlId}");
+            size[0].ShouldBeGreaterThanOrEqualTo(44, $"touch-target width for {controlId}");
+            size[1].ShouldBeGreaterThanOrEqualTo(44, $"touch-target height for {controlId}");
         }
 
         // Focus starts on the close button and Tab cycles stay inside the dialog.
@@ -458,8 +487,11 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenParticipantAsync(page, firstRow);
 
         // Keyboard-only note flow: focus + Enter activation, typed content, Enter to save.
+        // Detail visibility can precede the asynchronous initial focus handoff.
+        await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
         var addNoteButton = page.GetByRole(AriaRole.Button, new() { Name = "Add note" });
         await addNoteButton.FocusAsync();
+        await Expect(addNoteButton).ToBeFocusedAsync();
         await page.Keyboard.PressAsync("Enter");
         var noteContent = page.Locator("#participant-drawer-note-content");
         await Expect(noteContent).ToBeVisibleAsync();
@@ -532,7 +564,8 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await CloseDrawerAsync(page);
 
         await page.Locator("#roster-search").FillAsync("Nobody McMissing");
-
+        await page.WaitForURLAsync(url => url.Contains("search=", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });
+        await WaitForRosterSettlementAsync(page);
         await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("0 participants");
         await Expect(page.GetByText("No participants match the current filters.")).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(0);
@@ -561,13 +594,12 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task RosterAssignedOutcomeBadgeMeetsContrastThresholdAsync()
+    public async Task RosterAssignedOutcomeTextMeetsContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
 
-        // Assign the first participant to a team so their roster outcome badge renders "Assigned"
-        // (the text-bg-success surface). The roster query does not re-validate eligibility.
+        // Campaign-local assignment text remains readable even when the effective team needs correction.
         var suffix = Guid.NewGuid().ToString("N");
         var teamId = await SeedingHelpers.InsertTeamAsync(
             fixture.AppHost, seed.ClubId, seed.AdminEmail, $"Assigned Team {suffix}", 2030, cancellationToken);
@@ -576,9 +608,9 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenWorkspaceAsync(page, seed.CampaignId);
 
-        var badge = page.Locator($"#roster-row-{seed.AssignmentIds[0]} span.badge.text-bg-success");
-        await Expect(badge).ToHaveTextAsync("Assigned");
-        await A11yMeasurementHelpers.AssertContrastRatioAsync(badge, 4.5, "roster assigned outcome badge");
+        var outcome = page.Locator($"#roster-row-{seed.AssignmentIds[0]} .roster-campaign-outcome");
+        await Expect(outcome).ToHaveTextAsync("Assigned");
+        await A11yMeasurementHelpers.AssertContrastRatioAsync(outcome, 4.5, "roster assigned outcome text");
     }
 
     [Fact]
@@ -615,10 +647,16 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByText("Loading roster...")).ToBeVisibleAsync();
 
         release.TrySetResult(null);
+        await WaitForRosterSettlementAsync(page);
         await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
         await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(1);
         await page.UnrouteAsync(IsRosterListUrl);
     }
+
+    // Settle the explicit async boundary with Playwright's default assertion timeout,
+    // then check the exact count, identity, URL and failure expectations.
+    private static Task WaitForRosterSettlementAsync(IPage page)
+        => Expect(page.GetByText("Loading roster...", new() { Exact = true })).ToBeHiddenAsync();
 
     [Fact]
     public async Task RosterFailureShowsRetryAndRetryRecoversAsync()
@@ -680,7 +718,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Matches the campaign roster list fetch, excluding detail and graduation-years fetches.</summary>
     private static bool IsRosterListUrl(string url) =>
         url.Contains("/api/campaigns/", StringComparison.Ordinal)
-        && url.Contains("/participants", StringComparison.Ordinal)
+        && (url.Contains("/effective-placements", StringComparison.Ordinal) || url.Contains("/closed-roster", StringComparison.Ordinal))
         && !url.Contains("/participants/", StringComparison.Ordinal);
 
     /// <summary>Matches the campaign participant-detail fetch, excluding the graduation-years fetch.</summary>

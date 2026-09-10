@@ -1,0 +1,34 @@
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
+@inherits Nova.UI.Components.NovaComponentBase
+
+<div class="readiness-context" aria-label="Campaign readiness">
+    @if (Status == CampaignStatus.Closed)
+    {
+        <span><strong>Closed</strong> · Campaign record is read-only.</span>
+    }
+    else if (_loading)
+    {
+        <span role="status">Checking Close readiness…</span>
+    }
+    else if (_error)
+    {
+        <span role="status">Close readiness unavailable.</span>
+        <button class="btn btn-outline-secondary" type="button" @onclick="LoadAsync">Retry readiness</button>
+    }
+    else if (_readiness is not null)
+    {
+        <span><strong>@(_readiness.IsReady ? "Ready to close" : "Not ready to close")</strong>
+            · @_readiness.NeedsPlacementCount need placement</span>
+        @if (!_readiness.IsReady)
+        {
+            @foreach (var blocker in _readiness.Blockers)
+            {
+                <span class="readiness-blocker">@BlockerLabel(blocker)</span>
+            }
+        }
+    }
+    <a class="readiness-link" href="@CloseDestination">Review readiness
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+    </a>
+</div>

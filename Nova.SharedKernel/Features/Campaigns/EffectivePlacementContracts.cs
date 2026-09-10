@@ -62,7 +62,16 @@ public sealed record CampaignEffectivePlacementItem(
     [property: JsonRequired] PlacementDecisionSource? EffectiveDecision,
     [property: JsonRequired] CampaignParticipantTeamSummaryDto? EffectiveTeam,
     [property: JsonRequired] EffectivePlacementEligibility Eligibility,
-    [property: JsonRequired] PlacementCorrectionReason CorrectionReason);
+    [property: JsonRequired] PlacementCorrectionReason CorrectionReason)
+{
+    /// <summary>The saved campaign-local team's display evidence, including archived teams.</summary>
+    [JsonRequired]
+    public CampaignParticipantTeamSummaryDto? LocalTeam { get; init; }
+
+    /// <summary>Campaign-applied tags enriched within the response snapshot.</summary>
+    [JsonRequired]
+    public IReadOnlyList<CampaignParticipantTagSummaryDto> AppliedTags { get; init; } = [];
+}
 
 /// <summary>Unfiltered whole-campaign work counts from one aggregate statement.</summary>
 public sealed record EffectivePlacementCounts(
@@ -80,9 +89,19 @@ public sealed record CampaignEffectivePlacementsResult(
 /// <summary>One immutable campaign-local outcome with its original decision attribution.</summary>
 public sealed record ClosedCampaignRosterItem(
     long PlayerCampaignAssignmentId, long PlayerId, string FirstName, string LastName,
-    int GraduationYear, int? TryoutNumber, PlacementDecisionSource Source);
+    int GraduationYear, int? TryoutNumber, PlacementDecisionSource Source)
+{
+    /// <summary>Campaign-applied tags enriched within the response snapshot.</summary>
+    [JsonRequired]
+    public IReadOnlyList<CampaignParticipantTagSummaryDto> AppliedTags { get; init; } = [];
+}
 
 /// <summary>A consistent Closed lifecycle and local-outcome page; later campaigns never contribute rows.</summary>
 public sealed record ClosedCampaignRosterResult(
     PlacementCampaignIdentity Campaign,
-    PagedResult<ClosedCampaignRosterItem> Participants);
+    PagedResult<ClosedCampaignRosterItem> Participants)
+{
+    /// <summary>The whole campaign's participant count before discovery filters or paging.</summary>
+    [JsonRequired]
+    public int ParticipantCount { get; init; }
+}

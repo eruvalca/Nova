@@ -1,0 +1,40 @@
+{
+  "title": "Campaign workspace and Roster",
+  "question": "Choose the layout for finding participants and keeping their campaign context close at hand. All three retain the existing discovery and note/tag capabilities.",
+  "options": [
+    {
+      "id": "search-first",
+      "label": "Search-first roster",
+      "kicker": "THE ROLL",
+      "thesis": "A broad search field leads into a full-width roster; participant details open over the field.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#D58B22"],
+      "materials": ["Flat working boards", "Compact rows", "System typography"],
+      "viewport": "Campaign identity and Route Markers sit above search, a collapsible filter shelf, and a broad roster.",
+      "risk": "The drawer temporarily covers part of the roster while a participant is open.",
+      "comp": ".impeccable/mocks/decision/issue-197-search-first.png"
+    },
+    {
+      "id": "side-context",
+      "label": "Roster beside context",
+      "thesis": "Keep the roster and the selected participant visible side by side during desktop work.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#D58B22"],
+      "materials": ["Flat working boards", "Compact rows", "System typography"],
+      "viewport": "Shared identity and route lead into a broad roster and a narrower participant panel; mobile uses a full-screen detail sheet.",
+      "risk": "Side-by-side context gives the roster less horizontal room for placement evidence.",
+      "comp": ".impeccable/mocks/decision/issue-197-side-context.png"
+    },
+    {
+      "id": "bottom-workbench",
+      "label": "Roster above workbench",
+      "thesis": "A full-width roster stays above a horizontal participant workbench with identity, placement evidence, and observations.",
+      "palette": ["#0E7C7B", "#DDF2EC", "#F4F8F3", "#142F2E", "#D58B22"],
+      "materials": ["Flat working boards", "Compact rows", "System typography"],
+      "viewport": "Identity, route, and discovery lead to roster rows; selecting a row reveals a divided workbench immediately below the bounded roster.",
+      "risk": "The workbench reduces the number of roster rows visible at once on shorter screens.",
+      "comp": ".impeccable/mocks/decision/issue-197-bottom-workbench.png"
+    }
+  ],
+  "reroll": true,
+  "steer": true,
+  "buildPath": { "value": "comp", "toggle": true }
+}

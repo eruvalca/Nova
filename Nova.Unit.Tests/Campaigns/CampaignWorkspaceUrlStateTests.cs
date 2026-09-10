@@ -48,6 +48,23 @@ public sealed class CampaignWorkspaceUrlStateTests
         CampaignWorkspaceUrlState.BuildQueryString(new CampaignWorkspaceRosterState { SortBy = "displayName" }).ShouldBeEmpty();
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("graduationYear", null, "graduationYear", "asc")]
+    [InlineData(null, "desc", "displayName", "desc")]
+    [InlineData("teamName", null, "teamName", "asc")]
+    public void BuildQueryStringPreservesPartialNondefaultSortThroughReturnNavigation(
+        string? field, string? direction, string expectedField, string expectedDirection)
+    {
+        var state = new CampaignWorkspaceRosterState { SortBy = field, SortDirection = direction };
+        var query = CampaignWorkspaceUrlState.BuildQueryString(state);
+        query.ShouldBe($"sortBy={expectedField}&sortDirection={expectedDirection}");
+        var restored = ParseFromQuery(query);
+        restored.SortBy.ShouldBe(expectedField);
+        restored.SortDirection.ShouldBe(expectedDirection);
+        CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(10, state)
+            .ShouldBe($"/campaigns/10?{query}&tab=evaluate");
+    }
+
     // ── Defensive parsing ──────────────────────────────────────────────────────
 
     [Fact]
@@ -289,6 +306,61 @@ public sealed class CampaignWorkspaceUrlStateTests
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("NEEDSPLACEMENT", "NeedsPlacement")]
+    [InlineData("optionalreassignment", "OptionalReassignment")]
+    [InlineData("RESOLVED", "Resolved")]
+    [InlineData("unavailable", "Unavailable")]
+    [InlineData("undecided", null)]
+    public void EligibilityRoundTripsCanonicalTokensWithoutChangingLocalOutcome(string supplied, string? expected)
+    {
+        var parsed = CampaignWorkspaceUrlState.Parse(null, null, null, "undecided", 21, null, null, 3, supplied);
+        parsed.Eligibility.ShouldBe(expected);
+        parsed.Outcome.ShouldBe("undecided");
+        parsed.TeamId.ShouldBe(21L);
+        var roundTrip = ParseFromQuery(CampaignWorkspaceUrlState.BuildQueryString(parsed));
+        roundTrip.Eligibility.ShouldBe(expected);
+        roundTrip.Outcome.ShouldBe("undecided");
+        roundTrip.TeamId.ShouldBe(21L);
+    }
+
+    [Fact]
+    public void ClearingEligibilityResetsPageAndPreservesSorting()
+    {
+        var state = new CampaignWorkspaceRosterState { Eligibility = "needsPlacement", Page = 4, SortBy = "graduationYear", SortDirection = "desc" };
+        CampaignWorkspaceUrlState.HasActiveFilters(state).ShouldBeTrue();
+        var cleared = CampaignWorkspaceUrlState.ClearFilters(state);
+        cleared.Eligibility.ShouldBeNull();
+        cleared.Page.ShouldBe(1);
+        cleared.SortBy.ShouldBe("graduationYear");
+        cleared.SortDirection.ShouldBe("desc");
+        CampaignWorkspaceUrlState.HasActiveFilters(cleared).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DestinationUrlsRetainCompleteRosterReturnContext()
+    {
+        var state = new CampaignWorkspaceRosterState
+        {
+            Search = "Avery & Morgan",
+            GraduationYears = [2031, 2032],
+            TagDefinitionIds = [11, 12],
+            Outcome = "undecided",
+            TeamId = 21,
+            Eligibility = "needsPlacement",
+            SortBy = "tryoutNumber",
+            SortDirection = "desc",
+            Page = 3
+        };
+        var query = CampaignWorkspaceUrlState.BuildQueryString(state);
+        CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(10, state, 301)
+            .ShouldBe($"/campaigns/10?{query}&tab=evaluate&participant=301");
+        CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(10, state, 301)
+            .ShouldBe($"/campaigns/10?{query}&tab=close&participant=301");
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(10, new() { GraduationYear = 2032, Page = 2 }, state, 301)
+            .ShouldBe($"/campaigns/10?{query}&participant=301&placementGraduationYear=2032&placementPage=2&tab=place");
+    }
+
     private static CampaignWorkspaceRosterState ParseFromQuery(string query)
     {
         string? ValueOf(string key)
@@ -316,6 +388,7 @@ public sealed class CampaignWorkspaceUrlStateTests
             LongOf("teamId"),
             ValueOf("sortBy"),
             ValueOf("sortDirection"),
-            IntOf("page"));
+            IntOf("page"),
+            ValueOf("eligibility"));
     }
 }

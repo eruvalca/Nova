@@ -1,0 +1,20 @@
+<footer class="roster-footer">
+    <div class="roster-footer-discovery">
+        <p class="text-muted mb-0" aria-live="polite">
+            @if (TotalCount is null) { <span>@(IsLoading ? "Loading participants…" : "Participant count unavailable")</span> }
+            else { <span>@TotalCount.Value participant@(TotalCount.Value == 1 ? string.Empty : "s")</span> }
+        </p>
+        @if (HasActiveFilters) { <button class="btn btn-link" type="button" @onclick="OnClearFilters">Clear filters</button> }
+        <div class="roster-order">
+            <label for="roster-order">Sort</label>
+            <select id="roster-order" class="form-select" value="@OrderValue" @onchange="args => OnOrderChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty)">
+                <option value="displayName:asc">Name A–Z</option><option value="displayName:desc">Name Z–A</option>
+                <option value="graduationYear:asc">Grad year ascending</option><option value="graduationYear:desc">Grad year descending</option>
+                <option value="tryoutNumber:asc">Tryout ascending</option><option value="tryoutNumber:desc">Tryout descending</option>
+                <option value="outcome:asc">Outcome ascending</option><option value="outcome:desc">Outcome descending</option>
+                <option value="teamName:asc">Team A–Z</option><option value="teamName:desc">Team Z–A</option>
+            </select>
+        </div>
+    </div>
+    <CampaignRosterPager Page="Page" PageSize="PageSize" TotalCount="@(TotalCount ?? 0)" Disabled="IsLoading" OnPageChanged="OnPageChanged" />
+</footer>

@@ -152,6 +152,211 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
             .Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
         working.Participants.Items.ShouldHaveSingleItem().PlayerId.ShouldBe(player.PlayerId);
         working.Counts.OptionalReassignment.ShouldBe(2);
+        var closed = (await service.GetClosedCampaignRosterAsync(new() { CampaignId = seed.LatestClosedId, Search = literal }, TestContext.Current.CancellationToken))
+            .Value.ShouldBeOfType<ClosedCampaignRosterResult>();
+        closed.ParticipantCount.ShouldBe(2);
+        closed.Participants.TotalCount.ShouldBe(1);
+        closed.Participants.Items.ShouldHaveSingleItem().PlayerId.ShouldBe(player.PlayerId);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("displayName", "asc")]
+    [InlineData("displayName", "desc")]
+    [InlineData("graduationYear", "asc")]
+    [InlineData("graduationYear", "desc")]
+    [InlineData("tryoutNumber", "asc")]
+    [InlineData("tryoutNumber", "desc")]
+    [InlineData("outcome", "asc")]
+    [InlineData("outcome", "desc")]
+    [InlineData("teamName", "asc")]
+    [InlineData("teamName", "desc")]
+    [InlineData("assignmentId", "asc")]
+    [InlineData("assignmentId", "desc")]
+    public async Task DiscoverySortsBeforePagingWithDeterministicTiesOnBothReadsAsync(string sort, string direction)
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(3);
+        await PrepareDistinctSortKeysAsync(seed);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var service = CreateService();
+        // Expected ordinal fixtures are deliberately ASCII and have distinct primary values,
+        // except the year/name tie whose stable assignment-id order must survive descending.
+        var indexes = sort switch
+        {
+            "displayName" or "graduationYear" or "tryoutNumber" => string.Equals(direction, "asc", StringComparison.Ordinal) ? new[] { 1, 2, 0 } : new[] { 0, 1, 2 },
+            "outcome" => string.Equals(direction, "asc", StringComparison.Ordinal) ? new[] { 1, 2, 0 } : new[] { 0, 1, 2 },
+            "teamName" => string.Equals(direction, "asc", StringComparison.Ordinal) ? new[] { 0, 1, 2 } : new[] { 2, 1, 0 },
+            _ => string.Equals(direction, "asc", StringComparison.Ordinal) ? new[] { 0, 1, 2 } : new[] { 2, 1, 0 }
+        };
+        if (string.Equals(sort, "tryoutNumber", StringComparison.Ordinal) && string.Equals(direction, "desc", StringComparison.Ordinal)) { indexes = [0, 2, 1]; }
+        var active = (await service.GetCampaignEffectivePlacementsAsync(new()
+        {
+            CampaignId = seed.ActiveId,
+            SortBy = sort,
+            SortDirection = direction,
+            Page = 2,
+            PageSize = 1
+        }, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        active.Participants.TotalCount.ShouldBe(3);
+        active.Participants.Items.ShouldHaveSingleItem().PlayerId.ShouldBe(seed.PlayerIds[indexes[1]]);
+        var closed = (await service.GetClosedCampaignRosterAsync(new()
+        {
+            CampaignId = seed.LatestClosedId,
+            SortBy = sort,
+            SortDirection = direction,
+            PageSize = 2
+        }, token)).Value.ShouldBeOfType<ClosedCampaignRosterResult>();
+        closed.ParticipantCount.ShouldBe(3);
+        closed.Participants.TotalCount.ShouldBe(3);
+        closed.Participants.Items.Select(row => row.PlayerId).ShouldBe(indexes.Take(2).Select(index => seed.PlayerIds[index]));
+    }
+
+    [Fact]
+    public async Task DiscoverySeparatesInheritedEffectiveTeamFromCampaignLocalFiltersAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(3);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var service = CreateService();
+        var input = new GetCampaignEffectivePlacementsInput
+        {
+            CampaignId = seed.ActiveId,
+            TeamId = seed.LatestTeamId,
+            LocalOutcome = "undecided",
+            GraduationYears = [2029, 2030],
+            Eligibility = "optionalReassignment",
+            SortBy = "tryoutNumber",
+            SortDirection = "desc"
+        };
+        var inherited = (await service.GetCampaignEffectivePlacementsAsync(input, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        inherited.Participants.Items.Select(row => row.TryoutNumber).ShouldBe(new int?[] { 3, 2, 1 });
+        inherited.Participants.Items.ShouldAllBe(row => row.LocalTeam == null && row.LocalDecision == null && row.EffectiveTeam!.TeamId == seed.LatestTeamId);
+        var local = (await service.GetCampaignEffectivePlacementsAsync(input with { LocalTeamId = seed.LatestTeamId }, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        local.Participants.TotalCount.ShouldBe(0);
+        local.Counts.ShouldBe(inherited.Counts);
+        var linkedId = inherited.Participants.Items[2].PlayerCampaignAssignmentId;
+        var linked = (await service.GetCampaignEffectivePlacementsAsync(input with { ParticipantId = linkedId }, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        linked.Participants.TotalCount.ShouldBe(1);
+        linked.Participants.Items.ShouldHaveSingleItem().PlayerCampaignAssignmentId.ShouldBe(linkedId);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DiscoveryTagsAreBatchedForThePageAndRemainInTheIdentitySnapshotAsync(bool closed)
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(3);
+        var campaignId = closed ? seed.LatestClosedId : seed.ActiveId;
+        var tagId = await ApplyOriginalTagToCampaignAsync(seed.ClubId, campaignId);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var counter = new CountingCommandInterceptor();
+        var service = CreateService(counter);
+        if (closed)
+        {
+            var page = (await service.GetClosedCampaignRosterAsync(new() { CampaignId = campaignId, TagDefinitionIds = [tagId], PageSize = 1 }, token)).Value.ShouldBeOfType<ClosedCampaignRosterResult>();
+            page.Participants.Items.ShouldHaveSingleItem().AppliedTags.ShouldHaveSingleItem().PlayerTagId.ShouldBe(tagId);
+        }
+        else
+        {
+            var page = (await service.GetCampaignEffectivePlacementsAsync(new() { CampaignId = campaignId, TagDefinitionIds = [tagId], PageSize = 1 }, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+            page.Participants.Items.ShouldHaveSingleItem().AppliedTags.ShouldHaveSingleItem().PlayerTagId.ShouldBe(tagId);
+        }
+        counter.TagReaderExecutionCount.ShouldBe(1);
+        var gate = new PlacementReadGateInterceptor("Campaigns");
+        var pending = ReadTaggedNamesAsync(CreateService(gate), campaignId, closed, tagId);
+        try
+        {
+            await gate.WaitUntilBlockedAsync(token).WaitAsync(TimeSpan.FromSeconds(30), token);
+            gate.CompletedIdentityRead.ShouldBeTrue();
+            await using var db = fixture.CreateAdminContext();
+            var tag = await db.PlayerTags.SingleAsync(t => t.PlayerTagId == tagId, token);
+            tag.Name = "Changed after identity";
+            tag.NormalizedName = "CHANGED AFTER IDENTITY";
+            await db.SaveChangesAsync(token);
+            (await ReadTaggedNamesAsync(CreateService(), campaignId, closed, tagId)).ShouldBe(new[] { tag.Name, tag.Name, tag.Name });
+        }
+        finally { gate.Release(); }
+        string[] originalTagNames = ["Original tag", "Original tag", "Original tag"];
+        (await pending).ShouldBe(originalTagNames);
+        var beforeReaders = counter.TagReaderExecutionCount;
+        (await ReadTaggedNamesAsync(service, campaignId, closed, tagId)).Length.ShouldBe(3);
+        (counter.TagReaderExecutionCount - beforeReaders).ShouldBe(1);
+    }
+
+    private async Task PrepareDistinctSortKeysAsync(Seed seed)
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var db = fixture.CreateAdminContext();
+        var players = await db.Players.Where(p => seed.PlayerIds.Contains(p.PlayerId)).OrderBy(p => p.PlayerId).ToListAsync(token);
+        players[0].LastName = "Zulu";
+        players[1].LastName = "Alpha";
+        players[2].LastName = "Alpha";
+        players[0].GraduationYear = 2031;
+        foreach (var campaignId in new[] { seed.ActiveId, seed.LatestClosedId })
+        {
+            var assignments = await db.PlayerCampaignAssignments.Where(a => a.CampaignId == campaignId).OrderBy(a => a.PlayerId).ToListAsync(token);
+            assignments[0].TryoutNumber = 13;
+            assignments[1].TryoutNumber = 11;
+            assignments[2].TryoutNumber = 12;
+            assignments[0].PlacementOutcome = PlacementOutcome.Withdrawn;
+            assignments[0].TeamId = null;
+            assignments[1].PlacementOutcome = PlacementOutcome.Assigned;
+            assignments[1].TeamId = seed.LatestTeamId;
+            assignments[2].PlacementOutcome = PlacementOutcome.Assigned;
+            assignments[2].TeamId = seed.OldTeamId;
+            foreach (var row in assignments)
+            {
+                row.DecisionRecordedAt = DateTimeOffset.UtcNow;
+                row.DecisionRecordedById = 1;
+                row.DecisionActorDisplayName = "Discovery recorder";
+            }
+        }
+        await db.SaveChangesAsync(token);
+    }
+
+    private async Task<long> ApplyOriginalTagToCampaignAsync(long clubId, long campaignId)
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var db = fixture.CreateAdminContext();
+        var tag = new PlayerTagEntity
+        {
+            Name = "Original tag",
+            NormalizedName = "ORIGINAL TAG",
+            Color = "primary",
+            ClubId = clubId,
+            CreationOperationId = Guid.NewGuid(),
+            CreatedById = 1
+        };
+        db.PlayerTags.Add(tag);
+        await db.SaveChangesAsync(token);
+        var assignments = await db.PlayerCampaignAssignments.Where(a => a.CampaignId == campaignId).ToListAsync(token);
+        db.CampaignTagApplications.AddRange(assignments.Select(row => new CampaignTagApplicationEntity
+        {
+            PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId,
+            PlayerTagId = tag.PlayerTagId,
+            ClubId = clubId,
+            CreationOperationId = Guid.NewGuid(),
+            CreatedById = 1
+        }));
+        await db.SaveChangesAsync(token);
+        return tag.PlayerTagId;
+    }
+
+    private static async Task<string[]> ReadTaggedNamesAsync(EffectivePlacementQueryService service, long campaignId, bool closed, long tagId)
+    {
+        var token = TestContext.Current.CancellationToken;
+        if (closed)
+        {
+            var result = (await service.GetClosedCampaignRosterAsync(new() { CampaignId = campaignId, TagDefinitionIds = [tagId] }, token)).Value.ShouldBeOfType<ClosedCampaignRosterResult>();
+            result.ParticipantCount.ShouldBe(3);
+            result.Participants.TotalCount.ShouldBe(3);
+            return result.Participants.Items.Select(row => row.AppliedTags.ShouldHaveSingleItem().TagName).ToArray();
+        }
+        var active = (await service.GetCampaignEffectivePlacementsAsync(new() { CampaignId = campaignId, TagDefinitionIds = [tagId] }, token)).Value.ShouldBeOfType<CampaignEffectivePlacementsResult>();
+        active.Counts.ShouldBe(new EffectivePlacementCounts(0, 3, 0, 0));
+        active.Participants.TotalCount.ShouldBe(3);
+        return active.Participants.Items.Select(row => row.AppliedTags.ShouldHaveSingleItem().TagName).ToArray();
     }
 
     [Fact]
@@ -419,10 +624,16 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
     private sealed class CountingCommandInterceptor : DbCommandInterceptor
     {
         public int ReaderExecutionCount { get; private set; }
+        public int TagReaderExecutionCount { get; private set; }
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
             InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             ReaderExecutionCount++;
+            var tagRoot = command.CommandText.IndexOf("FROM \"CampaignTagApplications\"", StringComparison.Ordinal);
+            if (tagRoot >= 0 && tagRoot == command.CommandText.IndexOf("FROM \"", StringComparison.Ordinal))
+            {
+                TagReaderExecutionCount++;
+            }
             return ValueTask.FromResult(result);
         }
     }

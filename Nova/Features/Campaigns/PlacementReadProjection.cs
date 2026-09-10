@@ -55,5 +55,9 @@ internal static class PlacementReadProjection
                 && row.CorrectionReason == PlacementCorrectionReason.None
                 && row.Participation.Player.LifecycleStatus == LifecycleStatus.Active
                 ? new CampaignParticipantTeamSummaryDto(row.Decision.Team!.TeamId, row.Decision.Team.Name) : null,
-            row.Eligibility, row.CorrectionReason);
+            row.Eligibility, row.CorrectionReason)
+        {
+            LocalTeam = row.Participation.Team != null && row.Participation.Team.ClubId == clubId
+                ? new CampaignParticipantTeamSummaryDto(row.Participation.Team.TeamId, row.Participation.Team.Name) : null,
+        };
 }

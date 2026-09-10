@@ -100,7 +100,8 @@ internal sealed partial class EffectivePlacementQueryService(
         NovaReadDbContext db, long clubId, GetCampaignEffectivePlacementsInput input, CancellationToken token)
     {
         var campaign = await ReadCampaignAsync(db, clubId, input.CampaignId, token);
-        if (campaign is null || !await TeamExistsAsync(db, clubId, input.TeamId, token))
+        if (campaign is null || !await TeamExistsAsync(db, clubId, input.TeamId, token)
+            || !await DiscoveryIdentifiersExistAsync(db, clubId, input, token))
         {
             return ServiceProblem.NotFound();
         }
@@ -112,8 +113,12 @@ internal sealed partial class EffectivePlacementQueryService(
         var query = EffectivePlacementQueries.WorkingSet(db, clubId).Where(row => row.Participation.CampaignId == input.CampaignId);
         var counts = await query.GroupBy(row => row.Eligibility)
             .Select(group => new EligibilityCount(group.Key, group.Count())).ToListAsync(token);
-        var playerFilter = FilterPlayers(db, db.PlayerCampaignAssignments, input.GraduationYear, input.Search, tryoutSearch: true);
-        query = query.Where(row => playerFilter.Any(a => a.PlayerCampaignAssignmentId == row.Participation.PlayerCampaignAssignmentId));
+        var playerFilter = FilterDiscovery(db, db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId
+            && a.Player.ClubId == clubId && a.CampaignId == input.CampaignId), input);
+        playerFilter = FilterPlayers(db, playerFilter, input.GraduationYear, null, tryoutSearch: true);
+        // Apply local discovery before the effective-decision join. An EXISTS over the same
+        // participation root duplicates its tenant/navigation joins in every count and page.
+        query = EffectivePlacementQueries.WorkingSet(db, clubId, playerFilter);
         if (input.TeamId is long teamId)
         {
             query = query.Where(row => row.Eligibility == EffectivePlacementEligibility.OptionalReassignment && row.Decision!.TeamId == teamId);
@@ -122,11 +127,15 @@ internal sealed partial class EffectivePlacementQueryService(
         {
             query = query.Where(row => row.Eligibility == eligibility);
         }
-        var count = await query.CountAsync(token);
-        var rows = await query.OrderBy(row => row.Participation.Player.GraduationYear)
+        var count = input.TeamId is null && input.Eligibility is null
+            ? await playerFilter.CountAsync(token) : await query.CountAsync(token);
+        var ordered = input.SortBy is null && input.SortDirection is null ? query.OrderBy(row => row.Participation.Player.GraduationYear)
             .ThenBy(row => row.Participation.Player.LastName).ThenBy(row => row.Participation.Player.FirstName)
-            .ThenBy(row => row.Participation.PlayerId).Skip(Offset(input)).Take(Size(input))
+            .ThenBy(row => row.Participation.PlayerId) : OrderWorking(query, input);
+        var rows = await ordered.Skip(Offset(input)).Take(Size(input))
             .Select(PlacementReadProjection.WorkingRow(clubId)).ToListAsync(token);
+        var tags = await ReadTagsAsync(db, clubId, rows.Select(row => row.PlayerCampaignAssignmentId).ToArray(), token);
+        rows = rows.Select(row => row with { AppliedTags = tags.GetValueOrDefault(row.PlayerCampaignAssignmentId, []) }).ToList();
         return new CampaignEffectivePlacementsResult(campaign,
             new EffectivePlacementCounts(Count(EffectivePlacementEligibility.NeedsPlacement), Count(EffectivePlacementEligibility.OptionalReassignment),
                 Count(EffectivePlacementEligibility.Resolved), Count(EffectivePlacementEligibility.Unavailable)),
@@ -155,10 +164,23 @@ internal sealed partial class EffectivePlacementQueryService(
         {
             return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.");
         }
+        var participantCount = await query.CountAsync(token);
+        if (!await DiscoveryIdentifiersExistAsync(db, clubId, input, token))
+        {
+            return ServiceProblem.NotFound();
+        }
+        query = FilterDiscovery(db, query, input);
         var count = await query.CountAsync(token);
-        var rows = await query.OrderBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerId)
+        var ordered = input.SortBy is null && input.SortDirection is null ? query.OrderBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerId)
+            : OrderAssignments(query, input);
+        var rows = await ordered
             .Skip(Offset(input)).Take(Size(input)).Select(PlacementReadProjection.ClosedRow(clubId)).ToListAsync(token);
-        return new ClosedCampaignRosterResult(campaign, new(rows.AsReadOnly(), input.Page ?? 1, Size(input), count));
+        var tags = await ReadTagsAsync(db, clubId, rows.Select(row => row.PlayerCampaignAssignmentId).ToArray(), token);
+        rows = rows.Select(row => row with { AppliedTags = tags.GetValueOrDefault(row.PlayerCampaignAssignmentId, []) }).ToList();
+        return new ClosedCampaignRosterResult(campaign, new(rows.AsReadOnly(), input.Page ?? 1, Size(input), count))
+        {
+            ParticipantCount = participantCount,
+        };
     }
 
     private static Task<PlacementCampaignIdentity?> ReadCampaignAsync(NovaReadDbContext db, long clubId, long campaignId, CancellationToken token)

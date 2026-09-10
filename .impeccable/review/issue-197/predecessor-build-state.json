@@ -1,0 +1,408 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-09-05T03:58:04.065Z",
+  "comp": ".impeccable/mocks/decision/issue-196-readiness-split.png",
+  "direction": null,
+  "breakpoint": "1505x1045",
+  "artifact": null,
+  "phase": "review",
+  "phases": {
+    "comps": {
+      "status": "skipped",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [
+        {
+          "at": "2026-09-05T03:58:04.065Z",
+          "text": "started with an approved comp; the comp round happened before this state (surface round or manual)"
+        }
+      ],
+      "gate": null,
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-09-05T03:58:04.065Z",
+      "closedAt": "2026-09-05T03:58:46.564Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "24 regions, 0 plates, 13 text regions measured",
+        "at": "2026-09-05T03:58:46.563Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "closed",
+      "openedAt": "2026-09-05T03:58:46.564Z",
+      "closedAt": "2026-09-05T03:58:46.937Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no plates owed",
+        "at": "2026-09-05T03:58:46.937Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "closed",
+      "openedAt": "2026-09-05T03:58:46.937Z",
+      "closedAt": "2026-09-05T04:38:25.819Z",
+      "attempts": 4,
+      "notes": [
+        {
+          "at": "2026-09-05T04:31:23.135Z",
+          "text": "Re-derived Edit from the measured 63x45 region: 4rem minimum width at the right board inset, with its top matching the control box. Ready status now uses the measured 15px text and full 131px label width. Preserve established system sans instead of unavailable font-ranker fallback Winky Rough; the approved brief pins system type."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "hero 89% (match)",
+        "score": 0.8926,
+        "verdict": "match",
+        "report": ".impeccable\\review\\diff\\hero\\report.json",
+        "sideBySide": ".impeccable\\review\\diff\\hero\\side-by-side.png",
+        "worst": [
+          "open drift 67%",
+          "team-rows drift 67%",
+          "navigation drift 69%"
+        ],
+        "worstIds": [
+          "open",
+          "team-rows",
+          "navigation"
+        ],
+        "worstCrops": [
+          {
+            "id": "open",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.6672,
+              "structure": 0.7038,
+              "color": 0.8103,
+              "colorIntersection": 0.7108,
+              "paletteMatch": 0.8639,
+              "detail": 0.3343,
+              "detailRaw": 0.4645,
+              "detailAdded": 0.2604,
+              "bands": 0.22
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\open.png"
+          },
+          {
+            "id": "team-rows",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.6741,
+              "structure": 0.7452,
+              "color": 0.9343,
+              "colorIntersection": 0.9209,
+              "paletteMatch": 0.9415,
+              "detail": 0.2029,
+              "detailRaw": 0.2706,
+              "detailAdded": 0.1354,
+              "bands": 0.375
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\team-rows.png"
+          },
+          {
+            "id": "navigation",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.686,
+              "structure": 0.8821,
+              "color": 0.4786,
+              "colorIntersection": 0.0209,
+              "paletteMatch": 0.7251,
+              "detail": 0.5333,
+              "detailRaw": 0.5386,
+              "detailAdded": 0.0104,
+              "bands": 0.8286
+            },
+            "file": ".impeccable\\review\\diff\\hero\\regions\\navigation.png"
+          }
+        ],
+        "advisories": [
+          "(advisory, above the 72% bar; fix in the polish pass before responsive) 2 readings:",
+          "  text team-label: letter-spacing is wider than the comp's (gap 0.153 vs 0.078 of the cap height); set letter-spacing to close it by about 1px",
+          "  control delete: its rule sits 9px into the box in the comp and 22px in the build (+13px), so the strip is taller than the comp's; match the height, not only the position",
+          "(advisory, unchanged for 3+ attempts) text roster-copy: letter-spacing is wider than the comp's (gap 0.142 vs 0.080 of the cap height); set letter-spacing to close it by about 1px",
+          "(advisory, unchanged for 3+ attempts) text identity: 3 lines in the build, 2 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape",
+          "(advisory, unchanged for 3+ attempts) text team-rows: 2 lines in the build, 3 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape",
+          "(advisory, unchanged for 3+ attempts) text consequence: 2 lines in the build, 3 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape"
+        ],
+        "regionVerdicts": {
+          "navigation": "drift",
+          "back": "match",
+          "title": "drift",
+          "identity": "match",
+          "details-board": "match",
+          "details-heading": "drift",
+          "details-copy": "drift",
+          "edit": "match",
+          "teams-board": "match",
+          "teams-heading": "drift",
+          "team-actions": "drift",
+          "team-rows": "drift",
+          "readiness-board": "match",
+          "roster-heading": "match",
+          "roster-count": "match",
+          "roster-copy": "match",
+          "players-link": "match",
+          "team-count": "match",
+          "team-label": "match",
+          "review-heading": "match",
+          "ready-state": "drift",
+          "consequence": "match",
+          "open": "drift",
+          "delete": "drift"
+        },
+        "at": "2026-09-05T04:38:25.818Z"
+      },
+      "forced": null,
+      "readingsSeen": {
+        "text roster-copy: letter-spacing is wider than the comp's (gap 0.122 vs 0.080 of the cap height); set letter-spacing to close it by about 1px": 1,
+        "text team-rows: 2 lines in the build, 3 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape": 4,
+        "text consequence: 2 lines in the build, 3 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape": 5,
+        "text consequence: the face renders 26% heavier than the comp's (ink density 0.73 vs 0.58); drop a weight step or use the ranked face": 1,
+        "text consequence: its first line starts 14px lower than in the comp (21px vs 7px into the region box); the spacing above it is too large": 1,
+        "control back: its rule sits 12px into the box in the comp and 28px in the build (+16px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control ready-state: its ink is 38px tall in the build and 15px in the comp (+23px); match the height, not only the position": 1,
+        "control open: its rule sits 1px into the box in the comp and 24px in the build (+23px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "text teams-heading: cap height 11.1px in the build, 15.6px in the comp (-29%); set font-size so the cap height renders at 15.6px": 1,
+        "text roster-copy: letter-spacing is wider than the comp's (gap 0.142 vs 0.080 of the cap height); set letter-spacing to close it by about 1px": 4,
+        "text identity: 3 lines in the build, 2 in the comp; the measure (max-width, font-size, letter-spacing) wraps it differently, so the block is a different shape": 4,
+        "text consequence: the face renders 27% heavier than the comp's (ink density 0.74 vs 0.58); drop a weight step or use the ranked face": 1,
+        "control team-actions: its rule sits 9px into the box in the comp and 20px in the build (+11px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control open: its rule sits 1px into the box in the comp and 17px in the build (+16px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "text team-label: letter-spacing is wider than the comp's (gap 0.153 vs 0.078 of the cap height); set letter-spacing to close it by about 1px": 3,
+        "control open: its rule sits 1px into the box in the comp and 26px in the build (+25px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control delete: its rule sits 9px into the box in the comp and 18px in the build (+9px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control delete: its rule sits 9px into the box in the comp and 22px in the build (+13px), so the strip is taller than the comp's; match the height, not only the position": 2
+      },
+      "records": 1,
+      "history": [
+        {
+          "at": "2026-09-05T04:26:25.681Z",
+          "score": 0.8706,
+          "worstIds": [
+            "team-label",
+            "delete",
+            "teams-heading"
+          ],
+          "regionVerdicts": {
+            "navigation": "drift",
+            "back": "match",
+            "title": "drift",
+            "identity": "match",
+            "details-board": "match",
+            "details-heading": "drift",
+            "details-copy": "drift",
+            "edit": "drift",
+            "teams-board": "drift",
+            "teams-heading": "missing",
+            "team-actions": "drift",
+            "team-rows": "match",
+            "readiness-board": "match",
+            "roster-heading": "match",
+            "roster-count": "drift",
+            "roster-copy": "drift",
+            "players-link": "missing",
+            "team-count": "drift",
+            "team-label": "missing",
+            "review-heading": "match",
+            "ready-state": "drift",
+            "consequence": "drift",
+            "open": "drift",
+            "delete": "missing"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-09-05T04:30:13.073Z",
+          "score": 0.8945,
+          "worstIds": [
+            "ready-state",
+            "edit",
+            "title"
+          ],
+          "regionVerdicts": {
+            "navigation": "drift",
+            "back": "match",
+            "title": "drift",
+            "identity": "match",
+            "details-board": "match",
+            "details-heading": "drift",
+            "details-copy": "drift",
+            "edit": "drift",
+            "teams-board": "match",
+            "teams-heading": "drift",
+            "team-actions": "drift",
+            "team-rows": "drift",
+            "readiness-board": "match",
+            "roster-heading": "match",
+            "roster-count": "drift",
+            "roster-copy": "drift",
+            "players-link": "match",
+            "team-count": "match",
+            "team-label": "match",
+            "review-heading": "match",
+            "ready-state": "drift",
+            "consequence": "drift",
+            "open": "drift",
+            "delete": "drift"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-09-05T04:35:51.091Z",
+          "score": 0.8924,
+          "worstIds": [
+            "open",
+            "team-rows",
+            "navigation"
+          ],
+          "regionVerdicts": {
+            "navigation": "drift",
+            "back": "match",
+            "title": "drift",
+            "identity": "match",
+            "details-board": "match",
+            "details-heading": "drift",
+            "details-copy": "drift",
+            "edit": "match",
+            "teams-board": "match",
+            "teams-heading": "drift",
+            "team-actions": "drift",
+            "team-rows": "drift",
+            "readiness-board": "match",
+            "roster-heading": "match",
+            "roster-count": "match",
+            "roster-copy": "match",
+            "players-link": "match",
+            "team-count": "match",
+            "team-label": "match",
+            "review-heading": "match",
+            "ready-state": "drift",
+            "consequence": "match",
+            "open": "contradicted",
+            "delete": "drift"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-09-05T04:38:25.818Z",
+          "score": 0.8926,
+          "worstIds": [
+            "open",
+            "team-rows",
+            "navigation"
+          ],
+          "regionVerdicts": {
+            "navigation": "drift",
+            "back": "match",
+            "title": "drift",
+            "identity": "match",
+            "details-board": "match",
+            "details-heading": "drift",
+            "details-copy": "drift",
+            "edit": "match",
+            "teams-board": "match",
+            "teams-heading": "drift",
+            "team-actions": "drift",
+            "team-rows": "drift",
+            "readiness-board": "match",
+            "roster-heading": "match",
+            "roster-count": "match",
+            "roster-copy": "match",
+            "players-link": "match",
+            "team-count": "match",
+            "team-label": "match",
+            "review-heading": "match",
+            "ready-state": "drift",
+            "consequence": "match",
+            "open": "drift",
+            "delete": "drift"
+          },
+          "artifactHash": null
+        }
+      ]
+    },
+    "sections": {
+      "status": "closed",
+      "openedAt": "2026-09-05T04:38:25.819Z",
+      "closedAt": "2026-09-05T04:38:43.407Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-05T04:38:43.407Z"
+      },
+      "forced": null
+    },
+    "motion": {
+      "status": "closed",
+      "openedAt": "2026-09-05T04:38:43.407Z",
+      "closedAt": "2026-09-05T04:38:43.717Z",
+      "attempts": 1,
+      "notes": [
+        {
+          "at": "2026-09-05T04:38:43.556Z",
+          "text": "Directory, current-season creation, inline metadata/team forms, deletion confirmation, player/team return links, and minimal roster destination are implemented in the existing Fieldhouse system. The review=open URL and keyboard focus provide the interaction; no entrance animation is added."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-05T04:38:43.716Z"
+      },
+      "forced": null
+    },
+    "responsive": {
+      "status": "closed",
+      "openedAt": "2026-09-05T04:38:43.717Z",
+      "closedAt": "2026-09-05T04:47:27.387Z",
+      "attempts": 3,
+      "notes": [
+        {
+          "at": "2026-09-05T04:42:16.758Z",
+          "text": "Responsive comparison exposed fixed rem spacing drifting after scaling 1440 to the approved frame. Draft spacing/type now share a bounded fluid unit at desktop, and the broad-column inset follows its measured viewport proportion. Native shell dimensions remain unchanged. Mobile resets to the established rem scale."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "desktop 89% (match)",
+        "score": 0.8924,
+        "sideBySide": ".impeccable\\review\\diff\\desktop\\side-by-side.png",
+        "at": "2026-09-05T04:47:27.386Z"
+      },
+      "forced": null
+    },
+    "review": {
+      "status": "closed",
+      "openedAt": "2026-09-05T04:47:27.387Z",
+      "closedAt": "2026-09-05T05:02:01.939Z",
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": {
+    "disposition": "ship",
+    "at": "2026-09-05T05:02:01.939Z",
+    "phaseAtFinish": "review"
+  },
+  "plates": {}
+}

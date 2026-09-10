@@ -10,6 +10,8 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignRosterCards
 {
+    /// <summary>Active evidence loaded in the roster response; null denotes a campaign-local record.</summary>
+    [Parameter] public IReadOnlyList<CampaignEffectivePlacementItem>? WorkingRows { get; set; }
     /// <summary>
     /// Gets or sets the roster rows to display.
     /// </summary>

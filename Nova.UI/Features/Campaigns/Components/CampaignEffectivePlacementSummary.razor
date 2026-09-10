@@ -1,0 +1,22 @@
+@using Nova.SharedKernel.Features.Campaigns
+@using Nova.SharedKernel.Enums
+
+@if (Item is not null)
+{
+    <div class="effective-placement-evidence">
+        <strong>@(Item.EffectiveTeam?.TeamName ?? "No effective season placement")</strong>
+        @if (Item.EffectiveDecision is { } source)
+        {
+            <small>@CampaignRosterDisplay.OutcomeLabel(source.Decision.Outcome) · @source.CampaignName</small>
+        }
+        else
+        {
+            <small>No saved season decision</small>
+        }
+        <span class="eligibility @(Item.Eligibility == EffectivePlacementEligibility.NeedsPlacement ? "needs-placement" : null)">@EligibilityLabel(Item.Eligibility)</span>
+        @if (Item.CorrectionReason != PlacementCorrectionReason.None)
+        {
+            <small class="correction">@CorrectionLabel(Item.CorrectionReason)</small>
+        }
+    </div>
+}
