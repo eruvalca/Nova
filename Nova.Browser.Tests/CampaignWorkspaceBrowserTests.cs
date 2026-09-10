@@ -155,9 +155,15 @@ public sealed class CampaignWorkspaceBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, EvaluationSeed.Password,
             new ViewportSize { Width = 1440, Height = 1024 });
         var page = context.Pages[0];
-        var path = $"/campaigns/{seed.CampaignId}/roster?participant={seed.AssignmentIds[0]}";
+        var path = $"/campaigns/{seed.CampaignId}/roster?participant={seed.AssignmentIds[0]}&eligibility=NeedsPlacement&page=2";
         await page.GotoAsync(new Uri(fixture.BaseUri, path).ToString());
         await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
+        await Expect(page).ToHaveURLAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}/roster?participant={seed.AssignmentIds[0]}").ToString());
+        await Expect(page.Locator("#roster-eligibility")).ToHaveCountAsync(0);
+        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(50);
+        await page.ReloadAsync();
+        await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
+        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(50);
         await Expect(page.Locator(".participant-placement-context")).ToContainTextAsync("U16 archived local team");
         await Expect(page.Locator(".participant-drawer-readonly-note")).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Add note", Exact = true })).ToHaveCountAsync(0);

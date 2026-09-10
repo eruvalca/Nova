@@ -19,9 +19,62 @@ public partial class CampaignWorkspace
     private bool _teamChoicesTruncated;
     private bool _nonTeamChoicesFailed;
     private bool _teamChoicesFailed;
+    private bool _replaceClosedEligibilityUrl;
     private string StateOwner(CampaignStatus? status) => $"{_authorityScope}:{CampaignId}:{status}:{_appliedQueryString}";
     private IReadOnlyList<CampaignEffectivePlacementItem> _workingRows = [];
     private string? _rosterOwner;
+
+    private CampaignWorkspaceRosterState NormalizeRosterFilters(CampaignWorkspaceRosterState state)
+    {
+        if (_detail?.Status != CampaignStatus.Closed || state.Eligibility is null)
+        {
+            return state;
+        }
+        _replaceClosedEligibilityUrl = true;
+        return state with { Eligibility = null, Page = 1 };
+    }
+
+    private bool NormalizeCurrentRosterFilters()
+    {
+        var normalized = NormalizeRosterFilters(_filters);
+        if (ReferenceEquals(normalized, _filters))
+        {
+            return false;
+        }
+        _filters = normalized;
+        _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(normalized);
+        _searchDraft = normalized.Search ?? string.Empty;
+        _pendingBoundaryMove = null;
+        ++_navigationSequence;
+        _reloadRosterPending = true;
+        _scrollToRosterTop = true;
+        return true;
+    }
+
+    private void ReplaceClosedEligibilityUrl()
+    {
+        if (!_replaceClosedEligibilityUrl)
+        {
+            return;
+        }
+        _replaceClosedEligibilityUrl = false;
+        if (_detail?.Status == CampaignStatus.Closed && !ComponentCancellationToken.IsCancellationRequested)
+        {
+            // Preserve the pathname, participant, destination and placement return parameters.
+            navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["eligibility"] = null,
+                ["page"] = null,
+            }), replace: true);
+        }
+    }
+
+    private void PrepareRosterLoad()
+    {
+        NormalizeCurrentRosterFilters();
+        _reloadRosterPending = false;
+        ReplaceClosedEligibilityUrl();
+    }
 
     private void DiscardUnownedRoster(string owner)
     {

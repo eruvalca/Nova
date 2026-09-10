@@ -63,6 +63,13 @@ The legacy Roster `outcome` and `teamId` URL parameters remain campaign-local an
 page when following Evaluate, Place and Close anchors. `/campaigns/{id}/roster` remains canonical for
 Roster; explicit route precedence and native anchor behavior are retained.
 
+After interactive attachment, the workspace checks its startup URI against the connected browser
+surface once. If an enhanced-navigation notification was missed during attachment, it repeats the
+current browser URL through enhanced GET navigation with history replacement. Receipt, focus and
+scroll effects wait for the runtime to receive the location. The check is scoped to the connected
+component owner and exact campaign path; it cannot replay an obsolete URL or navigate another
+campaign. Pending scroll restoration also carries the navigation generation and authority owner.
+
 Active rows separately label campaign outcome, effective season placement/source, eligibility and
 correction reason. A missing local decision is **No campaign decision**, including when a valid
 inherited assignment makes reassignment optional. Closed rows use only local saved attribution and
@@ -79,8 +86,11 @@ Team choices search bounded active and archived results and explicitly disclose 
 Persisted data is scoped to user/club authority, campaign, lifecycle and query. Request generations
 and mutation leases reject obsolete successes, errors and cleanup. Entry authorization changes
 dispose the workspace. A lifecycle conflict refreshes authorized detail and switches both the
-authoritative Roster read and child capabilities. Closed detail immediately disables capture;
-reopening restores it only after authoritative refresh. Opening receipt feedback uses its original
+authoritative Roster read and child capabilities. Authorized Closed detail also clears the Active-only
+eligibility filter and resets Roster paging. The URL is replaced, preserving participant selection,
+destination and all remaining discovery/placement return context; history and persisted-state restores
+apply the same normalization. Closed detail immediately disables capture; reopening restores it only
+after authoritative refresh and does not resurrect the removed filter. Opening receipt feedback uses its original
 validated operation and matching acknowledgment; only that receipt requests Roster-heading focus.
 
 ## Handoffs

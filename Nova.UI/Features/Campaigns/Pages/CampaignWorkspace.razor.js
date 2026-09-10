@@ -5,6 +5,26 @@ export { acknowledgeOpeningReceipt, focus } from './CampaignEntry.razor.js';
 export function readOpeningReceipt(scope, campaignId) {
     return read(scope, 'receipt:' + campaignId);
 }
+
+// Enhanced navigation can finish between the server circuit's initial URI snapshot and renderer
+// attachment, when location notifications have no attached recipient. Reconcile once after interop
+// is available. Read and dispatch the current browser URL together, never a delayed C# URL snapshot.
+export function reconcileWorkspaceLocation(element, owner, expectedLocation, campaignPath) {
+    if (!(element instanceof Element) || !element.isConnected || element.dataset.workspaceOwner !== owner) {
+        return false;
+    }
+    const current = new URL(location.href);
+    const expected = new URL(expectedLocation);
+    if (current.origin !== expected.origin
+        || (current.pathname !== campaignPath && current.pathname !== campaignPath + '/roster')
+        || (current.pathname === expected.pathname && current.search === expected.search)) {
+        return false;
+    }
+    // Nova's static Router uses enhanced GET navigation here. Even the same current URL notifies
+    // the now-attached runtime; replacing the entry preserves the user's Back/Forward history.
+    Blazor.navigateTo(current.href, { replaceHistoryEntry: true });
+    return true;
+}
 let keydownListener = null;
 
 // Suppresses the browser's default keyboard activation click for roster rows and cards.

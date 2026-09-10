@@ -235,8 +235,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Native anchors work before attachment. Repeated clicks while a panel loads
         // would create extra history entries and invalidate this Back-navigation check.
-        await page.GetByRole(AriaRole.Link, new() { Name = "Place" }).ClickAsync();
-        await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
+        await ActivatePlaceWithEvidenceAsync(page);
         page.Url.ShouldContain("tab=place");
 
         // Browser Back restores the overview tab (client-side history entry).
@@ -257,6 +256,116 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("tab=close");
+    }
+
+    [Fact]
+    public async Task StartupReconcilesBrowserLocationMissedBeforeInteractiveAttachmentAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, token);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
+        var page = context.Pages[0];
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync("**/CampaignWorkspace*.razor.js", async route =>
+        {
+            requested.TrySetResult();
+            await release.Task;
+            await route.ContinueAsync();
+        });
+        try
+        {
+            var initial = new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=evaluate&sortDirection=desc").ToString();
+            await page.GotoAsync(initial, new() { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await requested.Task.WaitAsync(TimeSpan.FromSeconds(30), token);
+            await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
+            var destination = new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}?tab=place&sortDirection=desc").ToString();
+            // Model a browser URL update whose notification was missed before renderer attachment.
+            await page.EvaluateAsync("url => history.replaceState(history.state, '', url)", destination);
+            var historyLength = await page.EvaluateAsync<int>("history.length");
+            release.TrySetResult();
+
+            await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Place" })).ToHaveAttributeAsync("aria-current", "page");
+            await Expect(page).ToHaveURLAsync(destination);
+            (await page.EvaluateAsync<int>("history.length")).ShouldBe(historyLength);
+            await AssertStartupReconciliationRejectsUnownedLocationsAsync(page);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
+    private static async Task AssertStartupReconciliationRejectsUnownedLocationsAsync(IPage page)
+    {
+        // Fragment-only movement has no workspace parameter delivery to acknowledge. Obsolete
+        // elements, owners and campaign paths must never dispatch a replacement navigation.
+        var rejectedDispatches = await page.EvaluateAsync<int>("""
+            async () => {
+                const module = await import('/_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js');
+                const element = document.querySelector('.campaign-field');
+                const owner = element.dataset.workspaceOwner;
+                const path = location.pathname;
+                const fragmentOnly = new URL(location.href);
+                fragmentOnly.hash = '#different-fragment';
+                const stale = new URL(location.href);
+                stale.search = '?tab=evaluate';
+                let dispatches = 0;
+                const navigate = Blazor.navigateTo;
+                try {
+                    Blazor.navigateTo = () => { dispatches++; };
+                    const results = [
+                        module.reconcileWorkspaceLocation(element, owner, fragmentOnly.href, path),
+                        module.reconcileWorkspaceLocation(element.cloneNode(), owner, stale.href, path),
+                        module.reconcileWorkspaceLocation(element, 'obsolete-owner', stale.href, path),
+                        module.reconcileWorkspaceLocation(element, owner, stale.href, path + '/another-campaign')
+                    ];
+                    return dispatches + results.filter(Boolean).length;
+                } finally {
+                    Blazor.navigateTo = navigate;
+                }
+            }
+            """);
+        rejectedDispatches.ShouldBe(0);
+    }
+
+    private static async Task ActivatePlaceWithEvidenceAsync(IPage page)
+    {
+        var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        void RecordError(object? sender, string error) => errors.Enqueue(error);
+        page.PageError += RecordError;
+        await page.EvaluateAsync("""
+            () => {
+                window.__novaRouteProbe = [];
+                for (const type of ['pointerdown', 'pointerup', 'click']) {
+                    document.addEventListener(type, event => {
+                        const evidence = { type, target: event.target.outerHTML,
+                            href: event.target.closest('a')?.href, url: location.href };
+                        window.__novaRouteProbe.push(evidence);
+                        queueMicrotask(() => evidence.prevented = event.defaultPrevented);
+                    }, { capture: true, once: true });
+                }
+            }
+            """);
+        try
+        {
+            await page.GetByRole(AriaRole.Link, new() { Name = "Place" }).ClickAsync();
+            await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            var evidence = await page.EvaluateAsync<string>("""
+                JSON.stringify({ url: location.href, events: window.__novaRouteProbe,
+                    active: document.querySelector('.route-marker[aria-current="page"]')?.outerHTML,
+                    workspace: document.querySelector('.campaign-field')?.dataset })
+                """);
+            throw new InvalidOperationException($"Place navigation failed: {evidence}; page errors: {string.Join(" | ", errors)}", exception);
+        }
+        finally
+        {
+            page.PageError -= RecordError;
+        }
     }
 
     [Fact]
@@ -367,8 +476,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             .ToHaveAttributeAsync("aria-current", "page");
         var route = narrowPage.Locator("nav.campaign-route").Last;
         await Expect(route).ToBeVisibleAsync();
-        (await route.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"))
-            .ShouldBeTrue("Scripted narrow viewports keep the full-width route in a scrolling strip.");
+        await AssertRouteOverflowAsync(narrowPage, route);
 
         await InteractionHelpers.ActUntilAsync(
             narrowPage,
@@ -390,9 +498,38 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var closeMarker = narrowPage.GetByRole(AriaRole.Link, new() { Name = "Close" });
         await Expect(closeMarker).ToHaveAttributeAsync("aria-current", "page");
         await AssertMarkerFullyVisibleAsync(narrowPage, closeMarker);
-        (await route.EvaluateAsync<double>("element => element.scrollLeft")).ShouldBeGreaterThan(0);
+        (await narrowPage.EvaluateAsync<double>("document.querySelector('nav.campaign-route').scrollLeft")).ShouldBeGreaterThan(0);
 
         await AssertRouteRevealPreservesDocumentScrollAsync(narrowPage, closeMarker);
+    }
+
+    private static async Task AssertRouteOverflowAsync(IPage page, ILocator route)
+    {
+        // A locator's resolved handle can detach during hydration before Evaluate runs. Resolve
+        // and measure the current strip atomically, preserving the strict overflow requirement.
+        await Expect(route.Locator(".route-marker-list")).ToHaveCSSAsync("min-width", "576px");
+        var geometry = await page.EvaluateAsync<System.Text.Json.JsonElement>("""
+            () => {
+                const element = document.querySelector('nav.campaign-route');
+                if (!element) throw new Error('Campaign route is missing');
+                const list = element.querySelector('.route-marker-list');
+                const orientation = element.closest('.workspace-orientation');
+                return {
+                    overflow: element.scrollWidth > element.clientWidth,
+                    connected: element.isConnected, viewport: innerWidth,
+                    rootFont: getComputedStyle(document.documentElement).fontSize,
+                    scriptingNone: matchMedia('(scripting: none)').matches,
+                    clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
+                    width: element.getBoundingClientRect().width,
+                    listWidth: list?.getBoundingClientRect().width,
+                    listMinimum: list ? getComputedStyle(list).minWidth : null,
+                    gridColumns: orientation ? getComputedStyle(orientation).gridTemplateColumns : null,
+                    styles: Array.from(document.querySelectorAll('link[rel="stylesheet"]'),
+                        link => ({ href: link.href, loaded: Boolean(link.sheet) }))
+                };
+            }
+            """);
+        geometry.GetProperty("overflow").GetBoolean().ShouldBeTrue(geometry.ToString());
     }
 
     [Theory(IncludeTestCaseIndex = true)]
@@ -430,9 +567,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         // Invoke the same interop operation on the real rendered strip below the fold.
         // A later workspace render must reveal horizontally without moving the document.
-        var scrollTop = await page.Locator("nav.campaign-route").EvaluateAsync<double>("""
-            async container => {
+        var scrollTop = await page.EvaluateAsync<double>("""
+            async () => {
                 const module = await import('/_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js');
+                const container = document.querySelector('nav.campaign-route');
+                if (!container) throw new Error('Campaign route is missing');
                 window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
                 const before = window.scrollY;
                 container.scrollLeft = 0;

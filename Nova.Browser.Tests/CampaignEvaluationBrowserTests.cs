@@ -487,8 +487,11 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenParticipantAsync(page, firstRow);
 
         // Keyboard-only note flow: focus + Enter activation, typed content, Enter to save.
+        // Detail visibility can precede the asynchronous initial focus handoff.
+        await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
         var addNoteButton = page.GetByRole(AriaRole.Button, new() { Name = "Add note" });
         await addNoteButton.FocusAsync();
+        await Expect(addNoteButton).ToBeFocusedAsync();
         await page.Keyboard.PressAsync("Enter");
         var noteContent = page.Locator("#participant-drawer-note-content");
         await Expect(noteContent).ToBeVisibleAsync();

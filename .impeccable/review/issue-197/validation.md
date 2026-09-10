@@ -148,6 +148,69 @@ Fresh captures score **79.68%** at the approved viewport and **75.47%** at 1440p
 The two previously disclosed hero vetoes remain unchanged and unforced. The score-based publication
 instruction above still applies; these numbers do not relabel the mechanical comparison as passed.
 
+## PR #252 — second review round
+
+Review `5163181715` on `c487608d27e93565604de7f7cc768966eee8e541` contained one actionable
+comment (`3975931609`) and no suppressed findings. Authorized Closed detail now clears Active-only
+eligibility and resets Roster paging before its read. The canonical URL replaces the current history
+entry while retaining the pathname, participant, destination and other discovery/placement context.
+The same rule handles initial entry, history/parameter refresh, lifecycle-conflict reconciliation and
+persisted-state restoration. Reopening does not resurrect the removed filter. Wrong-scope or
+wrong-campaign entry snapshots cannot clear an authorized Active filter.
+
+Twelve new component cases cover these paths. The existing Closed browser journey now starts with
+stale eligibility/page-two URL state, checks canonical navigation and the first 50 rows, reloads, and
+continues its immutable archived-evidence and integrity-error checks. The local reviewer identified
+and resolved an initial explicit-page-one URL mismatch before validation. Initial unit runs exposed
+new fixture/assertion mismatches: bounded participant context legitimately omits the default page,
+the test DOM may represent an unbound select as null, and the Closed workspace fixture must supply
+Closed participant detail to avoid intentionally triggering lifecycle reconciliation. The corrected
+tests preserve their paging/filter and cleared-selection assertions, including strict null eligibility
+in the API call and absence from the URL. The existing dedicated initial-snapshot regression retains
+the no-duplicate-startup-read assertion. No production exceptions, timeouts, skips or validation rules
+were weakened.
+
+The first browser run passed 134/135; an existing single-click route-history journey did not leave
+Evaluate. A subsequent focused failure recorded the correct Place pointer/click target and browser
+URL, while the rendered panel and active marker still showed Evaluate, with no page errors. This is
+an observed URL/view divergence, not a missed click. Source review of the pinned .NET 10.0.12 runtime
+identified a startup window between the circuit URI snapshot and renderer attachment in which
+enhanced-navigation notifications have no attached recipient. The exact runtime URI at the original
+failure was not captured; this remains a source-supported explanation of the observed divergence.
+
+A once-per-workspace check now compares the runtime startup URI with the live browser location.
+It dispatches the current browser URL synchronously through public enhanced GET navigation with
+history replacement, constrained to a connected component owner and the exact campaign path.
+Post-render effects wait for parameter delivery to acknowledge the new location, including unrelated
+renders while dispatch is complete but notification is pending. A delivery latch handles rapid Back
+navigation; pending scroll restoration carries navigation generation and authority ownership.
+Five component cases cover overlapping renders, pending notification, later Back, obsolete queued
+scroll/receipt effects and disposal. A controlled browser journey delays the fingerprinted workspace
+module and models the missed notification with a browser-only URL update. Its first diagnostic run
+timed out on an incorrect module interception glob; that run is not behavioral red evidence.
+
+The second full run passed 133/135: an existing note keyboard flow did not await the drawer's
+asynchronous initial-focus handoff, and a one-shot route measurement observed no overflow. Later
+diagnostics proved the measured route element was detached (`isConnected=false`, all dimensions
+zero). Geometry now resolves the current DOM node and measures it synchronously, including after
+the awaited JS import. The keyboard test asserts the required Close focus before selecting and
+verifying Add note focus; the exact original focus-event ordering was not captured. The separate
+reviewer verified that single-click actions, strict overflow, positive horizontal scrolling, document
+scroll preservation, assertion timeouts and all three Draft journeys remain intact. Diagnostic logs
+remain local under the `round-2-` prefix; failed runs are not represented as passing validation.
+
+Final round validation on the frozen source passed: solution build, zero warnings/errors (36.75s);
+unit **2,810/2,810** (57.993s); PostgreSQL integration **586/586** (3m07.555s); browser
+**136/136** (6m30.622s), all with zero skips. `NOVA_A11Y_SCREENSHOTS=1` enabled all seven optional
+accessibility journeys, and all three Draft journeys remain unchanged. The browser pass includes
+the modeled startup repair and real-module fragment/owner/path no-dispatch probes. Final format
+verification exited 0 and contrast passed. An intermediate build/format check caught the new
+browser method exceeding the existing size rule; extracting its independent boundary assertions
+resolved that diagnostic without suppression. The separate local reviewer verified the frozen diff
+and final evidence, resolving the completed-dispatch and fragment-only findings. Only documentation
+changed after validation. All second-round work ships in one commit based on
+`c487608d27e93565604de7f7cc768966eee8e541`; the live PR pins its resulting SHA.
+
 ## Guidance actually read
 
 - `AGENTS.md`; matching `.github/instructions/` sources for C#, Blazor, UI/theme, services,
@@ -164,4 +227,5 @@ instruction above still applies; these numbers do not relabel the mechanical com
 
 `source-pairing.json` is the Roslyn inventory taken at the start of test work, not coverage or proof
 that every behavior is exercised. Logs are retained locally under this directory and ignored by Git.
-The implementation commit above is followed only by the documentation/evidence update that records it.
+The initial implementation and its evidence update precede the review-round corrections recorded
+above. The live PR identifies the latest tested review-round commit.

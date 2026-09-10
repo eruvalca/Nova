@@ -432,7 +432,7 @@ public partial class CampaignWorkspace(
     /// <summary>
     /// The roster region scroll offset captured before a drawer open/close navigation, restored after render.
     /// </summary>
-    private double? _pendingScrollRestore;
+    private (double Top, int NavigationSequence, string Owner)? _pendingScrollRestore;
 
     /// <summary>
     /// Indicates that the roster region should scroll to its top after the next render.
@@ -506,6 +506,7 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        ObserveStartupLocationDelivery();
         var previousTab = _activeTab;
         var previousParticipant = _selectedParticipantId;
         // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
@@ -531,7 +532,7 @@ public partial class CampaignWorkspace(
             ++_navigationSequence;
         }
 
-        var incoming = CampaignWorkspaceUrlState.Parse(
+        var incoming = NormalizeRosterFilters(CampaignWorkspaceUrlState.Parse(
             SearchQuery,
             GraduationYearsQuery,
             TagIdsQuery,
@@ -539,7 +540,7 @@ public partial class CampaignWorkspace(
             TeamIdQuery,
             SortByQuery,
             SortDirectionQuery,
-            PageQuery, EligibilityQuery);
+            PageQuery, EligibilityQuery));
         var incomingQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
 
         // A pending boundary move is only valid while the URL state it was issued against stays
@@ -569,6 +570,7 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        ReplaceClosedEligibilityUrl();
         if (_reloadRosterPending && _detail is not null)
         {
             _reloadRosterPending = false;
@@ -608,6 +610,11 @@ public partial class CampaignWorkspace(
             _availableTags = PersistedTags ?? [];
             _availableTeams = PersistedTeams ?? [];
             _isLoading = false;
+            if (NormalizeCurrentRosterFilters())
+            {
+                await LoadRosterAsync();
+                PersistStartupState();
+            }
             return;
         }
 
@@ -713,8 +720,9 @@ public partial class CampaignWorkspace(
         result.Switch(
             detail =>
             {
-                DiscardUnownedRoster(StateOwner(detail.Status));
                 _detail = detail;
+                NormalizeCurrentRosterFilters();
+                DiscardUnownedRoster(StateOwner(detail.Status));
                 detailLoaded = true;
             },
             problem =>
@@ -836,6 +844,7 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the load is finished.</returns>
     private async Task LoadRosterAsync()
     {
+        PrepareRosterLoad();
         var owner = StateOwner(_detail?.Status);
         DiscardUnownedRoster(owner);
         _rosterError = null;
@@ -1550,7 +1559,7 @@ public partial class CampaignWorkspace(
         {
             return false;
         }
-        _pendingScrollRestore = scroll;
+        _pendingScrollRestore = scroll is { } top ? (top, request, StateOwner(_detail?.Status)) : null;
         return true;
     }
 
@@ -1563,6 +1572,10 @@ public partial class CampaignWorkspace(
         // pending scroll work until then so filter changes still scroll after a loading pass.
         var module = await _moduleTask.Value;
         if (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        if (await ReconcileStartupLocationAsync(module))
         {
             return;
         }
@@ -1631,11 +1644,14 @@ public partial class CampaignWorkspace(
             await module.InvokeVoidAsync("scrollToTop", _rosterScrollRegion);
         }
 
-        if (_pendingScrollRestore is not null)
+        if (_pendingScrollRestore is { } restore)
         {
-            var restoreTop = _pendingScrollRestore.Value;
             _pendingScrollRestore = null;
-            await module.InvokeVoidAsync("restoreScroll", _rosterScrollRegion, restoreTop);
+            if (restore.NavigationSequence == _navigationSequence
+                && string.Equals(restore.Owner, StateOwner(_detail?.Status), StringComparison.Ordinal))
+            {
+                await module.InvokeVoidAsync("restoreScroll", ComponentCancellationToken, _rosterScrollRegion, restore.Top);
+            }
         }
     }
 
