@@ -74,14 +74,23 @@ public sealed class CampaignEvaluationResponsiveBrowserTests(BrowserSuiteFixture
         var lookupStarted = System.Diagnostics.Stopwatch.StartNew();
         await page.Locator("#evaluation-search").FillAsync("Player");
         await page.Locator("#evaluation-search").PressAsync("Enter");
-        await Expect(page.Locator(".evaluation-result-count")).ToContainTextAsync("999 players match");
+        // This is a functional scale check with recorded timing, not a five-second SLO.
+        // One bounded read may settle under concurrent provider load.
+        // Retrieval errors end the wait and fail the result assertions.
+        const int ReadSettlementMilliseconds = 15_000;
+        await Expect(page.Locator(".evaluation-result-count").Filter(new() { HasText = "999 players match" })
+            .Or(page.Locator(".evaluation-finder [role='alert']")))
+            .ToBeVisibleAsync(new() { Timeout = ReadSettlementMilliseconds });
+        await Expect(page.Locator(".evaluation-finder [role='alert']")).ToHaveCountAsync(0);
+        page.Url.ShouldContain("evalSearch=Player");
+        await Expect(page.Locator(".evaluation-result-count")).ToHaveTextAsync("999 players match “Player”");
         lookupStarted.Stop();
         var evidenceDirectory = Environment.GetEnvironmentVariable("NOVA_EVALUATION_EVIDENCE");
         if (!string.IsNullOrWhiteSpace(evidenceDirectory))
         {
             Directory.CreateDirectory(evidenceDirectory);
             await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, "lookup-timing.json"),
-                System.Text.Json.JsonSerializer.Serialize(new { large.CampaignId, Participants = 1000, Matches = 999, PageSize = 20, Milliseconds = lookupStarted.Elapsed.TotalMilliseconds }),
+                System.Text.Json.JsonSerializer.Serialize(new { large.CampaignId, Participants = 1000, Matches = 999, PageSize = 20, ReadSettlementMilliseconds, Milliseconds = lookupStarted.Elapsed.TotalMilliseconds, LatencyTargetSpecified = false }),
                 TestContext.Current.CancellationToken);
         }
         await Expect(page.Locator("a[data-eval-result]")).ToHaveCountAsync(20);

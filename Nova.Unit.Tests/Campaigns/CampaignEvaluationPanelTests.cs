@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -78,6 +79,67 @@ public sealed class CampaignEvaluationPanelTests : BunitContext
         cut.Find("a[data-eval-result]").GetAttribute("href")!.ShouldContain("evalParticipant=301");
         _ = _placements.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(i => i.Search == "42" && i.SortBy == "searchRelevance" && i.Page == 1 && i.PageSize == 20), Arg.Any<CancellationToken>());
         _ = _participants.DidNotReceive().GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RepeatedCurrentQuerySubmissionsPreserveInFlightFinderAndChangedQueryNavigatesAsync()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<CampaignEffectivePlacementsResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requestToken = CancellationToken.None;
+        _placements.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => { requestToken = call.Arg<CancellationToken>(); return pending.Task; });
+        var navigation = (BunitNavigationManager)Services.GetRequiredService<NavigationManager>();
+        var state = new CampaignWorkspaceEvaluationState { Search = "42" };
+        navigation.NavigateTo(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(10, state, new() { Search = "Roster query", Page = 4 }, 999));
+        var historyCount = navigation.History.Count;
+        var cut = Panel(state);
+        try
+        {
+            await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Finding players"));
+            var debounce = cut.Find("#evaluation-search").InputAsync(new ChangeEventArgs { Value = "42" });
+            // Find and Enter share the form submit boundary; neither may restart its current URL.
+            await cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+            await cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+            await debounce;
+            navigation.History.Count.ShouldBe(historyCount);
+            _ = _placements.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+            requestToken.CanBeCanceled.ShouldBeTrue();
+            requestToken.IsCancellationRequested.ShouldBeFalse();
+            pending.Task.IsCompleted.ShouldBeFalse();
+            cut.Markup.ShouldContain("Finding players");
+            var changedDebounce = cut.Find("#evaluation-search").InputAsync(new ChangeEventArgs { Value = "Jordan" });
+            await cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+            await changedDebounce;
+            navigation.History.Count.ShouldBe(historyCount + 1);
+            navigation.Uri.ShouldContain("evalSearch=Jordan");
+            navigation.Uri.ShouldContain("search=Roster%20query");
+            navigation.Uri.ShouldContain("page=4");
+        }
+        finally
+        {
+            pending.TrySetResult(new ServiceResult<CampaignEffectivePlacementsResult>(Results()));
+        }
+    }
+
+    [Fact]
+    public void ExplicitFinderRetryReloadsFailedCurrentQueryWithoutNavigating()
+    {
+        _placements.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("Finder unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignEffectivePlacementsResult>(Results())));
+        var navigation = (BunitNavigationManager)Services.GetRequiredService<NavigationManager>();
+        var state = new CampaignWorkspaceEvaluationState { Search = "42" };
+        navigation.NavigateTo(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(10, state, new() { Search = "Roster query", Page = 4 }, 999));
+        var historyCount = navigation.History.Count;
+        var cut = Panel(state);
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Finder unavailable."));
+        cut.Find("form").Submit();
+        _ = _placements.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+        Button(cut, "Retry search").Click();
+        cut.WaitForAssertion(() => cut.FindAll("a[data-eval-result]").Count.ShouldBe(1));
+        cut.Markup.ShouldNotContain("Finder unavailable.");
+        _ = _placements.Received(2).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.Search == "42"), Arg.Any<CancellationToken>());
+        navigation.History.Count.ShouldBe(historyCount);
     }
 
     [Fact]

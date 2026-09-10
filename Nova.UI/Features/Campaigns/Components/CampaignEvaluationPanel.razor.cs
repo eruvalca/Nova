@@ -384,7 +384,12 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private void ApplySearch()
     {
         ++_searchSequence;
-        navigation.NavigateTo(LookupUrl(State with { Search = _search.Trim(), Page = 1, ParticipantId = null }));
+        var target = LookupUrl(State with { Search = _search.Trim(), Page = 1, ParticipantId = null });
+        if (string.Equals(navigation.Uri, navigation.ToAbsoluteUri(target).AbsoluteUri, StringComparison.Ordinal))
+        {
+            return;
+        }
+        navigation.NavigateTo(target);
     }
 
     private Task GuardNavigationAsync(LocationChangingContext context)
