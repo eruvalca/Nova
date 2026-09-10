@@ -4,6 +4,9 @@ Status: implementation and code validation complete; visual gate awaiting user a
 
 Baseline: `54c1da3abb16a6d02afbaaf14b59f9cbb870c8ff` on
 `codex/issue-197-workspace-roster`. The initial checkout was clean and included #250 and #251.
+Tested implementation: `49e8915bedbc431e1b0304fae2e87538af2a11df`. Tests ran before this
+commit against the same production and test behavior; only the BOM/comment changes described below
+followed test execution. The subsequent commit updates validation/review/PR-description evidence only.
 Baseline solution build, format verification and 2,673 unit tests passed. The baseline build
 reported the existing Sass warnings. No baseline integration/browser result is claimed.
 
@@ -31,7 +34,7 @@ accessibility journeys were enabled with `NOVA_A11Y_SCREENSHOTS=1`; the three Dr
 unchanged. The final contrast check passed every ratio and forbidden-token assertion.
 Final format verification passed after correcting the required UTF-8 BOM in two C# test files.
 Those encoding-only changes and a browser helper comment were the only source-file changes after
-the final tests. The tested revision must be recorded before PR.
+the final tests.
 
 | Command | Final result |
 | --- | --- |
@@ -57,7 +60,8 @@ The separate code reviewer resolved snapshot ownership, regional startup persist
 teardown ownership, collocated code, and abandoned debounce text. Later browser evidence identified
 canceled JavaScript disposal and a provider join-plan defect; both are corrected and covered by
 behavioral tests. Pending imports, canceled/healthy cleanup exactly once, and unrelated JavaScript
-errors are tested without diagnostic suppressions. Final tested-revision verification remains pending.
+errors are tested without diagnostic suppressions. All seven code findings are resolved; the final
+review evidence identifies the implementation revision above separately from the pending visual gate.
 
 The user funded a third visual correction round after the earlier 69.22% result. The final refined
 capture scores **79.71%** at the approved viewport and **75.46%** at 1440px. The finish reviewer
@@ -108,4 +112,4 @@ global timeouts/concurrency are unchanged, and no provider setting or migration 
 
 `source-pairing.json` is the Roslyn inventory taken at the start of test work, not coverage or proof
 that every behavior is exercised. Logs are retained locally under this directory and ignored by Git.
-The final record must name the tested commit and any later documentation-only changes.
+The implementation commit above is followed only by the documentation/evidence update that records it.

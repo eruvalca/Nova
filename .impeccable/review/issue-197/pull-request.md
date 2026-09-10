@@ -8,7 +8,7 @@ The selected **Roster beside context** composition preserves Fieldhouse navigati
 
 ## Validation
 
-- Tested revision: pending local commit; baseline `54c1da3abb16a6d02afbaaf14b59f9cbb870c8ff`.
+- Tested revision: `49e8915bedbc431e1b0304fae2e87538af2a11df`; subsequent changes update validation/review/PR-description evidence only. See the validation record for the encoding-only corrections and comment made after test execution.
 - Guidance and behavior: [validation record](validation.md), including sources actually read and lifecycle, ownership, recovery, discovery and history evidence.
 - Commands and results: solution build passed with zero warnings/errors; 2,783 unit, 580 integration and 135 browser tests passed with zero skips. All seven optional accessibility journeys ran, and all three always-running Draft journeys remain unchanged. Contrast and final format verification passed.
 - Separate local review: [all seven code findings resolved](local-code-review.md). [The finish reviewer](finish-review.md) scored every prescribed visual correction resolved after the user-funded third round.
