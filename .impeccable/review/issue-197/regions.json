@@ -1,0 +1,334 @@
+{
+  "regions": [
+    {
+      "id": "nav",
+      "kind": "chrome",
+      "box": {
+        "x": 0,
+        "y": 0,
+        "w": 0.16145833333333334,
+        "h": 1
+      },
+      "note": "Established navigation rail with brand, navigation links and account controls"
+    },
+    {
+      "id": "back",
+      "kind": "text",
+      "box": {
+        "x": 0.18880208333333334,
+        "y": 0.01953125,
+        "w": 0.11067708333333333,
+        "h": 0.021484375
+      },
+      "note": "Back to campaigns"
+    },
+    {
+      "id": "campaign-title",
+      "kind": "text",
+      "box": {
+        "x": 0.18815104166666666,
+        "y": 0.056640625,
+        "w": 0.23111979166666666,
+        "h": 0.0458984375
+      },
+      "note": "Fall evaluation"
+    },
+    {
+      "id": "campaign-facts",
+      "kind": "text",
+      "box": {
+        "x": 0.18815104166666666,
+        "y": 0.1103515625,
+        "w": 0.22265625,
+        "h": 0.0537109375
+      },
+      "note": "Season, written Active status, dates and participant scale"
+    },
+    {
+      "id": "route",
+      "kind": "chrome",
+      "box": {
+        "x": 0.4752604166666667,
+        "y": 0.0546875,
+        "w": 0.5,
+        "h": 0.103515625
+      },
+      "note": "Four connected circular route links and full labels"
+    },
+    {
+      "id": "readiness",
+      "kind": "text",
+      "box": {
+        "x": 0.18880208333333334,
+        "y": 0.19921875,
+        "w": 0.3092447916666667,
+        "h": 0.029296875
+      },
+      "note": "Needs placement and missing local outcome counts"
+    },
+    {
+      "id": "readiness-link",
+      "kind": "control",
+      "box": {
+        "x": 0.8606770833333334,
+        "y": 0.189453125,
+        "w": 0.11588541666666667,
+        "h": 0.0419921875
+      },
+      "note": "Review readiness link"
+    },
+    {
+      "id": "search",
+      "kind": "control",
+      "box": {
+        "x": 0.18880208333333334,
+        "y": 0.2578125,
+        "w": 0.4212239583333333,
+        "h": 0.0439453125
+      },
+      "note": "Search by name or tryout number"
+    },
+    {
+      "id": "filters-toggle",
+      "kind": "control",
+      "box": {
+        "x": 0.6204427083333334,
+        "y": 0.2578125,
+        "w": 0.06901041666666667,
+        "h": 0.0439453125
+      },
+      "note": "Filters toggle"
+    },
+    {
+      "id": "filter-shelf",
+      "kind": "control",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.3154296875,
+        "w": 0.513671875,
+        "h": 0.091796875
+      },
+      "note": "Five labeled filter controls"
+    },
+    {
+      "id": "table-header",
+      "kind": "chrome",
+      "box": {
+        "x": 0.18229166666666666,
+        "y": 0.41015625,
+        "w": 0.5130208333333334,
+        "h": 0.044921875
+      },
+      "note": "Sortable participant, local outcome and effective placement headings"
+    },
+    {
+      "id": "roster-row-1",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.4560546875,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "roster-row-2",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.53125,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "roster-row-3",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.6064453125,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "roster-row-4",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.681640625,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "roster-row-5",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.7568359375,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "roster-row-6",
+      "kind": "chrome",
+      "box": {
+        "x": 0.181640625,
+        "y": 0.83203125,
+        "w": 0.513671875,
+        "h": 0.07421875
+      },
+      "note": "Participant initials, name, number/year, tags, local outcome and effective source"
+    },
+    {
+      "id": "pager",
+      "kind": "control",
+      "box": {
+        "x": 0.18880208333333334,
+        "y": 0.9140625,
+        "w": 0.5013020833333334,
+        "h": 0.056640625
+      },
+      "note": "Result count and page navigation"
+    },
+    {
+      "id": "participant-title",
+      "kind": "text",
+      "box": {
+        "x": 0.724609375,
+        "y": 0.2578125,
+        "w": 0.171875,
+        "h": 0.0498046875
+      },
+      "note": "Avery Morgan and participant identity"
+    },
+    {
+      "id": "participant-nav",
+      "kind": "control",
+      "box": {
+        "x": 0.724609375,
+        "y": 0.318359375,
+        "w": 0.24869791666666666,
+        "h": 0.044921875
+      },
+      "note": "Previous and next participant navigation"
+    },
+    {
+      "id": "participant-close",
+      "kind": "control",
+      "box": {
+        "x": 0.9466145833333334,
+        "y": 0.2470703125,
+        "w": 0.028645833333333332,
+        "h": 0.04296875
+      },
+      "note": "Close participant context"
+    },
+    {
+      "id": "local-decision",
+      "kind": "text",
+      "box": {
+        "x": 0.7252604166666666,
+        "y": 0.3994140625,
+        "w": 0.24348958333333334,
+        "h": 0.0498046875
+      },
+      "note": "Campaign outcome: No campaign decision"
+    },
+    {
+      "id": "effective-decision",
+      "kind": "text",
+      "box": {
+        "x": 0.7252604166666666,
+        "y": 0.4833984375,
+        "w": 0.24283854166666666,
+        "h": 0.099609375
+      },
+      "note": "Effective placement, source campaign and optional reassignment"
+    },
+    {
+      "id": "notes",
+      "kind": "text",
+      "box": {
+        "x": 0.7252604166666666,
+        "y": 0.626953125,
+        "w": 0.24283854166666666,
+        "h": 0.11328125
+      },
+      "note": "Notes heading, author, time and observation"
+    },
+    {
+      "id": "add-note",
+      "kind": "control",
+      "box": {
+        "x": 0.724609375,
+        "y": 0.7578125,
+        "w": 0.24869791666666666,
+        "h": 0.0439453125
+      },
+      "note": "Add note action"
+    },
+    {
+      "id": "tags",
+      "kind": "text",
+      "box": {
+        "x": 0.7252604166666666,
+        "y": 0.8388671875,
+        "w": 0.16927083333333334,
+        "h": 0.0615234375
+      },
+      "note": "Tags heading and applied trait"
+    },
+    {
+      "id": "apply-tag",
+      "kind": "control",
+      "box": {
+        "x": 0.724609375,
+        "y": 0.9208984375,
+        "w": 0.09244791666666667,
+        "h": 0.0439453125
+      },
+      "note": "Apply tag action"
+    },
+    {
+      "id": "identity-region",
+      "kind": "chrome",
+      "box": {
+        "y": 0,
+        "x": 0.175,
+        "w": 0.3,
+        "h": 0.18
+      },
+      "note": "Campaign identity field"
+    },
+    {
+      "id": "search-region",
+      "kind": "chrome",
+      "box": {
+        "y": 0.24,
+        "x": 0.175,
+        "w": 0.527,
+        "h": 0.075
+      },
+      "note": "White search toolbar"
+    },
+    {
+      "id": "context-board",
+      "kind": "chrome",
+      "box": {
+        "y": 0.24,
+        "x": 0.71,
+        "w": 0.276,
+        "h": 0.745
+      },
+      "note": "White participant context board with hairline border"
+    }
+  ]
+}

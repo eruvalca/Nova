@@ -114,6 +114,31 @@ public partial class CampaignParticipantDrawer(
     [Parameter]
     public CampaignParticipantRosterItem? RosterItem { get; set; }
 
+    /// <summary>The loaded Active row's placement evidence, when the selection is on the page.</summary>
+    [Parameter] public CampaignEffectivePlacementItem? WorkingRow { get; set; }
+
+    /// <summary>The authorized parent lifecycle; Closed disables capture immediately.</summary>
+    [Parameter] public CampaignStatus? AuthorizedStatus { get; set; }
+    /// <summary>The user, club and authority owning the participant context.</summary>
+    [Parameter] public string? AuthorityScope { get; set; }
+    /// <summary>Refreshes roster and tag evidence after a successful capture.</summary>
+    [Parameter] public EventCallback OnDataChanged { get; set; }
+    /// <summary>Reconciles participant lifecycle evidence through authorized campaign detail.</summary>
+    [Parameter] public EventCallback OnLifecycleChanged { get; set; }
+    /// <summary>The identity owning persisted detail and tag choices.</summary>
+    [PersistentState] public string? PersistedOwner { get; set; }
+
+    private string ParticipantOwner => $"{AuthorityScope}:{CampaignId}:{ParticipantId}";
+    private string ContextOwner => $"{ParticipantOwner}:{AuthorizedStatus}";
+    private string? _loadedParticipantOwner;
+    private bool IsNoteStatus => _statusMessage is "Note added." or "Note updated." or "Note deleted.";
+    private string? _loadedOwner;
+    private int _mutationSequence;
+    private int _tagChoiceSequence;
+    private sealed record MutationOwner(int Version, string Scope);
+    private bool OwnsMutation(MutationOwner owner) => owner.Version == _mutationSequence
+        && string.Equals(owner.Scope, ContextOwner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
+
     /// <summary>
     /// Gets or sets the 1-based position of the participant within the roster sequence,
     /// or <see langword="null"/> when the participant is off the loaded page.
@@ -248,7 +273,7 @@ public partial class CampaignParticipantDrawer(
     /// The participant identifier a mutation targets, captured when it starts so feedback is only
     /// surfaced while the drawer still shows that participant.
     /// </summary>
-    private long? _mutationParticipantId;
+
 
     /// <summary>
     /// Indicates that the error summary should receive focus after the next render.
@@ -346,7 +371,8 @@ public partial class CampaignParticipantDrawer(
     /// Gets a value indicating whether the drawer is read-only because the campaign is Closed or a
     /// conflict refresh revealed a Closed campaign.
     /// </summary>
-    private bool IsReadOnly => _detail is { CampaignStatus: CampaignStatus.Closed } || _enteredReadOnlyFromConflict;
+    private bool IsReadOnly => AuthorizedStatus == CampaignStatus.Closed
+        || _detail is { CampaignStatus: CampaignStatus.Closed } || _enteredReadOnlyFromConflict;
 
     /// <summary>
     /// Gets the tag definitions that can still be applied: active choices minus already-applied
@@ -370,8 +396,10 @@ public partial class CampaignParticipantDrawer(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        if (Initialized)
+        if (Initialized && string.Equals(PersistedOwner, ContextOwner, StringComparison.Ordinal))
         {
+            _loadedOwner = ContextOwner;
+            _loadedParticipantOwner = ParticipantOwner;
             await RestorePersistedStateAsync();
             return;
         }
@@ -382,13 +410,16 @@ public partial class CampaignParticipantDrawer(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
-        if (ParticipantId != _loadedParticipantId)
+        if (ParticipantId != _loadedParticipantId || !string.Equals(_loadedOwner, ContextOwner, StringComparison.Ordinal))
         {
             // Navigating to another participant is an intentional user-action boundary: clear the
             // previous participant's mutation feedback and form state before reloading so a drafted
             // note or tag selection is never posted to the wrong player.
-            _statusMessage = null;
-            _mutationError = null;
+            if (!string.Equals(_loadedParticipantOwner, ParticipantOwner, StringComparison.Ordinal))
+            {
+                _statusMessage = null;
+                _mutationError = null;
+            }
             ResetMutationUiState();
             await LoadDetailAsync();
         }
@@ -398,6 +429,10 @@ public partial class CampaignParticipantDrawer(
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var module = await _moduleTask.Value;
+        if (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         if (firstRender)
         {
@@ -464,6 +499,8 @@ public partial class CampaignParticipantDrawer(
         _detailState = DetailLoadState.Loading;
         _loadedParticipantId = ParticipantId;
         _enteredReadOnlyFromConflict = false;
+        _loadedOwner = ContextOwner;
+        _loadedParticipantOwner = ParticipantOwner;
 
         var requestId = ++_detailRequestSequence;
         var input = new GetCampaignParticipantDetailInput
@@ -474,7 +511,7 @@ public partial class CampaignParticipantDrawer(
 
         var result = await participantQueryService.GetParticipantDetailAsync(input, ComponentCancellationToken);
 
-        if (requestId != _detailRequestSequence)
+        if (requestId != _detailRequestSequence || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -499,11 +536,18 @@ public partial class CampaignParticipantDrawer(
             });
 
         PersistedDetail = _detail;
+        PersistedOwner = _loadedOwner;
         PersistedDetailError = _detailError;
         Initialized = true;
 
         if (_detailState == DetailLoadState.Loaded)
         {
+            if (AuthorizedStatus is not null && _detail?.CampaignStatus != AuthorizedStatus)
+            {
+                _enteredReadOnlyFromConflict = true;
+                await OnLifecycleChanged.InvokeAsync();
+                return;
+            }
             await LoadTagChoicesIfNeededAsync();
         }
     }
@@ -521,8 +565,16 @@ public partial class CampaignParticipantDrawer(
         var previousDetailError = _detailError;
         var previousState = _detailState;
         var previousParticipantId = _loadedParticipantId;
+        var owner = ContextOwner;
+        var expectedRequest = _detailRequestSequence + 1;
 
         await LoadDetailAsync();
+
+        if (expectedRequest != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         if (_detailState == DetailLoadState.Failed && previousDetail is not null)
         {
@@ -557,9 +609,17 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the choice load finishes.</returns>
     private async Task LoadTagChoicesAsync()
     {
+        var request = ++_tagChoiceSequence;
+        var owner = ContextOwner;
         _tagChoicesError = null;
 
         var result = await tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
+
+        if (request != _tagChoiceSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         result.Switch(
             choices =>
@@ -578,21 +638,11 @@ public partial class CampaignParticipantDrawer(
     private Task RetryTagChoicesAsync() => LoadTagChoicesAsync();
 
     /// <summary>
-    /// Closes the drawer via the parent page, removing the focus trap and restoring focus to the
-    /// selected participant's roster row before delivering the callback.
+    /// Requests closure through the parent; disposal removes the focus trap and restores focus to the
+    /// selected participant's roster row after the parent accepts navigation.
     /// </summary>
     /// <returns>A task that completes when the callback is delivered.</returns>
-    private async Task CloseAsync()
-    {
-        if (_focusTrapInstalled)
-        {
-            _focusTrapInstalled = false;
-            var module = await _moduleTask.Value;
-            await module.InvokeVoidAsync("close", FallbackFocusId);
-        }
-
-        await OnClose.InvokeAsync();
-    }
+    private Task CloseAsync() => OnClose.InvokeAsync();
 
     /// <summary>
     /// Removes the focus trap when the component is disposed. Disposal also happens when browser
@@ -604,6 +654,9 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the trap is removed.</returns>
     protected override async ValueTask DisposeAsyncCore()
     {
+        ++_detailRequestSequence;
+        ++_mutationSequence;
+        ++_tagChoiceSequence;
         await base.DisposeAsyncCore();
         if (!_moduleTask.IsValueCreated)
         {
@@ -617,7 +670,7 @@ public partial class CampaignParticipantDrawer(
             if (_focusTrapInstalled)
             {
                 _focusTrapInstalled = false;
-                await module.InvokeVoidAsync("close", FallbackFocusId);
+                await module.InvokeVoidAsync("close", FallbackFocusId, _dialog);
             }
 
             await module.DisposeAsync();
@@ -625,6 +678,10 @@ public partial class CampaignParticipantDrawer(
         catch (JSDisconnectedException)
         {
             // The circuit is gone; the browser tore the trap and module down with the document.
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            // Circuit teardown can cancel a pending import or cleanup invocation.
         }
     }
 
@@ -704,26 +761,26 @@ public partial class CampaignParticipantDrawer(
     /// <param name="kind">The mutation kind used for pending state.</param>
     /// <param name="serviceCall">The service call plus result handling.</param>
     /// <returns>A task that completes when the mutation settles.</returns>
-    private async Task RunMutationAsync(MutationKind kind, Func<Task> serviceCall)
+    private async Task RunMutationAsync(MutationKind kind, Func<MutationOwner, Task> serviceCall)
     {
-        if (_isMutating)
+        if (_isMutating || IsReadOnly)
         {
             return;
         }
 
         _isMutating = true;
         _mutatingKind = kind;
-        _mutationParticipantId = ParticipantId;
         _mutationError = null;
         _statusMessage = null;
+        var owner = new MutationOwner(++_mutationSequence, ContextOwner);
 
         try
         {
-            await serviceCall();
+            await serviceCall(owner);
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (ComponentCancellationToken.IsCancellationRequested || _mutationParticipantId != ParticipantId)
+            if (!OwnsMutation(owner))
             {
                 return;
             }
@@ -733,9 +790,11 @@ public partial class CampaignParticipantDrawer(
         }
         finally
         {
-            _isMutating = false;
-            _mutatingKind = null;
-            _mutationParticipantId = null;
+            if (OwnsMutation(owner))
+            {
+                _isMutating = false;
+                _mutatingKind = null;
+            }
         }
     }
 
@@ -751,6 +810,7 @@ public partial class CampaignParticipantDrawer(
     /// <param name="onSuccess">The action to run on success before the detail refreshes.</param>
     /// <returns>A task that completes when result handling finishes.</returns>
     private async Task HandleMutationResultAsync<T>(
+        MutationOwner owner,
         ServiceResult<T> result,
         string successMessage,
         Action onSuccess)
@@ -759,7 +819,7 @@ public partial class CampaignParticipantDrawer(
         // feedback no longer applies to the visible participant: the participant-change path
         // already cleared the mutation UI state, so discard the result silently (success action,
         // error message, and any refresh all must be skipped).
-        if (_mutationParticipantId != ParticipantId)
+        if (!OwnsMutation(owner))
         {
             return;
         }
@@ -782,12 +842,23 @@ public partial class CampaignParticipantDrawer(
         {
             _statusMessage = successMessage;
             await RefreshDetailAsync();
+            if (OwnsMutation(owner))
+            {
+                await OnDataChanged.InvokeAsync();
+            }
             return;
         }
 
         if (conflicted)
         {
+            // The accepted error remains relevant across a status-only reconciliation. The
+            // parameter boundary still invalidates the mutation lease and clears editable forms.
+            FocusMutationError();
             await RefreshDetailAsync();
+            if (!OwnsMutation(owner))
+            {
+                return;
+            }
             if (_detail is { CampaignStatus: CampaignStatus.Closed })
             {
                 _enteredReadOnlyFromConflict = true;
@@ -811,6 +882,9 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     private void ResetMutationUiState()
     {
+        ++_mutationSequence;
+        _isMutating = false;
+        _mutatingKind = null;
         _showAddNoteForm = false;
         _addNoteContent = string.Empty;
         _addNoteErrors = [];
@@ -874,10 +948,10 @@ public partial class CampaignParticipantDrawer(
 
         await RunMutationAsync(
             MutationKind.AddNote,
-            async () =>
+            async lease =>
             {
                 var result = await noteService.AddAsync(input, ComponentCancellationToken);
-                await HandleMutationResultAsync(
+                await HandleMutationResultAsync(lease,
                     result,
                     "Note added.",
                     () =>
@@ -941,10 +1015,10 @@ public partial class CampaignParticipantDrawer(
 
         await RunMutationAsync(
             MutationKind.EditNote,
-            async () =>
+            async lease =>
             {
                 var result = await noteService.EditAsync(input, ComponentCancellationToken);
-                await HandleMutationResultAsync(
+                await HandleMutationResultAsync(lease,
                     result,
                     "Note updated.",
                     () =>
@@ -992,10 +1066,10 @@ public partial class CampaignParticipantDrawer(
 
         await RunMutationAsync(
             MutationKind.DeleteNote,
-            async () =>
+            async lease =>
             {
                 var result = await noteService.DeleteAsync(note.NoteId, ComponentCancellationToken);
-                await HandleMutationResultAsync(
+                await HandleMutationResultAsync(lease,
                     result,
                     "Note deleted.",
                     () =>
@@ -1025,10 +1099,10 @@ public partial class CampaignParticipantDrawer(
 
         await RunMutationAsync(
             MutationKind.ApplyTag,
-            async () =>
+            async lease =>
             {
                 var result = await tagApplicationService.ApplyAsync(input, ComponentCancellationToken);
-                await HandleMutationResultAsync(
+                await HandleMutationResultAsync(lease,
                     result,
                     "Tag applied.",
                     () => _selectedTagId = null);
@@ -1069,12 +1143,12 @@ public partial class CampaignParticipantDrawer(
 
         await RunMutationAsync(
             MutationKind.RemoveTag,
-            async () =>
+            async lease =>
             {
                 var result = await tagApplicationService.RemoveAsync(
                     new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = tag.CampaignTagApplicationId },
                     ComponentCancellationToken);
-                await HandleMutationResultAsync(
+                await HandleMutationResultAsync(lease,
                     result,
                     "Tag removed.",
                     () =>

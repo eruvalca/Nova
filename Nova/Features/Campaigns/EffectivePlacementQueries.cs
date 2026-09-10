@@ -8,9 +8,8 @@ namespace Nova.Features.Campaigns;
 /// <summary>Composable tenant-safe season selection. Validity filters must follow latest-decision selection.</summary>
 internal static class EffectivePlacementQueries
 {
-    internal static IQueryable<PlayerCampaignAssignmentEntity> LatestDecisions(NovaReadDbContext db, long clubId)
-    {
-        var saved = db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId
+    private static IQueryable<PlayerCampaignAssignmentEntity> SavedDecisions(NovaReadDbContext db, long clubId)
+        => db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId
             && a.Player.ClubId == clubId && a.Campaign.ClubId == clubId
             && a.Campaign.Season.ClubId == clubId
             && a.Campaign.SeasonId == a.Campaign.Club.CurrentSeasonId
@@ -18,6 +17,9 @@ internal static class EffectivePlacementQueries
             && a.Campaign.SeasonOpeningSequence != null
             && a.PlacementOutcome != PlacementOutcome.Undecided);
 
+    internal static IQueryable<PlayerCampaignAssignmentEntity> LatestDecisions(NovaReadDbContext db, long clubId)
+    {
+        var saved = SavedDecisions(db, clubId);
         return saved.Where(a => !saved.Any(newer => newer.PlayerId == a.PlayerId
             && newer.Campaign.SeasonId == a.Campaign.SeasonId
             && (newer.Campaign.SeasonOpeningSequence > a.Campaign.SeasonOpeningSequence
@@ -33,16 +35,24 @@ internal static class EffectivePlacementQueries
             && a.Player.GraduationYear >= a.Team.GraduationYear);
 
     /// <summary>SQL counterpart of CampaignPlacementPolicy.GetEligibility; direct matrix tests enforce parity.</summary>
-    internal static IQueryable<PlacementWorkingState> WorkingSet(NovaReadDbContext db, long clubId)
+    internal static IQueryable<PlacementWorkingState> WorkingSet(NovaReadDbContext db, long clubId,
+        IQueryable<PlayerCampaignAssignmentEntity>? participantFilter = null)
     {
-        var participants = db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId
+        var participants = (participantFilter ?? db.PlayerCampaignAssignments).Where(a => a.ClubId == clubId
             && a.Player.ClubId == clubId && a.Campaign.ClubId == clubId
             && a.Campaign.Season.ClubId == clubId
             && a.Campaign.Status == CampaignStatus.Active
             && a.Campaign.SeasonId == a.Campaign.Club.CurrentSeasonId);
-        var latest = LatestDecisions(db, clubId);
+        var saved = SavedDecisions(db, clubId);
+        // Correlate before choosing the latest decision. Joining the whole season's
+        // anti-join here lets provider join ordering repeat that graph per participant.
+        // The nullable scalar key remains relational on both PostgreSQL and SQLite.
         return from local in participants
-               join decision in latest on local.PlayerId equals decision.PlayerId into decisions
+               let latestId = saved.Where(candidate => candidate.PlayerId == local.PlayerId)
+                   .OrderByDescending(candidate => candidate.Campaign.SeasonOpeningSequence)
+                   .ThenByDescending(candidate => candidate.PlayerCampaignAssignmentId)
+                   .Select(candidate => (long?)candidate.PlayerCampaignAssignmentId).FirstOrDefault()
+               join decision in saved on latestId equals (long?)decision.PlayerCampaignAssignmentId into decisions
                from decision in decisions.DefaultIfEmpty()
                let validTeam = decision != null && decision.PlacementOutcome == PlacementOutcome.Assigned
                    && decision.Team != null && decision.Team.ClubId == clubId

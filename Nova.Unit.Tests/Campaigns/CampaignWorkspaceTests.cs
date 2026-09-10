@@ -67,10 +67,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
         {
             cut.Markup.ShouldContain("Summer Tryouts");
             cut.Markup.ShouldContain("Summer 2026");
-            cut.Markup.ShouldContain("12 participants");
+            cut.FindAll(".campaign-facts > div").Single(fact => string.Equals(fact.QuerySelector("dt")!.TextContent, "Participants", StringComparison.Ordinal))
+                .QuerySelector("dd")!.TextContent.ShouldBe("12 participants");
         });
 
-        cut.Find("span.badge.text-bg-success").TextContent.Trim().ShouldBe("Active");
+        cut.Find(".campaign-lifecycle").TextContent.Trim().ShouldBe("Active");
         cut.Markup.ShouldContain($"{new DateOnly(2026, 6, 15):MMM d, yyyy} – {new DateOnly(2026, 6, 20):MMM d, yyyy}");
         cut.Markup.ShouldContain("Back to campaigns");
     }
@@ -703,18 +704,76 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10");
+        navigationManager.NavigateTo("/campaigns/10?sortBy=displayName&sortDirection=desc");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        cut.FindAll("button.roster-sort-header")[1].Click();
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=asc"));
-        cut.WaitForAssertion(() => cut.FindAll("button.roster-sort-header").Count.ShouldBe(5));
+        cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal)).Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldNotContain("sortBy="));
+        navigationManager.Uri.ShouldNotContain("sortDirection=");
+        cut.WaitForAssertion(() => cut.FindAll("button.roster-sort-header").Count.ShouldBe(2));
 
-        cut.FindAll("button.roster-sort-header")[1].Click();
+        cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal)).Click();
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=desc"));
-        cut.WaitForAssertion(() => cut.FindAll("th[aria-sort]")[1].GetAttribute("aria-sort").ShouldBe("descending"));
+        cut.WaitForAssertion(() => cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal)).ParentElement!.GetAttribute("aria-sort").ShouldBe("descending"));
+    }
+
+    [Fact]
+    public void CampaignWorkspaceDefaultNameSortIsAscendingAndFirstClickSwitchesToDescending()
+    {
+        RegisterServices();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var header = cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal));
+        header.ParentElement!.GetAttribute("aria-sort").ShouldBe("ascending");
+
+        header.Click();
+
+        cut.WaitForAssertion(() => navigation.Uri.ShouldContain("sortBy=displayName&sortDirection=desc"));
+        cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal))
+            .ParentElement!.GetAttribute("aria-sort").ShouldBe("descending");
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.SortBy, "displayName", StringComparison.Ordinal)
+                && string.Equals(input.SortDirection, "desc", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("displayName", "asc")]
+    [InlineData("displayName", "desc")]
+    [InlineData("graduationYear", "asc")]
+    [InlineData("graduationYear", "desc")]
+    [InlineData("tryoutNumber", "asc")]
+    [InlineData("tryoutNumber", "desc")]
+    [InlineData("outcome", "asc")]
+    [InlineData("outcome", "desc")]
+    [InlineData("teamName", "asc")]
+    [InlineData("teamName", "desc")]
+    public void CampaignWorkspaceOrderSelectorRetainsEverySortAndResetsPage(string sort, string direction)
+    {
+        RegisterServices(participantQueryService: CreatePagedParticipantService());
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?page=2");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 304"));
+        cut.Find("#roster-order").Change($"{sort}:{direction}");
+        if (string.Equals(sort, "displayName", StringComparison.Ordinal) && string.Equals(direction, "asc", StringComparison.Ordinal))
+        {
+            cut.WaitForAssertion(() => navigation.Uri.ShouldNotContain("sortBy="));
+            navigation.Uri.ShouldNotContain("sortDirection=");
+        }
+        else
+        {
+            cut.WaitForAssertion(() => navigation.Uri.ShouldContain($"sortBy={sort}&sortDirection={direction}"));
+        }
+        navigation.Uri.ShouldNotContain("page=2");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 301"));
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.Page == 1
+                && string.Equals(input.SortBy, sort, StringComparison.Ordinal) && string.Equals(input.SortDirection, direction, StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -747,6 +806,84 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         _ = participantService.Received(1).GetParticipantRosterAsync(
             Arg.Is<GetCampaignParticipantRosterInput>(input => input.Search == "ave"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CampaignWorkspaceDiscardsPendingSearchWhenHistorySupersedesDraftAsync()
+    {
+        RegisterServices();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?search=original");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var pendingInput = cut.Find("#roster-search").InputAsync(new ChangeEventArgs { Value = "obsolete draft" });
+        navigation.NavigateTo("/campaigns/10/roster?search=history");
+        var reads = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        await cut.WaitForAssertionAsync(() =>
+        {
+            _ = reads.Received(1).GetCampaignEffectivePlacementsAsync(
+                Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "history", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+        });
+        await pendingInput;
+
+        navigation.Uri.ShouldEndWith("/campaigns/10/roster?search=history");
+        cut.Find("#roster-search").GetAttribute("value").ShouldBe("history");
+        _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "obsolete draft", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+        cut.Markup.ShouldNotContain("Loading roster...");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("participant")]
+    [InlineData("tab")]
+    public async Task CampaignWorkspaceRestoresCanonicalSearchAfterSameQueryNavigationSupersedesDraftAsync(string destination)
+    {
+        RegisterServices();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?search=original&tab=roster");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var pendingInput = cut.Find("#roster-search").InputAsync(new ChangeEventArgs { Value = "abandoned draft" });
+        navigation.NavigateTo(string.Equals(destination, "participant", StringComparison.Ordinal)
+            ? "/campaigns/10?search=original&tab=roster&participant=301"
+            : "/campaigns/10?search=original&tab=evaluate");
+        await pendingInput;
+
+        navigation.Uri.ShouldContain("search=original");
+        navigation.Uri.ShouldNotContain("abandoned");
+        if (string.Equals(destination, "tab", StringComparison.Ordinal))
+        {
+            navigation.NavigateTo("/campaigns/10?search=original&tab=roster");
+        }
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-search").GetAttribute("value").ShouldBe("original"));
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CampaignWorkspaceAbandonedSearchCompletionCannotClearNewerInputAfterParticipantNavigationAsync()
+    {
+        RegisterServices();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?search=original&tab=roster");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var obsoleteInput = cut.Find("#roster-search").InputAsync(new ChangeEventArgs { Value = "abandoned draft" });
+        navigation.NavigateTo("/campaigns/10?search=original&tab=roster&participant=301");
+        var newestInput = cut.Find("#roster-search").InputAsync(new ChangeEventArgs { Value = "latest" });
+        await obsoleteInput;
+        cut.Find("#roster-search").GetAttribute("value").ShouldBe("latest");
+        await newestInput;
+
+        navigation.Uri.ShouldContain("search=latest");
+        navigation.Uri.ShouldContain("participant=301");
+        cut.Find("#roster-search").GetAttribute("value").ShouldBe("latest");
+        var reads = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "abandoned draft", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+        _ = reads.Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "latest", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -844,7 +981,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants in this campaign yet."));
         cut.Markup.ShouldNotContain("No participants match the current filters.");
-        cut.FindAll("button.btn-outline-secondary").ShouldBeEmpty();
+        cut.FindAll("button").ShouldNotContain(button => string.Equals(button.TextContent.Trim(), "Clear filters", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -871,16 +1008,26 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Fact]
-    public void CampaignWorkspaceDetachesKeydownSuppressionWhenRosterReloadFails()
+#pragma warning disable MA0051 // Keep the capture, same-query failure, keyboard action, and recovery together as one ownership regression.
+    public void CampaignWorkspaceRetainsKeyboardOwnershipOnReloadFailureThenDetachesWhenRetryRemovesRows()
+#pragma warning restore MA0051
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
             .Returns(
                 Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())),
                 Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
-                    ServiceProblem.ServerError("Roster service unavailable."))));
+                    ServiceProblem.ServerError("Roster service unavailable."))),
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                    new PagedResult<CampaignParticipantRosterItem>([], 1, 50, 0))));
+        participantService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail() with
+            { Capabilities = new(false, true, false, false) })));
 
         RegisterServices(participantQueryService: participantService);
+        Services.GetRequiredService<ICampaignEvaluationNoteService>().AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99))));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var attach = workspaceModule.SetupVoid("attachRosterActivationSuppression", _ => true);
@@ -891,11 +1038,31 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
         attach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+        var initialListenerOwner = attach.Invocations.Last().Arguments[1];
 
-        cut.Find("#roster-outcome").Change("assigned");
+        cut.FindAll("aside.participant-drawer button").Single(button => string.Equals(button.TextContent.Trim(), "Add note", StringComparison.Ordinal)).Click();
+        cut.Find("aside.participant-drawer textarea").Input("New observation");
+        cut.FindAll("aside.participant-drawer button").Single(button => string.Equals(button.TextContent.Trim(), "Save note", StringComparison.Ordinal)).Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Roster service unavailable."));
+        cut.Find("#roster-row-301").TextContent.ShouldContain("Avery Johnson");
+        attach.Invocations.Last().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldNotBeNullOrEmpty();
+        var listenerOwner = attach.Invocations.Last().Arguments[1];
+        listenerOwner.ShouldNotBeNull();
+        listenerOwner.ShouldBe(initialListenerOwner);
+        detach.Invocations.ShouldBeEmpty();
 
-        detach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+        cut.Find("#participant-drawer-close").Click();
+        cut.WaitForAssertion(() => cut.FindAll("aside.participant-drawer").ShouldBeEmpty());
+        cut.Find("#roster-row-301").TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "Enter" });
+        cut.WaitForAssertion(() => cut.Find("aside.participant-drawer h2").TextContent.Trim().ShouldBe("Avery Johnson"));
+        cut.Find("#participant-drawer-close").Click();
+        cut.WaitForAssertion(() => cut.FindAll("aside.participant-drawer").ShouldBeEmpty());
+        cut.Find(".workspace-board .alert-danger button").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants in this campaign yet."));
+        cut.FindAll(".roster-scroll-region").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Roster service unavailable.");
+        cut.WaitForAssertion(() => detach.Invocations.Last().Arguments[0].ShouldBe(listenerOwner));
     }
 
     [Fact]
@@ -916,6 +1083,113 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         await disposeTask;
 
         detach.Invocations.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CampaignWorkspaceDisposeCompletesWhenPendingModuleImportIsCanceledAsync()
+    {
+        RegisterServices();
+        var runtime = new PendingModuleRuntime(JSInterop.JSRuntime, WorkspaceModulePath);
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        runtime.ImportedPaths.ShouldBe([WorkspaceModulePath]);
+
+        var disposal = cut.Instance.DisposeAsync().AsTask();
+        disposal.IsCompleted.ShouldBeFalse();
+        runtime.CancelImport(Xunit.TestContext.Current.CancellationToken);
+        await disposal;
+        await cut.Instance.DisposeAsync();
+
+        runtime.ImportedPaths.ShouldBe([WorkspaceModulePath]);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CampaignWorkspaceDisposesKeyboardOwnershipOnceWhenCleanupCompletesOrIsCanceledAsync(bool canceled)
+    {
+        RegisterServices();
+        var module = JSInterop.SetupModule(WorkspaceModulePath);
+        module.Mode = JSRuntimeMode.Loose;
+        var attach = module.SetupVoid("attachRosterActivationSuppression", _ => true);
+        attach.SetVoidResult();
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => attach.Invocations.Count.ShouldBe(1));
+        var owner = attach.Invocations.Single().Arguments[1];
+        var detach = module.SetupVoid("detachRosterActivationSuppression", _ => true);
+        if (canceled)
+        {
+            detach.SetCanceled();
+        }
+        else
+        {
+            detach.SetVoidResult();
+        }
+
+        await cut.Instance.DisposeAsync();
+        await cut.Instance.DisposeAsync();
+
+        detach.Invocations.Count.ShouldBe(1);
+        detach.Invocations.Single().Arguments[0].ShouldBe(owner);
+    }
+
+    [Fact]
+    public async Task CampaignWorkspaceDisposalDoesNotSwallowUnrelatedJavascriptFailureAsync()
+    {
+        RegisterServices();
+        var module = JSInterop.SetupModule(WorkspaceModulePath);
+        module.Mode = JSRuntimeMode.Loose;
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var detach = module.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetException(new JSException("Unexpected keyboard cleanup failure"));
+
+        var error = await Should.ThrowAsync<JSException>(() => cut.Instance.DisposeAsync().AsTask());
+
+        error.Message.ShouldBe("Unexpected keyboard cleanup failure");
+        detach.Invocations.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public void CampaignWorkspaceDiscardsPreviousMatchesWhenChangedFilterReadFails()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var fixture = Substitute.For<ICampaignParticipantQueryService>();
+        fixture.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())), pending.Task);
+        RegisterServices(participantQueryService: fixture);
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Find("#roster-row-301").TextContent.ShouldContain("Avery Johnson"));
+
+        cut.Find("#roster-outcome").Change("assigned");
+        cut.WaitForAssertion(() => cut.FindAll("#roster-row-301").ShouldBeEmpty());
+        pending.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(ServiceProblem.ServerError("Assigned matches unavailable")));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Assigned matches unavailable"));
+        cut.FindAll("#roster-row-301").ShouldBeEmpty();
+        cut.FindAll(".roster-scroll-region").ShouldBeEmpty();
+        cut.Markup.ShouldContain("Summer Tryouts");
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("outcome=assigned");
+    }
+
+    [Fact]
+    public async Task CampaignWorkspaceDiscardsActiveRowsWhenClosedHistoryReadFailsAsync()
+    {
+        RegisterServices();
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-row-301").TextContent.ShouldContain("No campaign decision"));
+        Services.GetRequiredService<ICampaignQueryService>().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(CreateDetail(status: CampaignStatus.Closed))));
+        var effective = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        effective.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClosedCampaignRosterResult>(ServiceProblem.ServerError("Closed history unavailable"))));
+
+        await cut.InvokeAsync(() => cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>().Instance.OnLifecycleChanged.InvokeAsync());
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Closed history unavailable"));
+        cut.Markup.ShouldContain("Campaign record is read-only");
+        cut.FindAll("#roster-row-301").ShouldBeEmpty();
+        cut.FindAll(".roster-scroll-region").ShouldBeEmpty();
+        _ = effective.Received(1).GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -948,9 +1222,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants match the current filters."));
 
-        var clearButtons = cut.FindAll("button.btn-outline-secondary");
-        clearButtons.ShouldNotBeEmpty();
-        clearButtons[^1].Click();
+        cut.FindAll("button").First(button => string.Equals(button.TextContent.Trim(), "Clear filters", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
         cut.Markup.ShouldNotContain("No participants match the current filters.");
@@ -1061,7 +1333,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=roster");
+        navigationManager.NavigateTo("/campaigns/10?tab=roster&sortBy=displayName&sortDirection=desc");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
@@ -1074,9 +1346,10 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
         rosterRefId.ShouldNotBeNullOrEmpty();
 
-        cut.FindAll("button.roster-sort-header")[1].Click();
+        cut.FindAll("button.roster-sort-header").Single(button => button.TextContent.Trim().StartsWith("Name", StringComparison.Ordinal)).Click();
 
-        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=asc"));
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldNotContain("sortBy="));
+        navigationManager.Uri.ShouldNotContain("sortDirection=");
         cut.WaitForAssertion(() =>
         {
             scrollToTop.Invocations.Count.ShouldBe(1);
@@ -1285,7 +1558,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=asc&participant=302");
+            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=desc&participant=302");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1295,7 +1568,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
         navigationManager.Uri.ShouldContain("search=lee");
         navigationManager.Uri.ShouldContain("sortBy=displayName");
-        navigationManager.Uri.ShouldContain("sortDirection=asc");
+        navigationManager.Uri.ShouldContain("sortDirection=desc");
 
         cut.Find("#participant-drawer-next").Click();
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=304"));
@@ -1303,7 +1576,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         navigationManager.Uri.ShouldContain("page=2");
         navigationManager.Uri.ShouldContain("search=lee");
         navigationManager.Uri.ShouldContain("sortBy=displayName");
-        navigationManager.Uri.ShouldContain("sortDirection=asc");
+        navigationManager.Uri.ShouldContain("sortDirection=desc");
     }
 
     [Fact]
@@ -1502,7 +1775,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: CreatePagedParticipantService());
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=asc&participant=301");
+            "/campaigns/10?tab=roster&search=lee&sortBy=displayName&sortDirection=desc&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
         var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
@@ -1524,7 +1797,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         navigationManager.Uri.ShouldNotContain("participant=");
         navigationManager.Uri.ShouldContain("search=lee");
         navigationManager.Uri.ShouldContain("sortBy=displayName");
-        navigationManager.Uri.ShouldContain("sortDirection=asc");
+        navigationManager.Uri.ShouldContain("sortDirection=desc");
         cut.WaitForAssertion(() =>
         {
             restoreScroll.Invocations.Count.ShouldBe(2);
@@ -1638,7 +1911,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
-            "/campaigns/10?tab=roster&search=jones&sortBy=displayName&sortDirection=asc&participant=303");
+            "/campaigns/10?tab=roster&search=jones&sortBy=displayName&sortDirection=desc&participant=303");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1650,7 +1923,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         navigationManager.Uri.ShouldContain("page=2");
         navigationManager.Uri.ShouldContain("search=jones");
         navigationManager.Uri.ShouldContain("sortBy=displayName");
-        navigationManager.Uri.ShouldContain("sortDirection=asc");
+        navigationManager.Uri.ShouldContain("sortDirection=desc");
     }
 
     [Fact]
@@ -1675,6 +1948,169 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    [Fact]
+    public void CampaignWorkspaceUsesEffectiveReadWithExplicitLocalFiltersAndDefaultNameOrder()
+    {
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            new PagedResult<CampaignParticipantRosterItem>([], 1, 50, 0)));
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/campaigns/10/roster?outcome=undecided&teamId=21&eligibility=needsPlacement");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants match the current filters."));
+
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.CampaignId == 10 && input.LocalOutcome == "undecided"
+                && input.LocalTeamId == 21 && input.TeamId == null && input.Eligibility == "NeedsPlacement"
+                && input.SortBy == "displayName" && input.SortDirection == "asc" && input.PageSize == 50),
+            Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignParticipantQueryService>().DidNotReceive().GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void CampaignWorkspaceUsesClosedLocalHistoryAndUnfilteredParticipantCount()
+    {
+        var reads = Substitute.For<IEffectivePlacementQueryService>();
+        var local = CreateRosterItem("Archived Participant") with { PlacementOutcome = PlacementOutcome.Assigned, Team = new(21, "Archived Blue") };
+        var source = new PlacementDecisionSource(CreateSavedDecision(local, PlacementOutcome.Assigned), "Summer Tryouts", local.Team);
+        reads.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClosedCampaignRosterResult>(new ClosedCampaignRosterResult(
+                new(10, "Summer Tryouts", CampaignStatus.Closed, new(5, "Summer 2026")),
+                new([new(301, 7, "Archived", "Participant", 2032, 14, source)], 1, 50, 1))
+            { ParticipantCount = 143 })));
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(CreateDetail(status: CampaignStatus.Closed)), effectivePlacementQueryService: reads);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster?search=Archived&outcome=assigned&teamId=21");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Archived Participant"));
+        cut.FindAll(".campaign-facts > div").Single(fact => string.Equals(fact.QuerySelector("dt")!.TextContent, "Participants", StringComparison.Ordinal))
+            .QuerySelector("dd")!.TextContent.ShouldBe("143 participants");
+        cut.Markup.ShouldContain("Campaign record is read-only");
+        cut.Markup.ShouldContain("Archived Blue");
+        _ = reads.Received(1).GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(input =>
+            input.Search == "Archived" && input.LocalOutcome == "assigned" && input.LocalTeamId == 21 && input.SortBy == "displayName"), Arg.Any<CancellationToken>());
+        _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void CampaignWorkspaceSeparatesMissingLocalDecisionFromInheritedEffectiveAssignment()
+    {
+        var inheritedTeam = new CampaignParticipantTeamSummaryDto(21, "Inherited Blue");
+        var source = new PlacementDecisionSource(new CampaignSavedPlacementDecision(201, 7, 9, 5, 1,
+            PlacementOutcome.Assigned, 21, new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero), 101,
+            "Coach Rivera", Guid.NewGuid()), "Spring campaign", inheritedTeam);
+        var row = new CampaignEffectivePlacementItem(301, 7, "Avery", "Johnson", 2032, 14,
+            LifecycleStatus.Active, Guid.NewGuid(), null, source, inheritedTeam,
+            EffectivePlacementEligibility.OptionalReassignment, PlacementCorrectionReason.None);
+        var reads = Substitute.For<IEffectivePlacementQueryService>();
+        reads.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignEffectivePlacementsResult>(new CampaignEffectivePlacementsResult(
+                new(10, "Summer Tryouts", CampaignStatus.Active, new(5, "Summer 2026")), new(12, 130, 1, 0), new([row], 1, 50, 1)))));
+        RegisterServices(effectivePlacementQueryService: reads);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster?search=Avery");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var rendered = cut.Find("#roster-row-301");
+        rendered.TextContent.ShouldContain("No campaign decision");
+        rendered.TextContent.ShouldContain("Inherited Blue");
+        rendered.TextContent.ShouldContain("Spring campaign");
+        rendered.TextContent.ShouldContain("Optional reassignment");
+        cut.FindAll(".campaign-facts > div").Single(fact => string.Equals(fact.QuerySelector("dt")!.TextContent, "Participants", StringComparison.Ordinal))
+            .QuerySelector("dd")!.TextContent.ShouldBe("143 participants");
+    }
+
+    [Fact]
+    public void CampaignWorkspaceRetriesReadinessWithoutReloadingSuccessfulRoster()
+    {
+        var readiness = Substitute.For<ICampaignCloseoutQueryService>();
+        readiness.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(ServiceProblem.ServerError("Unavailable"))),
+                Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness() with { IsReady = false, NeedsPlacementCount = 0 })));
+        RegisterServices(readinessQueryService: readiness);
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close readiness unavailable"));
+        cut.Markup.ShouldContain("Avery Johnson");
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry readiness", StringComparison.Ordinal)).Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Not ready to close"));
+        cut.Markup.ShouldContain("0 need placement");
+        cut.Markup.ShouldContain("Avery Johnson");
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
+            Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("102:42:False:10:Active:")]
+    [InlineData("101:43:False:10:Active:")]
+    [InlineData("101:42:True:10:Active:")]
+    [InlineData("101:42:False:11:Active:")]
+    [InlineData("101:42:False:10:Closed:")]
+    [InlineData("101:42:False:10:Active:search=other")]
+    public void CampaignWorkspaceRejectsPersistedSnapshotFromDifferentOwner(string owner)
+    {
+        RegisterServices();
+        var cut = Render<PersistedStateCampaignWorkspace>(parameters => parameters
+            .Add(component => component.CampaignId, 10).Add(component => component.StartInitialized, true)
+            .Add(component => component.PersistedCampaignDetail, CreateDetail("Obsolete campaign"))
+            .Add(component => component.SeedOwner, owner));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldNotContain("Obsolete campaign");
+        _ = Services.GetRequiredService<ICampaignQueryService>().Received(1).GetCampaignDetailAsync(
+            Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ReadinessIgnoresObsoleteFailureAfterClosedLifecycleReplacesActiveRequest()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<CampaignCloseoutReadinessDto>>();
+        var query = Substitute.For<ICampaignCloseoutQueryService>();
+        query.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        Services.AddSingleton(query);
+        var cut = Render<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>(parameters => parameters
+            .Add(component => component.CampaignId, 10).Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42"));
+        cut.Markup.ShouldContain("Checking Close readiness");
+        cut.Render(parameters => parameters.Add(component => component.Status, CampaignStatus.Closed));
+        pending.SetResult(new ServiceResult<CampaignCloseoutReadinessDto>(ServiceProblem.ServerError("Late error")));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign record is read-only"));
+        cut.Markup.ShouldNotContain("unavailable");
+        cut.FindAll("button").ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadinessRestoresMatchingSnapshotWithoutDuplicateRead(bool failed)
+    {
+        var query = Substitute.For<ICampaignCloseoutQueryService>();
+        Services.AddSingleton(query);
+        var cut = Render<RestoredReadiness>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42:False:1")
+            .Add(component => component.SeedError, failed));
+        cut.Markup.ShouldContain(failed ? "Close readiness unavailable" : "Ready to close");
+        _ = query.DidNotReceive().GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("102:42:False:1:10:Active")]
+    [InlineData("101:43:False:1:10:Active")]
+    [InlineData("101:42:True:1:10:Active")]
+    [InlineData("101:42:False:2:10:Active")]
+    [InlineData("101:42:False:1:11:Active")]
+    [InlineData("101:42:False:1:10:Closed")]
+    public void ReadinessReloadsSnapshotOwnedByAnotherAuthorityCampaignLifecycleOrRevision(string owner)
+    {
+        var query = Substitute.For<ICampaignCloseoutQueryService>();
+        query.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness())));
+        Services.AddSingleton(query);
+        var cut = Render<RestoredReadiness>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42:False:1")
+            .Add(component => component.SeedOwner, owner).Add(component => component.SeedError, true));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Ready to close"));
+        cut.Markup.ShouldNotContain("Close readiness unavailable");
+        _ = query.Received(1).GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
+    }
+
 #pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void RegisterServices(
 #pragma warning restore MA0051
@@ -1689,7 +2125,10 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         ICampaignPlacementService? placementService = null,
         ICampaignMetadataService? campaignMetadataService = null,
         ServiceResult<CampaignCreationSetupResult>? setupResult = null,
-        bool isClubAdmin = false)
+        bool isClubAdmin = false,
+        IEffectivePlacementQueryService? effectivePlacementQueryService = null,
+        ICampaignCloseoutQueryService? readinessQueryService = null,
+        AuthenticationStateProvider? authenticationStateProvider = null)
     {
         if (campaignQueryService is null)
         {
@@ -1713,6 +2152,18 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
                 Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<int>>(
                 (graduationYearChoices ?? CreateGraduationYearChoices()).ToList())));
+
+        // Retain the established paging/race fixtures while exercising the new authoritative reads.
+        // The service injected into the UI has no legacy roster response configured, so a production
+        // fallback to GetParticipantRosterAsync cannot make these scenarios pass.
+        effectivePlacementQueryService ??= CreateEffectiveFixture(participantQueryService);
+        var participantDetails = Substitute.For<ICampaignParticipantQueryService>();
+        participantDetails.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => participantQueryService.GetParticipantDetailAsync(
+                call.Arg<GetCampaignParticipantDetailInput>(), call.Arg<CancellationToken>()));
+        participantDetails.GetRosterGraduationYearsAsync(Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => participantQueryService.GetRosterGraduationYearsAsync(
+                call.Arg<GetCampaignParticipantGraduationYearsInput>(), call.Arg<CancellationToken>()));
 
         var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
         tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
@@ -1754,7 +2205,8 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
 
         Services.AddSingleton(campaignQueryService);
-        Services.AddSingleton(participantQueryService);
+        Services.AddSingleton(participantDetails);
+        Services.AddSingleton(effectivePlacementQueryService);
         Services.AddSingleton(tagDefinitionQueryService);
         Services.AddSingleton(evaluationNoteService);
         Services.AddSingleton(tagApplicationService);
@@ -1762,13 +2214,83 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         Services.AddSingleton(placementQueryService);
         Services.AddSingleton(placementService);
         Services.AddSingleton(campaignMetadataService);
-        Services.AddSingleton(closeoutQueryService);
+        Services.AddSingleton(readinessQueryService ?? closeoutQueryService);
         Services.AddSingleton(lifecycleService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+        Services.AddSingleton(authenticationStateProvider ?? new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     private static IReadOnlyList<int> CreateGraduationYearChoices() => [2031, 2032];
+
+    private static IEffectivePlacementQueryService CreateEffectiveFixture(ICampaignParticipantQueryService fixture)
+    {
+        var service = Substitute.For<IEffectivePlacementQueryService>();
+        service.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var input = call.Arg<GetCampaignEffectivePlacementsInput>();
+                if (input.ParticipantId is { } linkedId)
+                {
+                    return new ServiceResult<CampaignEffectivePlacementsResult>(ToEffectiveRoster(
+                        new([CreateRosterItem("Linked participant", linkedId)], 1, 1, 1)));
+                }
+                var result = await fixture.GetParticipantRosterAsync(ToFixtureInput(input), call.Arg<CancellationToken>());
+                return result.IsProblem
+                    ? new ServiceResult<CampaignEffectivePlacementsResult>(result.Problem)
+                    : new ServiceResult<CampaignEffectivePlacementsResult>(ToEffectiveRoster(result.Value));
+            });
+        service.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var input = call.Arg<GetClosedCampaignRosterInput>();
+                var result = input.ParticipantId is { } linkedId
+                    ? new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(new PagedResult<CampaignParticipantRosterItem>(
+                        [CreateRosterItem("Linked participant", linkedId)], 1, 1, 1))
+                    : await fixture.GetParticipantRosterAsync(ToFixtureInput(input), call.Arg<CancellationToken>());
+                if (result.IsProblem)
+                {
+                    return new ServiceResult<ClosedCampaignRosterResult>(result.Problem);
+                }
+                var rows = result.Value.Items.Select(item => new ClosedCampaignRosterItem(
+                    item.PlayerCampaignAssignmentId, item.PlayerId, item.DisplayName, string.Empty,
+                    item.GraduationYear, item.TryoutNumber,
+                    new PlacementDecisionSource(CreateSavedDecision(item, PlacementOutcome.NotSelected), "Summer Tryouts", item.Team))
+                { AppliedTags = item.AppliedTags }).ToList();
+                return new ServiceResult<ClosedCampaignRosterResult>(new ClosedCampaignRosterResult(
+                    new(10, "Summer Tryouts", CampaignStatus.Closed, new(5, "Summer 2026")),
+                    new(rows, result.Value.Page, result.Value.PageSize, result.Value.TotalCount))
+                { ParticipantCount = result.Value.TotalCount });
+            });
+        return service;
+    }
+
+    private static GetCampaignParticipantRosterInput ToFixtureInput(CampaignRosterDiscoveryInput input) => new()
+    {
+        CampaignId = input.CampaignId,
+        Search = input.Search,
+        GraduationYears = input.GraduationYears,
+        TagDefinitionIds = input.TagDefinitionIds,
+        Outcome = input.LocalOutcome,
+        TeamId = input.LocalTeamId,
+        SortBy = input.SortBy,
+        SortDirection = input.SortDirection,
+        Page = input.Page,
+        PageSize = input.PageSize
+    };
+
+    private static CampaignEffectivePlacementsResult ToEffectiveRoster(PagedResult<CampaignParticipantRosterItem> roster)
+        => new(new(10, "Summer Tryouts", CampaignStatus.Active, new(5, "Summer 2026")),
+            new(roster.TotalCount, 0, 0, 0),
+            new(roster.Items.Select(item => new CampaignEffectivePlacementItem(
+                item.PlayerCampaignAssignmentId, item.PlayerId, item.DisplayName, string.Empty,
+                item.GraduationYear, item.TryoutNumber, LifecycleStatus.Active, Guid.NewGuid(),
+                item.PlacementOutcome == PlacementOutcome.Undecided ? null : CreateSavedDecision(item, item.PlacementOutcome),
+                null, null, EffectivePlacementEligibility.NeedsPlacement, PlacementCorrectionReason.None)
+            { LocalTeam = item.Team, AppliedTags = item.AppliedTags }).ToList(), roster.Page, roster.PageSize, roster.TotalCount));
+
+    private static CampaignSavedPlacementDecision CreateSavedDecision(CampaignParticipantRosterItem item, PlacementOutcome outcome)
+        => new(item.PlayerCampaignAssignmentId, item.PlayerId, 10, 5, 1, outcome, item.Team?.TeamId,
+            new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero), 101, "Coach Rivera", Guid.NewGuid());
 
     private static IReadOnlyList<TagDefinitionDto> CreateTagChoices() =>
     [
@@ -2018,6 +2540,24 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             => Task.FromResult(new AuthenticationState(principal));
     }
 
+#pragma warning disable CA1812 // bUnit constructs the test-only restored component through reflection.
+    private sealed class RestoredReadiness(ICampaignCloseoutQueryService queries)
+        : Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness(queries)
+#pragma warning restore CA1812
+    {
+        [Parameter] public string? SeedOwner { get; set; }
+        [Parameter] public bool SeedError { get; set; }
+
+        protected override void OnInitialized()
+        {
+            Initialized = true;
+            PersistedOwner = SeedOwner ?? $"{Owner}:{CampaignId}:{Status}";
+            PersistedError = SeedError;
+            PersistedReadiness = SeedError ? null : CreateReadiness();
+            base.OnInitialized();
+        }
+    }
+
     /// <summary>
     /// A test-only <see cref="CampaignWorkspacePage"/> subclass that seeds persisted prerender state.
     /// </summary>
@@ -2026,19 +2566,23 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 #pragma warning restore CA1812
         ICampaignQueryService campaignQueryService,
         ICampaignParticipantQueryService participantQueryService,
+        IEffectivePlacementQueryService effectivePlacementQueryService,
         ITagDefinitionQueryService tagDefinitionQueryService,
         ITeamRosterService teamRosterService,
         ICampaignMetadataService campaignMetadataService,
         AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager,
         IJSRuntime jsRuntime)
-        : CampaignWorkspacePage(campaignQueryService, participantQueryService, tagDefinitionQueryService, teamRosterService, campaignMetadataService, authenticationStateProvider, navigationManager, jsRuntime)
+        : CampaignWorkspacePage(campaignQueryService, participantQueryService, effectivePlacementQueryService, tagDefinitionQueryService, teamRosterService, campaignMetadataService, authenticationStateProvider, navigationManager, jsRuntime)
     {
         [Parameter]
         public bool StartInitialized { get; set; }
 
         [Parameter]
         public CampaignDetailResult? PersistedCampaignDetail { get; set; }
+
+        [Parameter]
+        public string? SeedOwner { get; set; }
 
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
@@ -2047,6 +2591,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             {
                 Initialized = true;
                 PersistedDetail = PersistedCampaignDetail;
+                PersistedOwner = SeedOwner ?? $"101:42:False:{CampaignId}:{PersistedCampaignDetail?.Status}:";
             }
 
             return base.OnInitializedAsync();

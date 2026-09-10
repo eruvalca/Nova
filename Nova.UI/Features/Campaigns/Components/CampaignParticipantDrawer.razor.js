@@ -1,5 +1,8 @@
 let keydownListener = null;
 let previouslyFocused = null;
+let activeDialog = null;
+let resizeListener = null;
+const mobileContext = window.matchMedia('(max-width: 1199px)');
 
 const focusableSelector = [
     'a[href]',
@@ -25,13 +28,23 @@ export function open(dialog, closeButton) {
         return;
     }
 
-    if (!keydownListener) {
+    if (!keydownListener || activeDialog !== dialog) {
         previouslyFocused = document.activeElement;
-    } else {
+    }
+    if (keydownListener) {
         document.removeEventListener('keydown', keydownListener, true);
     }
+    if (resizeListener) mobileContext.removeEventListener('change', resizeListener);
+    activeDialog = dialog;
+    resizeListener = () => {
+        dialog.setAttribute('role', mobileContext.matches ? 'dialog' : 'region');
+        if (mobileContext.matches) dialog.setAttribute('aria-modal', 'true');
+        else dialog.removeAttribute('aria-modal');
+    };
+    resizeListener();
+    mobileContext.addEventListener('change', resizeListener);
     keydownListener = (event) => {
-        if (event.key !== 'Tab') {
+        if (event.key !== 'Tab' || !mobileContext.matches || activeDialog !== dialog) {
             return;
         }
 
@@ -71,7 +84,8 @@ export function restoreFocus(dialog, closeButton) {
     focus(closeButton instanceof Element ? closeButton : getFocusableElements(dialog)[0]);
 }
 
-export function close(restoreFallbackId) {
+export function close(restoreFallbackId, dialog) {
+    if (activeDialog !== dialog) return;
     const state = takeDownTrap();
     if (!state) {
         return;
@@ -105,6 +119,9 @@ function takeDownTrap() {
         keydownListener = null;
     }
     previouslyFocused = null;
+    activeDialog = null;
+    if (resizeListener) mobileContext.removeEventListener('change', resizeListener);
+    resizeListener = null;
     return state;
 }
 

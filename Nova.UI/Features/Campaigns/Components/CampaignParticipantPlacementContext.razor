@@ -1,0 +1,32 @@
+@using Nova.SharedKernel.Features.Campaigns
+@using Nova.SharedKernel.Enums
+@inherits Nova.UI.Components.NovaComponentBase
+
+<section class="participant-placement-context" aria-label="Participant placement evidence">
+    @if (_loading)
+    {
+        <p role="status">Loading placement context…</p>
+    }
+    else if (_error)
+    {
+        <p role="status">Placement context unavailable.</p>
+        <button type="button" class="btn btn-outline-secondary" @onclick="LoadAsync">Retry placement context</button>
+    }
+    else
+    {
+        <h3>Campaign outcome</h3>
+        <p>@LocalOutcomeLabel
+            @if ((_working?.LocalTeam ?? _closed?.Source.Team) is { } team) { <strong> · @team.TeamName</strong> }
+        </p>
+        @if (_working is not null)
+        {
+            <h3>Effective season placement</h3>
+            <CampaignEffectivePlacementSummary Item="_working" />
+        }
+        else if (_closed is not null)
+        {
+            <p class="text-muted small">Campaign record · @_closed.Source.CampaignName<br />
+                Recorded by @_closed.Source.Decision.ActorDisplayName on @_closed.Source.Decision.RecordedAt.ToString("MMM d, yyyy")</p>
+        }
+    }
+</section>

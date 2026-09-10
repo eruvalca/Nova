@@ -8,6 +8,8 @@ namespace Nova.UI.Features.Campaigns.Services;
 /// </summary>
 public sealed record CampaignWorkspaceRosterState
 {
+    /// <summary>Gets the Active work eligibility filter, independently of local outcome.</summary>
+    public string? Eligibility { get; init; }
     /// <summary>
     /// Gets the applied name-or-tryout-number search term, or <see langword="null"/> when unfiltered.
     /// </summary>
@@ -115,6 +117,8 @@ public static class CampaignWorkspaceUrlState
     /// </summary>
     private static readonly string[] _validDirections = ["asc", "desc"];
 
+    private static readonly string[] _validEligibility = ["NeedsPlacement", "OptionalReassignment", "Resolved", "Unavailable"];
+
     /// <summary>
     /// Parses raw query-parameter values into a defensive roster state, falling back to defaults for invalid values.
     /// </summary>
@@ -126,6 +130,7 @@ public static class CampaignWorkspaceUrlState
     /// <param name="sortBy">The raw sort-field query value.</param>
     /// <param name="sortDirection">The raw sort-direction query value.</param>
     /// <param name="page">The raw page-number query value.</param>
+    /// <param name="eligibility">The raw Active work eligibility query value.</param>
     /// <returns>A defensive roster state built from the supplied values.</returns>
     public static CampaignWorkspaceRosterState Parse(
         string? search,
@@ -135,10 +140,12 @@ public static class CampaignWorkspaceUrlState
         long? teamId,
         string? sortBy,
         string? sortDirection,
-        int? page)
+        int? page,
+        string? eligibility = null)
         => new()
         {
             Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+            Eligibility = NormalizeToken(eligibility, _validEligibility),
             GraduationYears = ParsePositiveInts(graduationYears),
             TagDefinitionIds = ParsePositiveLongs(tagDefinitionIds),
             Outcome = NormalizeToken(outcome, _validOutcomes),
@@ -157,6 +164,10 @@ public static class CampaignWorkspaceUrlState
     {
         ArgumentNullException.ThrowIfNull(state);
         var parts = new List<string>(8);
+        if (state.Eligibility is not null)
+        {
+            parts.Add($"eligibility={Uri.EscapeDataString(state.Eligibility)}");
+        }
         if (state.Search is not null)
         {
             parts.Add($"search={Uri.EscapeDataString(state.Search)}");
@@ -182,10 +193,11 @@ public static class CampaignWorkspaceUrlState
             parts.Add($"teamId={state.TeamId}");
         }
 
-        if (state.SortBy is not null && state.SortDirection is not null)
+        if (!string.Equals(state.SortBy ?? "displayName", "displayName", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(state.SortDirection ?? "asc", "asc", StringComparison.OrdinalIgnoreCase))
         {
-            parts.Add($"sortBy={state.SortBy}");
-            parts.Add($"sortDirection={state.SortDirection}");
+            parts.Add($"sortBy={state.SortBy ?? "displayName"}");
+            parts.Add($"sortDirection={state.SortDirection ?? "asc"}");
         }
 
         if (state.Page > 1)
@@ -295,9 +307,18 @@ public static class CampaignWorkspaceUrlState
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <param name="state">The placement state to serialize.</param>
     /// <returns>The relative placements workspace URL.</returns>
-    public static string BuildPlaceWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state)
+    public static string BuildPlaceWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state,
+        CampaignWorkspaceRosterState? roster = null, long? participantId = null)
     {
         var parts = new List<string>(4);
+        if (roster is not null && BuildQueryString(roster) is { Length: > 0 } rosterQuery)
+        {
+            parts.Add(rosterQuery);
+        }
+        if (participantId is not null)
+        {
+            parts.Add($"participant={participantId}");
+        }
         var query = BuildPlacementQueryString(state);
         if (!string.IsNullOrEmpty(query))
         {
@@ -314,16 +335,16 @@ public static class CampaignWorkspaceUrlState
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <returns>The relative Evaluate workspace URL.</returns>
-    public static string BuildEvaluateWorkspaceUrl(long campaignId)
-        => $"/campaigns/{campaignId}?tab={EvaluateTab}";
+    public static string BuildEvaluateWorkspaceUrl(long campaignId, CampaignWorkspaceRosterState? roster = null, long? participantId = null)
+        => BuildWorkspaceUrl(campaignId, roster ?? new(), EvaluateTab, participantId);
 
     /// <summary>
     /// Builds the full close workspace URL carrying only the close route token.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <returns>The relative Close workspace URL.</returns>
-    public static string BuildCloseWorkspaceUrl(long campaignId)
-        => $"/campaigns/{campaignId}?tab={CloseTab}";
+    public static string BuildCloseWorkspaceUrl(long campaignId, CampaignWorkspaceRosterState? roster = null, long? participantId = null)
+        => BuildWorkspaceUrl(campaignId, roster ?? new(), CloseTab, participantId);
 
     /// <summary>
     /// Builds the placements workspace URL filtered to unresolved (Undecided) placements, used by the
@@ -342,7 +363,7 @@ public static class CampaignWorkspaceUrlState
     public static bool HasActiveFilters(CampaignWorkspaceRosterState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state.Search is not null || state.GraduationYears.Count > 0 || state.TagDefinitionIds.Count > 0 || state.Outcome is not null || state.TeamId is not null;
+        return state.Search is not null || state.GraduationYears.Count > 0 || state.TagDefinitionIds.Count > 0 || state.Outcome is not null || state.TeamId is not null || state.Eligibility is not null;
     }
 
     /// <summary>
@@ -356,6 +377,7 @@ public static class CampaignWorkspaceUrlState
         return state with
         {
             Search = null,
+            Eligibility = null,
             GraduationYears = [],
             TagDefinitionIds = [],
             Outcome = null,

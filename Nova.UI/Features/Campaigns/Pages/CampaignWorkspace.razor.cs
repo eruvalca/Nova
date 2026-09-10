@@ -19,6 +19,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// </summary>
 /// <param name="campaignQueryService">The campaign detail query service.</param>
 /// <param name="participantQueryService">The campaign roster query service.</param>
+/// <param name="effectivePlacementQueryService">The authoritative Active and Closed roster reads.</param>
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
 /// <param name="teamRosterService">The team choices service used by roster filters.</param>
 /// <param name="campaignMetadataService">The campaign metadata correction service used by the edit-metadata flow.</param>
@@ -28,6 +29,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 public partial class CampaignWorkspace(
     ICampaignQueryService campaignQueryService,
     ICampaignParticipantQueryService participantQueryService,
+    IEffectivePlacementQueryService effectivePlacementQueryService,
     ITagDefinitionQueryService tagDefinitionQueryService,
     ITeamRosterService teamRosterService,
     ICampaignMetadataService campaignMetadataService,
@@ -157,6 +159,10 @@ public partial class CampaignWorkspace(
     /// </summary>
     [SupplyParameterFromQuery(Name = "outcome")]
     private string? OutcomeQuery { get; set; }
+
+    /// <summary>The Active eligibility filter from the canonical workspace URL.</summary>
+    [SupplyParameterFromQuery(Name = "eligibility")]
+    private string? EligibilityQuery { get; set; }
 
     /// <summary>
     /// Gets or sets the incoming team-identifier query parameter.
@@ -500,6 +506,8 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        var previousTab = _activeTab;
+        var previousParticipant = _selectedParticipantId;
         // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
         // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
@@ -518,6 +526,10 @@ public partial class CampaignWorkspace(
         // never triggers a roster reload.
         var participant = CampaignWorkspaceUrlState.ParseParticipant(ParticipantQuery);
         _selectedParticipantId = participant;
+        if (previousParticipant != participant || !string.Equals(previousTab, _activeTab, StringComparison.Ordinal))
+        {
+            ++_navigationSequence;
+        }
 
         var incoming = CampaignWorkspaceUrlState.Parse(
             SearchQuery,
@@ -527,7 +539,7 @@ public partial class CampaignWorkspace(
             TeamIdQuery,
             SortByQuery,
             SortDirectionQuery,
-            PageQuery);
+            PageQuery, EligibilityQuery);
         var incomingQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
 
         // A pending boundary move is only valid while the URL state it was issued against stays
@@ -548,6 +560,7 @@ public partial class CampaignWorkspace(
         }
 
         _filters = incoming;
+        ++_navigationSequence;
         _searchDraft = incoming.Search ?? string.Empty;
         _appliedQueryString = incomingQueryString;
         _reloadRosterPending = true;
@@ -569,14 +582,27 @@ public partial class CampaignWorkspace(
         ApplyInitialQueryState();
 
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         _isClubAdmin = authenticationState.User.IsInRole(Roles.ClubAdmin);
+        var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
+        _authorityScope = scope;
 
-        if (Initialized)
+        if (Initialized && string.Equals(PersistedOwner, StateOwner(InitialDetail?.Status ?? PersistedDetail?.Status), StringComparison.Ordinal))
         {
             _detail = PersistedDetail;
             _pageError = PersistedPageError;
             _notFound = PersistedNotFound;
             _roster = PersistedRoster;
+            _rosterOwner = PersistedOwner;
+            _workingRows = PersistedWorkingRows ?? [];
+            _campaignParticipantCount = PersistedParticipantCount;
+            _eligibilityCounts = PersistedEligibilityCounts;
+            _teamChoicesTruncated = PersistedTeamChoicesTruncated;
+            _choicesLoadFailed = PersistedChoicesLoadFailed;
+            _nonTeamChoicesFailed = PersistedChoicesLoadFailed;
             _rosterError = PersistedRosterError;
             _availableGraduationYears = PersistedGraduationYears ?? [];
             _availableTags = PersistedTags ?? [];
@@ -586,14 +612,12 @@ public partial class CampaignWorkspace(
         }
 
         _isLoading = true;
-        var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
         if (InitialDetail is { Status: CampaignStatus.Active or CampaignStatus.Closed } initial
             && initial.CampaignId == CampaignId && string.Equals(InitialDetailScope, scope, StringComparison.Ordinal))
         {
             _detail = initial;
             _isLoading = false;
-            await LoadChoicesAsync();
-            await LoadRosterAsync();
+            await Task.WhenAll(LoadChoicesAsync(), LoadRosterAsync());
         }
         else
         {
@@ -627,7 +651,7 @@ public partial class CampaignWorkspace(
             TeamIdQuery,
             SortByQuery,
             SortDirectionQuery,
-            PageQuery);
+            PageQuery, EligibilityQuery);
         _filters = incoming;
         _searchDraft = incoming.Search ?? string.Empty;
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
@@ -637,6 +661,10 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
+        ++_requestSequence;
+        ++_detailSequence;
+        ++_choiceSequence;
+        ++_editVersion;
         await base.DisposeAsyncCore();
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
@@ -647,12 +675,16 @@ public partial class CampaignWorkspace(
             try
             {
                 var module = await _moduleTask.Value;
-                await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
+                await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None, _jsOwner);
                 await module.DisposeAsync();
             }
             catch (JSDisconnectedException)
             {
                 // The circuit is gone; the browser already destroyed the page with it.
+            }
+            catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+            {
+                // Circuit teardown can cancel a pending import or cleanup invocation.
             }
         }
     }
@@ -663,17 +695,25 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when all loads are finished.</returns>
     private async Task LoadDetailAsync()
     {
+        var detailRequest = ++_detailSequence;
+        ++_requestSequence;
         _pageError = null;
         _notFound = false;
 
-        var result = await campaignQueryService.GetCampaignDetailAsync(
+        var result = await ReadSafelyAsync(() => campaignQueryService.GetCampaignDetailAsync(
             new GetCampaignDetailInput { CampaignId = CampaignId },
-            ComponentCancellationToken);
+            ComponentCancellationToken));
+
+        if (detailRequest != _detailSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         var detailLoaded = false;
         result.Switch(
             detail =>
             {
+                DiscardUnownedRoster(StateOwner(detail.Status));
                 _detail = detail;
                 detailLoaded = true;
             },
@@ -703,8 +743,8 @@ public partial class CampaignWorkspace(
         }
         if (detailLoaded)
         {
-            await LoadChoicesAsync();
-            await LoadRosterAsync();
+            StateHasChanged();
+            await Task.WhenAll(LoadChoicesAsync(), LoadRosterAsync());
         }
     }
 
@@ -714,22 +754,32 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when all choice loads are finished.</returns>
     private async Task LoadChoicesAsync()
     {
+        var choiceRequest = ++_choiceSequence;
         var outcomes = await Task.WhenAll(
-            LoadGraduationYearChoicesAsync(),
-            LoadTagChoicesAsync(),
-            LoadTeamChoicesAsync());
-        _choicesLoadFailed = outcomes.Any(succeeded => !succeeded);
+            LoadGraduationYearChoicesAsync(choiceRequest),
+            LoadTagChoicesAsync(choiceRequest),
+            LoadTeamChoicesAsync(choiceRequest));
+        if (choiceRequest != _choiceSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        _nonTeamChoicesFailed = !outcomes[0] || !outcomes[1];
+        _choicesLoadFailed = _nonTeamChoicesFailed || _teamChoicesFailed;
     }
 
     /// <summary>
     /// Loads the distinct graduation years present in the campaign roster.
     /// </summary>
     /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
-    private async Task<bool> LoadGraduationYearChoicesAsync()
+    private async Task<bool> LoadGraduationYearChoicesAsync(int choiceRequest)
     {
-        var result = await participantQueryService.GetRosterGraduationYearsAsync(
+        var result = await ReadSafelyAsync(() => participantQueryService.GetRosterGraduationYearsAsync(
             new GetCampaignParticipantGraduationYearsInput { CampaignId = CampaignId },
-            ComponentCancellationToken);
+            ComponentCancellationToken));
+        if (choiceRequest != _choiceSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
         var succeeded = false;
         result.Switch(
             years => { _availableGraduationYears = years; succeeded = true; },
@@ -741,9 +791,13 @@ public partial class CampaignWorkspace(
     /// Loads the active tag-definition choices for the filter bar.
     /// </summary>
     /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
-    private async Task<bool> LoadTagChoicesAsync()
+    private async Task<bool> LoadTagChoicesAsync(int choiceRequest)
     {
-        var result = await _tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
+        var result = await ReadSafelyAsync(() => _tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken));
+        if (choiceRequest != _choiceSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
         var succeeded = false;
         result.Switch(
             tags => { _availableTags = tags; succeeded = true; },
@@ -755,54 +809,69 @@ public partial class CampaignWorkspace(
     /// Loads the active team choices for the filter bar.
     /// </summary>
     /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
-    private async Task<bool> LoadTeamChoicesAsync()
+    private async Task<bool> LoadTeamChoicesAsync(int choiceRequest)
     {
-        var result = await _teamRosterService.GetRosterAsync(
-            new GetTeamRosterInput { LifecycleStatus = "active" },
-            ComponentCancellationToken);
-        var succeeded = false;
-        result.Switch(
-            teams => { _availableTeams = teams; succeeded = true; },
-            _ => { });
-        return succeeded;
+        var searchRequest = ++_teamSearchSequence;
+        var responses = await Task.WhenAll(
+            ReadSafelyAsync(() => _teamRosterService.GetRosterAsync(new() { LifecycleStatus = "active", Search = _teamSearch, Limit = 50 }, ComponentCancellationToken)),
+            ReadSafelyAsync(() => _teamRosterService.GetRosterAsync(new() { LifecycleStatus = "archived", Search = _teamSearch, Limit = 50 }, ComponentCancellationToken)));
+        if (choiceRequest != _choiceSequence || searchRequest != _teamSearchSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        if (responses.Any(result => result.IsProblem))
+        {
+            _teamChoicesFailed = true;
+            return false;
+        }
+        _teamChoicesFailed = false;
+        _teamChoicesTruncated = responses.Any(result => result.Value.Count == 50);
+        _availableTeams = responses.SelectMany(result => result.Value).DistinctBy(team => team.TeamId)
+            .OrderBy(team => team.Name, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly();
+        return true;
     }
-
     /// <summary>
     /// Loads the roster page for the currently applied state, discarding stale responses.
     /// </summary>
     /// <returns>A task that completes when the load is finished.</returns>
     private async Task LoadRosterAsync()
     {
+        var owner = StateOwner(_detail?.Status);
+        DiscardUnownedRoster(owner);
         _rosterError = null;
         _rosterLoading = true;
         var requestId = ++_requestSequence;
 
-        var input = new GetCampaignParticipantRosterInput
-        {
-            CampaignId = CampaignId,
-            Search = _filters.Search,
-            GraduationYears = _filters.GraduationYears.Count > 0 ? [.. _filters.GraduationYears] : null,
-            TagDefinitionIds = _filters.TagDefinitionIds.Count > 0 ? [.. _filters.TagDefinitionIds] : null,
-            Outcome = _filters.Outcome,
-            TeamId = _filters.TeamId,
-            SortBy = _filters.SortBy,
-            SortDirection = _filters.SortDirection,
-            Page = _filters.Page,
-            PageSize = RosterPageSize
-        };
+        var input = BuildRosterInput();
 
-        var result = await participantQueryService.GetParticipantRosterAsync(input, ComponentCancellationToken);
+        var result = await ReadSafelyAsync(() => ReadRosterSnapshotAsync(input));
 
-        if (requestId != _requestSequence)
+        if (requestId != _requestSequence || ComponentCancellationToken.IsCancellationRequested)
         {
+            return;
+        }
+
+        if (result.IsProblem && result.Problem.Kind == ServiceProblemKind.Conflict && !_reconcilingLifecycle)
+        {
+            _reconcilingLifecycle = true;
+            _isLoading = true;
+            StateHasChanged();
+            try
+            {
+                await LoadDetailAsync();
+            }
+            finally
+            {
+                _reconcilingLifecycle = false;
+            }
             return;
         }
 
         var loaded = false;
         result.Switch(
-            roster =>
+            snapshot =>
             {
-                _roster = roster;
+                AcceptRosterSnapshot(snapshot, owner);
                 loaded = true;
             },
             problem =>
@@ -814,10 +883,14 @@ public partial class CampaignWorkspace(
                 }
 
                 _rosterError = FirstNonBlank(problem.Detail, "Failed to load the roster. Please retry.");
-                _roster = null;
             });
 
         _rosterLoading = false;
+
+        if (loaded && ClampRosterPage())
+        {
+            return;
+        }
 
         TryResolvePendingBoundaryMove(loaded);
     }
@@ -829,6 +902,7 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the navigation or reload is initiated.</returns>
     private async Task ApplyFiltersAndNavigateAsync(CampaignWorkspaceRosterState next)
     {
+        ++_navigationSequence;
         _filters = next;
         _searchDraft = next.Search ?? string.Empty;
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(next);
@@ -862,6 +936,7 @@ public partial class CampaignWorkspace(
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = new CancellationTokenSource();
         var debounceToken = _searchDebounceSource.Token;
+        var navigation = _navigationSequence;
 
         try
         {
@@ -869,6 +944,18 @@ public partial class CampaignWorkspace(
         }
         catch (OperationCanceledException)
         {
+            return;
+        }
+
+        if (debounceToken.IsCancellationRequested || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        if (navigation != _navigationSequence)
+        {
+            // Navigation superseded this draft. A later input cancels this token, so only
+            // the still-current abandoned draft may be reset to the canonical query.
+            _searchDraft = _filters.Search ?? string.Empty;
             return;
         }
 
@@ -942,8 +1029,8 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when navigation is initiated.</returns>
     private Task OnSortChangedAsync(string sortBy)
     {
-        var nextDirection = string.Equals(_filters.SortBy, sortBy, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(_filters.SortDirection, "asc", StringComparison.OrdinalIgnoreCase)
+        var nextDirection = string.Equals(_filters.SortBy ?? "displayName", sortBy, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_filters.SortDirection ?? "asc", "asc", StringComparison.OrdinalIgnoreCase)
             ? "desc"
             : "asc";
 
@@ -1022,7 +1109,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId));
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
@@ -1043,8 +1130,8 @@ public partial class CampaignWorkspace(
     private Task OnReviewUnresolvedAsync(bool unresolvedOnly)
     {
         var url = unresolvedOnly
-            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId)
-            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
+            ? CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new() { UnresolvedOnly = true }, _filters, _selectedParticipantId)
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new(), _filters, _selectedParticipantId);
         navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
@@ -1065,7 +1152,7 @@ public partial class CampaignWorkspace(
     {
         _placementState = next;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next);
+        var targetUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next, _filters, _selectedParticipantId);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
         if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
         {
@@ -1308,7 +1395,10 @@ public partial class CampaignWorkspace(
             return;
         }
 
-        await CaptureRosterScrollAsync();
+        if (!await CaptureRosterScrollAsync())
+        {
+            return;
+        }
         _selectedParticipantId = item.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
             BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
@@ -1360,7 +1450,10 @@ public partial class CampaignWorkspace(
         if (targetIndex >= 0 && targetIndex < items.Count)
         {
             // Within-page move: only the participant parameter changes; roster and scroll stay untouched.
-            await CaptureRosterScrollAsync();
+            if (!await CaptureRosterScrollAsync())
+            {
+                return;
+            }
             _selectedParticipantId = items[targetIndex].PlayerCampaignAssignmentId;
             navigationManager.NavigateTo(
                 BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
@@ -1433,7 +1526,10 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the scroll anchor is captured and navigation is initiated.</returns>
     private async Task OnCloseParticipantAsync()
     {
-        await CaptureRosterScrollAsync();
+        if (!await CaptureRosterScrollAsync())
+        {
+            return;
+        }
         _selectedParticipantId = null;
         navigationManager.NavigateTo(
             BuildRosterUrl(_filters, _activeTab));
@@ -1443,10 +1539,19 @@ public partial class CampaignWorkspace(
     /// Captures the roster region scroll offset before a drawer open/close navigation.
     /// </summary>
     /// <returns>A task that completes when the offset is captured.</returns>
-    private async Task CaptureRosterScrollAsync()
+    private async Task<bool> CaptureRosterScrollAsync()
     {
+        var request = ++_navigationSequence;
+        var owner = $"{StateOwner(_detail?.Status)}:{_activeTab}:{_selectedParticipantId}";
         var module = await _moduleTask.Value;
-        _pendingScrollRestore = await module.InvokeAsync<double?>("captureScroll", _rosterScrollRegion);
+        var scroll = await module.InvokeAsync<double?>("captureScroll", _rosterScrollRegion);
+        if (request != _navigationSequence || ComponentCancellationToken.IsCancellationRequested
+            || !string.Equals(owner, $"{StateOwner(_detail?.Status)}:{_activeTab}:{_selectedParticipantId}", StringComparison.Ordinal))
+        {
+            return false;
+        }
+        _pendingScrollRestore = scroll;
+        return true;
     }
 
     /// <inheritdoc />
@@ -1457,6 +1562,10 @@ public partial class CampaignWorkspace(
         // The roster region is only in the DOM when a loaded roster is rendered; keep the
         // pending scroll work until then so filter changes still scroll after a loading pass.
         var module = await _moduleTask.Value;
+        if (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         await module.InvokeVoidAsync("revealActiveRouteMarker", ComponentCancellationToken, _campaignRoute);
 
         if (_rosterLoading || _roster is null)
@@ -1467,7 +1576,7 @@ public partial class CampaignWorkspace(
             if (_moduleTask.IsValueCreated)
             {
                 var rosterModule = await _moduleTask.Value;
-                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
+                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None, _jsOwner);
             }
 
             return;
@@ -1479,6 +1588,10 @@ public partial class CampaignWorkspace(
             _receiptChecked = true;
             var state = await authenticationStateProvider.GetAuthenticationStateAsync();
             var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
+            if (!string.Equals(scope, _authorityScope, StringComparison.Ordinal) || ComponentCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
             try
             {
                 var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId);
@@ -1505,11 +1618,11 @@ public partial class CampaignWorkspace(
         // whose contains() check would throw on every keydown.
         if (_roster.TotalCount > 0)
         {
-            await module.InvokeVoidAsync("attachRosterActivationSuppression", ComponentCancellationToken, _rosterScrollRegion);
+            await module.InvokeVoidAsync("attachRosterActivationSuppression", ComponentCancellationToken, _rosterScrollRegion, _jsOwner);
         }
         else
         {
-            await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None);
+            await module.InvokeVoidAsync("detachRosterActivationSuppression", CancellationToken.None, _jsOwner);
         }
 
         if (_scrollToRosterTop)
@@ -1531,6 +1644,16 @@ public partial class CampaignWorkspace(
     /// </summary>
     private void PersistStartupState()
     {
+        if (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        PersistedOwner = StateOwner(_detail?.Status);
+        PersistedWorkingRows = _workingRows;
+        PersistedParticipantCount = _campaignParticipantCount;
+        PersistedEligibilityCounts = _eligibilityCounts;
+        PersistedTeamChoicesTruncated = _teamChoicesTruncated;
+        PersistedChoicesLoadFailed = _choicesLoadFailed;
         PersistedDetail = _detail;
         PersistedPageError = _pageError;
         PersistedNotFound = _notFound;

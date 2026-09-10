@@ -246,6 +246,7 @@ public sealed class HttpEffectivePlacementQueryServiceTests
         if (correction == PlacementCorrectionReason.TeamUnavailable)
         {
             row["localDecision"]!["teamId"] = null;
+            row["localTeam"] = null;
             Source(payload, 1)["decision"]!["teamId"] = null;
             Source(payload, 1)["team"] = null;
         }
@@ -280,6 +281,7 @@ public sealed class HttpEffectivePlacementQueryServiceTests
             row["effectiveTeam"] = null;
         }
         row["localDecision"] = local ? decision.DeepClone() : null;
+        row["localTeam"] = local ? Source(payload, 1)["team"]?.DeepClone() : null;
         row["eligibility"] = (int)eligibility;
 
         (await ReadPayloadAsync(1, payload.ToJsonString())).IsSuccess.ShouldBeTrue();
@@ -327,6 +329,9 @@ public sealed class HttpEffectivePlacementQueryServiceTests
                     }
                 }
                 page["items"]!.AsArray().Add(second);
+                page["totalCount"] = 2;
+                if (endpoint == 1) { payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web); }
+                if (endpoint == 2) { payload["participantCount"] = 2; }
             }
             else
             {
@@ -341,7 +346,7 @@ public sealed class HttpEffectivePlacementQueryServiceTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task PageAcceptsDatabaseNameCollationAndEventuallyConsistentTotalsAsync(int endpoint)
+    public async Task PageAcceptsDatabaseNameCollationWithConsistentSnapshotTotalsAsync(int endpoint)
     {
         var payload = Payload(endpoint);
         var second = Row(payload, endpoint).DeepClone();
@@ -357,10 +362,14 @@ public sealed class HttpEffectivePlacementQueryServiceTests
         {
             second["localDecision"]!["playerId"] = 203;
             second["localDecision"]!["playerCampaignAssignmentId"] = 102;
-            payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 0, 0, 0), JsonSerializerOptions.Web);
+            payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web);
         }
         payload[PageName(endpoint)]!["items"]!.AsArray().Add(second);
-        payload[PageName(endpoint)]!["totalCount"] = endpoint == 2 ? 2 : 0;
+        payload[PageName(endpoint)]!["totalCount"] = 2;
+        if (endpoint == 2)
+        {
+            payload["participantCount"] = 2;
+        }
 
         (await ReadPayloadAsync(endpoint, payload.ToJsonString())).IsSuccess.ShouldBeTrue();
     }
@@ -378,6 +387,8 @@ public sealed class HttpEffectivePlacementQueryServiceTests
         second["effectiveDecision"]!["decision"]!["playerId"] = 203;
         second["effectiveDecision"]!["decision"]!["playerCampaignAssignmentId"] = 102;
         payload["participants"]!["items"]!.AsArray().Add(second);
+        payload["participants"]!["totalCount"] = 2;
+        payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web);
         (await ReadPayloadAsync(1, payload.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
@@ -467,6 +478,7 @@ public sealed class HttpEffectivePlacementQueryServiceTests
         var payload = Payload(1);
         var row = Row(payload, 1);
         row["localDecision"] = null;
+        row["localTeam"] = null;
         row["effectiveDecision"] = null;
         row["effectiveTeam"] = null;
         row["eligibility"] = (int)EffectivePlacementEligibility.NeedsPlacement;
@@ -513,6 +525,247 @@ public sealed class HttpEffectivePlacementQueryServiceTests
         (await ReadPayloadAsync(1, payload.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task DiscoveryUsesRepeatedArraysAndExplicitLocalFilterNamesAsync(int endpoint)
+    {
+        string? path = null;
+        using var handler = new RecordingHandler(request =>
+        {
+            path = request.RequestUri!.PathAndQuery;
+            return Response("{}", HttpStatusCode.NotFound);
+        });
+        using var http = CreateHttp(handler);
+        CampaignRosterDiscoveryInput input = endpoint == 1
+            ? new GetCampaignEffectivePlacementsInput { CampaignId = 42, TeamId = 60 }
+            : new GetClosedCampaignRosterInput { CampaignId = 42 };
+        input = input with
+        {
+            Search = "A&B %_\\/#?",
+            GraduationYears = [2028, 2029],
+            TagDefinitionIds = [81, 82],
+            LocalOutcome = "assigned",
+            LocalTeamId = 60,
+            ParticipantId = 101,
+            SortBy = "displayName",
+            SortDirection = "desc",
+            Page = 2,
+            PageSize = 10
+        };
+
+        await ReadDiscoveryAsync(new HttpEffectivePlacementQueryService(http), input);
+
+        var route = endpoint == 1 ? "effective-placements" : "closed-roster";
+        var effectiveTeam = endpoint == 1 ? "&teamId=60" : string.Empty;
+        path.ShouldBe($"/api/campaigns/42/{route}?page=2&pageSize=10{effectiveTeam}&search=A%26B%20%25_%5C%2F%23%3F&graduationYears=2028&graduationYears=2029&tagDefinitionIds=81&tagDefinitionIds=82&localOutcome=assigned&localTeamId=60&participantId=101&sortBy=displayName&sortDirection=desc");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task DiscoveryRejectsMissingNullMalformedOrDuplicateTagEvidenceAsync(int endpoint)
+    {
+        foreach (var defect in new[] { "missing", "null", "nullRow", "id", "name", "color", "duplicate" })
+        {
+            var payload = Payload(endpoint);
+            var row = Row(payload, endpoint);
+            row["appliedTags"] = JsonSerializer.SerializeToNode(new[] { new CampaignParticipantTagSummaryDto(81, "Captain", "primary", false) }, JsonSerializerOptions.Web);
+            if (string.Equals(defect, "missing", StringComparison.Ordinal)) { row.Remove("appliedTags"); }
+            else if (string.Equals(defect, "null", StringComparison.Ordinal)) { row["appliedTags"] = null; }
+            else if (string.Equals(defect, "nullRow", StringComparison.Ordinal)) { row["appliedTags"]![0] = null; }
+            else if (string.Equals(defect, "duplicate", StringComparison.Ordinal)) { row["appliedTags"]!.AsArray().Add(row["appliedTags"]![0]!.DeepClone()); }
+            else
+            {
+                var field = defect switch { "id" => "playerTagId", "name" => "tagName", _ => "tagColor" };
+                row["appliedTags"]![0]![field] = string.Equals(defect, "id", StringComparison.Ordinal) ? JsonValue.Create(0) : JsonValue.Create(" ");
+            }
+
+            (await ReadPayloadAsync(endpoint, payload.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError, defect);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoveryRequiresLocalTeamEvidenceAndUnfilteredClosedScaleAsync()
+    {
+        foreach (var defect in new[] { "missing", "null", "different" })
+        {
+            var working = Payload(1);
+            if (string.Equals(defect, "missing", StringComparison.Ordinal)) { Row(working, 1).Remove("localTeam"); }
+            else if (string.Equals(defect, "null", StringComparison.Ordinal)) { Row(working, 1)["localTeam"] = null; }
+            else { Row(working, 1)["localTeam"]!["teamId"] = 999; }
+            (await ReadPayloadAsync(1, working.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError, defect);
+        }
+        foreach (var count in new int?[] { null, -1, 0 })
+        {
+            var closed = Payload(2);
+            if (count is null) { closed.AsObject().Remove("participantCount"); }
+            else { closed["participantCount"] = count; }
+            (await ReadPayloadAsync(2, closed.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
+        var filtered = Payload(2);
+        filtered["participantCount"] = 100;
+        (await ReadPayloadAsync(2, filtered.ToJsonString())).Value.ShouldBeOfType<ClosedCampaignRosterResult>().ParticipantCount.ShouldBe(100);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task DiscoveryVerifiesEachRequestedFilterAgainstReturnedRowsAsync(int endpoint)
+    {
+        CampaignRosterDiscoveryInput valid = endpoint == 1
+            ? new GetCampaignEffectivePlacementsInput { CampaignId = 42 }
+            : new GetClosedCampaignRosterInput { CampaignId = 42 };
+        valid = valid with { GraduationYears = [2028, 2029], TagDefinitionIds = [81, 82], LocalTeamId = 60, LocalOutcome = "assigned", ParticipantId = 101 };
+        var payload = Payload(endpoint);
+        Row(payload, endpoint)["appliedTags"] = JsonSerializer.SerializeToNode(new[] { new CampaignParticipantTagSummaryDto(82, "Captain", "primary", false) }, JsonSerializerOptions.Web);
+        using var handler = new RecordingHandler(_ => Response(payload.ToJsonString()));
+        using var http = CreateHttp(handler);
+        var service = new HttpEffectivePlacementQueryService(http);
+        (await ReadDiscoveryAsync(service, valid)).IsSuccess.ShouldBeTrue();
+        foreach (var invalid in new[]
+        {
+            valid with { GraduationYears = [2030] }, valid with { TagDefinitionIds = [83] },
+            valid with { LocalTeamId = 61 }, valid with { LocalOutcome = "undecided" }, valid with { ParticipantId = 102 }
+        })
+        {
+            (await ReadDiscoveryAsync(service, invalid)).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("graduationYear", "asc")]
+    [InlineData("graduationYear", "desc")]
+    [InlineData("tryoutNumber", "asc")]
+    [InlineData("tryoutNumber", "desc")]
+    [InlineData("outcome", "asc")]
+    [InlineData("outcome", "desc")]
+    [InlineData("assignmentId", "asc")]
+    [InlineData("assignmentId", "desc")]
+    public async Task DiscoveryAcceptsRequestedNumericSortAndRejectsItsReverseAsync(string sort, string direction)
+    {
+        foreach (var endpoint in new[] { 1, 2 })
+        {
+            var payload = TwoRowPayload(endpoint);
+            var second = payload["participants"]!["items"]![1]!;
+            if (string.Equals(sort, "graduationYear", StringComparison.Ordinal)) { second["graduationYear"] = 2029; }
+            if (string.Equals(sort, "tryoutNumber", StringComparison.Ordinal)) { second["tryoutNumber"] = 43; }
+            if (string.Equals(sort, "outcome", StringComparison.Ordinal))
+            {
+                second[SourceName(endpoint)]!["decision"]!["outcome"] = (int)PlacementOutcome.NotSelected;
+                second[SourceName(endpoint)]!["decision"]!["teamId"] = null;
+                second[SourceName(endpoint)]!["team"] = null;
+                if (endpoint == 1)
+                {
+                    second["localDecision"] = second[SourceName(endpoint)]!["decision"]!.DeepClone();
+                    second["localTeam"] = null;
+                    second["effectiveTeam"] = null;
+                    second["eligibility"] = (int)EffectivePlacementEligibility.Resolved;
+                    payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 1, 1, 0), JsonSerializerOptions.Web);
+                }
+            }
+            if (string.Equals(direction, "desc", StringComparison.Ordinal)) { ReverseRows(payload); }
+            CampaignRosterDiscoveryInput input = endpoint == 1
+                ? new GetCampaignEffectivePlacementsInput { CampaignId = 42, SortBy = sort, SortDirection = direction }
+                : new GetClosedCampaignRosterInput { CampaignId = 42, SortBy = sort, SortDirection = direction };
+            using var handler = new RecordingHandler(_ => Response(payload.ToJsonString()));
+            using var http = CreateHttp(handler);
+            var service = new HttpEffectivePlacementQueryService(http);
+            (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue($"{endpoint}/{sort}/{direction}");
+            ReverseRows(payload);
+            (await ReadDiscoveryAsync(service, input)).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("displayName", "asc")]
+    [InlineData("displayName", "desc")]
+    [InlineData("teamName", "asc")]
+    [InlineData("teamName", "desc")]
+    public async Task DiscoveryTextSortEnforcesAscendingIdentityTiesInEitherDirectionAsync(string sort, string direction)
+    {
+        foreach (var endpoint in new[] { 1, 2 })
+        {
+            var payload = TwoRowPayload(endpoint);
+            CampaignRosterDiscoveryInput input = endpoint == 1
+                ? new GetCampaignEffectivePlacementsInput { CampaignId = 42, SortBy = sort, SortDirection = direction }
+                : new GetClosedCampaignRosterInput { CampaignId = 42, SortBy = sort, SortDirection = direction };
+            using var handler = new RecordingHandler(_ => Response(payload.ToJsonString()));
+            using var http = CreateHttp(handler);
+            var service = new HttpEffectivePlacementQueryService(http);
+            (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue();
+            ReverseRows(payload);
+            (await ReadDiscoveryAsync(service, input)).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+            var row = Row(payload, endpoint);
+            if (string.Equals(sort, "displayName", StringComparison.Ordinal)) { row["lastName"] = "Öberg"; }
+            else
+            {
+                row[SourceName(endpoint)]!["team"]!["teamName"] = "Öberg";
+                if (endpoint == 1)
+                {
+                    row["localTeam"]!["teamName"] = "Öberg";
+                    row["effectiveTeam"]!["teamName"] = "Öberg";
+                }
+            }
+            (await ReadDiscoveryAsync(service, input)).IsSuccess.ShouldBeTrue("Distinct text must retain database collation without a browser-side approximation.");
+        }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task InvalidDiscoveryIsRejectedBeforeSendingAnyRequestAsync(int endpoint)
+    {
+        var requests = 0;
+        using var handler = new RecordingHandler(_ => { requests++; return Response("{}"); });
+        using var http = CreateHttp(handler);
+        var service = new HttpEffectivePlacementQueryService(http);
+        CampaignRosterDiscoveryInput valid = endpoint == 1
+            ? new GetCampaignEffectivePlacementsInput { CampaignId = 42 }
+            : new GetClosedCampaignRosterInput { CampaignId = 42 };
+        foreach (var invalid in new[]
+        {
+            valid with { GraduationYears = [2030, 0] }, valid with { TagDefinitionIds = [81, -1] },
+            valid with { LocalTeamId = 0 }, valid with { ParticipantId = 0 }, valid with { LocalOutcome = "unknown" },
+            valid with { SortBy = "unknown" }, valid with { SortDirection = "sideways" }, valid with { PageSize = 101 }
+        })
+        {
+            (await ReadDiscoveryAsync(service, invalid)).Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        }
+        requests.ShouldBe(0);
+    }
+
+    private static JsonNode TwoRowPayload(int endpoint)
+    {
+        var payload = Payload(endpoint);
+        var second = Row(payload, endpoint).DeepClone();
+        second["playerId"] = 203;
+        second["playerCampaignAssignmentId"] = 102;
+        second[SourceName(endpoint)]!["decision"]!["playerId"] = 203;
+        second[SourceName(endpoint)]!["decision"]!["playerCampaignAssignmentId"] = 102;
+        if (endpoint == 1)
+        {
+            second["localDecision"]!["playerId"] = 203;
+            second["localDecision"]!["playerCampaignAssignmentId"] = 102;
+            payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web);
+        }
+        else { payload["participantCount"] = 2; }
+        payload["participants"]!["items"]!.AsArray().Add(second);
+        payload["participants"]!["totalCount"] = 2;
+        return payload;
+    }
+
+    private static void ReverseRows(JsonNode payload)
+        => payload["participants"]!["items"] = new JsonArray(payload["participants"]!["items"]!.AsArray().Reverse().Select(row => row!.DeepClone()).ToArray());
+
+    private static async Task<ServiceResult<object>> ReadDiscoveryAsync(HttpEffectivePlacementQueryService service, CampaignRosterDiscoveryInput input)
+        => input switch
+        {
+            GetCampaignEffectivePlacementsInput working => Widen(await service.GetCampaignEffectivePlacementsAsync(working, TestContext.Current.CancellationToken)),
+            GetClosedCampaignRosterInput closed => Widen(await service.GetClosedCampaignRosterAsync(closed, TestContext.Current.CancellationToken)),
+            _ => throw new ArgumentOutOfRangeException(nameof(input))
+        };
+
     private static CampaignSavedPlacementDecision Decision() => new(101, 202, 42, 50, 3,
         PlacementOutcome.Assigned, 60, DateTimeOffset.UnixEpoch, 70, "Casey Member", _decisionToken);
 
@@ -525,9 +778,10 @@ public sealed class HttpEffectivePlacementQueryServiceTests
             0 => new CurrentSeasonRosterResult(season, new([new(202, "Zoe", "Adams", 2028, source)], 1, 50, 1)),
             1 => new CampaignEffectivePlacementsResult(new(42, "Campaign", CampaignStatus.Active, season), new(0, 1, 0, 0),
                 new([new(101, 202, "Zoe", "Adams", 2028, 42, LifecycleStatus.Active, _decisionToken, Decision(), source, source.Team,
-                    EffectivePlacementEligibility.OptionalReassignment, PlacementCorrectionReason.None)], 1, 50, 1)),
+                    EffectivePlacementEligibility.OptionalReassignment, PlacementCorrectionReason.None) { LocalTeam = source.Team }], 1, 50, 1)),
             2 => new ClosedCampaignRosterResult(new(42, "Campaign", CampaignStatus.Closed, season),
-                new([new(101, 202, "Zoe", "Adams", 2028, 42, source)], 1, 50, 1)),
+                new([new(101, 202, "Zoe", "Adams", 2028, 42, source)], 1, 50, 1))
+            { ParticipantCount = 1 },
             _ => throw new ArgumentOutOfRangeException(nameof(endpoint))
         };
         return JsonSerializer.SerializeToNode(payload, JsonSerializerOptions.Web)!;

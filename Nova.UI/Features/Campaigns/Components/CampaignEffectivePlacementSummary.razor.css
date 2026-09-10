@@ -1,0 +1,5 @@
+.effective-placement-evidence { display: grid; gap: .125rem; font-size: .875rem; line-height: 1.35; }
+.effective-placement-evidence strong { font-weight: 600; }
+.effective-placement-evidence small { color: var(--bs-secondary-color); }
+.eligibility { color: var(--bs-secondary-color); font-size: .8125rem; }
+.needs-placement, .effective-placement-evidence .correction { color: var(--bs-warning-text-emphasis); }

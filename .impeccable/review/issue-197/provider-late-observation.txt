@@ -1,0 +1,53 @@
+2026-09-10 04:23:03.562811+00|23|22|60
+Players|1388|248|2026-09-10 04:22:15.413679+00
+Seasons|24|26|
+Campaigns|25|28|
+PlayerCampaignAssignments|1387|246|2026-09-10 04:22:15.427317+00
+84|active|||11.45|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+117|active|||11.44|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+114|active|||11.43|SELECT count(*)::int
+FROM "PlayerCampaignAssignments" AS p
+INNER JOIN (
+    SELECT c."C
+101|active|||10.14|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+118|active|||10.13|SELECT count(*)::int
+FROM "PlayerCampaignAssignments" AS p
+INNER JOIN (
+    SELECT c."C
+99|active|||9.26|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+98|active|||9.21|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+111|active|||9.18|SELECT count(*)::int
+FROM "PlayerCampaignAssignments" AS p
+INNER JOIN (
+    SELECT c."C
+97|active|||7.69|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+96|active|||7.68|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"
+100|active|||7.66|SELECT count(*)::int
+FROM "PlayerCampaignAssignments" AS p
+INNER JOIN (
+    SELECT c."C
+81|active|||5.20|SELECT s6."Key", count(*)::int
+FROM (
+    SELECT CASE
+        WHEN p1."LifecycleStatus"

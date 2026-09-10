@@ -1,4 +1,5 @@
 let activeContainer = null;
+let activeOwner = null;
 import { read } from './CampaignEntry.razor.js';
 export { acknowledgeOpeningReceipt, focus } from './CampaignEntry.razor.js';
 export function readOpeningReceipt(scope, campaignId) {
@@ -71,20 +72,23 @@ export function revealActiveRouteMarker(container) {
 // render pass where the roster is visible; replace-on-attach keeps exactly one active listener.
 // A container that is not an Element (for example, an unset ElementReference serialized as a
 // plain object) installs nothing — its contains() check would throw on every keydown.
-export function attachRosterActivationSuppression(container) {
-    detachRosterActivationSuppression();
-    if (!(container instanceof Element)) {
+export function attachRosterActivationSuppression(container, owner) {
+    if (!(container instanceof Element) || !container.isConnected) {
         return;
     }
+    detachRosterActivationSuppression(activeOwner);
+    activeOwner = owner;
     activeContainer = container;
     keydownListener = suppressActivationDefault;
     document.addEventListener('keydown', keydownListener, true);
 }
 
-export function detachRosterActivationSuppression() {
+export function detachRosterActivationSuppression(owner) {
+    if (owner !== activeOwner) return;
     if (keydownListener) {
         document.removeEventListener('keydown', keydownListener, true);
         keydownListener = null;
     }
     activeContainer = null;
+    activeOwner = null;
 }

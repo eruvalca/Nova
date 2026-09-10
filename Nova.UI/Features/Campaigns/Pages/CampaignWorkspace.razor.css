@@ -1,6 +1,7 @@
 .campaign-field {
     max-width: 100rem;
     margin-inline: auto;
+    padding-block: .5rem;
 }
 
 .campaign-back-link {
@@ -8,7 +9,7 @@
     align-items: center;
     gap: 0.5rem;
     min-height: 2.75rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
     color: var(--bs-secondary-color);
     font-size: 0.875rem;
     font-weight: 600;
@@ -31,50 +32,40 @@
     padding: 1.25rem;
 }
 
-.campaign-sign {
-    position: relative;
-    overflow: hidden;
-    background-color: var(--bs-primary);
-    border-color: var(--bs-primary);
-    color: var(--bs-white);
-}
-
-.campaign-sign::after {
-    position: absolute;
-    right: -2rem;
-    bottom: -5rem;
-    width: 13rem;
-    height: 13rem;
-    content: "";
-    border: 2rem solid rgb(255 255 255 / 0.08);
-    border-radius: 50%;
-}
+.workspace-orientation { display: grid; grid-template-columns: minmax(19rem, 25rem) minmax(36rem, 1fr); gap: 1.5rem; align-items: center; }
+.campaign-sign { background: transparent; border: 0; color: var(--bs-body-color); }
 
 .campaign-sign-body {
     position: relative;
     z-index: 1;
-    padding: 1.5rem;
+    padding: 0;
 }
 
 .campaign-season {
-    margin-bottom: 0.25rem;
-    color: color-mix(in srgb, var(--bs-white) 93%, transparent);
-    font-size: 0.875rem;
+    display: flex;
+    gap: .5rem;
+    margin-block: .25rem;
+    color: var(--bs-secondary-color);
+    font-size: 1rem;
     font-weight: 650;
 }
 
 .campaign-sign h1 {
     margin: 0;
-    font-size: clamp(2rem, 4vw, 3.25rem);
+    font-size: clamp(2rem, 3vw, 3rem);
     font-weight: 700;
     letter-spacing: -0.04em;
 }
 
 .campaign-facts {
     display: flex;
-    gap: 2rem;
-    margin: 1.25rem 0 0;
+    flex-wrap: wrap;
+    gap: .25rem 1rem;
+    margin: 0;
 }
+
+.campaign-facts-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.75rem; }
+.campaign-lifecycle { color: var(--bs-primary); }
 
 .campaign-facts div {
     display: grid;
@@ -82,15 +73,15 @@
 }
 
 .campaign-facts dt {
-    color: color-mix(in srgb, var(--bs-white) 93%, transparent);
+    color: var(--bs-secondary-color);
     font-size: 0.6875rem;
     font-weight: 600;
 }
 
 .campaign-facts dd {
     margin: 0;
-    font-size: 0.875rem;
-    font-weight: 650;
+    font-size: 1rem;
+    font-weight: 400;
 }
 
 .campaign-route {
@@ -103,7 +94,7 @@
 .route-marker-list {
     position: relative;
     display: grid;
-    width: max-content;
+    width: 100%;
     min-width: 36rem;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
@@ -228,20 +219,20 @@
 }
 
 .roster-scroll-region {
-    max-height: 60vh;
+    max-height: min(60vh, 31.25rem);
     overflow-y: auto;
     scrollbar-gutter: stable;
 }
 
 @media (max-width: 575.98px) {
     .campaign-sign-body {
-        padding: 1.25rem;
+        padding: 0;
     }
 
     .campaign-facts {
         align-items: flex-start;
-        flex-direction: column;
-        gap: 0.75rem;
+        flex-direction: row;
+        gap: 0.5rem;
     }
 
     .campaign-sign-body > .d-flex {
@@ -257,3 +248,31 @@
         padding: 1rem;
     }
 }
+
+@media (max-width: 1279px) {
+    .workspace-orientation { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+}
+.roster-context-layout { display: grid; grid-template-columns: minmax(0, 1.95fr) minmax(19rem, 1fr); gap: 1rem; align-items: start; }
+.participant-context-placeholder { border: 1px solid var(--bs-border-color); padding: 1.25rem; background: var(--bs-body-bg); min-height: 20rem; }
+.participant-context-placeholder h2 { font-size: 1.25rem; }
+.participant-context-placeholder p { color: var(--bs-secondary-color); }
+@media (max-width: 1199px) {
+    .roster-context-layout { grid-template-columns: minmax(0, 1fr); }
+    .participant-context-placeholder { display: none; }
+}
+
+.workspace-board { border-radius: .375rem; background: var(--bs-white); }
+.workspace-board-body { padding: 0; }
+.campaign-facts-row ::deep button { min-height: 2.75rem; }
+.campaign-facts-row ::deep .campaign-menu-compact { min-width: 2.75rem; }
+.campaign-facts-row ::deep .dropdown { flex-shrink: 0; }
+.campaign-facts-row ::deep button { white-space: nowrap; }
+@media (max-width: 767px) {
+    .route-marker-list { width: 100%; min-width: 0; }
+    .route-marker { padding-inline: .25rem; font-size: .875rem; }
+    .route-marker-state { font-size: .75rem; overflow-wrap: anywhere; }
+}
+@media (min-width: 1280px) {
+    .campaign-field { margin-inline: -1.25rem; }
+}
+.opening-receipt { margin: 0; padding: 1rem; border-bottom: 1px solid var(--bs-border-color); }

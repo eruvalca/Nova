@@ -3,38 +3,41 @@
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
        @ref="_dialog"
-       role="dialog"
-       aria-modal="true"
+       role="region"
+       data-participant-context="true"
        aria-labelledby="participant-drawer-heading"
        @onkeydown="OnKeyDownAsync">
     <header class="participant-drawer-header">
         <div class="participant-drawer-header-row">
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
-                    id="participant-drawer-previous"
-                    aria-label="Previous participant"
-                    disabled="@(!HasPrevious)"
-                    @onclick="OnPrevious">&#8249;</button>
-            <h2 class="h5 mb-0 participant-drawer-heading" id="participant-drawer-heading">@Heading</h2>
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
-                    id="participant-drawer-next"
-                    aria-label="Next participant"
-                    disabled="@(!HasNext)"
-                    @onclick="OnNext">&#8250;</button>
-            <button type="button"
-                    class="btn-close"
-                    id="participant-drawer-close"
-                    @ref="_closeButton"
-                    aria-label="Close participant details"
-                    @onclick="CloseAsync"></button>
+            <h2 class="h4 mb-0 participant-drawer-heading" id="participant-drawer-heading">@Heading</h2>
+            <button type="button" class="btn-close" id="participant-drawer-close" @ref="_closeButton"
+                    aria-label="Close participant details" @onclick="CloseAsync"></button>
         </div>
-        @if (Position is { } position)
+        @if (AuthorizedStatus is not null && _detail is { } headerDetail)
         {
-            <p class="participant-drawer-position mb-0" id="participant-drawer-position">@position of @TotalCount</p>
+            <p class="participant-drawer-position mb-0">Tryout #@(headerDetail.TryoutNumber?.ToString() ?? "—") · Graduation year @headerDetail.GraduationYear</p>
         }
+        <div class="participant-drawer-navigation">
+            <button type="button" class="btn btn-outline-primary participant-drawer-nav-button" id="participant-drawer-previous"
+                    aria-label="Previous participant" disabled="@(!HasPrevious)" @onclick="OnPrevious">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12H4m6-6-6 6 6 6" /></svg> Previous
+            </button>
+            @if (Position is { } position)
+            {
+                <span class="participant-drawer-position" id="participant-drawer-position">@position of @TotalCount</span>
+            }
+            <button type="button" class="btn btn-outline-primary participant-drawer-nav-button" id="participant-drawer-next"
+                    aria-label="Next participant" disabled="@(!HasNext)" @onclick="OnNext">Next
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+            </button>
+        </div>
     </header>
     <div class="participant-drawer-body">
+        @if (AuthorizedStatus is { } lifecycle)
+        {
+            <CampaignParticipantPlacementContext CampaignId="CampaignId" ParticipantId="ParticipantId" Status="lifecycle"
+                WorkingRow="WorkingRow" Owner="@AuthorityScope" OnLifecycleChanged="OnLifecycleChanged" />
+        }
         @if (_detailState == DetailLoadState.Loading)
         {
             <div class="d-flex align-items-center gap-2 text-muted" role="status" aria-live="polite">
@@ -62,11 +65,13 @@
                      tabindex="-1"
                      @ref="_errorSummary">@_mutationError</div>
             }
-            @if (_statusMessage is not null)
+            @if (_statusMessage is not null && !IsNoteStatus)
             {
                 <div class="alert alert-success" role="status" aria-live="polite">@_statusMessage</div>
             }
 
+            @if (AuthorizedStatus is null)
+            {
             <section class="participant-drawer-section">
                 <h3 class="participant-drawer-section-title">Player</h3>
                 <dl class="participant-drawer-definition-list mb-0">
@@ -74,6 +79,8 @@
                     <dd class="mb-0">@detail.GraduationYear</dd>
                     <dt>Tryout number</dt>
                     <dd class="mb-0">@(detail.TryoutNumber?.ToString() ?? "—")</dd>
+                    @if (AuthorizedStatus is null)
+                    {
                     <dt>Outcome</dt>
                     <dd class="mb-0">
                         <span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(detail.PlacementOutcome)">
@@ -82,6 +89,7 @@
                     </dd>
                     <dt>Team</dt>
                     <dd class="mb-0">@(detail.Team?.TeamName ?? "—")</dd>
+                    }
                 </dl>
             </section>
 
@@ -98,40 +106,16 @@
                 }
             </section>
 
+            }
+            else if (IsReadOnly)
+            {
+                <p class="alert alert-warning participant-drawer-readonly-note" role="status">Read-only — campaign is closed.</p>
+            }
             <section class="participant-drawer-section">
-                <h3 class="participant-drawer-section-title">Notes</h3>
-                @if (detail.Capabilities.CanAddNote && !IsReadOnly)
-                {
-                    @if (_showAddNoteForm)
-                    {
-                        <div class="mb-3">
-                            <label for="participant-drawer-note-content" class="form-label">New note</label>
-                            <textarea id="participant-drawer-note-content"
-                                      class="form-control @(_addNoteErrors.Count > 0 ? "is-invalid" : null)"
-                                      maxlength="4000"
-                                      rows="3"
-                                      @bind="_addNoteContent" @bind:event="oninput"></textarea>
-                            @if (_addNoteErrors.TryGetValue(nameof(AddEvaluationNoteInput.Content), out var addNoteMessages))
-                            {
-                                <div class="invalid-feedback">@string.Join(" ", addNoteMessages)</div>
-                            }
-                            <div class="d-flex gap-2 mt-2">
-                                <button type="button" class="btn btn-sm btn-primary" disabled="@_isMutating" @onclick="SaveAddNoteAsync">
-                                    @if (IsPending(MutationKind.AddNote))
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-                                    }
-                                    Save note
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelAddNote">Cancel</button>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn btn-sm btn-outline-primary mb-3" disabled="@_isMutating" @onclick="ShowAddNoteForm">Add note</button>
-                    }
-                }
+                <div class="notes-heading">
+                    <h3 class="participant-drawer-section-title">Notes</h3>
+                    @if (IsNoteStatus) { <div class="alert-success note-status" role="status" aria-live="polite">@_statusMessage</div> }
+                </div>
                 @if (detail.Notes.Count == 0)
                 {
                     <p class="text-muted mb-0">No notes yet.</p>
@@ -169,13 +153,14 @@
                                 }
                                 else
                                 {
-                                    <p class="mb-1">@note.Content</p>
-                                    <p class="participant-drawer-note-meta mb-0">
-                                        @note.AuthorDisplayName · @FormatTimestamp(note.CreatedAt)@(note.ModifiedAt is not null ? " · edited" : "")
-                                    </p>
+                                    <div class="note-author"><CampaignPersonMarker Name="@note.AuthorDisplayName" /><div>
+                                        <strong>@note.AuthorDisplayName</strong>
+                                        <p class="participant-drawer-note-meta mb-0">@FormatTimestamp(note.CreatedAt)@(note.ModifiedAt is not null ? " · edited" : "")</p>
+                                    </div></div>
+                                    <p class="note-content mb-1">@note.Content</p>
                                     @if (!IsReadOnly && (note.CanEdit || note.CanDelete))
                                     {
-                                        <div class="d-flex gap-2 mt-1">
+                                        <div class="note-actions @(_deletingNoteId == note.NoteId ? "note-actions-confirm" : null)">
                                             @if (note.CanEdit)
                                             {
                                                 <button type="button" class="btn btn-sm btn-link p-0" disabled="@_isMutating" @onclick="() => BeginEditNote(note)">Edit</button>
@@ -215,50 +200,45 @@
                         }
                     </ul>
                 }
+                @if (detail.Capabilities.CanAddNote && !IsReadOnly)
+                {
+                    @if (_showAddNoteForm)
+                    {
+                        <div class="mb-3">
+                            <label for="participant-drawer-note-content" class="form-label">New note</label>
+                            <textarea id="participant-drawer-note-content"
+                                      class="form-control @(_addNoteErrors.Count > 0 ? "is-invalid" : null)"
+                                      maxlength="4000"
+                                      rows="3"
+                                      @bind="_addNoteContent" @bind:event="oninput"></textarea>
+                            @if (_addNoteErrors.TryGetValue(nameof(AddEvaluationNoteInput.Content), out var addNoteMessages))
+                            {
+                                <div class="invalid-feedback">@string.Join(" ", addNoteMessages)</div>
+                            }
+                            <div class="d-flex gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-primary" disabled="@_isMutating" @onclick="SaveAddNoteAsync">
+                                    @if (IsPending(MutationKind.AddNote))
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                                    }
+                                    Save note
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelAddNote">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-primary w-100 add-note" disabled="@_isMutating" @onclick="ShowAddNoteForm">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2v12M2 8h12" /></svg>
+                            Add note
+                        </button>
+                    }
+                }
             </section>
 
             <section class="participant-drawer-section">
                 <h3 class="participant-drawer-section-title">Applied tags</h3>
-                @if (detail.Capabilities.CanApplyTag && !IsReadOnly)
-                {
-                    @if (_tagChoicesError is not null)
-                    {
-                        <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
-                            <span>@_tagChoicesError</span>
-                            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryTagChoicesAsync">Retry</button>
-                        </div>
-                    }
-                    else if (_tagChoices is null)
-                    {
-                        <div class="d-flex align-items-center gap-2 text-muted mb-3" role="status" aria-live="polite">
-                            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                            <span>Loading tag choices…</span>
-                        </div>
-                    }
-                    else if (GetRemainingTagChoices().Count == 0)
-                    {
-                        <p class="text-muted mb-3">No tags to apply.</p>
-                    }
-                    else
-                    {
-                        <div class="d-flex gap-2 mb-3">
-                            <select class="form-select form-select-sm" aria-label="Tag to apply" @bind="_selectedTagId">
-                                <option value="">Select a tag…</option>
-                                @foreach (var choice in GetRemainingTagChoices())
-                                {
-                                    <option value="@choice.PlayerTagId">@choice.Name</option>
-                                }
-                            </select>
-                            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@(_selectedTagId is null || _isMutating)" @onclick="ApplySelectedTagAsync">
-                                @if (IsPending(MutationKind.ApplyTag))
-                                {
-                                    <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-                                }
-                                Apply
-                            </button>
-                        </div>
-                    }
-                }
                 @if (detail.AppliedTags.Count == 0)
                 {
                     <p class="text-muted mb-0">No tags applied.</p>
@@ -306,6 +286,48 @@
                         }
                     </ul>
                 }
+                <div class="mt-3">
+                @if (detail.Capabilities.CanApplyTag && !IsReadOnly)
+                {
+                    @if (_tagChoicesError is not null)
+                    {
+                        <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
+                            <span>@_tagChoicesError</span>
+                            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryTagChoicesAsync">Retry</button>
+                        </div>
+                    }
+                    else if (_tagChoices is null)
+                    {
+                        <div class="d-flex align-items-center gap-2 text-muted mb-3" role="status" aria-live="polite">
+                            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                            <span>Loading tag choices…</span>
+                        </div>
+                    }
+                    else if (GetRemainingTagChoices().Count == 0)
+                    {
+                        <p class="text-muted mb-3">No tags to apply.</p>
+                    }
+                    else
+                    {
+                        <div class="d-flex gap-2 mb-3">
+                            <select class="form-select form-select-sm" aria-label="Tag to apply" @bind="_selectedTagId">
+                                <option value="">Select a tag…</option>
+                                @foreach (var choice in GetRemainingTagChoices())
+                                {
+                                    <option value="@choice.PlayerTagId">@choice.Name</option>
+                                }
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@(_selectedTagId is null || _isMutating)" @onclick="ApplySelectedTagAsync">
+                                @if (IsPending(MutationKind.ApplyTag))
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                                }
+                                Apply
+                            </button>
+                        </div>
+                    }
+                }
+                </div>
             </section>
 
             <footer class="participant-drawer-footer">

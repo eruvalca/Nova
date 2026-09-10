@@ -11,7 +11,7 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
-public sealed class EffectivePlacementQueryServiceTests : IDisposable
+public sealed partial class EffectivePlacementQueryServiceTests : IDisposable
 {
     private const long ClubId = 1;
     private const long MemberId = 10;

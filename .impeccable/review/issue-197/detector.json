@@ -1,0 +1,113 @@
+COMP_ROUND_OPEN: build-phase is at hero; the hero gate has not passed. A detector pass is not a finish: run node D:\repos\.codex\worktrees\5ec2\Nova\.agents\skills\impeccable\scripts/build-phase.mjs status and follow its NEXT line before treating this page as built.
+[
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Pages\\CampaignWorkspace.razor.css",
+    "line": 55,
+    "snippet": "font-size: clamp(2rem, 3vw, 3rem) has fluid endpoint 3rem off the DESIGN.md type ramp",
+    "ignoreValue": "3rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Pages\\CampaignWorkspace.razor.css",
+    "line": 77,
+    "snippet": "font-size: 0.6875rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.6875rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Pages\\CampaignWorkspace.razor.css",
+    "line": 159,
+    "snippet": "font-size: 0.6875rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.6875rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Pages\\CampaignWorkspace.razor.css",
+    "line": 207,
+    "snippet": "font-size: 1.125rem is off the DESIGN.md type ramp",
+    "ignoreValue": "1.125rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Pages\\CampaignWorkspace.razor.css",
+    "line": 214,
+    "snippet": "font-size: 0.8125rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.8125rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Components\\CampaignRosterFilters.razor.css",
+    "line": 15,
+    "snippet": "font-size: .8125rem is off the DESIGN.md type ramp",
+    "ignoreValue": ".8125rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Components\\CampaignParticipantDrawer.razor.css",
+    "line": 57,
+    "snippet": "font-size: 0.8rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.8rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Components\\CampaignParticipantDrawer.razor.css",
+    "line": 106,
+    "snippet": "font-size: 0.8rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.8rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Components\\CampaignParticipantDrawer.razor.css",
+    "line": 129,
+    "snippet": "font-size: 0.8rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.8rem"
+  },
+  {
+    "antipattern": "design-system-font-size",
+    "name": "Font size outside DESIGN.md",
+    "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "D:\\repos\\.codex\\worktrees\\5ec2\\Nova\\Nova.UI\\Features\\Campaigns\\Components\\CampaignParticipantDrawer.razor.css",
+    "line": 137,
+    "snippet": "font-size: 0.8rem is off the DESIGN.md type ramp",
+    "ignoreValue": "0.8rem"
+  }
+]

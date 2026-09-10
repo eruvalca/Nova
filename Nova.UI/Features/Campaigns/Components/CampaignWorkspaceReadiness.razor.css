@@ -1,0 +1,14 @@
+.readiness-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+    min-height: 3.6875rem;
+    padding-block: .4375rem;
+    color: var(--bs-secondary-color);
+}
+.readiness-context > a { margin-inline-start: auto; }
+.readiness-context .btn { min-height: 2.75rem; }
+.readiness-context strong { color: var(--bs-body-color); }
+.readiness-link { display: inline-flex; align-items: center; gap: .5rem; min-height: 2.75rem; color: var(--bs-primary); text-decoration: none; font-weight: 600; }
+.readiness-blocker { font-size: .875rem; color: var(--bs-body-color); }

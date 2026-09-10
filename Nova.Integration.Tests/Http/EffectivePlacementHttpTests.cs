@@ -183,6 +183,97 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
         await AssertProblemAsync(hidden, HttpStatusCode.NotFound);
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("working")]
+    [InlineData("closed")]
+    public async Task OrdinaryMemberCombinesRepeatedDiscoveryFiltersAndReadsUnfilteredScaleAsync(string route)
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, string.Equals(route, "closed", StringComparison.Ordinal));
+        var unusedTag = await SeedingHelpers.InsertTagDefinitionAsync(fixture, seed.AssignmentId, member.Email, "Unused", "primary", token);
+        var appliedTag = await SeedingHelpers.InsertTagDefinitionAsync(fixture, seed.AssignmentId, member.Email, "Leader", "success", token, archived: true);
+        await using (var db = fixture.CreateAdminContext())
+        {
+            db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
+            {
+                PlayerCampaignAssignmentId = seed.AssignmentId,
+                PlayerTagId = appliedTag,
+                ClubId = member.ClubId,
+                CreationOperationId = Guid.NewGuid(),
+                CreatedById = 1
+            });
+            await db.SaveChangesAsync(token);
+        }
+        var query = $"graduationYears=2040&graduationYears=2031&tagDefinitionIds={unusedTag}&tagDefinitionIds={appliedTag}&localOutcome=assigned&localTeamId={seed.TeamId}&participantId={seed.AssignmentId}&search=1&sortBy=tryoutNumber&sortDirection=desc&page=1&pageSize=1";
+        using var response = await client.GetAsync(Route(route, seed.CampaignId, query), token);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        if (string.Equals(route, "working", StringComparison.Ordinal))
+        {
+            var body = await response.Content.ReadFromJsonAsync<CampaignEffectivePlacementsResult>(token);
+            body.ShouldNotBeNull();
+            body.Counts.ShouldBe(new EffectivePlacementCounts(2, 1, 0, 0));
+            body.Participants.TotalCount.ShouldBe(1);
+            var row = body.Participants.Items.ShouldHaveSingleItem();
+            row.PlayerCampaignAssignmentId.ShouldBe(seed.AssignmentId);
+            row.GraduationYear.ShouldBe(2031);
+            row.LocalTeam!.TeamId.ShouldBe(seed.TeamId);
+            row.AppliedTags.ShouldHaveSingleItem().ShouldBe(new CampaignParticipantTagSummaryDto(appliedTag, "Leader", "success", true));
+        }
+        else
+        {
+            var body = await response.Content.ReadFromJsonAsync<ClosedCampaignRosterResult>(token);
+            body.ShouldNotBeNull();
+            body.ParticipantCount.ShouldBe(3);
+            body.Participants.TotalCount.ShouldBe(1);
+            var row = body.Participants.Items.ShouldHaveSingleItem();
+            row.PlayerCampaignAssignmentId.ShouldBe(seed.AssignmentId);
+            row.GraduationYear.ShouldBe(2031);
+            AssertSource(row.Source, seed);
+            row.AppliedTags.ShouldHaveSingleItem().ShouldBe(new CampaignParticipantTagSummaryDto(appliedTag, "Leader", "success", true));
+        }
+        using var noMatch = await client.GetAsync(Route(route, seed.CampaignId, $"participantId={seed.AssignmentId}&localOutcome=withdrawn"), token);
+        noMatch.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await noMatch.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>(token);
+        json!["participants"]!["totalCount"]!.GetValue<int>().ShouldBe(0);
+        json["participants"]!["items"]!.AsArray().ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("working")]
+    [InlineData("closed")]
+    public async Task DiscoveryRejectsInvalidExplicitValuesAndForeignIdentifiersAsync(string route)
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, string.Equals(route, "closed", StringComparison.Ordinal));
+        foreach (var query in new[]
+        {
+            "graduationYears=2030&graduationYears=0", "graduationYears=invalid", "tagDefinitionIds=1&tagDefinitionIds=-1",
+            "tagDefinitionIds=invalid", "localTeamId=0", "participantId=0", "localOutcome=unknown", "sortBy=unknown", "sortDirection=sideways"
+        })
+        {
+            using var response = await client.GetAsync(Route(route, seed.CampaignId, query), token);
+            await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+        }
+        using var otherClient = fixture.CreateNovaHttpClient();
+        var other = await RegisterMemberAsync(otherClient);
+        var otherSeed = await SeedAsync(other, string.Equals(route, "closed", StringComparison.Ordinal));
+        var otherTag = await SeedingHelpers.InsertTagDefinitionAsync(fixture, otherSeed.AssignmentId, other.Email, "Foreign", "primary", token);
+        foreach (var query in new[] { $"localTeamId={otherSeed.TeamId}", $"tagDefinitionIds={otherTag}" })
+        {
+            using var response = await client.GetAsync(Route(route, seed.CampaignId, query), token);
+            await AssertProblemAsync(response, HttpStatusCode.NotFound);
+        }
+        using var foreignParticipant = await client.GetAsync(Route(route, seed.CampaignId, $"participantId={otherSeed.AssignmentId}"), token);
+        foreignParticipant.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await foreignParticipant.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>(token);
+        json!["participants"]!["totalCount"]!.GetValue<int>().ShouldBe(0);
+        json["participants"]!["items"]!.AsArray().ShouldBeEmpty();
+    }
+
     private async Task<Member> RegisterMemberAsync(HttpClient client)
     {
         var email = SeedingHelpers.UniqueEmail("effective-member");

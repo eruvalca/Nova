@@ -9,14 +9,14 @@
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
 
 <!--
-THESIS: The campaign is a live field directory, not a tabbed card stack with ornamental sport styling.
-OWN-WORLD: Matte kelp enamel, pale roster paper, ink rules, punched stops, and gold only for unresolved attention.
-STORY: Staff confirm campaign state, choose a real work phase, scan players, and act without losing context.
-FIRST VIEWPORT: Campaign identity and status lead; the four-stop route sits immediately above the active roster field.
-FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
+THESIS: A searchable participant field and adjacent context keep club staff oriented while working.
+OWN-WORLD: Fieldhouse semantic teal, sea-glass navigation, white boards, system typography and hairlines.
+STORY: Confirm campaign authority, find a participant, distinguish local outcomes from effective placement, capture observations, continue.
+FIRST VIEWPORT: Compact identity and complete route precede readiness; a broad roster sits beside narrower participant context.
+FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
 -->
-<div class="campaign-field py-4">
-    <a class="campaign-back-link" href="/campaigns"><span aria-hidden="true">←</span> Back to campaigns</a>
+<div class="campaign-field">
+    <a class="campaign-back-link" href="/campaigns"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13 8H3m4-4L3 8l4 4" /></svg> Back to campaigns</a>
 
     @if (_isLoading)
     {
@@ -46,32 +46,66 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
     }
     else if (_detail is not null)
     {
-        <section class="campaign-sign mb-3">
+        <div class="workspace-orientation"><section class="campaign-sign">
             <div class="campaign-sign-body">
-                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-                    <div>
-                        <div class="campaign-season">@_detail.SeasonName</div>
-                        <h1>@_detail.Name</h1>
-                        <dl class="campaign-facts">
-                            <div>
-                                <dt>Dates</dt>
-                                <dd>@FormatCampaignDates(_detail)</dd>
-                            </div>
-                            <div>
-                                <dt>Participants</dt>
-                                <dd>@_detail.ParticipantCount</dd>
-                            </div>
-                        </dl>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
-                        <CampaignMenu IsClubAdmin="@_isClubAdmin" IsClosed="@(_detail.Status == CampaignStatus.Closed)"
-                                      OnEditMetadata="BeginEditMetadataAsync" OnCloseCampaign="SelectCloseTabAsync"
-                                      OnReopen="SelectCloseTabAsync" />
-                    </div>
+                <h1>@_detail.Name</h1>
+                <div class="campaign-season">@_detail.SeasonName <span aria-hidden="true">·</span>
+                    <span class="campaign-lifecycle">@_detail.Status</span>
+                </div>
+                <div class="campaign-facts-row">
+                    <dl class="campaign-facts">
+                        <div><dt class="visually-hidden">Dates</dt><dd>@FormatCampaignDates(_detail)</dd></div>
+                        <div><dt class="visually-hidden">Participants</dt><dd>@(_campaignParticipantCount ?? _detail.ParticipantCount) participants</dd></div>
+                    </dl>
+                    <CampaignMenu Compact="true" IsClubAdmin="@_isClubAdmin" IsClosed="@(_detail.Status == CampaignStatus.Closed)"
+                                  OnEditMetadata="BeginEditMetadataAsync" OnCloseCampaign="SelectCloseTabAsync"
+                                  OnReopen="SelectCloseTabAsync" />
                 </div>
             </div>
         </section>
+                <nav class="campaign-route" aria-label="Campaign workspace routes" @ref="_campaignRoute">
+                    <ul class="nav-tabs route-marker-list">
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == RosterTabName ? "active" : null)"
+                               href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true)"
+                               aria-current="@(_activeTab == RosterTabName ? "page" : null)">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Roster</span>
+                                <span class="route-marker-state">Participant field</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+                               aria-current="@(_activeTab == EvaluateTabName ? "page" : null)">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Evaluate</span>
+                                <span class="route-marker-state">Observations</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState, _filters, _selectedParticipantId)"
+                               aria-current="@(_activeTab == PlaceTabName ? "page" : null)">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Place</span>
+                                <span class="route-marker-state">Assignments</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
+                               href="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+                               aria-current="@(_activeTab == CloseTabName ? "page" : null)">
+                                <span class="route-marker-stop" aria-hidden="true"></span>
+                                <span class="route-marker-label">Close</span>
+                                <span class="route-marker-state">Readiness</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav></div>
+        <CampaignWorkspaceReadiness CampaignId="CampaignId" Status="_detail.Status" Owner="@($"{_authorityScope}:{_detailSequence}")"
+            CloseDestination="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)"
+            OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
 
         @if (!string.IsNullOrWhiteSpace(_statusMessage))
         {
@@ -105,68 +139,16 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     </div>
                 }
 
-                <nav class="campaign-route" aria-label="Campaign workspace routes" @ref="_campaignRoute">
-                    <ul class="nav-tabs route-marker-list">
-                        <li>
-                            <a class="nav-link route-marker @(_activeTab == RosterTabName ? "active" : null)"
-                               href="@BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true)"
-                               aria-current="@(_activeTab == RosterTabName ? "page" : null)">
-                                <span class="route-marker-stop" aria-hidden="true"></span>
-                                <span class="route-marker-label">Roster</span>
-                                <span class="route-marker-state">Participant field</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="nav-link route-marker @(_activeTab == EvaluateTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId)"
-                               aria-current="@(_activeTab == EvaluateTabName ? "page" : null)">
-                                <span class="route-marker-stop" aria-hidden="true"></span>
-                                <span class="route-marker-label">Evaluate</span>
-                                <span class="route-marker-state">Observations</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="nav-link route-marker @(_activeTab == PlaceTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState)"
-                               aria-current="@(_activeTab == PlaceTabName ? "page" : null)">
-                                <span class="route-marker-stop" aria-hidden="true"></span>
-                                <span class="route-marker-label">Place</span>
-                                <span class="route-marker-state">Assignments</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="nav-link route-marker @(_activeTab == CloseTabName ? "active" : null)"
-                               href="@CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId)"
-                               aria-current="@(_activeTab == CloseTabName ? "page" : null)">
-                                <span class="route-marker-stop" aria-hidden="true"></span>
-                                <span class="route-marker-label">Close</span>
-                                <span class="route-marker-state">Readiness</span>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
+
 
                 @if (_activeTab == RosterTabName)
                 {
-                    <section class="workspace-board" aria-labelledby="roster-region-heading">
-                        <div class="workspace-board-heading">
-                            <div>
-                                <h2 id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">Roster</h2>
-                                    @if (IsRosterLanding)
-                                    {
-                                        <p><a href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId)">Continue to evaluation</a></p>
-                                        @if (_openingReceiptMessage is not null)
-                                        {
-                                            <p role="status">@_openingReceiptMessage</p>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <p>Filter the player field, then open a participant to record observations.</p>
-                                    }
-                                </div>
-                            </div>
-                            <div class="workspace-board-body">
+                    <div class="roster-context-layout"><section class="workspace-board" aria-labelledby="roster-region-heading">
+                        <h2 class="visually-hidden" id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">Roster</h2>
+                        @if (_openingReceiptMessage is not null)
+                        {
+                            <p class="opening-receipt" role="status">@_openingReceiptMessage <a href="@CampaignWorkspaceUrlState.BuildEvaluateWorkspaceUrl(CampaignId, _filters, _selectedParticipantId)">Continue to evaluation</a></p>
+                        }                            <div class="workspace-board-body">
 
                                 @if (_choicesLoadFailed)
                                 {
@@ -177,14 +159,14 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                     </div>
                                 }
 
-                                <CampaignRosterFilters SearchText="@_searchDraft" GraduationYearChoices="@_availableGraduationYears"
+                                <CampaignRosterFilters ShowEligibility="@(_detail.Status == CampaignStatus.Active)" Eligibility="@_filters.Eligibility" EligibilityCounts="_eligibilityCounts" OnEligibilityChanged="OnEligibilityChangedAsync" TeamSearch="@_teamSearch" TeamChoicesTruncated="_teamChoicesTruncated" OnTeamSearchChanged="OnTeamSearchChangedAsync" SearchText="@_searchDraft" GraduationYearChoices="@_availableGraduationYears"
                                                        SelectedGraduationYears="@_filters.GraduationYears" TagChoices="@_availableTags"
                                                        SelectedTagDefinitionIds="@_filters.TagDefinitionIds" Outcome="@_filters.Outcome"
                                                        TeamChoices="@_availableTeams" TeamId="@_filters.TeamId"
-                                                       TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)" HasActiveFilters="@HasActiveFilters"
+
                                                        OnSearchTextChanged="OnSearchInputChangedAsync" OnGraduationYearToggled="OnGraduationYearToggledAsync"
                                                        OnTagToggled="OnTagToggledAsync" OnOutcomeChanged="OnOutcomeChangedAsync"
-                                                       OnTeamChanged="OnTeamChangedAsync" OnClearFilters="OnClearFiltersAsync" />
+                                                       OnTeamChanged="OnTeamChangedAsync" />
 
                                 @if (_rosterLoading)
                                 {
@@ -201,7 +183,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryRosterAsync">Retry</button>
                                     </div>
                                 }
-                                else if (_roster is not null)
+                                @if (_roster is not null && !_rosterLoading)
                                 {
                                     @if (_roster.TotalCount == 0)
                                     {
@@ -209,7 +191,7 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                             @if (HasActiveFilters)
                                             {
                                                 <p class="text-muted mb-3">No participants match the current filters.</p>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear
+                                                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="OnClearFiltersAsync">Clear
                                                     filters</button>
                                                 }
                             else
@@ -221,18 +203,33 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                     else
                                         {
                                             <div class="roster-scroll-region" @ref="_rosterScrollRegion" tabindex="-1">
-                                                <CampaignRosterTable Items="@_roster.Items" SortBy="@_filters.SortBy"
+                                                <CampaignRosterTable WorkingRows="@(_detail.Status == CampaignStatus.Active ? _workingRows : null)" Items="@_roster.Items" SortBy="@_filters.SortBy"
                                                                      SortDirection="@_filters.SortDirection" SelectedParticipantId="@_selectedParticipantId"
                                                                      OnParticipantSelected="OnParticipantSelectedAsync" OnSortChanged="OnSortChangedAsync" />
-                                                <CampaignRosterCards Items="@_roster.Items" SelectedParticipantId="@_selectedParticipantId"
+                                                <CampaignRosterCards WorkingRows="@(_detail.Status == CampaignStatus.Active ? _workingRows : null)" Items="@_roster.Items" SelectedParticipantId="@_selectedParticipantId"
                                                                      OnParticipantSelected="OnParticipantSelectedAsync" />
                                             </div>
-                                            <CampaignRosterPager Page="@_roster.Page" PageSize="@_roster.PageSize" TotalCount="@_roster.TotalCount"
-                                                                 OnPageChanged="OnPageChangedAsync" />
+
                                         }
                                     }
+                                    <CampaignRosterFooter TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)" IsLoading="_rosterLoading"
+                                        HasActiveFilters="HasActiveFilters" SortBy="@_filters.SortBy" SortDirection="@_filters.SortDirection"
+                                        Page="_filters.Page" PageSize="RosterPageSize" OnPageChanged="OnPageChangedAsync"
+                                        OnOrderChanged="OnOrderChangedAsync" OnClearFilters="OnClearFiltersAsync" />
                                 </div>
                             </section>
+                        @if (_selectedParticipantId is not null)
+                        {
+                            <CampaignParticipantDrawer CampaignId="@CampaignId" ParticipantId="_selectedParticipantId.Value"
+                                                       WorkingRow="@_workingRows.FirstOrDefault(row => row.PlayerCampaignAssignmentId == _selectedParticipantId)" RosterItem="@SelectedRosterItem" AuthorizedStatus="_detail.Status" AuthorityScope="@_authorityScope" OnDataChanged="OnParticipantDataChangedAsync" OnLifecycleChanged="OnCampaignReloadRequestedAsync" Position="@SelectedParticipantPosition" TotalCount="@ParticipantSequenceCount"
+                                                       HasPrevious="@HasPreviousParticipant" HasNext="@HasNextParticipant" OnPrevious="OnPreviousParticipantAsync"
+                                                       OnNext="OnNextParticipantAsync" OnClose="OnCloseParticipantAsync" />
+                        }
+                        else
+                        {
+                            <aside class="participant-context-placeholder"><h2>Participant context</h2><p>Select a participant to review placement evidence, notes, and tags.</p></aside>
+                        }
+                        </div>
                         }
         else if (_activeTab == PlaceTabName)
                         {
@@ -252,12 +249,6 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
                                                    OnReloadRequested="OnCampaignReloadRequestedAsync" />
                         }
 
-                        @if (_selectedParticipantId is not null)
-                        {
-                            <CampaignParticipantDrawer CampaignId="@CampaignId" ParticipantId="_selectedParticipantId.Value"
-                                                       RosterItem="@SelectedRosterItem" Position="@SelectedParticipantPosition" TotalCount="@ParticipantSequenceCount"
-                                                       HasPrevious="@HasPreviousParticipant" HasNext="@HasNextParticipant" OnPrevious="OnPreviousParticipantAsync"
-                                                       OnNext="OnNextParticipantAsync" OnClose="OnCloseParticipantAsync" />
-                        }
+
                     }
                 </div>

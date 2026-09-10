@@ -12,6 +12,8 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignMenu : NovaComponentBase
 {
+    /// <summary>Uses an accessible icon disclosure in the compact workspace identity.</summary>
+    [Parameter] public bool Compact { get; set; }
     /// <summary>
     /// Gets or sets whether the current user holds the club administrator role.
     /// </summary>
