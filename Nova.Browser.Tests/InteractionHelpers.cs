@@ -47,7 +47,23 @@ internal static class InteractionHelpers
             await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
         }
 
-        throw new TimeoutException("Interaction did not settle within the retry window.");
+        var evidence = $"URL: {page.Url}";
+        try
+        {
+            evidence = await page.EvaluateAsync<string>("""
+                JSON.stringify({
+                    url: location.href,
+                    readyState: document.readyState,
+                    alerts: [...document.querySelectorAll('[role="alert"], .invalid-feedback, .validation-message')].map(element => element.textContent),
+                    text: document.querySelector('main')?.innerText.slice(0, 4000)
+                })
+                """);
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            // Preserve the original interaction failure when the page is no longer inspectable.
+        }
+        throw new TimeoutException($"Interaction did not settle within the retry window. {evidence}");
     }
 
     /// <summary>

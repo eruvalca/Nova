@@ -338,9 +338,9 @@ public partial class CampaignParticipantDrawer(
     private Dictionary<string, string[]> _editNoteErrors = [];
 
     /// <summary>
-    /// The note identifier whose delete confirmation is open, or <see langword="null"/>.
+    /// The note identifier and reviewed version for the open delete confirmation, or <see langword="null"/>.
     /// </summary>
-    private long? _deletingNoteId;
+    private (long NoteId, Guid Version)? _deletingNote;
 
     /// <summary>
     /// Indicates whether the open delete confirmation checkbox is checked.
@@ -430,6 +430,7 @@ public partial class CampaignParticipantDrawer(
                 ++_mutationSequence;
                 _isMutating = false;
                 _mutatingKind = null;
+                CancelDeleteNote();
             }
             await LoadDetailAsync();
         }
@@ -951,7 +952,7 @@ public partial class CampaignParticipantDrawer(
         _editingNoteId = null;
         _editNoteContent = string.Empty;
         _editNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _selectedTagId = null;
         _removingTagApplicationId = null;
@@ -970,7 +971,7 @@ public partial class CampaignParticipantDrawer(
         _editingNoteId = null;
         _editNoteContent = string.Empty;
         _editNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _statusMessage = null;
     }
@@ -1039,7 +1040,7 @@ public partial class CampaignParticipantDrawer(
         _showAddNoteForm = false;
         _addNoteContent = string.Empty;
         _addNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _statusMessage = null;
     }
@@ -1102,7 +1103,8 @@ public partial class CampaignParticipantDrawer(
     /// <param name="note">The note to delete.</param>
     private void BeginDeleteNote(CampaignParticipantNoteDto note)
     {
-        _deletingNoteId = note.NoteId;
+        if (DrawerMutationBlocked || IsReadOnly || !note.CanDelete) { return; }
+        _deletingNote = (note.NoteId, note.Version);
         _deleteNoteConfirmed = false;
         _showAddNoteForm = false;
         _editingNoteId = null;
@@ -1114,18 +1116,17 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     private void CancelDeleteNote()
     {
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
     }
 
     /// <summary>
     /// Deletes the confirmed note and refreshes the detail on success.
     /// </summary>
-    /// <param name="note">The note to delete.</param>
     /// <returns>A task that completes when the mutation settles.</returns>
-    private async Task ConfirmDeleteNoteAsync(CampaignParticipantNoteDto note)
+    private async Task ConfirmDeleteNoteAsync()
     {
-        if (_isMutating)
+        if (_isMutating || !_deleteNoteConfirmed || _deletingNote is not { } reviewed)
         {
             return;
         }
@@ -1134,14 +1135,14 @@ public partial class CampaignParticipantDrawer(
             MutationKind.DeleteNote,
             async lease =>
             {
-                var input = new DeleteEvaluationNoteInput { NoteId = note.NoteId, ExpectedVersion = note.Version, OperationId = Guid.CreateVersion7() };
+                var input = new DeleteEvaluationNoteInput { NoteId = reviewed.NoteId, ExpectedVersion = reviewed.Version, OperationId = Guid.CreateVersion7() };
                 var result = await CallStoredAsync(input, token => noteService.DeleteAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note deleted.",
                     () =>
                     {
-                        _deletingNoteId = null;
+                        _deletingNote = null;
                         _deleteNoteConfirmed = false;
                     });
             });

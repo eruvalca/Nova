@@ -66,6 +66,12 @@ Use these patterns when the scenario crosses prerender, interactive attachment, 
    or testing preservation of user focus. For navigation-focus regressions, exercise the real
    destination through attachment, including delayed content and navigation between routes that
    reuse a shell; immediate SSR focus alone is insufficient. See `ClubOverviewBrowserTests`.
+7. **HTTP interception needs a verified interactive document.** Pass a caller-specific UI action
+   to `WasmWarmupHelper.ReloadAsWebAssemblyAsync` when a scenario depends on browser HTTP calls.
+   The helper observes server negotiation through that action; no negotiation during a fixed delay
+   alone is not attachment proof. Keep the verified document, and observe the intercepted request
+   before asserting an injected error. Photo islands may have no startup API read, so a generic
+   “any API request” probe is not a substitute for their actual upload/crop interaction.
 
 ## Parallelization
 

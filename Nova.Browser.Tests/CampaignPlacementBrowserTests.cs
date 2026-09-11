@@ -354,8 +354,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
         await OpenPlacementsAsync(page, seed.CampaignId);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenPlacementsAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertPlacementWorkspaceAttachedAsync(page));
 
         // Hold the placements-list fetch open while the loading state is asserted, then release it.
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -394,8 +393,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
         await OpenPlacementsAsync(page, seed.CampaignId);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenPlacementsAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertPlacementWorkspaceAttachedAsync(page));
 
         var firstRow = page.Locator("tbody tr[id^='placement-row-']").First;
         await Expect(firstRow).ToBeVisibleAsync();
@@ -404,20 +402,41 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
         await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        await page.RouteAsync(IsPlacementSaveUrl, route => route.FulfillAsync(new() { Status = 500 }));
+        var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(IsPlacementSaveUrl, async route =>
+        {
+            await route.FulfillAsync(new() { Status = 500 });
+            intercepted.TrySetResult();
+        });
 
         var save = firstRow.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
-        await Expect(save).ToBeVisibleAsync();
-        await save.ClickAsync();
-
-        await Expect(firstRow.Locator("div.text-danger[role=alert]")).ToContainTextAsync("Failed to save the placement");
-        await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
-
-        await page.UnrouteAsync(IsPlacementSaveUrl);
+        try
+        {
+            await Expect(save).ToBeVisibleAsync();
+            await save.ClickAsync();
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(firstRow.Locator("div.text-danger[role=alert]")).ToContainTextAsync("Failed to save the placement");
+            await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+        }
+        finally
+        {
+            await page.UnrouteAsync(IsPlacementSaveUrl);
+        }
         await save.ClickAsync();
 
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
         await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("1 assigned");
+    }
+
+    private static async Task AssertPlacementWorkspaceAttachedAsync(IPage page)
+    {
+        var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Campaign menu", Exact = true });
+        var menu = page.GetByRole(AriaRole.Menu);
+        await InteractionHelpers.ClickUntilAsync(page, toggle, () => menu.IsVisibleAsync());
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "true");
+        await toggle.ClickAsync();
+        await Expect(menu).ToBeHiddenAsync();
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
     }
 
     /// <summary>Matches the placements-list fetch, excluding the placements summary fetch.</summary>

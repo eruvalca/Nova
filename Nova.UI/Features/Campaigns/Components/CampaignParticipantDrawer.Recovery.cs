@@ -123,6 +123,7 @@ public partial class CampaignParticipantDrawer
             if (OwnsMutation(lease))
             {
                 _storedOperation = null;
+                if (input is DeleteEvaluationNoteInput) { CancelDeleteNote(); }
             }
         }
         return result;

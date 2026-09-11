@@ -625,7 +625,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
         await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertCampaignMenuAttachedAsync(page));
         await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
 
         // Hold the closeout-readiness fetch open while the loading state is asserted, then release it.
@@ -666,24 +666,45 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
         await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertCampaignMenuAttachedAsync(page));
         await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
 
-        await page.RouteAsync(IsCloseoutReadinessUrl, route => route.FulfillAsync(new() { Status = 500 }));
-
-        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
-        await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
+        var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(IsCloseoutReadinessUrl, async route =>
+        {
+            await route.FulfillAsync(new() { Status = 500 });
+            intercepted.TrySetResult();
+        });
 
         var errorAlert = page.Locator("div.alert-danger[role=alert]");
-        await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
         var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
-        await Expect(retry).ToBeVisibleAsync();
-
-        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+        try
+        {
+            await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+            await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
+            await Expect(retry).ToBeVisibleAsync();
+        }
+        finally
+        {
+            await page.UnrouteAsync(IsCloseoutReadinessUrl);
+        }
         await retry.ClickAsync();
 
         await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
         await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    private static async Task AssertCampaignMenuAttachedAsync(IPage page)
+    {
+        var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Campaign menu", Exact = true });
+        var menu = page.GetByRole(AriaRole.Menu);
+        await InteractionHelpers.ClickUntilAsync(page, toggle, () => menu.IsVisibleAsync());
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "true");
+        await toggle.ClickAsync();
+        await Expect(menu).ToBeHiddenAsync();
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
     }
 
     /// <summary>Matches the closeout-readiness fetch.</summary>

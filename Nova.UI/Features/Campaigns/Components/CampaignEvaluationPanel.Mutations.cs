@@ -25,6 +25,7 @@ public partial class CampaignEvaluationPanel
         _draft = _editContent = _editOriginal = string.Empty;
         _editingNoteId = null;
         _editVersion = Guid.Empty;
+        CancelDeleteNote();
         _pending = null;
         _dispatching = false;
         _storageReady = false;
@@ -125,11 +126,29 @@ public partial class CampaignEvaluationPanel
 
         if (_editingNoteId is not null && HasDraft) { _captureError = "Finish or cancel the current edit before editing another note."; return; }
         _editingNoteId = note.NoteId;
+        CancelDeleteNote();
         _editVersion = note.Version;
         _editContent = _editOriginal = note.Content;
         _historyExpanded = true;
         await PersistCaptureAsync();
     }
+
+    /// <summary>Retains the note revision reviewed when deletion is requested.</summary>
+    /// <param name="note">The displayed note whose deletion is being confirmed.</param>
+    private void BeginDeleteNote(CampaignParticipantNoteDto note)
+    {
+        if (!Writable || !_storageReady || !note.CanDelete || _pending is not null) { return; }
+        _deleteNote = (note.NoteId, note.Version);
+    }
+
+    /// <summary>Clears deletion confirmation without changing a submitted recovery operation.</summary>
+    private void CancelDeleteNote() => _deleteNote = null;
+
+    /// <summary>Submits the reviewed revision even if history has refreshed since confirmation opened.</summary>
+    /// <returns>The submission task, or a completed task when no confirmation is open.</returns>
+    private Task ConfirmDeleteNoteAsync() => _deleteNote is { } reviewed
+        ? SubmitAsync("delete", reviewed.NoteId, reviewed.Version)
+        : Task.CompletedTask;
 
     private async Task CancelEditAsync()
     {
@@ -250,6 +269,7 @@ public partial class CampaignEvaluationPanel
             return;
         }
         _pending = null;
+        if (pending.Kind is "delete") { CancelDeleteNote(); }
         var stored = await PersistCaptureAsync();
         if (!Owns(owner))
         {
@@ -278,7 +298,8 @@ public partial class CampaignEvaluationPanel
             _editingNoteId = null;
             _editContent = _editOriginal = string.Empty;
         }
-        _deleteNoteId = _removeApplicationId = null;
+        CancelDeleteNote();
+        _removeApplicationId = null;
         _statusMessage = message;
         var cleared = await PersistCaptureAsync();
         if (!Owns(owner))

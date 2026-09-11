@@ -296,9 +296,28 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, $"{rosterPath}?participant={lastAssignmentId}").ToString());
         await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
 
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("#participant-drawer-next"),
-            async () => string.Equals(await page.Locator("#participant-drawer-position").TextContentAsync(), "51 of 60", StringComparison.Ordinal));
-        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("51 of 60");
+        var initialWorkspaceOwner = await page.Locator("[data-workspace-owner]").GetAttributeAsync("data-workspace-owner");
+        try
+        {
+            await InteractionHelpers.ClickUntilAsync(page, page.Locator("#participant-drawer-next"),
+                async () => string.Equals(await page.Locator("#participant-drawer-position").TextContentAsync(), "51 of 60", StringComparison.Ordinal));
+            await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("51 of 60");
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            var evidence = await page.EvaluateAsync<string>("""
+                JSON.stringify({
+                    url: location.href,
+                    owner: document.querySelector('[data-workspace-owner]')?.getAttribute('data-workspace-owner'),
+                    position: document.querySelector('#participant-drawer-position')?.textContent,
+                    heading: document.querySelector('#participant-drawer-heading')?.textContent,
+                    rows: [...document.querySelectorAll('tr[id^="roster-row-"]')].map(row => row.id),
+                    alerts: [...document.querySelectorAll('[role="alert"]')].map(alert => alert.textContent),
+                    workspace: document.querySelector('.campaign-field')?.innerText
+                })
+                """);
+            throw new InvalidOperationException($"Drawer boundary move failed (initial owner {initialWorkspaceOwner}): {evidence}", exception);
+        }
         new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
         await page.WaitForURLAsync(
             url => url.Contains("page=2", StringComparison.Ordinal),
@@ -623,12 +642,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenWorkspaceAsync(page, seed.CampaignId);
 
         // Switch the page to WebAssembly so the roster list load becomes a browser /api/... fetch.
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenWorkspaceAsync(page, seed.CampaignId);
-
-        // Prove hydration before driving the filter, so the search below is never swallowed.
-        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await CloseDrawerAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertRosterAttachedAsync(page));
 
         // Hold the roster list fetch open while the loading state is asserted, then release it.
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -673,22 +687,28 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
         var page = context.Pages[0];
         await OpenWorkspaceAsync(page, seed.CampaignId);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenWorkspaceAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertRosterAttachedAsync(page));
 
-        // Prove hydration before driving the filter.
-        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await CloseDrawerAsync(page);
+        var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(IsRosterListUrl, async route =>
+        {
+            await route.FulfillAsync(new() { Status = 500 });
+            intercepted.TrySetResult();
+        });
 
-        await page.RouteAsync(IsRosterListUrl, route => route.FulfillAsync(new() { Status = 500 }));
-
-        await page.Locator("#roster-search").FillAsync("Player 47");
         var errorAlert = page.Locator("div.alert-danger[role=alert]");
-        await Expect(errorAlert).ToContainTextAsync("Failed to load the roster");
         var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
-        await Expect(retry).ToBeVisibleAsync();
-
-        await page.UnrouteAsync(IsRosterListUrl);
+        try
+        {
+            await page.Locator("#roster-search").FillAsync("Player 47");
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(errorAlert).ToContainTextAsync("Failed to load the roster");
+            await Expect(retry).ToBeVisibleAsync();
+        }
+        finally
+        {
+            await page.UnrouteAsync(IsRosterListUrl);
+        }
         await retry.ClickAsync();
 
         await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
@@ -704,22 +724,39 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
         var page = context.Pages[0];
         await OpenWorkspaceAsync(page, seed.CampaignId);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenWorkspaceAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertRosterAttachedAsync(page));
 
         // Intercept only the drawer's participant-detail fetch.
-        await page.RouteAsync(IsParticipantDetailUrl, route => route.FulfillAsync(new() { Status = 500 }));
+        var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(IsParticipantDetailUrl, async route =>
+        {
+            await route.FulfillAsync(new() { Status = 500 });
+            intercepted.TrySetResult();
+        });
 
-        await OpenDrawerAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("Failed to load participant details");
         var retry = page.Locator("#participant-drawer-retry");
-        await Expect(retry).ToBeVisibleAsync();
-
-        await page.UnrouteAsync(IsParticipantDetailUrl);
+        try
+        {
+            await OpenDrawerAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("Failed to load participant details");
+            await Expect(retry).ToBeVisibleAsync();
+        }
+        finally
+        {
+            await page.UnrouteAsync(IsParticipantDetailUrl);
+        }
         await retry.ClickAsync();
 
         await Expect(page.Locator(".participant-drawer-section-title").First).ToBeVisibleAsync();
         await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    private static async Task AssertRosterAttachedAsync(IPage page)
+    {
+        await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("60 participants");
+        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await CloseDrawerAsync(page);
     }
 
     /// <summary>Matches the campaign roster list fetch, excluding detail and graduation-years fetches.</summary>

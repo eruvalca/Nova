@@ -2,6 +2,10 @@
 
 ## Scope and current round
 
+- Round two was pushed once as `d0914cffe277e39932d138ccc25b18e0842b4570`; all twelve prior posted threads are explained/resolved and both CI checks passed. Fresh review `PRR_kwDOSz2VcM8AAAABNEqFNQ` found two note-confirmation version races. [Round three](review-round-3.md) addresses both plus the sibling lifecycle reset and browser attachment preconditions. Build/format and all applicable local suites passed; the final patch fingerprint and retained failed attempts are in that record. This record accompanies the single combined round-three commit. Thread explanations/resolution and fresh CI/automatic review follow its push. No review was requested.
+
+## Round-two history
+
 - Round one was pushed once as `af99924213e2cbf455bbfca12cef5551f5bc36db`; all six threads were explained and resolved after the push, and the three withheld findings were covered in the PR summary comment. Both CI checks passed.
 - Fresh review `PRR_kwDOSz2VcM8AAAABNEZlCg` recommends changes. [Round two](review-round-2.md) collects all six new threads and eight matching raw stored entries. Production corrections passed all three local suites; the single combined round-two commit will carry final validation evidence. Its fresh remote CI and automatic review remain the next gate. No review was requested manually.
 

@@ -95,7 +95,7 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
         var page = context.Pages[0];
         await OpenEvaluationAsync(page, seed.CampaignId, seed.AssignmentIds[1], search: "Player");
         await Expect(page.Locator(".evaluation-save")).ToBeEnabledAsync();
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertComposerAttachedAsync(page));
         await Expect(page.Locator(".evaluation-save")).ToBeEnabledAsync();
         var mutationUrl = new Uri(fixture.BaseUri, CampaignEndpoints.AddEvaluationNote).ToString();
         string? originalPayload = null;
@@ -481,6 +481,16 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
             record('installed', {});
         }
         """);
+
+    private static async Task AssertComposerAttachedAsync(IPage page)
+    {
+        await Expect(page.Locator(".evaluation-save")).ToBeEnabledAsync();
+        var note = page.Locator("#evaluation-note");
+        await note.FillAsync("Attach probe");
+        await Expect(page.Locator("#evaluation-note-help")).ToContainTextAsync("12 / 4000");
+        await note.FillAsync(string.Empty);
+        await Expect(page.Locator("#evaluation-note-help")).ToContainTextAsync("0 / 4000");
+    }
 
     private async Task OpenEvaluationAsync(IPage page, long campaignId, long? participantId = null, string? search = null)
     {

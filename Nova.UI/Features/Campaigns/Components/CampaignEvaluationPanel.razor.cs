@@ -117,6 +117,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         {
             ResetParticipantOwner();
         }
+        if (lifecycleChanged) { CancelDeleteNote(); }
 
         var restoredEvidence = (ownerChanged || lifecycleChanged) && RestoreEvidence();
         _loadedStatus = Status;

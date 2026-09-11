@@ -153,8 +153,8 @@
                     @if (_notes.Count == 0 && !_notesLoading && _notesError is null) { <p>No shared notes yet.</p> }
                     @foreach (var note in _notes.Take(2))
                     {
-                        <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNoteId == note.NoteId)"
-                            OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => _deleteNoteId = note.NoteId" OnCancelDelete="() => _deleteNoteId = null" OnConfirmDelete='() => SubmitAsync("delete", note.NoteId, note.Version)' OnReviewVersion="() => ReviewVersionAsync(note)" />
+                        <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNote?.NoteId == note.NoteId)"
+                            OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => BeginDeleteNote(note)" OnCancelDelete="CancelDeleteNote" OnConfirmDelete="ConfirmDeleteNoteAsync" OnReviewVersion="() => ReviewVersionAsync(note)" />
                     }
                 </section>
                 @if (_editingNoteId is { } editedId && _notes.All(note => note.NoteId != editedId))
@@ -185,8 +185,8 @@
                     <section aria-label="Older shared notes" class="evaluation-older-notes">
                         @foreach (var note in _notes.Skip(2))
                         {
-                            <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNoteId == note.NoteId)"
-                                OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => _deleteNoteId = note.NoteId" OnCancelDelete="() => _deleteNoteId = null" OnConfirmDelete='() => SubmitAsync("delete", note.NoteId, note.Version)' OnReviewVersion="() => ReviewVersionAsync(note)" />
+                            <EvaluationNoteItem @key="note.NoteId" Note="note" Writable="Writable" Pending="@(_pending is not null || !_storageReady)" Editing="@(_editingNoteId == note.NoteId)" Draft="@_editContent" ExpectedVersion="_editVersion" ConfirmingDelete="@(_deleteNote?.NoteId == note.NoteId)"
+                                OnEdit="() => BeginEditAsync(note)" OnDraftChanged="EditChangedAsync" OnSave='() => SubmitAsync("edit", note.NoteId)' OnCancel="CancelEditAsync" OnDelete="() => BeginDeleteNote(note)" OnCancelDelete="CancelDeleteNote" OnConfirmDelete="ConfirmDeleteNoteAsync" OnReviewVersion="() => ReviewVersionAsync(note)" />
                         }
                         @if (_notesNext is not null) { <button class="btn btn-outline-primary" disabled="@_notesLoading" @onclick="() => LoadNotesAsync(true)">Load older notes</button> }
                     </section>

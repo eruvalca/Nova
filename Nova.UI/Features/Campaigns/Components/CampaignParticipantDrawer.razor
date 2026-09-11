@@ -190,14 +190,14 @@
                                     <p class="note-content mb-1">@note.Content</p>
                                     @if (!IsReadOnly && (note.CanEdit || note.CanDelete))
                                     {
-                                        <div class="note-actions @(_deletingNoteId == note.NoteId ? "note-actions-confirm" : null)">
+                                        <div class="note-actions @(_deletingNote?.NoteId == note.NoteId ? "note-actions-confirm" : null)">
                                             @if (note.CanEdit)
                                             {
                                                 <button type="button" class="btn btn-sm btn-link p-0" disabled="@DrawerMutationBlocked" @onclick="() => BeginEditNote(note)">Edit</button>
                                             }
                                             @if (note.CanDelete)
                                             {
-                                                @if (_deletingNoteId == note.NoteId)
+                                                @if (_deletingNote?.NoteId == note.NoteId)
                                                 {
                                                     <span class="d-flex flex-wrap gap-2 align-items-center">
                                                         <span class="form-check">
@@ -208,7 +208,7 @@
                                                                    @bind="_deleteNoteConfirmed" />
                                                             <label class="form-check-label" for="participant-drawer-note-delete-confirm-@note.NoteId">Confirm delete</label>
                                                         </span>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_deleteNoteConfirmed || DrawerMutationBlocked)" @onclick="() => ConfirmDeleteNoteAsync(note)">
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_deleteNoteConfirmed || DrawerMutationBlocked)" @onclick="ConfirmDeleteNoteAsync">
                                                             @if (IsPending(MutationKind.DeleteNote))
                                                             {
                                                                 <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>

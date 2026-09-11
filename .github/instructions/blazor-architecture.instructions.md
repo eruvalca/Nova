@@ -121,6 +121,10 @@ Nova.UI/
 - **Preserve mutation feedback across refreshes**: keep success, conflict and recovery feedback
   visible while affected data reloads; retaining a field is insufficient if a loading branch hides
   its markup. Clear feedback at an intentional user-action or ownership boundary.
+- **Bind versioned confirmations to reviewed state**: capture the subject ID and expected version
+  when a destructive confirmation opens. A refresh must not replace that version at submission.
+  Clear the confirmation on cancellation, owner/lifecycle changes and definitive settlement;
+  an already-dispatched recovery operation retains its original payload independently.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 

@@ -21,7 +21,7 @@ public partial class CampaignEvaluationPanel
     private int _choicesSequence;
     private string _traitSearch = string.Empty;
     private bool _traitPicker;
-    private long? _deleteNoteId;
+    private (long NoteId, Guid Version)? _deleteNote;
     private long? _removeApplicationId;
 
     private GetEvaluationHistoryInput HistoryInput(EvaluationHistoryCursor? cursor) => new()

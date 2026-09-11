@@ -4,7 +4,7 @@
 
 Branch `codex/issue-198-evaluation` starts at `3e0253c28677838858b1887b2351a133eac7bc16` (merged #252). The surface implements the confirmed find → verify → capture → move-on workflow. Parent campaign-loop acceptance stays with #170; Place #199 and Close #200 redesigns remain separate.
 
-Production and test source is frozen at `381d501950d064d426ddce7c772fe449c485cfde`. Build, format, all three local suites, contrast, JS syntax and migration-model checks pass for this source. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately; later changes are guidance and validation/design records only. The final visual disposition is recorded in `finish-review.md`.
+Original implementation production and test source was validated at `381d501950d064d426ddce7c772fe449c485cfde`: build, format, all three local suites, contrast, JS syntax and migration-model checks passed. Subsequent review fixes and their tested revisions are recorded in the review-round records linked below; this original evidence does not replace those later checks. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately. The final visual disposition is recorded in `finish-review.md`.
 
 ## Locked direction
 
@@ -31,7 +31,7 @@ The user required preserving the existing design system. Shared campaign chrome 
 
 ## Validation
 
-The subsequent [PR review round 1](review-round-1.md) and [round 2](review-round-2.md) records supersede the application/test validation below for their source changes and link separate local reviews. The original design and measurement evidence remains applicable.
+The subsequent [PR review round 1](review-round-1.md), [round 2](review-round-2.md) and [round 3](review-round-3.md) records supersede the application/test validation below for their source changes and link separate local reviews. The original design and measurement evidence remains applicable.
 
 Build-capable commands are serialized. Aspire-backed suites are serialized across the machine; all test commands use `--no-build`. Raw command logs are ignored local artifacts under this directory.
 
