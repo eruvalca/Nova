@@ -17,6 +17,9 @@ public sealed class EvaluationCaptureStorageBrowserTests(BrowserSuiteFixture fix
     [InlineData("unknown-kind")]
     [InlineData("invalid-version")]
     [InlineData("invalid-subject")]
+    [InlineData("missing-trait-search")]
+    [InlineData("null-trait-search")]
+    [InlineData("invalid-trait-search")]
     public async Task InvalidRetainedCaptureStaysProtectedAndPreservesOriginalBytesAsync(string scenario)
     {
         await using var context = await fixture.NewAnonymousContextAsync();
@@ -53,7 +56,7 @@ public sealed class EvaluationCaptureStorageBrowserTests(BrowserSuiteFixture fix
             const pending = { kind: 'add', operationId: '01993eed-653c-7000-8000-000000000001', assignmentId: 2,
                 subjectId: null, version: '00000000-0000-0000-0000-000000000000', text: 'Retained observation' };
             const valid = { revision: 2, draft: 'Retained observation', editingNoteId: null, editContent: '',
-                editOriginal: '', editVersion: '00000000-0000-0000-0000-000000000000', pending };
+                editOriginal: '', editVersion: '00000000-0000-0000-0000-000000000000', traitSearch: '', pending };
             try {
                 module.attach(root, 'owner', 'lease', 'finder-1', scope, receiver);
                 if (scenario === 'reattach') {
@@ -76,6 +79,9 @@ public sealed class EvaluationCaptureStorageBrowserTests(BrowserSuiteFixture fix
                     case 'unknown-kind': invalid.pending.kind = 'unknown'; break;
                     case 'invalid-version': invalid.pending.version = null; break;
                     case 'invalid-subject': invalid.pending.subjectId = 0; break;
+                    case 'missing-trait-search': delete invalid.traitSearch; break;
+                    case 'null-trait-search': invalid.traitSearch = null; break;
+                    case 'invalid-trait-search': invalid.traitSearch = 1; break;
                 }
                 const original = scenario === 'empty' ? '' : JSON.stringify(invalid);
                 sessionStorage.setItem(key, original);

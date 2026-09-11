@@ -23,7 +23,7 @@ export function attachGuard(root, owner, lease, receiver) {
     guards.set(root, state);
     const owned = () => root.isConnected && guards.get(root) === state;
     const protectedWork = () => !state.released && (state.pending || root.dataset.evidenceProtected === 'true'
-        || Array.from(root.querySelectorAll('textarea[data-evidence-original]'))
+        || Array.from(root.querySelectorAll('textarea[data-evidence-original], input[data-evidence-original]'))
             .some(input => input.value !== input.dataset.evidenceOriginal));
     const options = { capture: true, signal: state.controller.signal };
     root.addEventListener('input', () => revokeReplay(state), options);

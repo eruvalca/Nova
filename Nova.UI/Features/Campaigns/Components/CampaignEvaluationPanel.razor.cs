@@ -72,10 +72,14 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private bool _historyExpanded;
     private string? _statusMessage;
     private bool Owns(string owner) => string.Equals(owner, Owner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
-    private bool Writable => Status == CampaignStatus.Active && !_identityLoading && _identityError is null
-        && _identity is { CampaignStatus: CampaignStatus.Active, Capabilities.CanAddNote: true };
+    private bool EvidenceWritable => Status == CampaignStatus.Active && !_identityLoading && _identityError is null
+        && _identity is { CampaignStatus: CampaignStatus.Active };
+    private bool CanAddNote => EvidenceWritable && _identity!.Capabilities.CanAddNote;
+    private bool CanApplyTag => EvidenceWritable && _identity!.Capabilities.CanApplyTag;
+    private bool CanPlacePlayer => EvidenceWritable && _identity!.Capabilities.CanEditPlacement;
     private int SelectedIndex => _results.FindIndex(row => row.Id == State.ParticipantId);
-    private bool HasDraft => _draft.Length > 0 || (_editingNoteId is not null && !string.Equals(_editContent, _editOriginal, StringComparison.Ordinal));
+    private bool HasDraft => _draft.Length > 0 || _traitSearch.Length > 0
+        || (_editingNoteId is not null && !string.Equals(_editContent, _editOriginal, StringComparison.Ordinal));
     private bool Protected => HasDraft || _pending is not null;
     private string LookupUrl(CampaignWorkspaceEvaluationState state) => CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId);
     private string PlayerUrl(long id) => LookupUrl(State with { ParticipantId = id });
@@ -166,12 +170,16 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     {
         _loadedParticipantOwner = Owner;
         _identity = null;
+        _identityError = null;
+        _identityLoading = _notesLoading = _applicationsLoading = _choicesLoading = false;
         _notes = [];
         _applications = [];
         _choices = [];
         _notesNext = null;
         _applicationsNext = null;
         _notesError = _applicationsError = _choicesError = null;
+        _removeApplicationId = null;
+        _traitPicker = false;
         ResetCapture();
         _attachedOwner = null;
         _focusSheet = State.ParticipantId is not null;
@@ -412,6 +420,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         try
         {
             _draft = string.Empty;
+            _traitSearch = string.Empty;
             _editingNoteId = null;
             _editContent = _editOriginal = string.Empty;
             if (!await PersistCaptureAsync() || !Owns(owner) || Protected

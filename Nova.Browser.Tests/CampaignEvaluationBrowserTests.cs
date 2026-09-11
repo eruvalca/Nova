@@ -295,27 +295,21 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         var rosterPath = $"/campaigns/{seed.CampaignId}" + (rosterLanding ? "/roster" : string.Empty);
         await page.GotoAsync(new Uri(fixture.BaseUri, $"{rosterPath}?participant={lastAssignmentId}").ToString());
         await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
+        await AssertDrawerAttachedAsync(page);
 
         var initialWorkspaceOwner = await page.Locator("[data-workspace-owner]").GetAttributeAsync("data-workspace-owner");
         try
         {
-            await InteractionHelpers.ClickUntilAsync(page, page.Locator("#participant-drawer-next"),
-                async () => string.Equals(await page.Locator("#participant-drawer-position").TextContentAsync(), "51 of 60", StringComparison.Ordinal));
+            await page.Locator("#participant-drawer-next").ClickAsync();
+            // Loading removes the position temporarily. Observe it without a locator wait, and
+            // never repeat this move after the attachment probe has proved event handling.
+            await InteractionHelpers.ActUntilAsync(page, () => Task.CompletedTask,
+                () => page.EvaluateAsync<bool>("document.querySelector('#participant-drawer-position')?.textContent === '51 of 60'"));
             await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("51 of 60");
         }
         catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
         {
-            var evidence = await page.EvaluateAsync<string>("""
-                JSON.stringify({
-                    url: location.href,
-                    owner: document.querySelector('[data-workspace-owner]')?.getAttribute('data-workspace-owner'),
-                    position: document.querySelector('#participant-drawer-position')?.textContent,
-                    heading: document.querySelector('#participant-drawer-heading')?.textContent,
-                    rows: [...document.querySelectorAll('tr[id^="roster-row-"]')].map(row => row.id),
-                    alerts: [...document.querySelectorAll('[role="alert"]')].map(alert => alert.textContent),
-                    workspace: document.querySelector('.campaign-field')?.innerText
-                })
-                """);
+            var evidence = await ReadDrawerBoundaryEvidenceAsync(page);
             throw new InvalidOperationException($"Drawer boundary move failed (initial owner {initialWorkspaceOwner}): {evidence}", exception);
         }
         new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
@@ -509,7 +503,15 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // Detail visibility can precede the asynchronous initial focus handoff.
         await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
         var addNoteButton = page.GetByRole(AriaRole.Button, new() { Name = "Add note" });
-        await addNoteButton.FocusAsync();
+        // Initial close focus precedes recovery readiness. Focusing a disabled Add note is a
+        // no-op, so resolve and focus the enabled control through the existing startup policy.
+        await InteractionHelpers.ActUntilAsync(page, async () =>
+        {
+            if (await addNoteButton.CountAsync() > 0 && await addNoteButton.IsEnabledAsync())
+            {
+                await addNoteButton.FocusAsync(new() { Timeout = 3000 });
+            }
+        }, () => page.EvaluateAsync<bool>("document.querySelector('button.add-note:not([disabled])') === document.activeElement"));
         await Expect(addNoteButton).ToBeFocusedAsync();
         await page.Keyboard.PressAsync("Enter");
         var noteContent = page.Locator("#participant-drawer-note-content");
@@ -758,6 +760,29 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
         await CloseDrawerAsync(page);
     }
+
+    private static async Task AssertDrawerAttachedAsync(IPage page)
+    {
+        var editor = page.Locator("#participant-drawer-note-content");
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add note", Exact = true }),
+            () => editor.IsVisibleAsync());
+        await Expect(editor).ToBeEditableAsync();
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }),
+            () => editor.IsHiddenAsync());
+        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("50 of 60");
+    }
+
+    private static Task<string> ReadDrawerBoundaryEvidenceAsync(IPage page) => page.EvaluateAsync<string>("""
+        JSON.stringify({
+            url: location.href,
+            owner: document.querySelector('[data-workspace-owner]')?.getAttribute('data-workspace-owner'),
+            position: document.querySelector('#participant-drawer-position')?.textContent,
+            heading: document.querySelector('#participant-drawer-heading')?.textContent,
+            rows: [...document.querySelectorAll('tr[id^="roster-row-"]')].map(row => row.id),
+            alerts: [...document.querySelectorAll('[role="alert"]')].map(alert => alert.textContent),
+            workspace: document.querySelector('.campaign-field')?.innerText
+        })
+        """);
 
     /// <summary>Matches the campaign roster list fetch, excluding detail and graduation-years fetches.</summary>
     private static bool IsRosterListUrl(string url) =>

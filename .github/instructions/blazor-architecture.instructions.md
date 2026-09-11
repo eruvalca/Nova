@@ -149,8 +149,10 @@ Nova.UI/
   across reloads, persist the original operation ID and required payload before dispatch on **every**
   submission path, including confirmation/retry. A failed storage write cannot enable an unpersisted
   commit. Browser recovery context is never authorization or readiness evidence.
-- Scope recovery context to the authenticated user and club, including permission changes. Clear
-  unavailable or no-longer-authorized visible data before awaiting browser-storage cleanup.
+- Scope recovery storage to the authenticated user and club. Permission changes invalidate visible
+  data, capabilities and in-flight UI ownership, but must not strand an unresolved operation by
+  changing its storage key. Reauthorize every replay on the server; a retained payload grants no
+  permissions. Clear unavailable or no-longer-authorized visible data before awaiting cleanup.
 - Report committed effects from the command's immutable receipt, not a refreshed preview or later
   aggregate count. See `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md` for recovery.
 

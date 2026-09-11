@@ -20,7 +20,7 @@ public sealed class CampaignEvaluationResponsiveBrowserTests(BrowserSuiteFixture
             new() { Width = 598, Height = 1168 }, deviceScaleFactor: 1.5f);
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=evaluate&evaluation=true&evalSearch=42&evalParticipant={participantId}").ToString());
-        await AssertNotebookAttachedAsync(page);
+        await EvaluationInteractionHelpers.AssertComposerAttachedAsync(page);
         await Expect(page.Locator("#evaluation-player-heading")).ToHaveTextAsync("#42 Jordan Lee");
         await Expect(page.Locator(".campaign-facts")).ToContainTextAsync("60 participants");
         await Expect(page.Locator(".evaluation-note-item")).ToHaveCountAsync(2);
@@ -67,7 +67,7 @@ public sealed class CampaignEvaluationResponsiveBrowserTests(BrowserSuiteFixture
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password, new() { Width = 844, Height = 390 });
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{large.CampaignId}?tab=evaluate&evaluation=true&evalSearch=42&evalParticipant={selected.PlayerCampaignAssignmentId}").ToString());
-        await AssertNotebookAttachedAsync(page);
+        await EvaluationInteractionHelpers.AssertComposerAttachedAsync(page);
         await page.Locator(".evaluation-back").ClickAsync();
         await Expect(page.Locator("#evaluation-player-heading")).ToHaveCountAsync(0);
         await Expect(page.Locator("a[data-eval-result]").First).ToContainTextAsync("#42");
@@ -97,33 +97,6 @@ public sealed class CampaignEvaluationResponsiveBrowserTests(BrowserSuiteFixture
         await page.GetByRole(AriaRole.Link, new() { Name = "Next page", Exact = true }).PressAsync("Enter");
         await Expect(page.Locator(".evaluation-paging")).ToContainTextAsync("Page 2 of 50");
         await CaptureAsync(page, "finder-landscape", fullPage: true, large.CampaignId, participants: 1000);
-    }
-
-    private static async Task AssertNotebookAttachedAsync(IPage page)
-    {
-        var note = page.Locator("#evaluation-note");
-        var count = page.Locator("#evaluation-note-help");
-        // Save is deliberately disabled during attachment and recovery. Prove a handled input
-        // through the shared hydration policy before checking readiness or taking captures.
-        await InteractionHelpers.ActUntilAsync(page, async () =>
-        {
-            if (await note.CountAsync() > 0 && await note.IsEditableAsync())
-            {
-                await note.FillAsync("Attach probe", new() { Timeout = 3000 });
-            }
-        }, async () =>
-        {
-            var alerts = await page.Locator(".evaluation-workspace [role='alert']").AllTextContentsAsync();
-            if (alerts.Count > 0)
-            {
-                var message = string.Join(" | ", alerts);
-                throw new InvalidOperationException($"Evaluation startup failed: {message[..Math.Min(message.Length, 4000)]}");
-            }
-            return await count.CountAsync() > 0 && (await count.InnerTextAsync()).Contains("12 / 4000", StringComparison.Ordinal);
-        });
-        await note.FillAsync(string.Empty);
-        await Expect(count).ToContainTextAsync("0 / 4000");
-        await Expect(page.Locator(".evaluation-save")).ToBeEnabledAsync();
     }
 
     private static async Task CaptureAsync(IPage page, string name, bool fullPage, long campaignId, int participants)

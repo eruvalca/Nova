@@ -21,6 +21,8 @@ public partial class CampaignEvaluationPanel
 
         var sequence = ++_interopSequence;
         _initializingScope = scope;
+        // Role changes invalidate owner above, but must not strand the original operation ID.
+        // Recovery reauthorizes current membership on the server; storage grants no permissions.
         var captureScope = $"{CaptureScope ?? AuthorityScope}:{CampaignId}:{State.ParticipantId}";
         Task<IJSObjectReference>? load = null;
         bool current() => Owns(owner) && string.Equals(scope, InteropScope, StringComparison.Ordinal) && sequence == _interopSequence;

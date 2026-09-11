@@ -4,13 +4,13 @@
     @if (Editing)
     {
         <label for="@($"edit-note-{Note.NoteId}")">Edit your shared note</label>
-        <textarea id="@($"edit-note-{Note.NoteId}")" class="form-control" rows="4" maxlength="4000" value="@Draft" data-evidence-original="@Note.Content" @oninput="OnDraftChanged" readonly="@(!Writable || Pending)"></textarea>
-        @if (Writable && ExpectedVersion != Note.Version)
+        <textarea id="@($"edit-note-{Note.NoteId}")" class="form-control" rows="4" maxlength="4000" value="@Draft" data-evidence-original="@Note.Content" @oninput="OnDraftChanged" readonly="@(!Writable || !Note.CanEdit || Pending)"></textarea>
+        @if (Writable && Note.CanEdit && ExpectedVersion != Note.Version)
         {
             <p role="alert">This note has changed. Your draft is kept above.</p><p class="evaluation-note-current">@Note.Content</p>
             <button class="btn btn-outline-primary" disabled="@Pending" @onclick="OnReviewVersion">Use current version for this edit</button>
         }
-        @if (Writable)
+        @if (Writable && Note.CanEdit)
         {
         <button class="btn btn-primary" disabled="@(Pending || ExpectedVersion != Note.Version)" @onclick="OnSave">Save changes</button>
         }

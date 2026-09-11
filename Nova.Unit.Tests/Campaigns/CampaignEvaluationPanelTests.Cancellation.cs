@@ -166,6 +166,7 @@ public sealed partial class CampaignEvaluationPanelTests
     private static string PendingAddSnapshot() => JsonSerializer.Serialize(new
     {
         Revision = 1,
+        TraitSearch = string.Empty,
         Draft = "Original cancellation evidence",
         EditingNoteId = (long?)null,
         EditContent = string.Empty,

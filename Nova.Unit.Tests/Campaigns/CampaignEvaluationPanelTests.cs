@@ -222,6 +222,7 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
     [Fact]
     public void PlayerHandoffsRetainLookupAndRosterReturnContext()
     {
+        SetEvaluationCapabilities(true, true, true);
         var cut = Panel(new() { Search = "Jordan", Page = 2, ParticipantId = 301, RosterLanding = true });
         cut.WaitForAssertion(() => cut.FindAll(".evaluation-place").Count.ShouldBe(1));
         var place = cut.Find(".evaluation-place").GetAttribute("href")!;
@@ -434,6 +435,7 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
         pendingRead.SetResult(JsonSerializer.Serialize(new
         {
             Revision = 4,
+            TraitSearch = string.Empty,
             Draft = "  Exact recovered observation.\nSecond line.",
             EditingNoteId = (long?)null,
             EditContent = string.Empty,

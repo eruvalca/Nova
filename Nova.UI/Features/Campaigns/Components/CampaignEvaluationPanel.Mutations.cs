@@ -26,7 +26,7 @@ public partial class CampaignEvaluationPanel
 
     private void ResetCapture()
     {
-        _draft = _editContent = _editOriginal = string.Empty;
+        _draft = _traitSearch = _editContent = _editOriginal = string.Empty;
         _editingNoteId = null;
         _editVersion = Guid.Empty;
         CancelDeleteNote();
@@ -60,6 +60,8 @@ public partial class CampaignEvaluationPanel
             {
                 _storageRevision = snapshot.Revision;
                 _draft = snapshot.Draft;
+                _traitSearch = snapshot.TraitSearch;
+                _traitPicker = _traitSearch.Length > 0;
                 _editingNoteId = snapshot.EditingNoteId;
                 _editContent = snapshot.EditContent;
                 _editOriginal = snapshot.EditOriginal;
@@ -89,7 +91,7 @@ public partial class CampaignEvaluationPanel
             _storageError = "Recovery storage is not ready. Your text has not been submitted.";
             return false;
         }
-        var snapshot = new CaptureSnapshot(++_storageRevision, _draft, _editingNoteId, _editContent, _editOriginal, _editVersion, _pending);
+        var snapshot = new CaptureSnapshot(++_storageRevision, _draft, _editingNoteId, _editContent, _editOriginal, _editVersion, _pending, _traitSearch);
         try
         {
             var saved = await _module.InvokeAsync<bool>("write", _root, owner, _lease, snapshot);
@@ -114,21 +116,28 @@ public partial class CampaignEvaluationPanel
 
     private async Task DraftChangedAsync(ChangeEventArgs args)
     {
-        if (!_storageReady) { return; }
+        if (!CanAddNote || !_storageReady || _pending is not null) { return; }
         _draft = args.Value?.ToString() ?? string.Empty;
         await PersistCaptureAsync();
     }
 
     private async Task EditChangedAsync(ChangeEventArgs args)
     {
-        if (!_storageReady) { return; }
+        if (!CanSubmit("edit", _editingNoteId) || !_storageReady || _pending is not null) { return; }
         _editContent = args.Value?.ToString() ?? string.Empty;
+        await PersistCaptureAsync();
+    }
+
+    private async Task TraitSearchChangedAsync(ChangeEventArgs args)
+    {
+        if (!CanApplyTag || !_storageReady || _pending is not null) { return; }
+        _traitSearch = args.Value?.ToString() ?? string.Empty;
         await PersistCaptureAsync();
     }
 
     private async Task BeginEditAsync(CampaignParticipantNoteDto note)
     {
-        if (!Writable || !_storageReady || !note.CanEdit || _pending is not null)
+        if (!CanSubmit("edit", note.NoteId) || !_storageReady || _pending is not null)
         {
             return;
         }
@@ -146,7 +155,7 @@ public partial class CampaignEvaluationPanel
     /// <param name="note">The displayed note whose deletion is being confirmed.</param>
     private void BeginDeleteNote(CampaignParticipantNoteDto note)
     {
-        if (!Writable || !_storageReady || !note.CanDelete || _pending is not null) { return; }
+        if (!CanSubmit("delete", note.NoteId) || !_storageReady || _pending is not null) { return; }
         _deleteNote = (note.NoteId, note.Version);
     }
 
@@ -168,6 +177,7 @@ public partial class CampaignEvaluationPanel
 
     private async Task ReviewVersionAsync(CampaignParticipantNoteDto note)
     {
+        if (!CanSubmit("edit", note.NoteId) || !_storageReady || _pending is not null || _editingNoteId != note.NoteId) { return; }
         _editVersion = note.Version;
         _editOriginal = note.Content;
         await PersistCaptureAsync();
@@ -179,7 +189,7 @@ public partial class CampaignEvaluationPanel
         if (string.Equals(_storageRetryOwner, owner, StringComparison.Ordinal)) { return; }
         var sequence = ++_storageRetrySequence;
         _storageRetryOwner = owner;
-        var draft = (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion);
+        var draft = (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion, _traitSearch);
         var hasDraft = HasDraft;
         try
         {
@@ -189,7 +199,8 @@ public partial class CampaignEvaluationPanel
             if (!Owns(owner) || sequence != _storageRetrySequence) { return; }
             if (hasDraft)
             {
-                (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion) = draft;
+                (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion, _traitSearch) = draft;
+                _traitPicker = _traitSearch.Length > 0;
             }
             if (_storageReady) { await PersistCaptureAsync(); }
         }
@@ -201,13 +212,13 @@ public partial class CampaignEvaluationPanel
 
     private async Task SubmitAsync(string kind, long? subjectId = null, Guid version = default, string? label = null)
     {
-        if (!Writable || _pending is not null || State.ParticipantId is not { } id)
+        if (!CanSubmit(kind, subjectId) || _pending is not null || State.ParticipantId is not { } id)
         {
             return;
         }
 
         var pending = new PendingCapture(kind, Guid.CreateVersion7(), id, subjectId,
-            kind is "edit" ? _editVersion : version, kind switch { "add" => _draft, "edit" => _editContent, _ => label });
+            kind is "edit" ? _editVersion : version, kind switch { "add" => _draft, "edit" => _editContent, "apply" => _traitSearch, _ => label });
         var validation = InputValidator.Validate(pending.ToInput());
         if (validation.Count > 0)
         {
@@ -225,6 +236,16 @@ public partial class CampaignEvaluationPanel
         }
         await DispatchPendingAsync();
     }
+
+    private bool CanSubmit(string kind, long? subjectId) => kind switch
+    {
+        "add" => CanAddNote,
+        "apply" or "create" => CanApplyTag,
+        "edit" => EvidenceWritable && _notes.Any(note => note.NoteId == subjectId && note.CanEdit),
+        "delete" => EvidenceWritable && _notes.Any(note => note.NoteId == subjectId && note.CanDelete),
+        "remove" => EvidenceWritable && _applications.Any(application => application.CampaignTagApplicationId == subjectId && application.CanRemove),
+        _ => false
+    };
 
     private async Task DispatchPendingAsync()
     {
@@ -278,7 +299,7 @@ public partial class CampaignEvaluationPanel
 
     private bool ValidCaptureSnapshot(CaptureSnapshot snapshot)
     {
-        if (snapshot.Revision < 0 || snapshot.Draft is null || snapshot.EditContent is null || snapshot.EditOriginal is null
+        if (snapshot.Revision < 0 || snapshot.Draft is null || snapshot.EditContent is null || snapshot.EditOriginal is null || snapshot.TraitSearch is null
             || snapshot.EditingNoteId is <= 0 || (snapshot.EditingNoteId is not null && snapshot.EditVersion == Guid.Empty)) { return false; }
         if (snapshot.Pending is not { } pending) { return true; }
         return pending.Kind is "add" or "edit" or "delete" or "apply" or "create" or "remove"
@@ -314,6 +335,11 @@ public partial class CampaignEvaluationPanel
         {
             _editingNoteId = null;
             _editContent = _editOriginal = string.Empty;
+        }
+        if (pending.Kind is "create" or "apply" && string.Equals(_traitSearch, pending.Text, StringComparison.Ordinal))
+        {
+            _traitSearch = string.Empty;
+            _traitPicker = false;
         }
         CancelDeleteNote();
         _removeApplicationId = null;
@@ -358,7 +384,7 @@ public partial class CampaignEvaluationPanel
     }
 
     private sealed record CaptureSnapshot(long Revision, string Draft, long? EditingNoteId, string EditContent,
-        string EditOriginal, Guid EditVersion, PendingCapture? Pending);
+        string EditOriginal, Guid EditVersion, PendingCapture? Pending, string TraitSearch);
 
     private sealed record PendingCapture(string Kind, Guid OperationId, long AssignmentId, long? SubjectId, Guid Version, string? Text)
     {

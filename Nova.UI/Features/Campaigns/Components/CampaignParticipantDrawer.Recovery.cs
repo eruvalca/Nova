@@ -25,6 +25,8 @@ public partial class CampaignParticipantDrawer
     private long? _drawerDepartureInFlight;
     private Guid _editExpectedVersion;
     private string _editNoteOriginal = string.Empty;
+    // ParticipantOwner invalidates UI authority; this stable key retains the original operation
+    // through role changes. The server reauthorizes each replay before returning its receipt.
     private string DrawerStorageScope => $"{CaptureScope ?? AuthorityScope}:{CampaignId}:{ParticipantId}";
     private bool DrawerHasDraft => _addNoteContent.Length > 0 || (_editingNoteId is not null && !string.Equals(_editNoteContent, _editNoteOriginal, StringComparison.Ordinal));
     private bool DrawerProtected => _storedOperation is not null || DrawerHasDraft;

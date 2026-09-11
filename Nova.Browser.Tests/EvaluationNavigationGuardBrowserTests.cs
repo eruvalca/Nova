@@ -11,6 +11,7 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
     [InlineData("commit-first")]
     [InlineData("popstate-first")]
     [InlineData("input")]
+    [InlineData("input-trait")]
     [InlineData("pending")]
     [InlineData("input-after-accept")]
     [InlineData("input-after-commit")]
@@ -41,9 +42,11 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
             fake.currentEntry = { key: 'origin' };
             Object.defineProperty(window, 'navigation', { configurable: true, value: fake });
             const root = document.createElement('div');
-            root.innerHTML = '<textarea data-evidence-original=""></textarea>';
+            root.innerHTML = scenario === 'input-trait'
+                ? '<input id="evaluation-trait-search" data-evidence-original="" />'
+                : '<textarea data-evidence-original=""></textarea>';
             document.body.append(root);
-            const input = root.querySelector('textarea');
+            const input = root.querySelector('textarea,input');
             const calls = [], notices = [];
             const receiver = { invokeMethodAsync: (...args) => { notices.push(args); return Promise.resolve(); } };
             const deferred = () => {
@@ -107,10 +110,13 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
                     await new Promise(resolve => setTimeout(resolve, 0));
                     check(!settled, 'popstate alone is not commitment');
                 }
-                const revoked = ['input', 'pending', 'input-after-accept', 'input-after-commit', 'detach', 'replace'].includes(scenario);
+                const revoked = ['input', 'input-trait', 'pending', 'input-after-accept', 'input-after-commit', 'detach', 'replace'].includes(scenario);
                 if (scenario.startsWith('input')) {
                     input.value = 'New evidence';
                     input.dispatchEvent(new Event('input', { bubbles: true }));
+                    const departure = new Event('beforeunload', { cancelable: true });
+                    window.dispatchEvent(departure);
+                    check(departure.defaultPrevented, 'native input must protect departure before any .NET rerender');
                 } else if (scenario === 'pending') guard.markPending(root, true);
                 else if (scenario === 'detach') guard.detachGuard(root);
                 else if (scenario === 'replace') {
@@ -119,7 +125,7 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
                 } else if (scenario === 'reject') commit.reject(new DOMException('Aborted', 'AbortError'));
                 if (revoked || scenario === 'reject' || scenario === 'throw') {
                     check(!await result, 'revocation/abort must settle false without waiting for commit');
-                    if (scenario === 'input' || scenario === 'pending' || scenario === 'input-after-commit') {
+                    if (scenario === 'input' || scenario === 'input-trait' || scenario === 'pending' || scenario === 'input-after-commit') {
                         move('target');
                         check(fake.currentEntry.key === 'origin', 'revoked traversal must restore original entry');
                         check(notices.length === 1 && notices[0][4] === 'target', 'restoration must request a new prompt');

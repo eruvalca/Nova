@@ -33,7 +33,7 @@ export function read(root, owner, lease) {
     const raw = sessionStorage.getItem(storageKey(state.captureOwner));
     if (raw === null) { state.pending = false; markPending(root, false); return null; }
     const value = JSON.parse(raw);
-    if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.draft !== 'string'
+    if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.draft !== 'string' || typeof value.traitSearch !== 'string'
         || typeof value.editContent !== 'string' || typeof value.editOriginal !== 'string'
         || !isGuid(value.editVersion) || (value.editingNoteId !== null && (!Number.isSafeInteger(value.editingNoteId) || value.editingNoteId <= 0))) throw new Error('Invalid retained evaluation draft.');
     if (value.pending !== null && (!value.pending || typeof value.pending !== 'object'

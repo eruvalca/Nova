@@ -26,7 +26,7 @@ public sealed partial class CampaignEvaluationPanelTests
             .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(Identity(301) with
             {
                 CampaignStatus = status,
-                Capabilities = Identity(301).Capabilities with { CanAddNote = false }
+                Capabilities = Identity(301).Capabilities with { CanAddNote = false, CanApplyTag = false }
             })));
         var cut = Panel(new() { ParticipantId = 301 }, status);
         cut.WaitForAssertion(() => cut.Find(".evaluation-readonly").TextContent.ShouldContain(status == CampaignStatus.Closed
@@ -64,6 +64,8 @@ public sealed partial class CampaignEvaluationPanelTests
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null-draft")]
+    [InlineData("missing-trait-search")]
+    [InlineData("null-trait-search")]
     [InlineData("negative-revision")]
     [InlineData("missing-kind")]
     [InlineData("unknown-kind")]
@@ -179,6 +181,7 @@ public sealed partial class CampaignEvaluationPanelTests
     {
         Revision = 1,
         Draft = original.Content,
+        TraitSearch = string.Empty,
         EditingNoteId = (long?)null,
         EditContent = string.Empty,
         EditOriginal = string.Empty,
@@ -193,6 +196,8 @@ public sealed partial class CampaignEvaluationPanelTests
         switch (malformed)
         {
             case "null-draft": snapshot["Draft"] = null; break;
+            case "missing-trait-search": snapshot.Remove("TraitSearch"); break;
+            case "null-trait-search": snapshot["TraitSearch"] = null; break;
             case "negative-revision": snapshot["Revision"] = -1; break;
             case "missing-kind": pending.Remove("Kind"); break;
             case "unknown-kind": pending["Kind"] = "unknown"; break;
