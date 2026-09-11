@@ -182,55 +182,30 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var owner = Owner;
-        _module = await (_moduleLoad ??= js.InvokeAsync<IJSObjectReference>("import", "./_content/Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.js").AsTask());
-        if (!Owns(owner))
+        if (!await EnsureEvaluationAttachmentAsync() || !Owns(owner))
         {
             return;
         }
-
-        var captureChanged = !string.Equals(_attachedOwner, owner, StringComparison.Ordinal);
-        if (captureChanged || !string.Equals(_attachedFinderOwner, FinderOwner, StringComparison.Ordinal))
+        try
         {
-            _attachedOwner = owner;
-            _attachedFinderOwner = FinderOwner;
-            try
+            if (_focusSheet && _identity is not null)
             {
-                _navigationReceiver ??= DotNetObjectReference.Create(this);
-                await _module.InvokeVoidAsync("attach", _root, owner, _lease, FinderOwner, $"{CaptureScope ?? AuthorityScope}:{CampaignId}:{State.ParticipantId}", _navigationReceiver);
-            }
-            catch (JSException)
-            {
-                if (Owns(owner))
+                var focused = await _module!.InvokeAsync<bool>("focusSheet", _root, owner, _lease);
+                if (Owns(owner) && focused)
                 {
-                    _storageReady = false;
-                    _storageError = "Navigation protection is unavailable. Update your browser or retry before capturing evidence.";
-                    StateHasChanged();
+                    _focusSheet = false;
                 }
-                return;
             }
-            if (captureChanged)
+            else if (_focusFinder)
             {
-                await RestoreCaptureAsync(owner);
-            }
-            if (!Owns(owner))
-            {
-                return;
-            }
-
-            StateHasChanged();
-        }
-        if (_focusSheet && _identity is not null)
-        {
-            var focused = await _module.InvokeAsync<bool>("focusSheet", _root, owner, _lease);
-            if (Owns(owner) && focused)
-            {
-                _focusSheet = false;
+                _focusFinder = false;
+                await _module!.InvokeVoidAsync("restoreFinder", _root, FinderOwner, _finder);
             }
         }
-        else if (_focusFinder)
+        catch (JSException)
         {
-            _focusFinder = false;
-            await _module.InvokeVoidAsync("restoreFinder", _root, FinderOwner, _finder);
+            // Optional focus/scroll failure does not invalidate installed navigation protection.
+            if (Owns(owner)) { _focusSheet = _focusFinder = false; }
         }
     }
 
@@ -424,7 +399,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
 
     private async Task DiscardAndLeaveAsync()
     {
-        if (_pending is not null || _leaveTarget is null || _departureInFlight is not null)
+        if (_pending is not null || !_storageReady || _leaveTarget is null || _departureInFlight is not null)
         {
             return;
         }

@@ -20,9 +20,9 @@ public static class CampaignEndpoints
     /// <summary>The selected-player trait-choice endpoint name.</summary>
     public const string EvaluationTagChoicesRouteName = "Campaigns.EvaluationTagChoices";
 
-    /// <summary>Builds an encoded note-history URL with its exclusive keyset cursor.</summary>
+    /// <summary>Builds an encoded note-history URL, omitting an incomplete or invalid optional cursor.</summary>
     public static string EvaluationNotesUrl(GetEvaluationHistoryInput input) => EvaluationHistoryUrl(input, "notes");
-    /// <summary>Builds an encoded application-history URL with its exclusive keyset cursor.</summary>
+    /// <summary>Builds an encoded application-history URL, omitting an incomplete or invalid optional cursor.</summary>
     public static string EvaluationApplicationsUrl(GetEvaluationHistoryInput input) => EvaluationHistoryUrl(input, "applications");
     /// <summary>Builds the complete selected-player trait choices URL.</summary>
     public static string EvaluationTagChoicesUrl(GetCampaignParticipantDetailInput input)
@@ -35,7 +35,7 @@ public static class CampaignEndpoints
     {
         ArgumentNullException.ThrowIfNull(input);
         var route = $"{GroupPrefix}/{input.CampaignId}/participants/{input.PlayerCampaignAssignmentId}/{region}";
-        return input.BeforeCreatedAt is { } before && input.BeforeId is { } id
+        return input.BeforeCreatedAt is { } before && before > DateTimeOffset.UnixEpoch && input.BeforeId is > 0 and var id
             ? route + $"?beforeCreatedAt={Uri.EscapeDataString(before.ToString("O", System.Globalization.CultureInfo.InvariantCulture))}&beforeId={id}"
             : route;
     }

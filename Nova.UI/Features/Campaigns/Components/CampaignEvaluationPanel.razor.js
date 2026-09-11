@@ -7,7 +7,9 @@ const scrollKey = owner => `nova:evaluation-scroll:v1:${owner}`;
 export function attach(root, owner, lease, finderOwner, captureOwner, receiver) {
     const previous = owners.get(root);
     if (previous) root.removeEventListener('click', previous.click);
-    const state = { owner, lease, revision: -1, finderOwner, captureOwner };
+    const sameCapture = previous?.owner === owner && previous?.lease === lease && previous?.captureOwner === captureOwner;
+    const state = { owner, lease, revision: sameCapture ? previous.revision : -1,
+        pending: sameCapture ? previous.pending : false, finderOwner, captureOwner };
     state.click = event => {
         if (!event.target.closest('[data-eval-result]')) return;
         try { sessionStorage.setItem(scrollKey(finderOwner), String(window.scrollY)); } catch { /* Scroll is optional; mutation storage is not. */ }
@@ -15,6 +17,7 @@ export function attach(root, owner, lease, finderOwner, captureOwner, receiver) 
     owners.set(root, state);
     root.addEventListener('click', state.click);
     attachGuard(root, owner, lease, receiver);
+    markPending(root, state.pending);
 }
 
 function requireOwner(root, owner, lease) {
@@ -25,20 +28,23 @@ function requireOwner(root, owner, lease) {
 
 export function read(root, owner, lease) {
     const state = requireOwner(root, owner, lease);
-    markPending(root, false);
+    state.pending = true;
+    markPending(root, true);
     const raw = sessionStorage.getItem(storageKey(state.captureOwner));
-    if (!raw) return null;
+    if (raw === null) { state.pending = false; markPending(root, false); return null; }
     const value = JSON.parse(raw);
     if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.draft !== 'string'
         || typeof value.editContent !== 'string' || typeof value.editOriginal !== 'string'
         || !isGuid(value.editVersion) || (value.editingNoteId !== null && (!Number.isSafeInteger(value.editingNoteId) || value.editingNoteId <= 0))) throw new Error('Invalid retained evaluation draft.');
-    if (value.pending && (!['add', 'edit', 'delete', 'apply', 'create', 'remove'].includes(value.pending.kind)
+    if (value.pending !== null && (!value.pending || typeof value.pending !== 'object'
+        || !['add', 'edit', 'delete', 'apply', 'create', 'remove'].includes(value.pending.kind)
         || !isGuid(value.pending.operationId) || !isGuid(value.pending.version)
         || !Number.isSafeInteger(value.pending.assignmentId) || value.pending.assignmentId <= 0
         || (value.pending.subjectId !== null && (!Number.isSafeInteger(value.pending.subjectId) || value.pending.subjectId <= 0))
         || (value.pending.text !== null && typeof value.pending.text !== 'string'))) throw new Error('Invalid retained evaluation operation.');
     state.revision = value.revision;
-    markPending(root, value.pending !== null);
+    state.pending = value.pending !== null;
+    markPending(root, state.pending);
     return value;
 }
 
@@ -53,7 +59,8 @@ export function write(root, owner, lease, snapshot) {
     sessionStorage.setItem(storageKey(state.captureOwner), json);
     if (sessionStorage.getItem(storageKey(state.captureOwner)) !== json) throw new Error('Evaluation storage verification failed.');
     state.revision = snapshot.revision;
-    markPending(root, snapshot.pending !== null);
+    state.pending = snapshot.pending !== null;
+    markPending(root, state.pending);
     return true;
 }
 

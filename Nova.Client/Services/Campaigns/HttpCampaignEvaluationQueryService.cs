@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Json;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Validation;
 
@@ -34,7 +35,7 @@ internal sealed class HttpCampaignEvaluationQueryService(HttpClient http) : ICam
         }
 
         var result = await ReadAsync(CampaignEndpoints.EvaluationTagChoicesUrl(input), (List<EvaluationTagChoice> choices) =>
-            choices.Count <= 100 && choices.All(choice => choice is not null && choice.PlayerTagId > 0
+            choices.Count <= TagDefinitionLimits.MaxActiveTagDefinitions && choices.All(choice => choice is not null && choice.PlayerTagId > 0
                 && !string.IsNullOrWhiteSpace(choice.Name) && !string.IsNullOrWhiteSpace(choice.Color)
                 && (choice.ApplicationId is null || choice.ApplicationId > 0))
             && choices.Select(choice => choice.PlayerTagId).Distinct().Count() == choices.Count, cancellationToken);

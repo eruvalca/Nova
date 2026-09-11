@@ -90,7 +90,9 @@
                 </header>
                 @if (!Writable && (Status == CampaignStatus.Closed || !_identityLoading))
                 {
-                    <p class="evaluation-readonly" role="status">This campaign is read-only. Shared notes and traits remain available; you can keep or copy any unsubmitted text.</p>
+                    <p class="evaluation-readonly" role="status">@(Status == CampaignStatus.Closed || player.CampaignStatus == CampaignStatus.Closed
+                        ? "This campaign is read-only. Shared notes and traits remain available; you can keep or copy any unsubmitted text."
+                        : "Evidence capture is unavailable for this player. You can keep or copy any unsubmitted text.")</p>
                 }
                 <section class="evaluation-traits" aria-labelledby="evaluation-traits-heading">
                     <h3 id="evaluation-traits-heading">Applied traits</h3>

@@ -95,9 +95,9 @@ internal sealed partial class CampaignTagApplicationService(
             return ServiceProblem.NotFound();
         }
 
-        if (await db.PlayerTags.CountAsync(tag => tag.LifecycleStatus == LifecycleStatus.Active, token) >= 100)
+        if (await db.PlayerTags.CountAsync(tag => tag.LifecycleStatus == LifecycleStatus.Active, token) >= TagDefinitionLimits.MaxActiveTagDefinitions)
         {
-            return ServiceProblem.Conflict("This club has 100 active traits. Apply an existing trait, or ask an administrator to archive an unused definition.");
+            return ServiceProblem.Conflict($"This club has {TagDefinitionLimits.MaxActiveTagDefinitions} active traits. Apply an existing trait, or ask an administrator to archive an unused definition.");
         }
 
         var created = new PlayerTagEntity

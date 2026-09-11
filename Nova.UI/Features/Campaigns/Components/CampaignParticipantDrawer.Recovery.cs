@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.JSInterop;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Campaigns.Components;
 
@@ -14,6 +15,9 @@ public partial class CampaignParticipantDrawer
     private string? _recoveryOwner;
     private bool _drawerStorageFailed;
     private bool _drawerStorageReady;
+    private long _drawerRestoreSequence;
+    private long _drawerStorageRetrySequence;
+    private string? _drawerStorageRetryOwner;
     private DotNetObjectReference<CampaignParticipantDrawer>? _drawerNavigationReceiver;
     private readonly string _drawerNavigationLease = Guid.NewGuid().ToString("N");
     private Func<Task<bool>>? _drawerLeaveAction;
@@ -29,25 +33,32 @@ public partial class CampaignParticipantDrawer
     private async Task RestoreDrawerOperationAsync(IJSObjectReference module)
     {
         var owner = ParticipantOwner;
+        var scope = DrawerStorageScope;
         if (string.Equals(_recoveryOwner, owner, StringComparison.Ordinal))
         {
             return;
         }
 
         _recoveryOwner = owner;
+        var sequence = ++_drawerRestoreSequence;
+        var draft = (_addNoteContent, _editingNoteId, _editNoteContent);
         _drawerStorageReady = false;
         try
         {
             _drawerNavigationReceiver ??= DotNetObjectReference.Create(this);
             await module.InvokeVoidAsync("protectNavigation", _dialog, owner, _drawerNavigationLease, _drawerNavigationReceiver);
-            var json = await module.InvokeAsync<string?>("readOperation", _dialog, DrawerStorageScope);
-            if (!string.Equals(owner, ParticipantOwner, StringComparison.Ordinal) || ComponentCancellationToken.IsCancellationRequested)
+            if (!OwnsDrawerRestore(owner, sequence)) { return; }
+            var json = await module.InvokeAsync<string?>("readOperation", _dialog, scope);
+            if (!OwnsDrawerRestore(owner, sequence))
             {
                 return;
             }
 
-            _storedOperation = json is null ? null : JsonSerializer.Deserialize<DrawerStoredOperation>(json);
-            RestoreDrawerNoteText();
+            var stored = json is null ? null : JsonSerializer.Deserialize<DrawerStoredOperation>(json)
+                ?? throw new JsonException("Invalid retained evaluation operation.");
+            var input = stored is null ? null : ParseDrawerOperation(stored);
+            _storedOperation = stored;
+            if (draft == (_addNoteContent, _editingNoteId, _editNoteContent)) { RestoreDrawerNoteText(input); }
             _drawerStorageFailed = false;
             _drawerStorageReady = true;
             if (_storedOperation is not null) { _mutationError = "A submission needs its original receipt. Recover it before moving to another player."; }
@@ -55,36 +66,73 @@ public partial class CampaignParticipantDrawer
         }
         catch (Exception exception) when (exception is JSException or JsonException)
         {
-            if (string.Equals(owner, ParticipantOwner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested)
+            if (OwnsDrawerRestore(owner, sequence))
             {
                 _drawerStorageFailed = true;
                 _mutationError = "Recovery storage or navigation protection is unavailable. Keep or copy your text; update your browser or retry.";
+                StateHasChanged();
             }
         }
     }
 
+    private bool OwnsDrawerRestore(string owner, long sequence) => sequence == _drawerRestoreSequence
+        && string.Equals(owner, ParticipantOwner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
+
     private async Task RetryDrawerStorageAsync()
     {
-        _recoveryOwner = null;
-        await RestoreDrawerOperationAsync(await _moduleTask.Value);
+        var owner = ParticipantOwner;
+        if (string.Equals(_drawerStorageRetryOwner, owner, StringComparison.Ordinal)) { return; }
+        var sequence = ++_drawerStorageRetrySequence;
+        _drawerStorageRetryOwner = owner;
+        try
+        {
+            _drawerInteropFailedOwner = null;
+            if (!await EnsureDrawerInteropAsync() || !string.Equals(owner, ParticipantOwner, StringComparison.Ordinal)
+                || sequence != _drawerStorageRetrySequence) { return; }
+            _recoveryOwner = null;
+            await RestoreDrawerOperationAsync(await _moduleTask.Value);
+        }
+        finally
+        {
+            if (sequence == _drawerStorageRetrySequence) { _drawerStorageRetryOwner = null; }
+        }
     }
 
-    private void RestoreDrawerNoteText()
+    private void RestoreDrawerNoteText(EvaluationOperationInput? input)
     {
-        if (_storedOperation is { Kind: nameof(AddEvaluationNoteInput) } addOperation)
+        if (input is AddEvaluationNoteInput add)
         {
-            var add = JsonSerializer.Deserialize<AddEvaluationNoteInput>(addOperation.Payload)!;
             _addNoteContent = add.Content;
             _showAddNoteForm = true;
         }
-        else if (_storedOperation is { Kind: nameof(EditEvaluationNoteInput) } editOperation)
+        else if (input is EditEvaluationNoteInput edit)
         {
-            var edit = JsonSerializer.Deserialize<EditEvaluationNoteInput>(editOperation.Payload)!;
             _editingNoteId = edit.NoteId;
             _editNoteContent = edit.Content;
             _editNoteOriginal = string.Empty;
             _editExpectedVersion = edit.ExpectedVersion;
         }
+    }
+
+    private EvaluationOperationInput ParseDrawerOperation(DrawerStoredOperation stored)
+    {
+        if (stored.Payload is null) { throw new JsonException("Missing retained operation payload."); }
+        EvaluationOperationInput? input = stored.Kind switch
+        {
+            nameof(AddEvaluationNoteInput) => JsonSerializer.Deserialize<AddEvaluationNoteInput>(stored.Payload),
+            nameof(EditEvaluationNoteInput) => JsonSerializer.Deserialize<EditEvaluationNoteInput>(stored.Payload),
+            nameof(DeleteEvaluationNoteInput) => JsonSerializer.Deserialize<DeleteEvaluationNoteInput>(stored.Payload),
+            nameof(ApplyCampaignTagApplicationInput) => JsonSerializer.Deserialize<ApplyCampaignTagApplicationInput>(stored.Payload),
+            nameof(RemoveCampaignTagApplicationInput) => JsonSerializer.Deserialize<RemoveCampaignTagApplicationInput>(stored.Payload),
+            _ => throw new JsonException("Unknown retained operation kind.")
+        };
+        if (input is null || InputValidator.Validate(input).Count != 0
+            || (input is AddEvaluationNoteInput add && add.PlayerCampaignAssignmentId != ParticipantId)
+            || (input is ApplyCampaignTagApplicationInput apply && apply.PlayerCampaignAssignmentId != ParticipantId))
+        {
+            throw new JsonException("Invalid retained operation payload.");
+        }
+        return input;
     }
 
     private async Task<ServiceResult<T>> CallStoredAsync<T>(EvaluationOperationInput input,
@@ -141,26 +189,21 @@ public partial class CampaignParticipantDrawer
         var lease = new MutationOwner(++_mutationSequence, ContextOwner);
         try
         {
-            switch (stored.Kind)
+            switch (ParseDrawerOperation(stored))
             {
-                case nameof(AddEvaluationNoteInput):
-                    var add = JsonSerializer.Deserialize<AddEvaluationNoteInput>(stored.Payload)!;
+                case AddEvaluationNoteInput add:
                     await ReplayDrawerAsync(add, token => noteService.AddAsync(add, token), lease, "Note saved.");
                     break;
-                case nameof(EditEvaluationNoteInput):
-                    var edit = JsonSerializer.Deserialize<EditEvaluationNoteInput>(stored.Payload)!;
+                case EditEvaluationNoteInput edit:
                     await ReplayDrawerAsync(edit, token => noteService.EditAsync(edit, token), lease, "Note updated.");
                     break;
-                case nameof(DeleteEvaluationNoteInput):
-                    var delete = JsonSerializer.Deserialize<DeleteEvaluationNoteInput>(stored.Payload)!;
+                case DeleteEvaluationNoteInput delete:
                     await ReplayDrawerAsync(delete, token => noteService.DeleteAsync(delete, token), lease, "Note deleted.");
                     break;
-                case nameof(ApplyCampaignTagApplicationInput):
-                    var apply = JsonSerializer.Deserialize<ApplyCampaignTagApplicationInput>(stored.Payload)!;
+                case ApplyCampaignTagApplicationInput apply:
                     await ReplayDrawerAsync(apply, token => tagApplicationService.ApplyAsync(apply, token), lease, "Tag applied.");
                     break;
-                case nameof(RemoveCampaignTagApplicationInput):
-                    var remove = JsonSerializer.Deserialize<RemoveCampaignTagApplicationInput>(stored.Payload)!;
+                case RemoveCampaignTagApplicationInput remove:
                     await ReplayDrawerAsync(remove, token => tagApplicationService.RemoveAsync(remove, token), lease, "Tag removed.");
                     break;
                 default: _mutationError = "This retained operation is not recognized. Its text remains available in this tab."; break;
@@ -227,7 +270,7 @@ public partial class CampaignParticipantDrawer
 
     private async Task DiscardDrawerAndLeaveAsync()
     {
-        if (_storedOperation is not null || _drawerLeaveAction is not { } move || _drawerDepartureInFlight is not null)
+        if (DrawerMutationBlocked || _drawerLeaveAction is not { } move || _drawerDepartureInFlight is not null)
         {
             return;
         }

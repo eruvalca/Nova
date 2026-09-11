@@ -69,7 +69,7 @@ public partial class CampaignParticipantDrawer(
     /// <summary>
     /// The lazily imported collocated drawer module managing the focus trap and focus return.
     /// </summary>
-    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+    private Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
         .InvokeAsync<IJSObjectReference>(
             "import", "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js")
         .AsTask());
@@ -440,38 +440,37 @@ public partial class CampaignParticipantDrawer(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        var owner = ParticipantOwner;
+        if (!await EnsureDrawerInteropAsync())
+        {
+            return;
+        }
         var module = await _moduleTask.Value;
-        if (ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        if (firstRender)
-        {
-            await module.InvokeVoidAsync("open", _dialog, _closeButton);
-            _focusTrapInstalled = true;
-            _lastRenderedParticipantId = ParticipantId;
-            await RestoreDrawerOperationAsync(module);
-            return;
-        }
-
         await RestoreDrawerOperationAsync(module);
-        if (_focusErrorSummary && _mutationError is not null)
+        if (!string.Equals(owner, ParticipantOwner, StringComparison.Ordinal) || ComponentCancellationToken.IsCancellationRequested) { return; }
+        try
         {
-            _focusErrorSummary = false;
-            await _errorSummary.FocusAsync();
-        }
+            if (_focusErrorSummary && _mutationError is not null)
+            {
+                _focusErrorSummary = false;
+                await _errorSummary.FocusAsync();
+            }
 
-        if (!_focusTrapInstalled || ParticipantId == _lastRenderedParticipantId)
+            if (!_focusTrapInstalled || ParticipantId == _lastRenderedParticipantId)
+            {
+                return;
+            }
+
+            _lastRenderedParticipantId = ParticipantId;
+
+            // A boundary move renders the clicked prev/next button disabled, which drops focus to
+            // <body>; re-focus inside the dialog so the trap and Escape keep working.
+            await module.InvokeVoidAsync("restoreFocus", _dialog, _closeButton);
+        }
+        catch (JSException)
         {
-            return;
+            // Optional focus restoration does not invalidate installed navigation protection.
         }
-
-        _lastRenderedParticipantId = ParticipantId;
-
-        // A boundary move renders the clicked prev/next button disabled, which drops focus to
-        // <body>; re-focus inside the dialog so the trap and Escape keep working.
-        await module.InvokeVoidAsync("restoreFocus", _dialog, _closeButton);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
@@ -19,6 +20,9 @@ public partial class CampaignEvaluationPanel
     private string? _captureError;
     private string? _storageError;
     private long _storageRevision;
+    private long _captureRestoreSequence;
+    private long _storageRetrySequence;
+    private string? _storageRetryOwner;
 
     private void ResetCapture()
     {
@@ -39,17 +43,20 @@ public partial class CampaignEvaluationPanel
 
     private async Task RestoreCaptureAsync(string owner)
     {
+        var sequence = ++_captureRestoreSequence;
+        var revision = _storageRevision;
         try
         {
             var snapshot = await _module!.InvokeAsync<CaptureSnapshot?>("read", _root, owner, _lease);
-            if (!Owns(owner))
+            if (!Owns(owner) || sequence != _captureRestoreSequence)
             {
                 return;
             }
 
+            if (snapshot is not null && !ValidCaptureSnapshot(snapshot)) { throw new JsonException("Invalid retained evaluation capture."); }
             _storageReady = true;
             _storageError = null;
-            if (snapshot is not null)
+            if (snapshot is not null && revision == _storageRevision)
             {
                 _storageRevision = snapshot.Revision;
                 _draft = snapshot.Draft;
@@ -64,10 +71,11 @@ public partial class CampaignEvaluationPanel
                 }
             }
         }
-        catch (JSException)
+        catch (Exception exception) when (exception is JSException or JsonException)
         {
-            if (Owns(owner))
+            if (Owns(owner) && sequence == _captureRestoreSequence)
             {
+                _storageReady = false;
                 _storageError = "Tab storage is unavailable. Nothing will be submitted until recovery storage is working. Your text remains copyable.";
             }
         }
@@ -167,22 +175,28 @@ public partial class CampaignEvaluationPanel
 
     private async Task RetryStorageAsync()
     {
-        if (!_storageReady)
+        var owner = Owner;
+        if (string.Equals(_storageRetryOwner, owner, StringComparison.Ordinal)) { return; }
+        var sequence = ++_storageRetrySequence;
+        _storageRetryOwner = owner;
+        var draft = (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion);
+        var hasDraft = HasDraft;
+        try
         {
-            var draft = _draft;
-            var owner = Owner;
-            await RestoreCaptureAsync(owner);
-            if (!Owns(owner))
+            _failedInteropScope = null;
+            if (!await EnsureEvaluationAttachmentAsync() || !Owns(owner) || sequence != _storageRetrySequence) { return; }
+            if (!_storageReady) { await RestoreCaptureAsync(owner); }
+            if (!Owns(owner) || sequence != _storageRetrySequence) { return; }
+            if (hasDraft)
             {
-                return;
+                (_draft, _editingNoteId, _editContent, _editOriginal, _editVersion) = draft;
             }
-
-            if (draft.Length > 0)
-            {
-                _draft = draft;
-            }
+            if (_storageReady) { await PersistCaptureAsync(); }
         }
-        await PersistCaptureAsync();
+        finally
+        {
+            if (sequence == _storageRetrySequence) { _storageRetryOwner = null; }
+        }
     }
 
     private async Task SubmitAsync(string kind, long? subjectId = null, Guid version = default, string? label = null)
@@ -260,6 +274,15 @@ public partial class CampaignEvaluationPanel
                 _dispatching = false;
             }
         }
+    }
+
+    private bool ValidCaptureSnapshot(CaptureSnapshot snapshot)
+    {
+        if (snapshot.Revision < 0 || snapshot.Draft is null || snapshot.EditContent is null || snapshot.EditOriginal is null
+            || snapshot.EditingNoteId is <= 0 || (snapshot.EditingNoteId is not null && snapshot.EditVersion == Guid.Empty)) { return false; }
+        if (snapshot.Pending is not { } pending) { return true; }
+        return pending.Kind is "add" or "edit" or "delete" or "apply" or "create" or "remove"
+            && pending.AssignmentId == State.ParticipantId && InputValidator.Validate(pending.ToInput()).Count == 0;
     }
 
     private async Task HandleRejectedCaptureAsync(PendingCapture pending, string owner, ServiceProblem problem)

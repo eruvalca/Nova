@@ -2,6 +2,10 @@
 
 ## Scope and current round
 
+- Round four was pushed once as `33a07928fedac5aa86ff3586580b7258f4b49ff8`; all 15 prior threads are explained/resolved and CI passed. Completed review `5174428186` posted zero comments but reports six suppressed findings. [Round five](review-round-5.md) records all six located findings and the independent source assessment. This is not a clean stopping review.
+
+## Round-four history
+
 - Round three was pushed once as `339ee66e3e3fdd13e67dd74a28795f22c30bdb05`; all fourteen prior threads are explained/resolved and both CI checks passed. Completed review `5174200087` posted one endpoint-name finding but stored a second, withheld navigation-replay race. [Round four](review-round-4.md) addresses both and the related ownership/abandoned-release cases. Its complete evidence accompanies the next single combined commit; fresh CI and automatic review follow the push.
 
 ## Round-three history
@@ -47,6 +51,7 @@ The PR description's “Close #200” wording accidentally registered #200 as a 
 - Read a session and its raw SSE log at `/agents/sessions/<id>` and `/agents/sessions/<id>/logs` on that host.
 - Use the same headers as the CLI: `Copilot-Integration-Id: copilot-4-cli` and `X-GitHub-Api-Version: 2026-01-09`, with the current GitHub credential obtained through `gh auth token` in a local variable. Never print or persist the credential; clear the variable afterward. Direct `gh api` needs explicit authentication for this separate GitHub-owned API host.
 - Parse `data:` JSON events and inspect `choices[].delta.tool_calls[]` where `function.name` is `store_comment`; decode the JSON arguments. Compare with posted threads and review bodies rather than counting posted comments alone.
+- Also inspect the session's Actions workflow log (`workflow_run_id` in metadata): ensemble reviews can expose only one member in `/logs` and `/events`. Compare every `Comment stored` location and the final classifier count with the review body. In round five, the raw session exposes one finding while the workflow confirms six. Do not infer completeness from the raw stored-comment count; record any unavailable full descriptions and assess the located source independently.
 
 The second session's three stored comments were independently recovered through this CLI path. This avoids further browser use and preserves access to withheld findings in subsequent rounds.
 
