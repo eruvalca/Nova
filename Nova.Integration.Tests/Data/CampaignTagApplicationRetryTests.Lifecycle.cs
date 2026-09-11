@@ -39,9 +39,10 @@ public sealed partial class CampaignTagApplicationRetryTests
         var result = await pending;
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(expected);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, input.OperationId).ShouldBe(!membership);
         await using var verify = fixture.CreateAdminContext();
         (await verify.CampaignTagApplications.AnyAsync(application => application.ClubId == clubId && application.CreationOperationId == input.OperationId, token)).ShouldBeFalse();
-        (await verify.EvaluationMutationReceipts.AnyAsync(receipt => receipt.ClubId == clubId && receipt.OperationId == input.OperationId, token)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.ClubId == clubId && receipt.OperationId == input.OperationId, token)).ShouldBe(membership ? 0 : 1);
     }
 
     private static async Task CommitCompetingChangeAsync(NovaAdminDbContext db, string change, long actor,

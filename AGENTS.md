@@ -85,6 +85,19 @@ were applied. Generic Aspire, .NET inspection, and Playwright recipes also live 
 
 ## Completion and review
 
+- Commit durable design inputs and decisions: product/design documents, the design sidecar,
+  surface briefs, shared configuration, approved comps with provenance, and concise validation
+  and review records. Curate representative final captures and automated visual-test baselines.
+  Impeccable build state, scaffolds, rejected concepts, repeated captures, crops, heatmaps and raw
+  run output are local artifacts; `.gitignore` excludes them unless explicitly retained.
+  Add narrow `.gitignore` exceptions for each new approved comp/provenance and curated evidence
+  package; do not force-add an entire generated directory. Existing tracked artifacts are not
+  removed by new ignore rules; migrate them deliberately within the relevant change's scope.
+  Before untracking evidence, preserve required approval and failure history in a durable archive
+  with a revision/checksum and a link from the validation record. An ignored local file alone is
+  not a shared archive. Fix references to archived evidence, and preserve local files needed to
+  resume work. This retention policy does not waive any design or validation check.
+
 - Diagnostic suppressions, weakened validation, skipped tests, and disabled checks are quality-control
   changes: require an explicit rationale and review of their effect on coverage and enforcement.
   Keep legitimate exceptions narrowly scoped and preserve justified existing exceptions. Fix the

@@ -1,1 +1,0 @@
-COMP_ROUND_OPEN: build-phase is at hero; the hero gate has not passed. A detector pass is not a finish: run node D:\repos\.codex\worktrees\71cf\Nova\.agents\skills\impeccable\scripts/build-phase.mjs status and follow its NEXT line before treating this page as built.

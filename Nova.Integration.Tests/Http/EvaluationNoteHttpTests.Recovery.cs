@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -31,10 +32,12 @@ public sealed partial class EvaluationNoteHttpTests
         editedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var edited = await editedResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(token);
         edited.Version.ShouldNotBe(added.Version);
-        using var staleEdit = await client.PutAsJsonAsync(CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId), ValidEditInput(added.Version, "Stale overwrite"), token);
+        var staleInput = ValidEditInput(added.Version, "Stale overwrite");
+        using var staleEdit = await client.PutAsJsonAsync(CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId), staleInput, token);
         staleEdit.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         using var staleProblem = await JsonDocument.ParseAsync(await staleEdit.Content.ReadAsStreamAsync(token), cancellationToken: token);
         staleProblem.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+        staleProblem.RootElement.GetProperty(EvaluationMutationRejection.OperationIdExtension).GetGuid().ShouldBe(staleInput.OperationId);
         using var staleRequest = new HttpRequestMessage(HttpMethod.Delete, CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId))
         {
             Content = JsonContent.Create(new DeleteEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = added.NoteId, ExpectedVersion = added.Version })
@@ -46,10 +49,44 @@ public sealed partial class EvaluationNoteHttpTests
         (await replayResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(token)).ShouldBe(edited);
         using var mismatchResponse = await client.PutAsJsonAsync(CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId), edit with { Content = "Different payload" }, token);
         mismatchResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(await mismatchResponse.ToServiceProblemAsync(token), edit.OperationId).ShouldBeFalse();
         await using var verify = fixture.CreateAdminContext();
         var note = await verify.Notes.SingleAsync(note => note.NoteId == added.NoteId, token);
         note.Content.ShouldBe("Newer shared observation");
         note.Version.ShouldBe(edited.Version);
-        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.ClubId == club.ClubId, token)).ShouldBe(2);
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.ClubId == club.ClubId, token)).ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task CommittedHttpOperationSurvivesUnmarkedMembershipDenialAndRecoversOriginalReceiptAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-membership-recovery");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, token);
+        await UpdateUserAsync(email, clubId: null, token);
+        var club = await CreateClubAsync(client, token);
+        await RefreshClubMembershipCookieAsync(client, token);
+        var (_, assignment) = await SeedEvaluationNoteDataAsync(club.ClubId, email, token);
+        var input = ValidAddInput(assignment, "Retain original operation while membership is unavailable");
+        using var committedResponse = await client.PostAsJsonAsync(CampaignEndpoints.AddEvaluationNote, input, token);
+        committedResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var original = await committedResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(token);
+
+        // Deliberately retain the existing authenticated cookie to exercise the persisted membership boundary.
+        await UpdateUserAsync(email, clubId: null, token);
+        using var denied = await client.PostAsJsonAsync(CampaignEndpoints.AddEvaluationNote, input, token);
+        denied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var denial = await denied.ToServiceProblemAsync(token);
+        EvaluationMutationRejection.IsNotCommitted(denial, input.OperationId).ShouldBeFalse();
+        denial.Extensions!.ContainsKey(EvaluationMutationRejection.OperationIdExtension).ShouldBeFalse();
+
+        await UpdateUserAsync(email, club.ClubId, token);
+        using var recovered = await client.PostAsJsonAsync(CampaignEndpoints.AddEvaluationNote, input, token);
+        recovered.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await recovered.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(token)).ShouldBe(original);
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Notes.CountAsync(note => note.PlayerCampaignAssignmentId == assignment, token)).ShouldBe(1);
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.ClubId == club.ClubId && receipt.OperationId == input.OperationId, token)).ShouldBe(1);
     }
 }

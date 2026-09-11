@@ -301,7 +301,7 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
     {
         _notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(call =>
             Task.FromResult(string.Equals(call.Arg<AddEvaluationNoteInput>().Content, "First draft", StringComparison.Ordinal)
-                ? new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["Content"] = ["Review this observation."] }))
+                ? new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["Content"] = ["Review this observation."] }), call.Arg<AddEvaluationNoteInput>().OperationId))
                 : new ServiceResult<EvaluationNoteMutationSuccess>(Success(call.Arg<AddEvaluationNoteInput>()))));
         var state = new CampaignWorkspaceEvaluationState { ParticipantId = 301 };
         var cut = Panel(state);
@@ -580,7 +580,7 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
             var input = call.Arg<EditEvaluationNoteInput>();
             edits.Add(input);
             return Task.FromResult(edits.Count == 1
-                ? new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Conflict("Another session updated the note."))
+                ? new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Another session updated the note."), input.OperationId))
                 : new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(1, Guid.NewGuid(), new(input.OperationId, 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24)))));
         });
         var cut = Panel(new() { ParticipantId = 301 });
@@ -676,7 +676,7 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
             Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(new EvaluationHistoryPage<CampaignParticipantNoteDto>([Note() with { CanEdit = true }], null))),
             Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(new EvaluationHistoryPage<CampaignParticipantNoteDto>([], null))));
         _notes.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Conflict("The original note has been deleted."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("The original note has been deleted."), call.Arg<EditEvaluationNoteInput>().OperationId))));
         var cut = Panel(new() { ParticipantId = 301 });
         cut.WaitForAssertion(() => cut.FindAll(".evaluation-note-item").Count.ShouldBe(1));
         Button(cut, "Edit").Click();

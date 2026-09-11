@@ -142,31 +142,33 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note creation without adding a note, mutation receipt, or activity event.
+    /// Verifies a Draft campaign rejects note creation without adding a note or activity event; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task AddReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task AddReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
-            OperationId = Guid.CreateVersion7(),
+            OperationId = operationId,
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "Draft campaign note."
         }, TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
         result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(
             note => note.Content == "Draft campaign note.",
             TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.EvaluationMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -238,7 +240,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken)).Content.ShouldBe("Initial note.");
-        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies that a non-author, non-admin club member cannot edit the note.</summary>
@@ -283,18 +285,19 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note edits without changing the note or recording side effects.
+    /// Verifies a Draft campaign rejects note edits without changing the note; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task EditReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task EditReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
-            OperationId = Guid.CreateVersion7(),
+            OperationId = operationId,
             NoteId = _existingNoteId,
             ExpectedVersion = await NoteVersionAsync(_existingNoteId),
             Content = "Draft campaign edit."
@@ -302,6 +305,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
         result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
@@ -311,7 +315,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
         note.Content.ShouldBe("Initial note.");
         note.ModifiedAt.ShouldBeNull();
         note.ModifiedById.ShouldBeNull();
-        (await verify.EvaluationMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -363,7 +367,7 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(note => note.NoteId == noteId, TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies that a non-author, non-admin club member cannot delete the note.</summary>
@@ -396,26 +400,28 @@ public sealed partial class EvaluationNoteServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note deletion without deleting the note or recording side effects.
+    /// Verifies a Draft campaign rejects note deletion without deleting the note; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task DeleteReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task DeleteReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = _existingNoteId, ExpectedVersion = await NoteVersionAsync(_existingNoteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
+        var operationId = Guid.CreateVersion7();
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = _existingNoteId, ExpectedVersion = await NoteVersionAsync(_existingNoteId), OperationId = operationId }, TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
         result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(
             note => note.NoteId == _existingNoteId,
             TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await verify.EvaluationMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 

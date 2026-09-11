@@ -2,6 +2,7 @@
 
 ## Scope and current round
 
+- The user stopped monitoring after review `5174740093` on `1a9cb8be`. CI passed, but Copilot failed its 300-file limit after storing four findings. [Round six](review-round-6.md) records the corrections, independent assessment and evidence-retention cleanup. The user subsequently authorized one combined push. The heartbeat remains paused; this does not resume continuous review watching or authorize a merge.
 - Round four was pushed once as `33a07928fedac5aa86ff3586580b7258f4b49ff8`; all 15 prior threads are explained/resolved and CI passed. Completed review `5174428186` posted zero comments but reports six suppressed findings. [Round five](review-round-5.md) records all six located findings and the independent source assessment. This is not a clean stopping review.
 
 ## Round-four history

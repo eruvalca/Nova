@@ -1523,8 +1523,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."), call.Arg<AddEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1558,8 +1557,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
                 capabilities: MutationCapabilities(canAddNote: true)))));
         var notes = Substitute.For<ICampaignEvaluationNoteService>();
         notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Campaign closed before this note could be saved."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Campaign closed before this note could be saved."), call.Arg<AddEvaluationNoteInput>().OperationId))));
         RegisterServices(query, notes);
         var lifecycleRefreshes = 0;
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
@@ -1611,8 +1609,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept note edits."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept note edits."), call.Arg<EditEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1654,8 +1651,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
             });
         var tagApplicationService = Substitute.For<ICampaignTagApplicationService>();
         tagApplicationService.ApplyAsync(Arg.Any<ApplyCampaignTagApplicationInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(
-                ServiceProblem.Conflict("The selected tag has already been applied to this participation."))));
+            .Returns(call => Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("The selected tag has already been applied to this participation."), call.Arg<ApplyCampaignTagApplicationInput>().OperationId))));
         var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
         tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(CreateTagChoices().ToList())));
@@ -1694,8 +1690,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."), call.Arg<AddEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1915,7 +1910,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
             .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(capabilities: MutationCapabilities(canAddNote: true)))), pending.Task);
         var notes = Substitute.For<ICampaignEvaluationNoteService>();
         notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Conflict(Rejection))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict(Rejection), call.Arg<AddEvaluationNoteInput>().OperationId))));
         RegisterServices(query, notes);
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10).Add(component => component.ParticipantId, 301)
@@ -2053,7 +2048,7 @@ public sealed partial class CampaignParticipantDrawerTests : BunitContext
         FindButtonByText(cut, "Recover original operation").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("24-hour recovery window has expired"));
         cut.Find(selector).GetAttribute("value").ShouldBe(RetainedText);
-        cut.FindAll("button").Any(button => button.TextContent.Contains("Recover original operation", StringComparison.Ordinal)).ShouldBeFalse();
+        cut.FindAll("button").Any(button => button.TextContent.Contains("Recover original operation", StringComparison.Ordinal)).ShouldBeTrue();
         if (editing)
         {
             _ = notes.Received(1).EditAsync(Arg.Is<EditEvaluationNoteInput>(value => value.OperationId == operationId && value.Content == RetainedText && value.ExpectedVersion == original.Version), Arg.Any<CancellationToken>());

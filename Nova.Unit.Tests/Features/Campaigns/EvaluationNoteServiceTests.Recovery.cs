@@ -42,11 +42,13 @@ public sealed partial class EvaluationNoteServiceTests
         var replayed = await service.AddAsync(input, TestContext.Current.CancellationToken);
         replayed.IsSuccess.ShouldBeTrue();
         replayed.Value.ShouldBe(added.Value);
-        var newRequest = await service.AddAsync(input with { OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
+        var rejectedId = Guid.CreateVersion7();
+        var newRequest = await service.AddAsync(input with { OperationId = rejectedId }, TestContext.Current.CancellationToken);
         newRequest.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+        EvaluationMutationRejection.IsNotCommitted(newRequest.Problem, rejectedId).ShouldBeTrue();
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(note => note.NoteId == added.Value.NoteId, TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
     }
 
     [Fact]
@@ -101,17 +103,19 @@ public sealed partial class EvaluationNoteServiceTests
         newer.IsSuccess.ShouldBeTrue();
         newer.Value.Version.ShouldNotBe(originalVersion);
 
+        var rejectedId = Guid.CreateVersion7();
         var stale = delete
-            ? await service.DeleteAsync(new DeleteEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = _existingNoteId, ExpectedVersion = originalVersion }, TestContext.Current.CancellationToken)
-            : await service.EditAsync(new EditEvaluationNoteInput { OperationId = Guid.CreateVersion7(), NoteId = _existingNoteId, ExpectedVersion = originalVersion, Content = "Stale replacement" }, TestContext.Current.CancellationToken);
+            ? await service.DeleteAsync(new DeleteEvaluationNoteInput { OperationId = rejectedId, NoteId = _existingNoteId, ExpectedVersion = originalVersion }, TestContext.Current.CancellationToken)
+            : await service.EditAsync(new EditEvaluationNoteInput { OperationId = rejectedId, NoteId = _existingNoteId, ExpectedVersion = originalVersion, Content = "Stale replacement" }, TestContext.Current.CancellationToken);
 
         stale.IsProblem.ShouldBeTrue();
         stale.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(stale.Problem, rejectedId).ShouldBeTrue();
         using var verify = _harness.CreateAdminContext();
         var persisted = (await verify.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken));
         persisted.Content.ShouldBe("Newer shared evidence");
         persisted.Version.ShouldBe(newer.Value.Version);
-        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
     }
 
     [Theory]

@@ -1,6 +1,0 @@
-{
-  "prompt": "Edit this Nova mobile app UI comp with ONLY these two text corrections. In the 'Add a trait' input replace 'good bal' with the full exact text 'good balance', matching the create-and-apply action. Remove the incorrect '42/500' character counter from the note field completely; the real note limit is 4000. Preserve every other text, region, position, size, color, control, and overall composition exactly. Keep the entire image and dimensions.",
-  "reference": ".impeccable/review/issue-197/mobile.png",
-  "approved": false,
-  "tool": "image_gen"
-}

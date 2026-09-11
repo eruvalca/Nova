@@ -1,0 +1,714 @@
+{
+  "sourceCommit": "1a9cb8bed98d251a3b6ca69e510411ca8e058e5d",
+  "sourceTree": "https://github.com/eruvalca/Nova/tree/1a9cb8bed98d251a3b6ca69e510411ca8e058e5d/.impeccable",
+  "retention": "These PR-added files are removed only from the current tracked tree. They remain in the pinned Git commit and locally. Pre-existing tracked artifacts are not migrated by this PR; ignore rules prevent new generated artifacts from being added.",
+  "localZip": ".impeccable/archive/issue-198-before-retention.zip",
+  "localZipSha256": "080E7F9090680DA082792A6612F4DEE26A82CCB74EE7B3A4CB83262664E62B9A",
+  "files": [
+    {
+      "path": ".impeccable/mocks/decision/issue-198-note-first.json",
+      "sha256": "BDFA6136171793EBE56218103DE85358C7245E46C71B0CC8709311611EA7E927",
+      "gitBlob": "63838996f0bfd545e148e5da7f2fd18feb90aa66"
+    },
+    {
+      "path": ".impeccable/mocks/decision/issue-198-note-first.png",
+      "sha256": "622CBF5781DD5F7D8641B0AD88E8EBECBC34F4749EC1108BA3B08FB2039DF576",
+      "gitBlob": "60af83c84b6cd3100f00a8d815fb6e63a02ba866"
+    },
+    {
+      "path": ".impeccable/mocks/decision/issue-198-note-first.prompt.txt",
+      "sha256": "5FE9604980B4E253EFC6E4FA8ED6B70F2A7BDFF1968B2EFA8412F361A10B46AF",
+      "gitBlob": "a8b6251a1261ee74e7bd923f2e596a0cafa340da"
+    },
+    {
+      "path": ".impeccable/mocks/decision/issue-198-traits-first.json",
+      "sha256": "D08140A50A23E06E2DDF58EF8A5CE34D5A33CF7A48BFD8CB937C96B4BE5DAE97",
+      "gitBlob": "51f55bc4dbab167c4e038a185eec4933af4a6efa"
+    },
+    {
+      "path": ".impeccable/mocks/decision/issue-198-traits-first.png",
+      "sha256": "6EE8A13FD40BBC5F682F77E4E73F1475F9185AE442D67A06AD7F20E067ACB3F8",
+      "gitBlob": "db5208f33c36ccf40042340a3517b22c7c343664"
+    },
+    {
+      "path": ".impeccable/mocks/decision/issue-198-traits-first.prompt.txt",
+      "sha256": "9EC72FBF5AD114C32108111AF3B35F3B819C55E343A9BB152592ACF12973602A",
+      "gitBlob": "d6dd62c85f73eb47b3977d876842399e9c90a77b"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/another.png",
+      "sha256": "9E42975B0DCE9A89049F47DC4573DD194E54C037E79C15E6D160C2A6D660171F",
+      "gitBlob": "55b661e638154580c7c5ec104ba11f50a691a5ce"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/bottom-nav.png",
+      "sha256": "6A5466EF56BA06DA17F44FCD30301F2E630FE9F6839EC8CDC1978E6EBF8A2AE0",
+      "gitBlob": "a7c7fda759e449f0cb32eda64afa95e6ce99a75b"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/campaign-back.png",
+      "sha256": "8DE0FFD693FA2A996C676A48B88E6C02E18434E4E93369F0EE3EFCEA957F723E",
+      "gitBlob": "a371e23f54347204ceb8a857d0669a7067c8c80b"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/campaign-heading.png",
+      "sha256": "AC75A59D8197E38377F31A62854C831C48C741A3FB8A7E2328DFD7C34A36A733",
+      "gitBlob": "69f0180caf73be55c72516e2e8a965bfd59ee015"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/composer-label.png",
+      "sha256": "43BBA909BC9DE953D55E9E97FC67E537125A171C9321E2BBE83C0969303A5D8B",
+      "gitBlob": "a9b2897b3b9ee4d99bed6306730ef2b2bbbbf056"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/composer.png",
+      "sha256": "A0D2B23708097C2713CDAB5A1184477C129360B0871F397ABD1D80060F184C48",
+      "gitBlob": "95363e92b8a8d3c1524371ca4076fbfe279a1f7b"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/first-author.png",
+      "sha256": "33787E3ACB8F7851FFC9768CC5FB5909DEE34541C0D434B4A3B59E801E52E36F",
+      "gitBlob": "e2bfc46f6ca8bee514bc8bbe135adf01388559f7"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/first-note.png",
+      "sha256": "E6E14D336D2A8669BEBA96602CDB0A777D1A75D671F52048E39B55571AB81BBA",
+      "gitBlob": "2ac15130059baa15b767ddd070160a2b2a5fd59c"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/first-time.png",
+      "sha256": "49B650470F2727E1B7E030B67646253148DEF86C844D01BCF99209EB1353818D",
+      "gitBlob": "fae6369c56453e46af13064d049bc5fcea079b9e"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/local-outcome.png",
+      "sha256": "16D193C72D604A81FE897FB4C53E9EB732CDD0165E816902536FE906F1D5C833",
+      "gitBlob": "341e6a1594a0952ad597b047581d8394200bacfe"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/menu.png",
+      "sha256": "FE9D59508E3FCA77F49FEABA79676F25480FBB50DC56FF1583C208D2CAA6E798",
+      "gitBlob": "9ae9dc87b4d9a12a75cd5460c3ca4f53e5e596eb"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/observations-heading.png",
+      "sha256": "2E40BE11C903D4789C3F6ADF17C554843695135E0C4B27D71849EE27EF152FC7",
+      "gitBlob": "1dd6fb4c9865f0fec863ca31614c88a919edbbb7"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/older.png",
+      "sha256": "173F60631EA54117A6CEA5FEB2D5AE4A15687ECAF5392569F03F0195DD6EAD5B",
+      "gitBlob": "c13f2fa04a565d4c14e8046507215f3c4235fd71"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/participant-count.png",
+      "sha256": "D06ACB3EA9B9B53F818DA76EA0C5AF12233C07FB15ABE19F0E2BC572743772C7",
+      "gitBlob": "36b431f92dc2a810686274e25e95d33967fa94ba"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/place.png",
+      "sha256": "27796734F500B883D8423C2E49F19B18D7E268017AF56E9536297A1CDEA6199B",
+      "gitBlob": "299d730868fd77b18c806d171a0844adc80688d3"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/readiness.png",
+      "sha256": "CA6762031EF6E9143615575C524FC7F40F93FA2D070F3E29826DC09C1AF73427",
+      "gitBlob": "5f64e6313001b02b94ef85298e81c539671d06ab"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/route.png",
+      "sha256": "AB7A7D62AFF0DB04AECD52D8BFF56912227BD2B282DC74020F01475DB798368F",
+      "gitBlob": "54eb5338e985b357add1292fd7b764807e264f6e"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/save.png",
+      "sha256": "9C384629DF346C18F56F3D61030438E166E15CB8CB7EF2852656C565A93350B5",
+      "gitBlob": "584efc2f9c2ca68d2e241bad0fe036300cff3c9e"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/season-team.png",
+      "sha256": "54757824E3EFD55D0D7115F045FA1CA9CF5D8472EDADC493ED1E94CF1B6B8BD0",
+      "gitBlob": "b85edc7ddb86db15ff3c906147f96a057a06138a"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/season.png",
+      "sha256": "CC0D168BB901310BA9BE70C4796C95C739B83B428664FEF410D465AAE80246C0",
+      "gitBlob": "db94692554f6e3890033a580f19719c7ddec0fa4"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/second-author.png",
+      "sha256": "7BB890D7CA9654C4EE62DF58F5F3C84FCC3FD7AE487D80E69E0ADA875B89E45D",
+      "gitBlob": "860c66307b52e33536a571f00ba502b6a80d482f"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/second-note.png",
+      "sha256": "C6BB23C15A627F90432B5BEC4687600C49D00C1B5D3FF635D646D121F40472E2",
+      "gitBlob": "7628adb915ad59b156ae940b607d3a53d0c61af5"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/second-time.png",
+      "sha256": "80BA05026C1198C004F35E123CE8D8FD59647BE8D1CB427AD8C0612FE8AA3123",
+      "gitBlob": "246b5a5b2aab3c461859092844bbda8894b7f6d9"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/traits-heading.png",
+      "sha256": "1347407F60675BB58830F7F6936930208A72FC8CAFDBEB242847958519A10820",
+      "gitBlob": "397e2b839e221d7de8f839925b266e13ea5fa4ea"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/traits.png",
+      "sha256": "7BF628CACAD3AC0C218C874DA4DF7D1486B4A89E9A5C3C4E37976412949EBCB0",
+      "gitBlob": "2336b2b5250fb5aad78e60159f7109295d68b211"
+    },
+    {
+      "path": ".impeccable/review/diff/desktop/regions/year.png",
+      "sha256": "AB632F920518D24FD95A3922726187AC2825C03C50FE7DF1A1E1BA21BEAFD7CF",
+      "gitBlob": "88cf4880fc668e5207b740f064d5449641ce5356"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/another.png",
+      "sha256": "110553249F52709F1A4662A42C9BB5C6FEC21034F7F9B74164AE525EDDC26605",
+      "gitBlob": "c367b9728303361f219eec560099555df55a4eed"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/bottom-nav.png",
+      "sha256": "FC5A077B6D363DDF61EA2F4D39F0BB83B99BB9792F3F710AF76E8206BA0BE48C",
+      "gitBlob": "eb0f51a3f7616ef0a99d95e28852602a2f91078a"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/campaign-back.png",
+      "sha256": "109495D35E5730488027C0C46293240B15392E2775C3D0E9D20362D3F8F1B7D0",
+      "gitBlob": "0487376a7a4710c26408c010525b86b67b470a34"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/campaign-heading.png",
+      "sha256": "3C338E2FD77F1483949DF25B3B11616D87463D102BCAF0AA9A311DBDC254A51C",
+      "gitBlob": "fbc91d3bcc2000f54ee617ff7259a0c12bd59861"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/composer-label.png",
+      "sha256": "D3E40DFCDD217E4FFAD5A2D4B4A45CCCB26F7CA988A40F60D50DE6B6FE130361",
+      "gitBlob": "66b2bc1f44ae24bc0f6bd7d230ee9258667aee9c"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/composer.png",
+      "sha256": "C97A5AAFFDAD25C05082A674C4DCE47271634374B68D636BFE23ABE399030CFB",
+      "gitBlob": "a8b379630ff0393215637cf1ebd923cd009ca9c1"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/first-author.png",
+      "sha256": "70A26A1831CAEBE1BD37396E16836AB88AFA440F1662DB4D129E04A11F45A00C",
+      "gitBlob": "8a7cfb3fe048be573ed524ada5fdf0edc7d7dcc8"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/first-note.png",
+      "sha256": "DE94FCFB1D1C647E222768981F6AA954A6F867E8EEBAABE4D604AC1D17159E4D",
+      "gitBlob": "35f2d9b04ed96e0e64c11ef98e79fd4e773d60ea"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/first-time.png",
+      "sha256": "49B650470F2727E1B7E030B67646253148DEF86C844D01BCF99209EB1353818D",
+      "gitBlob": "fae6369c56453e46af13064d049bc5fcea079b9e"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/local-outcome.png",
+      "sha256": "6DB4EE780D9BB7A7268976625D0CBDFAA2672B7964B1D11A96B8B0FA4CE43058",
+      "gitBlob": "a7d3ff7edd3a271b6ca97e63ae6161c8de54f70d"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/menu.png",
+      "sha256": "94E881546A6CF616DBBD135890D33ADA57AB2441D4295DE0C65F98543BF2116F",
+      "gitBlob": "9335b9a1345a8cb04d849b72cdca4951bed93771"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/observations-heading.png",
+      "sha256": "941C5C0C5D1164C984AE5236924E52FF8B080D8BEA28537E4D11268468C4951A",
+      "gitBlob": "7d6f1e79a7a6930f86fe3d673b7bd34862bace2e"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/older.png",
+      "sha256": "00B33CF8A0467858016E7AEB538EC4C3F564EE9078756E14556007AD433F7E27",
+      "gitBlob": "2f6f051510853649ef1c8e6cc94b36094c04ef63"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/participant-count.png",
+      "sha256": "8FCB1FD7356B9C849CDA0CC88EAA46D8CD1D1A7F46F54F172F68EB8BD83C3742",
+      "gitBlob": "355d229e907d5aaed62da1eb6f8aa32d5d13aac9"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/place.png",
+      "sha256": "B8E1BC9A1039F162EEFFC01322531A238E173DA31C46AD99C3761F8842BF37A5",
+      "gitBlob": "f5580a64118a03bae5b9575f7b6a117ce8cc8b06"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/save.png",
+      "sha256": "94B25B4BA825EB622A13AA8B502177B87B49332F6ECEA0680F0A5E62667D24AA",
+      "gitBlob": "25f7a03c81b7ca59545f03dbc64e2c8cf6f054c3"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/season-team.png",
+      "sha256": "AF6AB41C887B272982AEE9922917155B04066A1FC6B1FCBC690E64E6AFA75421",
+      "gitBlob": "6daa498dfd6197181cb166197db2de1c72d80fe7"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/season.png",
+      "sha256": "74A74D3684BC2DBFAD1F067CF82278511DE3141D2FAE3BE4314E84E8D39D4D4B",
+      "gitBlob": "6cb123c0547a22fcf9ecbfbff47d79e0c1a43b45"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/second-author.png",
+      "sha256": "8519B18E7D331886180BEC2D3572E7931F110F55DF9E592318B26A09671C6BE2",
+      "gitBlob": "3d14bace290b8dddf7981b7b81662eb0cdfbf6cc"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/second-note.png",
+      "sha256": "A1BA4D8275226D8F38290D7BFDBCE58A274D74565A87B6582074C87037F48D93",
+      "gitBlob": "ffa7456a893dbf3a19d67fc312dee5fac46fe1c4"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/second-time.png",
+      "sha256": "633A0401F66068A02CFD65047254F0B396DA428F36C18FA4AB967BD3642A69A7",
+      "gitBlob": "5ee6a0998a57a58a313b6e0014b6fff1fba2b6c2"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/traits-heading.png",
+      "sha256": "C7D0F721F92FE67B9DDF79E22A6F23778601BEEB8A40BA8D93770B9206156740",
+      "gitBlob": "9c143c65efe5ed7d5eb1c6ed91ef6288711eaceb"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/traits.png",
+      "sha256": "CB85E780669AF53228619CE5651F90A8C1312A9D1204C4DB4CCA49DDDF16D61B",
+      "gitBlob": "213d2a0ae97a3b5df3c54ca7c4eaf25cb66918fb"
+    },
+    {
+      "path": ".impeccable/review/diff/final/regions/year.png",
+      "sha256": "EDE39221643AB46DE21DB25D1A1D3A1734F3668392279D3825F190AED03F6094",
+      "gitBlob": "48d28b710371d32aeadf9caf623879c3fdc4421a"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/another.png",
+      "sha256": "110553249F52709F1A4662A42C9BB5C6FEC21034F7F9B74164AE525EDDC26605",
+      "gitBlob": "c367b9728303361f219eec560099555df55a4eed"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/bottom-nav.png",
+      "sha256": "FC5A077B6D363DDF61EA2F4D39F0BB83B99BB9792F3F710AF76E8206BA0BE48C",
+      "gitBlob": "eb0f51a3f7616ef0a99d95e28852602a2f91078a"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/campaign-back.png",
+      "sha256": "109495D35E5730488027C0C46293240B15392E2775C3D0E9D20362D3F8F1B7D0",
+      "gitBlob": "0487376a7a4710c26408c010525b86b67b470a34"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/campaign-heading.png",
+      "sha256": "3C338E2FD77F1483949DF25B3B11616D87463D102BCAF0AA9A311DBDC254A51C",
+      "gitBlob": "fbc91d3bcc2000f54ee617ff7259a0c12bd59861"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/composer-label.png",
+      "sha256": "D3E40DFCDD217E4FFAD5A2D4B4A45CCCB26F7CA988A40F60D50DE6B6FE130361",
+      "gitBlob": "66b2bc1f44ae24bc0f6bd7d230ee9258667aee9c"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/composer.png",
+      "sha256": "C97A5AAFFDAD25C05082A674C4DCE47271634374B68D636BFE23ABE399030CFB",
+      "gitBlob": "a8b379630ff0393215637cf1ebd923cd009ca9c1"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/first-author.png",
+      "sha256": "70A26A1831CAEBE1BD37396E16836AB88AFA440F1662DB4D129E04A11F45A00C",
+      "gitBlob": "8a7cfb3fe048be573ed524ada5fdf0edc7d7dcc8"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/first-note.png",
+      "sha256": "DE94FCFB1D1C647E222768981F6AA954A6F867E8EEBAABE4D604AC1D17159E4D",
+      "gitBlob": "35f2d9b04ed96e0e64c11ef98e79fd4e773d60ea"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/first-time.png",
+      "sha256": "49B650470F2727E1B7E030B67646253148DEF86C844D01BCF99209EB1353818D",
+      "gitBlob": "fae6369c56453e46af13064d049bc5fcea079b9e"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/local-outcome.png",
+      "sha256": "6DB4EE780D9BB7A7268976625D0CBDFAA2672B7964B1D11A96B8B0FA4CE43058",
+      "gitBlob": "a7d3ff7edd3a271b6ca97e63ae6161c8de54f70d"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/menu.png",
+      "sha256": "94E881546A6CF616DBBD135890D33ADA57AB2441D4295DE0C65F98543BF2116F",
+      "gitBlob": "9335b9a1345a8cb04d849b72cdca4951bed93771"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/observations-heading.png",
+      "sha256": "941C5C0C5D1164C984AE5236924E52FF8B080D8BEA28537E4D11268468C4951A",
+      "gitBlob": "7d6f1e79a7a6930f86fe3d673b7bd34862bace2e"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/older.png",
+      "sha256": "00B33CF8A0467858016E7AEB538EC4C3F564EE9078756E14556007AD433F7E27",
+      "gitBlob": "2f6f051510853649ef1c8e6cc94b36094c04ef63"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/participant-count.png",
+      "sha256": "8FCB1FD7356B9C849CDA0CC88EAA46D8CD1D1A7F46F54F172F68EB8BD83C3742",
+      "gitBlob": "355d229e907d5aaed62da1eb6f8aa32d5d13aac9"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/place.png",
+      "sha256": "B8E1BC9A1039F162EEFFC01322531A238E173DA31C46AD99C3761F8842BF37A5",
+      "gitBlob": "f5580a64118a03bae5b9575f7b6a117ce8cc8b06"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/save.png",
+      "sha256": "94B25B4BA825EB622A13AA8B502177B87B49332F6ECEA0680F0A5E62667D24AA",
+      "gitBlob": "25f7a03c81b7ca59545f03dbc64e2c8cf6f054c3"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/season-team.png",
+      "sha256": "AF6AB41C887B272982AEE9922917155B04066A1FC6B1FCBC690E64E6AFA75421",
+      "gitBlob": "6daa498dfd6197181cb166197db2de1c72d80fe7"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/season.png",
+      "sha256": "74A74D3684BC2DBFAD1F067CF82278511DE3141D2FAE3BE4314E84E8D39D4D4B",
+      "gitBlob": "6cb123c0547a22fcf9ecbfbff47d79e0c1a43b45"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/second-author.png",
+      "sha256": "8519B18E7D331886180BEC2D3572E7931F110F55DF9E592318B26A09671C6BE2",
+      "gitBlob": "3d14bace290b8dddf7981b7b81662eb0cdfbf6cc"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/second-note.png",
+      "sha256": "A1BA4D8275226D8F38290D7BFDBCE58A274D74565A87B6582074C87037F48D93",
+      "gitBlob": "ffa7456a893dbf3a19d67fc312dee5fac46fe1c4"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/second-time.png",
+      "sha256": "633A0401F66068A02CFD65047254F0B396DA428F36C18FA4AB967BD3642A69A7",
+      "gitBlob": "5ee6a0998a57a58a313b6e0014b6fff1fba2b6c2"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/traits-heading.png",
+      "sha256": "C7D0F721F92FE67B9DDF79E22A6F23778601BEEB8A40BA8D93770B9206156740",
+      "gitBlob": "9c143c65efe5ed7d5eb1c6ed91ef6288711eaceb"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/traits.png",
+      "sha256": "CB85E780669AF53228619CE5651F90A8C1312A9D1204C4DB4CCA49DDDF16D61B",
+      "gitBlob": "213d2a0ae97a3b5df3c54ca7c4eaf25cb66918fb"
+    },
+    {
+      "path": ".impeccable/review/diff/hero/regions/year.png",
+      "sha256": "EDE39221643AB46DE21DB25D1A1D3A1734F3668392279D3825F190AED03F6094",
+      "gitBlob": "48d28b710371d32aeadf9caf623879c3fdc4421a"
+    },
+    {
+      "path": ".impeccable/review/issue-198/before-funded-round/hero.png",
+      "sha256": "25FD1E8AC7B6E19839E69818D4E3E31CA66CE1E980EACA04E60BA0415245861D",
+      "gitBlob": "764cb87a70c2b65aab53caec14542aaca74f0c76"
+    },
+    {
+      "path": ".impeccable/review/issue-198/before-funded-round/report.json",
+      "sha256": "0F3CDA57237D0CCDB1D52A9767E5B9243EEF65CDEA945D2914C2899430DDC530",
+      "gitBlob": "d7846ab466e709a6ddfc00fdf904f42b4032e693"
+    },
+    {
+      "path": ".impeccable/review/issue-198/before-funded-round/side-by-side.png",
+      "sha256": "F05CA9DBB40126C47EC35E4E3E3B2D58D6589624B69875F3C727B09E668B900C",
+      "gitBlob": "12c1d65097efbc2934bd917e578e60db9e4bcd8f"
+    },
+    {
+      "path": ".impeccable/review/issue-198/command-results.json",
+      "sha256": "BECACC99F6EB4CFD63B1A9313F09737F2FF55B2FC1F0E834A81F53C835D0428D",
+      "gitBlob": "a25c46164a2a1b56d9c4c9e068c32e252908b852"
+    },
+    {
+      "path": ".impeccable/review/issue-198/detector-status.txt",
+      "sha256": "A48DB41AC7FE208605D7D07CA751C6C7A37625D86A3EADDEB706E20B1A4923F3",
+      "gitBlob": "b81c341ae48e8d99450dc0664bbb089d2f6f37af"
+    },
+    {
+      "path": ".impeccable/review/issue-198/final-measurement.json",
+      "sha256": "D738CDB4C7690DFD4D56D3D4CAECCD97C7ABEA6457F08A1B11B2B9A35122FA1B",
+      "gitBlob": "c67bdbfc69a0ed89bb8e9a4173803fb54f2a22d9"
+    },
+    {
+      "path": ".impeccable/review/issue-198/funded-round-hero.png",
+      "sha256": "247FDA0674AA60C13EC79687F899FF842FC5B8C0A455DE5C178F652396932F99",
+      "gitBlob": "c8a16274097bb7ed1fbf018104fc6007624e9498"
+    },
+    {
+      "path": ".impeccable/review/issue-198/funded-round-measurement.json",
+      "sha256": "27D744A54EF3D1CA8ED64940414FB596E7971A64E83A8364ECCEE79E6EE64A14",
+      "gitBlob": "d4fb9b9fd49e6e84c3ba8703bac23f22c52425fa"
+    },
+    {
+      "path": ".impeccable/review/issue-198/hero-measurement.txt",
+      "sha256": "27578C2DF5EA6DB723F6E0B19F94983CD5EDE580F015AEAF61437DABEB9197A5",
+      "gitBlob": "859022277bd9b715c7d8898f973a9388348efeed"
+    },
+    {
+      "path": ".impeccable/review/issue-198/measure-sheet.mjs",
+      "sha256": "0827CCFE53FEAEDA3A49B56A48D03D4C3ED7A4F0C49937CEAD02685D6002426E",
+      "gitBlob": "1bd77be81a5e351fd066d363f525ddea576ec821"
+    },
+    {
+      "path": ".impeccable/review/issue-198/predecessor-build-state.json",
+      "sha256": "BC47BB5193DDF33584387F075491E75E86AD5841F654631663C3C9132C6C1B2C",
+      "gitBlob": "b6f7960d61602cdbef963cf0eb943b5a28c0656c"
+    },
+    {
+      "path": ".impeccable/review/issue-198/regions.json",
+      "sha256": "476BBF669406E5E7410D485ED76CF3180C4587873F909CDFAEC85471A8BF3A85",
+      "gitBlob": "d9e78dd27c99dd68df019abafd3c40eba8f78cc6"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/before-scope-build-state.json",
+      "sha256": "BF6D7C6A29C507B207ED5BBE8FC88BDAA4F6380DC8A3E6344652A516E2A0434A",
+      "gitBlob": "b22f3d8dec42f7226218a8f20789ba4122b09be0"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/build.png",
+      "sha256": "08386EC9B305E274A0625C3B0A99712553056E939CDFCC745D78A98DC634E46B",
+      "gitBlob": "f8379782627d46b01167822c1f2388a9af268d8b"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/comp.png",
+      "sha256": "52819C4A75AD593A76490C33354E75FAFCF3F60B0FC0BFEBB163F7E5BBD0DC7E",
+      "gitBlob": "4efac6c805722926dc5880c2375c68931d708dcd"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/heatmap.png",
+      "sha256": "9C9C43A76C40485A546D55A862E6EFF8302E55864E00BF276648798A243A3A91",
+      "gitBlob": "9d47ee311149c6797d13fb612a9d5d7b585928f4"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/original-full-frame-report.json",
+      "sha256": "9EEA7EEC4598E0111C8C9401AB03E3A997D91EBDCA503ABAB39C5FD2EC97BF7D",
+      "gitBlob": "328f3745bb7e8241528817c4b1a767c533f55790"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/predecessor-responsive/desktop.png",
+      "sha256": "92571C297B25F2768C28FBD4AE337150EBC4D6AE4946DEAAC56672E491601A62",
+      "gitBlob": "1308c287123b3976c52e0e436ef21467d54d405a"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/predecessor-responsive/mobile.png",
+      "sha256": "549A1B8CCD6A77DB84BD7BD0456DD6B07908EC5A2FD48C0AA20646F136A5803D",
+      "gitBlob": "4b35f812d60f69853a62aba76ff65d9bd4ec9b6a"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/another.png",
+      "sha256": "A1FF53E48831C0735DEA8942860B224547C3C0CC61AD52E663B2A17787773E33",
+      "gitBlob": "0caa82282fb2bc74a27695c6fcdcad83f2e39aa8"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/back.png",
+      "sha256": "266D0EB843F3E7BFB2287C3A76DF5765E986B226E2ADBC41D42C9AB6D920678F",
+      "gitBlob": "c06226bc681f033f38142c90a99fe23d88765e59"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/composer-label.png",
+      "sha256": "861CCFA110347A4A4FB4E55F829DC4EF58CA2CABD13212E10D1D927172009B57",
+      "gitBlob": "dbc5bfe16fc710629606cc9ee32ff1ce07dfcb29"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/composer.png",
+      "sha256": "9D45D3790F91A6EC5D38F3D42DF2AB5782CFE8CF765EF91093BA0634D9478A10",
+      "gitBlob": "e0df16d46f372fb20ce88e91d781862d32f36817"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/first-author.png",
+      "sha256": "86F259704D2314E2535D9780C912B7DF4F3E54A6B282FDE8125E3C3F74277BC0",
+      "gitBlob": "17ee78887bd3e177e3e9340651a28cd60aa9fecd"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/first-note.png",
+      "sha256": "31F35C46CE8307698F828376E085E3518332D224BD7BB6A2AAC6EB73D874E412",
+      "gitBlob": "f42b2d59793c82930bc0b28eaceaae12d7e778bb"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/first-time.png",
+      "sha256": "78E78DE60F4E5C01B4C3684D2D5B67E3081F6908DCE83510D3C5F7FA48BE5F30",
+      "gitBlob": "672151493436b0ca92a9f9d45370b3147aafeba1"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/identity.png",
+      "sha256": "6AEC30C7F43BC358D68F483B455858DD98B61CE3871226EBE2BCBDC9BF06095A",
+      "gitBlob": "da6b6bc8b75eae3b35d5b1bd64ba8111d3a42733"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/local-outcome.png",
+      "sha256": "A27C5B08776255D21C386E9A8EA015255FDE44E8A56B702EE6E2090A9997DE0B",
+      "gitBlob": "60ce1cc7fcb7adba1c50e0746c3a66f12ec24620"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/observations-heading.png",
+      "sha256": "634F0354EBB73E1F00F57B85646643DD04E7163ABA60A9256B0D321E52CA337C",
+      "gitBlob": "88059a6af4dcf0dc7e7ba7b4e3daf36e8cb001f0"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/place.png",
+      "sha256": "B8E1BC9A1039F162EEFFC01322531A238E173DA31C46AD99C3761F8842BF37A5",
+      "gitBlob": "f5580a64118a03bae5b9575f7b6a117ce8cc8b06"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/save.png",
+      "sha256": "52B1FFEEEBA2AA3D784C75C51F05F5F0D275D1F785F136FE1020B38E7780ECC3",
+      "gitBlob": "bad9a8560a6a3372ce486085bd6fe27199582c0e"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/season-team.png",
+      "sha256": "70D45388F4F477BBF3DFC3E12529AADF4E41698A6D2886A8ED43E29067C40569",
+      "gitBlob": "b4fb074b9e19c354bb0e3cf2963192d976c22295"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/second-author.png",
+      "sha256": "B6E2EBE2496A6406608069DBBB0784071837C91FFFC95A809B2703981A7FCD42",
+      "gitBlob": "e99ce72d625082906d8cf1db9dbd72fef3409da8"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/second-note.png",
+      "sha256": "991C2F77EE07C5DF2604E3C7E8F8A9D449269AA35EF048972CF6F353DA223131",
+      "gitBlob": "46f5c94a0f3b143261912b54bdaadf8b561cf6db"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/second-time.png",
+      "sha256": "3BCE2D044529FABF8AEF7D1F16A59BB8B9D72E2D322CA919319DB4B6E8F15B89",
+      "gitBlob": "6bb14eaca64587076f872f15667ce5979f804699"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/traits-heading.png",
+      "sha256": "60996DD3FD2A35391841468D4CF9DF22989154BB74801E61B619FD76EBA44C3F",
+      "gitBlob": "9e35a1e50d8277e002da7f9cad6851a29e5beb5e"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/traits.png",
+      "sha256": "DB3B5CB221C689081C13A9FF656E63E49448172B20FC92B3A06740D8342175C5",
+      "gitBlob": "fcedc6426e3bd39c6cb7c8a235bc3b9566587492"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/regions/year.png",
+      "sha256": "7A02EE52DE0162DC7C371EF2B3644EC5D7BC690F8F70FE71D3BA78E65C5ED37A",
+      "gitBlob": "9c950891a5775e9e7a079f12b0b5002592621df1"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/side-by-side.png",
+      "sha256": "6314C6D76107B7909212B0BBC6BEDF6F95D8C02D6192F1DAEE38CFB6E2F0B1A9",
+      "gitBlob": "cafb64b8349415ef3a840cda9d309d904b87e4b8"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/heatmap.png",
+      "sha256": "9C9C43A76C40485A546D55A862E6EFF8302E55864E00BF276648798A243A3A91",
+      "gitBlob": "9d47ee311149c6797d13fb612a9d5d7b585928f4"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/another.png",
+      "sha256": "407360EC29B138F33FF6BAA928ABED9B27439A460B61D5A19055F890FA70D405",
+      "gitBlob": "5eaf8513db226ca2aaaebaa39b4afa495f448db2"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/back.png",
+      "sha256": "206E9AB3DBB69B58E973E9D6E887E051DDC217F1519FBA6FF1699624D42236E7",
+      "gitBlob": "47e4f4d5e2cb4eb72a65ee5553c6f0efd4016ec2"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/composer-label.png",
+      "sha256": "2D234CDC4953D3D72119499838EEB69BF1C0FF9E33470BFEB00ED4D9B8E44B54",
+      "gitBlob": "0bf115aa423c59857ab34c3ce110a07720557fb2"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/composer.png",
+      "sha256": "F16D4D8A16C29A1BBB7C287EFB9C6247DB320E03692E95F31073E4A2A7D95175",
+      "gitBlob": "91fae4f668b43274af8a0214172728d04ebf66ee"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/first-author.png",
+      "sha256": "6D44BF1D0BE4CA04ED7BF264D888CCAC2C62185EED304D7620C921B552BDBFDE",
+      "gitBlob": "810504ddcce76be2eed09e6044e88d9ab07722d8"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/first-note.png",
+      "sha256": "F01C9773D2EC6DEED0AA7E24990AA4F375D7DED1F27BA267003B9C5AA4A42839",
+      "gitBlob": "6e0843a02e5ef4ddd3322aca8c020cb5933e9563"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/first-time.png",
+      "sha256": "7A340D56A1FC02412F68FF202AFEEF9D932F2BA849503C29E42444D27D71951F",
+      "gitBlob": "fe4a69f447221c3177dac1acf2307736cdd599c6"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/identity.png",
+      "sha256": "C7E462372DDF0694F13B94AFA91DA7A0AC3E5A3364088C3A0587F41C5D40A050",
+      "gitBlob": "58c8e235ffc989134cfe32aa7c391848ceaa17fe"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/local-outcome.png",
+      "sha256": "9015CC98A7DA25652644B92FA75D0178D667EAA5529BA24652C9A64D9F6439A9",
+      "gitBlob": "054f9cbf1dd5c531df77f29cf853b182e3647d29"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/observations-heading.png",
+      "sha256": "C0AECDC290E158A047D5B331077F59054FF161B58C70C8588E1C18944F992F41",
+      "gitBlob": "d5516fbd2f8f34e697a96d0e30ec7d904de30408"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/place.png",
+      "sha256": "B8E1BC9A1039F162EEFFC01322531A238E173DA31C46AD99C3761F8842BF37A5",
+      "gitBlob": "f5580a64118a03bae5b9575f7b6a117ce8cc8b06"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/save.png",
+      "sha256": "D7D0F2192D34E7DC215E15042B2D7EA43AB3B3C0B01DF28B5BFF25C7530A188A",
+      "gitBlob": "d7d48eca19ac9bd0dd3e14f9dd3522b2ebb5e031"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/season-team.png",
+      "sha256": "B513024FC3DFF162AA8B2DD7CEACCE8D06ACF6CE9253EA7EE1A175847745FC55",
+      "gitBlob": "6fff10f604410b7f3de57a997c8ebe77a09a5292"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/second-author.png",
+      "sha256": "C0CD6A2C2C9269FE3986E500691F2CFE66F8C467F85CB46D8045F49B4B657033",
+      "gitBlob": "ca5672e73210ad5c5722788fabe1a6a89015a996"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/second-note.png",
+      "sha256": "85A7D1121EE833C87806FC7548042056D9F22E3B14673CEDF1A1451F2555E51A",
+      "gitBlob": "06c6ea87780992d8d4c1c2354ed0f6cc5254df2e"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/second-time.png",
+      "sha256": "B5A803F9DD14679775DCAACBABF8B8B067801AD84A4068C73F73503A628C5514",
+      "gitBlob": "3e69fec4118c179e46295c2bab03337333048f0e"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/traits-heading.png",
+      "sha256": "B37412683F669127B1DEB8F4E42083391538A66B3F24D97B411E945E835A1FD4",
+      "gitBlob": "82b87234a82b43d903887859864c5a48e0ed713c"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/traits.png",
+      "sha256": "7DED84B70FC36288EF553C743023A17A1DD05A2B8BF763B0538EF1396A024B9F",
+      "gitBlob": "2c33ba5931d2929f1f42f212283964bb1ee2a500"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/regions/year.png",
+      "sha256": "F5FD61159C3F516DDEE4A60DE9BAC8E912D8200FCC5CCFB5B4B2DD483486882A",
+      "gitBlob": "9687859051fcaf300807e33a23fba6e413c16370"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/report.json",
+      "sha256": "22A348408BC4EE5AFB43AE52A1F2555A134B5B53543E47859E5942189A4D6809",
+      "gitBlob": "478cda88c622016f58daea820649c8cdf2f4de3d"
+    },
+    {
+      "path": ".impeccable/review/issue-198/sheet-relative/standard-tool/side-by-side.png",
+      "sha256": "6314C6D76107B7909212B0BBC6BEDF6F95D8C02D6192F1DAEE38CFB6E2F0B1A9",
+      "gitBlob": "cafb64b8349415ef3a840cda9d309d904b87e4b8"
+    }
+  ]
+}

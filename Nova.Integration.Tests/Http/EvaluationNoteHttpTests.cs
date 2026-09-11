@@ -183,9 +183,10 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             cancellationToken,
             campaignStatus: CampaignStatus.Closed);
 
+        var input = ValidAddInput(assignmentId, "Note on a closed campaign.");
         using var response = await client.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            ValidAddInput(assignmentId, "Note on a closed campaign."),
+            input,
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -194,13 +195,14 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
             .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
+        document.RootElement.GetProperty(EvaluationMutationRejection.OperationIdExtension).GetGuid().ShouldBe(input.OperationId);
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot add a note to a Draft campaign and no note or receipt is persisted.
+    /// Verifies a club administrator cannot add a note to a Draft campaign and a durable rejection is retained without a note.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task AddEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -233,7 +235,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
         noteCount.ShouldBe(0);
         var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -422,10 +424,10 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot edit a note in a Draft campaign and no mutation receipt is persisted.
+    /// Verifies a club administrator cannot edit a note in a Draft campaign and a durable rejection receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task EditEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -457,7 +459,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
         await using var verify = fixture.CreateAdminContext();
         var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -685,10 +687,10 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot delete a note in a Draft campaign and no mutation receipt is persisted.
+    /// Verifies a club administrator cannot delete a note in a Draft campaign and a durable rejection receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task DeleteEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -719,7 +721,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
         await using var verify = fixture.CreateAdminContext();
         var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>

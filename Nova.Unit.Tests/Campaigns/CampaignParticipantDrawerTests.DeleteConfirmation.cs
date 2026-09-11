@@ -24,7 +24,7 @@ public sealed partial class CampaignParticipantDrawerTests
             var input = call.Arg<DeleteEvaluationNoteInput>();
             inputs.Add(input);
             history.Deleted = input.ExpectedVersion == history.CurrentVersion;
-            return Task.FromResult(history.Deleted ? DrawerDeleteReceipt(input) : DrawerDeleteConflict());
+            return Task.FromResult(history.Deleted ? DrawerDeleteReceipt(input) : DrawerDeleteConflict(input.OperationId));
         });
         var cut = DeleteDrawer();
         OpenDrawerDeleteAndRefreshHistory(cut);
@@ -59,7 +59,7 @@ public sealed partial class CampaignParticipantDrawerTests
     {
         var notes = Substitute.For<ICampaignEvaluationNoteService>();
         var history = ConfigureDrawerDeleteHistory(notes);
-        notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DrawerDeleteConflict()));
+        notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult(DrawerDeleteConflict(call.Arg<DeleteEvaluationNoteInput>().OperationId)));
         var cut = DeleteDrawer();
         FindButtonByText(cut, "Delete").Click();
         cut.Find("#participant-drawer-note-delete-confirm-1").Change(true);
@@ -93,7 +93,7 @@ public sealed partial class CampaignParticipantDrawerTests
         {
             inputs.Add(call.Arg<DeleteEvaluationNoteInput>());
             return inputs.Count < 3 ? Task.FromException<ServiceResult<EvaluationNoteMutationSuccess>>(new HttpRequestException("Lost acknowledgement"))
-                : Task.FromResult(DrawerDeleteConflict());
+                : Task.FromResult(DrawerDeleteConflict(inputs[^1].OperationId));
         });
         var module = JSInterop.SetupModule(DrawerModulePath);
         var read = module.Setup<string?>("readOperation", _ => true);
@@ -152,7 +152,7 @@ public sealed partial class CampaignParticipantDrawerTests
         FindButtonByText(cut, "Delete").Click();
     }
 
-    private static ServiceResult<EvaluationNoteMutationSuccess> DrawerDeleteConflict() => new(ServiceProblem.Conflict("The note changed after confirmation opened."));
+    private static ServiceResult<EvaluationNoteMutationSuccess> DrawerDeleteConflict(Guid operationId) => new(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("The note changed after confirmation opened."), operationId));
 
     private static ServiceResult<EvaluationNoteMutationSuccess> DrawerDeleteReceipt(DeleteEvaluationNoteInput input) => new(new EvaluationNoteMutationSuccess(input.NoteId, input.ExpectedVersion,
         new(input.OperationId, 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24))));

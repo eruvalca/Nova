@@ -95,10 +95,17 @@ internal sealed class EvaluationMutationExecutor(IDbContextFactory<NovaDbContext
             return Expired();
         }
 
+        // Keep membership/roster locks while undoing a rejected attempt's partial effects.
+        // Its durable rejection prevents a delayed identical request from committing later.
+        const string MutationSavepoint = "evaluation_effects";
+        await transaction.CreateSavepointAsync(MutationSavepoint, token);
         var result = await mutate(db, actor, club, expiresAt);
         if (result.IsProblem)
         {
-            return result;
+            await transaction.RollbackToSavepointAsync(MutationSavepoint, token);
+            db.ChangeTracker.Clear();
+            if (result.Problem.Kind == ServiceProblemKind.ServerError) { return result; }
+            result = EvaluationMutationRejection.NotCommitted(result.Problem, input.OperationId);
         }
 
         db.EvaluationMutationReceipts.Add(new EvaluationMutationReceiptEntity
@@ -108,7 +115,9 @@ internal sealed class EvaluationMutationExecutor(IDbContextFactory<NovaDbContext
             CreatedById = actor,
             OperationId = input.OperationId,
             RequestSha256 = fingerprint,
-            ResultJson = JsonSerializer.Serialize(result.Value),
+            ResultJson = result.Match(
+                value => JsonSerializer.Serialize(new StoredOutcome<T>(value, null)),
+                problem => JsonSerializer.Serialize(new StoredOutcome<T>(default, problem))),
             RecoveryExpiresAt = expiresAt
         });
         await db.SaveChangesAsync(token);
@@ -144,10 +153,12 @@ internal sealed class EvaluationMutationExecutor(IDbContextFactory<NovaDbContext
             return ServiceProblem.Conflict("This operation identity belongs to a different request. Keep the original recovery payload.");
         }
 
-        return receipt.RecoveryExpiresAt <= DateTimeOffset.UtcNow
-            ? Expired()
-            : new ServiceResult<T>(JsonSerializer.Deserialize<T>(receipt.ResultJson)
-                ?? throw new InvalidOperationException("The evaluation receipt is missing its original result."));
+        if (receipt.RecoveryExpiresAt <= DateTimeOffset.UtcNow) { return Expired(); }
+        var outcome = JsonSerializer.Deserialize<StoredOutcome<T>>(receipt.ResultJson)
+            ?? throw new InvalidOperationException("The evaluation receipt is missing its original outcome.");
+        return outcome.Problem is { } problem
+            ? problem
+            : new ServiceResult<T>(outcome.Value ?? throw new InvalidOperationException("The evaluation receipt is missing its original result."));
     }
 
     /// <summary>Uses the immutable UUIDv7 timestamp so deleted/expired receipts can never restart old operations.</summary>
@@ -215,4 +226,6 @@ internal sealed class EvaluationMutationExecutor(IDbContextFactory<NovaDbContext
 
     /// <summary>Creates the explicit expired-recovery rejection.</summary>
     private static ServiceProblem Expired() => ServiceProblem.Conflict("The 24-hour recovery window has expired. This operation will not be submitted again; your draft remains copyable.");
+
+    private sealed record StoredOutcome<T>(T? Value, ServiceProblem? Problem);
 }

@@ -2,6 +2,16 @@
 
 ## Scope and revision
 
+The current tree retains the approved comp, representative final captures, design metadata,
+and concise review records. Intermediate PR-added evidence is archived in the immutable
+[pre-cleanup commit](https://github.com/eruvalca/Nova/tree/1a9cb8bed98d251a3b6ca69e510411ca8e058e5d/.impeccable).
+[The archive manifest](artifact-archive.json) identifies every untracked path, Git blob and
+SHA-256, including failed comparisons and rejected concepts. Historical diagnostic paths in
+JSON and older prose refer to that commit; they are not promised files in a fresh checkout.
+Local copies and a ZIP are retained for resuming the workflow. This cleanup preserves existing
+Git history; future evidence archives must have durable shared storage, not just ignored files.
+Round-six fixes and their current validation are recorded in [review-round-6.md](review-round-6.md).
+
 Branch `codex/issue-198-evaluation` starts at `3e0253c28677838858b1887b2351a133eac7bc16` (merged #252). The surface implements the confirmed find → verify → capture → move-on workflow. Parent campaign-loop acceptance stays with #170; Place #199 and Close #200 redesigns remain separate.
 
 Original implementation production and test source was validated at `381d501950d064d426ddce7c772fe449c485cfde`: build, format, all three local suites, contrast, JS syntax and migration-model checks passed. Subsequent review fixes and their tested revisions are recorded in the review-round records linked below; this original evidence does not replace those later checks. The user approved sheet-relative Evaluate measurement with the preserved shell reviewed separately. The final visual disposition is recorded in `finish-review.md`.
@@ -33,9 +43,11 @@ The user required preserving the existing design system. Shared campaign chrome 
 
 The subsequent [PR review round 1](review-round-1.md), [round 2](review-round-2.md), [round 3](review-round-3.md), [round 4](review-round-4.md) and [round 5](review-round-5.md) records supersede the application/test validation below for their source changes and link separate local reviews. The original design and measurement evidence remains applicable.
 
+[Round 6](review-round-6.md) records the latest corrections, evidence-retention cleanup and validation. The user subsequently authorized one combined push; continuous PR monitoring remains stopped.
+
 Build-capable commands are serialized. Aspire-backed suites are serialized across the machine; all test commands use `--no-build`. Raw command logs are ignored local artifacts under this directory.
 
-| Check | Latest result |
+| Check | Original implementation result (`381d5019`) |
 |---|---|
 | `dotnet build Nova.slnx` | Build 33 passed, zero warnings/errors (`381d5019`). |
 | `dotnet format Nova.slnx` | Final verify round 6 passed, no changes required (`381d5019`). |
@@ -46,7 +58,7 @@ Build-capable commands are serialized. Aspire-backed suites are serialized acros
 | `node --check` on Evaluate/drawer JS modules | Passed. |
 | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed: no pending model changes. |
 
-Initial failures are retained as diagnostic evidence, never represented as passing checks. No tests or checks were skipped to make the change pass, and no diagnostic suppression was added. Optional browser accessibility checks are enabled for the completion run with `NOVA_A11Y_SCREENSHOTS=1`.
+Initial failures are retained as diagnostic evidence, never represented as passing checks. No tests or checks were skipped to make the change pass. The original implementation added no diagnostic suppressions; later review-round records document narrowly scoped, independently reviewed test-construction exceptions. Optional browser accessibility checks were enabled for the original completion run with `NOVA_A11Y_SCREENSHOTS=1`.
 
 ## Separate review
 

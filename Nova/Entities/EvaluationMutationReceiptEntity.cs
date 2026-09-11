@@ -15,7 +15,7 @@ internal sealed class EvaluationMutationReceiptEntity : BaseEntity, ITenantOwned
     public required Guid OperationId { get; set; }
     /// <summary>Gets or sets the digest of operation kind and exact input, including subject and version.</summary>
     public required string RequestSha256 { get; set; }
-    /// <summary>Gets or sets the immutable, typed original response.</summary>
+    /// <summary>Gets or sets the immutable outcome envelope containing the typed result or definitive rejection.</summary>
     public required string ResultJson { get; set; }
     /// <summary>Gets or sets the exclusive recovery deadline.</summary>
     public required DateTimeOffset RecoveryExpiresAt { get; set; }

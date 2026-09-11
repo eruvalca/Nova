@@ -21,6 +21,7 @@ Core principles:
 - **The brief wins.** Honor pinned aesthetics, eras, materials, fonts, and palettes even when they conflict with a saturated-pattern warning. Redirecting a clear brief toward your taste is failure.
 - **Refinement preserves; redesign replaces.** Refinement keeps the incumbent identity, behavior, copy, and everything outside scope. Ask before replacing factual copy or adding claims. Redesign keeps product truth, content, function, native affordances, and constraints, but treats the old look as evidence and anti-reference; choose a replacement world in new-work and replace DESIGN.md. Never split the difference into polish on the discarded look.
 - **Visual authority is evidence, not a filename.** Missing DESIGN.md alone does not make a project greenfield; new-work decides whether to preserve, expand, or replace the incumbent world.
+- **Evidence retention:** At delivery, follow the repository's `AGENTS.md` retention policy. Producing a required review artifact does not require committing every intermediate file; preserve the approved direction, provenance and review outcomes, and link any archived evidence before untracking it. Keep working artifacts available until their dependent checks and handoffs finish.
 
 ## Modes
 

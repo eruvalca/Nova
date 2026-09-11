@@ -166,7 +166,7 @@ public partial class CampaignParticipantDrawer
         }
 
         var result = await submit(ComponentCancellationToken);
-        if (OwnsMutation(lease) && (result.IsSuccess || result.Problem.Kind is ServiceProblemKind.Validation or ServiceProblemKind.Forbidden or ServiceProblemKind.NotFound or ServiceProblemKind.Conflict))
+        if (OwnsMutation(lease) && (result.IsSuccess || EvaluationMutationRejection.IsNotCommitted(result.Problem, input.OperationId)))
         {
             await module.InvokeVoidAsync("clearOperation", _dialog, scope, JsonSerializer.Serialize(stored));
             if (OwnsMutation(lease))

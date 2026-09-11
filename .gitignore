@@ -396,6 +396,28 @@ Nova/wwwroot/css/
 .impeccable/live/*.png
 # impeccable-ignore-end
 .impeccable/questions/
+
+# Generated design work stays local. Curate durable evidence explicitly; see AGENTS.md.
+.impeccable/build/
+.impeccable/archive/
+.impeccable/mocks/**
+!.impeccable/mocks/decision/
+!.impeccable/mocks/decision/issue-198-shared-notebook.png
+!.impeccable/mocks/decision/issue-198-shared-notebook.json
+!.impeccable/mocks/decision/issue-198-shared-notebook.prompt.txt
+.impeccable/review/**
+!.impeccable/review/**/
+!.impeccable/review/**/*.md
+!.impeccable/review/issue-198/artifact-archive.json
+!.impeccable/review/issue-198/capture-manifest.json
+!.impeccable/review/issue-198/concepts.json
+!.impeccable/review/issue-198/options.json
+!.impeccable/review/issue-198/detector.json
+!.impeccable/review/issue-198/captures/*.png
+!.impeccable/review/issue-198/captures/*.json
+!.impeccable/review/issue-198/sheet-relative/manifest.json
+!.impeccable/review/issue-198/sheet-relative/report.json
+!.impeccable/review/issue-198/sheet-relative/spec.json
 # OpenAI Codex: ignore local state (config, logs, sessions), but commit the
 # repo-level hook manifest and the project-scoped custom agents.
 .codex/*

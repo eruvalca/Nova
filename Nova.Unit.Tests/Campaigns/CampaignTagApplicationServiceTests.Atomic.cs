@@ -48,7 +48,7 @@ public sealed partial class CampaignTagApplicationServiceTests
         result.Problem.Detail.ShouldContain("restore");
         using var verify = _harness.CreateAdminContext();
         (await verify.PlayerTags.CountAsync(tag => tag.NormalizedName == "ARCHIVED", TestContext.Current.CancellationToken)).ShouldBe(1);
-        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     [Fact]

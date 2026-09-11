@@ -288,20 +288,13 @@ public partial class CampaignEvaluationPanel
     private async Task HandleRejectedCaptureAsync(PendingCapture pending, string owner, ServiceProblem problem)
     {
         _captureError = problem.Detail ?? "The result is not yet known. Retry the original operation.";
-        if (problem.Kind is not (ServiceProblemKind.Validation or ServiceProblemKind.Forbidden or ServiceProblemKind.NotFound or ServiceProblemKind.Conflict))
+        if (EvaluationMutationRejection.IsNotCommitted(problem, pending.OperationId))
         {
-            return;
-        }
-        _pending = null;
-        if (pending.Kind is "delete") { CancelDeleteNote(); }
-        var stored = await PersistCaptureAsync();
-        if (!Owns(owner))
-        {
-            return;
-        }
-        if (!stored)
-        {
-            _pending = pending;
+            _pending = null;
+            if (pending.Kind is "delete") { CancelDeleteNote(); }
+            var stored = await PersistCaptureAsync();
+            if (!Owns(owner)) { return; }
+            if (!stored) { _pending = pending; }
         }
         await Task.WhenAll(LoadIdentityAsync(), LoadNotesAsync(false), LoadApplicationsAsync(false), LoadChoicesAsync());
         if (Owns(owner))

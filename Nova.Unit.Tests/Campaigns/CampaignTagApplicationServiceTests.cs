@@ -91,19 +91,20 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies Draft campaigns reject tag applications without persisting an application or side effect.
+    /// Verifies Draft campaigns reject tag applications without persisting an application or activity; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task ApplyAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task ApplyAsyncReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await service.ApplyAsync(
             new ApplyCampaignTagApplicationInput
             {
-                OperationId = Guid.CreateVersion7(),
+                OperationId = operationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 PlayerTagId = SecondaryActiveTagId
             },
@@ -111,6 +112,7 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
         result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
@@ -118,7 +120,7 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
             application => application.PlayerCampaignAssignmentId == ActiveAssignmentId
                 && application.PlayerTagId == SecondaryActiveTagId,
             TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.EvaluationMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -264,28 +266,30 @@ public sealed partial class CampaignTagApplicationServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies Draft campaigns reject tag removal without deleting the application or recording side effects.
+    /// Verifies Draft campaigns reject tag removal without deleting the application; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task RemoveAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task RemoveAsyncReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ExistingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = operationId, CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
         result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.CampaignTagApplications.AnyAsync(
             application => application.CampaignTagApplicationId == ExistingApplicationId,
             TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await verify.EvaluationMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 

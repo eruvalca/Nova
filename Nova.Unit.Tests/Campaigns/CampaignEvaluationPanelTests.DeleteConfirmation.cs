@@ -23,7 +23,7 @@ public sealed partial class CampaignEvaluationPanelTests
             var input = call.Arg<DeleteEvaluationNoteInput>();
             inputs.Add(input);
             history.Deleted = input.ExpectedVersion == history.CurrentVersion;
-            return Task.FromResult(history.Deleted ? DeleteReceipt(input) : DeleteConflict());
+            return Task.FromResult(history.Deleted ? DeleteReceipt(input) : DeleteConflict(input.OperationId));
         });
         var cut = Panel(new() { ParticipantId = 301 });
         OpenEvaluationDeleteAndRefreshHistory(cut, older);
@@ -56,7 +56,7 @@ public sealed partial class CampaignEvaluationPanelTests
     public void EvaluationOwnerChangeInvalidatesDeleteConfirmationBeforeAnotherDelete()
     {
         var history = ConfigureDeleteHistory(false);
-        _notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DeleteConflict()));
+        _notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult(DeleteConflict(call.Arg<DeleteEvaluationNoteInput>().OperationId)));
         var cut = Panel(new() { ParticipantId = 301 });
         Button(cut, "Delete").Click();
         cut.Markup.ShouldContain("Delete this shared note?");
@@ -76,7 +76,7 @@ public sealed partial class CampaignEvaluationPanelTests
     public void EvaluationClosingAndReopeningRequiresNewDeleteConfirmation()
     {
         var history = ConfigureDeleteHistory(false);
-        _notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DeleteConflict()));
+        _notes.DeleteAsync(Arg.Any<DeleteEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult(DeleteConflict(call.Arg<DeleteEvaluationNoteInput>().OperationId)));
         var cut = Panel(new() { ParticipantId = 301 });
         Button(cut, "Delete").Click();
         cut.Markup.ShouldContain("Delete this shared note?");
@@ -104,7 +104,7 @@ public sealed partial class CampaignEvaluationPanelTests
         {
             inputs.Add(call.Arg<DeleteEvaluationNoteInput>());
             return inputs.Count < 3 ? Task.FromException<ServiceResult<EvaluationNoteMutationSuccess>>(new HttpRequestException("Lost acknowledgement"))
-                : Task.FromResult(DeleteConflict());
+                : Task.FromResult(DeleteConflict(inputs[^1].OperationId));
         });
         var cut = Panel(new() { ParticipantId = 301 });
         OpenEvaluationDeleteAndRefreshHistory(cut, older);
@@ -151,7 +151,7 @@ public sealed partial class CampaignEvaluationPanelTests
         cut.Markup.ShouldContain("Delete this shared note?");
     }
 
-    private static ServiceResult<EvaluationNoteMutationSuccess> DeleteConflict() => new(ServiceProblem.Conflict("The note changed after confirmation opened."));
+    private static ServiceResult<EvaluationNoteMutationSuccess> DeleteConflict(Guid operationId) => new(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("The note changed after confirmation opened."), operationId));
 
     private static ServiceResult<EvaluationNoteMutationSuccess> DeleteReceipt(DeleteEvaluationNoteInput input) => new(new EvaluationNoteMutationSuccess(input.NoteId, input.ExpectedVersion,
         new(input.OperationId, 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24))));

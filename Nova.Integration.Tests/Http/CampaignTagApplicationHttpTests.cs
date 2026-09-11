@@ -541,10 +541,10 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot remove a tag application from a Draft campaign and no receipt is persisted.
+    /// Verifies a club administrator cannot remove a tag application from a Draft campaign; a durable rejection receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplicationReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task RemoveCampaignTagApplicationReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -560,9 +560,12 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             campaignStatus: CampaignStatus.Draft);
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
-        using var response = await EvaluationEvidenceHttpTestSupport.RemoveEvaluationTagForTestAsync(client,
-new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
-            cancellationToken);
+        var input = new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = applicationId };
+        using var request = new HttpRequestMessage(HttpMethod.Delete, CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId))
+        {
+            Content = JsonContent.Create(input)
+        };
+        using var response = await client.SendAsync(request, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         using var document = await JsonDocument.ParseAsync(
@@ -570,12 +573,13 @@ new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKin
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
             .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
+        document.RootElement.GetProperty(EvaluationMutationRejection.OperationIdExtension).GetGuid().ShouldBe(input.OperationId);
         await AssertApplicationPersistedAsync(applicationId, cancellationToken);
 
         await using var verify = fixture.CreateAdminContext();
         var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
