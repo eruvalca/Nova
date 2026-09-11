@@ -55,7 +55,7 @@ All entries below are retained in immutable commit `b577001319b3302da723d93de603
 
 ## Rounds seven and eight
 
-These four superseded records remain shared at immutable commit fae6ed6753339174b6d58534b84157eb996fd480. Their local copies are preserved; hashes describe pre-untracking working-tree bytes, and Git blobs identify canonical content. Current validation is in [round nine](review-round-9.md).
+These four superseded records remain shared at immutable commit fae6ed6753339174b6d58534b84157eb996fd480. Their local copies are preserved; hashes describe pre-untracking working-tree bytes, and Git blobs identify canonical content. Current validation is in [round eleven](review-round-11.md).
 
 | Record | Git blob | SHA-256 |
 | --- | --- | --- |
@@ -63,3 +63,22 @@ These four superseded records remain shared at immutable commit fae6ed6753339174
 | [review-round-7-local-review.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-7-local-review.md) | 77c127c621c87801dbcf8e11bf46fb648c677c7b | 3AA2F4485C4EB6D6705D17680B2DB092368F3D26B6B2A2EC7F87824A57035792 |
 | [review-round-8.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-8.md) | 49e5c71ddec46f1a9e3e07d90de5b6098f1518c8 | DAB9BC50EAF2B12C72E946B3C3098EB623D2E31201434F7ADAF419D95CDF478E |
 | [review-round-8-local-review.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-8-local-review.md) | 29ec9856237ef51e2bcb15803484276f3290ed33 | 293B1F48D50C9AB47C0EB7517E48EE01DF59D1219441E78B14992F196FD6DE07 |
+
+## Rounds nine and ten
+
+These superseded records remain shared at immutable commit 397ccf1f394a608707a74dd5d60abb590a416af2. Local copies are preserved; hashes describe pre-untracking bytes and Git blobs identify canonical content.
+
+| Record | Git blob | SHA-256 |
+| --- | --- | --- |
+| [review-round-9.md](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/review-round-9.md) | 0acd87a4d69f1037586dbe10da4e5be6142ce091 | 3725B9FF9D1A28C82ED33F9E4C5E7AF2941023B10FA86260D5778FED622CE81F |
+| [review-round-9-local-review.md](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/review-round-9-local-review.md) | 60484e575d70facc9c8c88f871c89ae047cd1048 | E73317A83F10FCD30BC452AB6DAECC9CEC4BB1947B405212C6628B4EFA4744E4 |
+| [review-round-10.md](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/review-round-10.md) | 190b427318a9260c38a5c798a45706cd0bc145bd | E32846766131287DC1B0C56732E0055A1F6FF704D6D7C3D0B2CF87E7470276CF |
+| [review-round-10-local-review.md](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/review-round-10-local-review.md) | 090bef46f94a990a8dd44eccd513ec37b94c7686 | F3C0CACB155B46AA81CCBB13AEB3DE3876CD41654A13C0B23DD60557E55D86F0 |
+
+The original concept candidates/options and preliminary detector output also remain at this pinned revision. The approved comp/provenance, finish dispositions and curated captures remain tracked.
+
+| Record | Git blob | SHA-256 |
+| --- | --- | --- |
+| [concepts.json](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/concepts.json) | 83b4aa0dbd78eefd10a1eee68adf444f35a84bed | 0AB73DD6415ACAF55FDFA6F3D4F8D6A862B0AA394741AC7B41B9CA63EBA2356B |
+| [options.json](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/options.json) | addcad28f98e1b77ab41655fdc77fccf54e1c4bd | 5A6FBC57B35BBCD8118E2C460745EAFDF09BAC253B71016520EF5B6D3F256EE3 |
+| [detector.json](https://github.com/eruvalca/Nova/blob/397ccf1f394a608707a74dd5d60abb590a416af2/.impeccable/review/issue-198/detector.json) | 6c727e395ca5112532b0beea4485f0af314f35e2 | F0F2A98932D80D75954291D80FE9C9298B9A24F4CB195035CEEC727EF0A3EC33 |

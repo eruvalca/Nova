@@ -4,10 +4,8 @@ Evaluate implements find player → verify identity → capture shared evidence 
 The user locked **Shared evidence notebook** within Fieldhouse Wayfinding; the approved
 [comp](../../mocks/decision/issue-198-shared-notebook.png), provenance and [surface brief](../../surfaces/evaluation.md) remain tracked.
 
-[Round ten](review-round-10.md) is the current validation record: the corrected build
-passes all 3,153 unit, 608 PostgreSQL and 176 browser tests, with zero failures or skips.
-It records suppressed CSS findings, additional workflow locations and the unchanged
-browser rerun after Windows standby interrupted login. Earlier passing and failed runs
+[Round eleven](review-round-11.md) is the current validation record for unreadable
+recovery-data departure and its Roster sibling. Build, format, 3,159 unit and 183 browser tests pass; the unchanged backend retains its 608-test PostgreSQL pass on the base. Earlier passing and failed runs
 remain in the [historical evidence archive](evidence-archive.md). All three local
 suites are required before merge.
 

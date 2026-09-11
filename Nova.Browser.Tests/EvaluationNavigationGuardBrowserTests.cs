@@ -23,6 +23,8 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
     [InlineData("current")]
     [InlineData("finished-rejects")]
     [InlineData("cancel-release")]
+    [InlineData("retained-unreadable")]
+    [InlineData("retained-then-pending")]
     public async Task HistoryReplayRequiresOwnedUnrevokedAcceptanceAsync(string scenario)
     {
         await using var context = await fixture.NewAnonymousContextAsync();
@@ -72,7 +74,9 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
             };
             try {
                 guard.attachGuard(root, 'owner', 'lease', receiver);
-                guard.releaseNavigation(root, 'owner', 'lease');
+                const retained = scenario.startsWith('retained-');
+                if (retained) guard.markPending(root, true);
+                guard.releaseNavigation(root, 'owner', 'lease', retained);
                 if (scenario === 'cancel-release') {
                     input.value = 'New draft';
                     const departure = () => {
@@ -110,14 +114,14 @@ public sealed class EvaluationNavigationGuardBrowserTests(BrowserSuiteFixture fi
                     await new Promise(resolve => setTimeout(resolve, 0));
                     check(!settled, 'popstate alone is not commitment');
                 }
-                const revoked = ['input', 'input-trait', 'pending', 'input-after-accept', 'input-after-commit', 'detach', 'replace'].includes(scenario);
+                const revoked = ['input', 'input-trait', 'pending', 'retained-then-pending', 'input-after-accept', 'input-after-commit', 'detach', 'replace'].includes(scenario);
                 if (scenario.startsWith('input')) {
                     input.value = 'New evidence';
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                     const departure = new Event('beforeunload', { cancelable: true });
                     window.dispatchEvent(departure);
                     check(departure.defaultPrevented, 'native input must protect departure before any .NET rerender');
-                } else if (scenario === 'pending') guard.markPending(root, true);
+                } else if (scenario === 'pending' || scenario === 'retained-then-pending') guard.markPending(root, true);
                 else if (scenario === 'detach') guard.detachGuard(root);
                 else if (scenario === 'replace') {
                     guard.attachGuard(root, 'new-owner', 'new-lease', receiver);

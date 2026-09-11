@@ -1,16 +1,109 @@
-﻿using Bunit;
+﻿using System.Text.Json.Nodes;
+using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.UI.Features.Campaigns.Services;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignEvaluationPanelTests
 {
+    [Fact]
+    public async Task EvaluationUnreadableRecoveryCanKeepWorkingThenLeaveWithoutChangingStoredDataAsync()
+    {
+        var (storage, module) = PrepareEvaluationUnreadableNavigation();
+        module.ResumeResults.Enqueue(Task.FromResult(false));
+        var cut = Panel(new() { ParticipantId = 301 });
+        await cut.WaitForAssertionAsync(() => Button(cut, "Retry storage").ShouldNotBeNull());
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/retained", "retained-history"));
+        cut.Find(".evaluation-protection").TextContent.ShouldContain("a previous submission's outcome may be unknown");
+
+        await Button(cut, "Keep working").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".evaluation-protection").ShouldBeEmpty();
+        module.ReleasedOwners.ShouldBeEmpty();
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/retained", "retained-history"));
+        await Button(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+        module.CanceledOwners.ShouldBe([module.Owner]);
+        cut.Markup.ShouldContain("Navigation was interrupted");
+        await Button(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+
+        module.RetainUnreadable.ShouldBe([true, true]);
+        module.ResumedKeys.ShouldBe(["retained-history", "retained-history"]);
+        cut.FindAll(".evaluation-protection").ShouldBeEmpty();
+        storage.ReadJson.ShouldBe("{}");
+        storage.ClearCalls.ShouldBe(0);
+        module.WriteCalls.ShouldBe(0);
+        _storage.Writes.ShouldBeEmpty();
+        _notes.ReceivedCalls().ShouldBeEmpty();
+        _tags.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EvaluationUnreadableDepartureCannotOutliveRestorationOrOwnerChangeAsync(bool changeOwner)
+    {
+        var (storage, module) = PrepareEvaluationUnreadableNavigation();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cleanup = new NavigationCompletionCleanup(() => release.TrySetResult());
+        module.ReleaseResults.Enqueue(release.Task);
+        var cut = Panel(new() { ParticipantId = 301 });
+        await cut.WaitForAssertionAsync(() => Button(cut, "Retry storage").ShouldNotBeNull());
+        var owner = module.Owner;
+        var originalUrl = Services.GetRequiredService<NavigationManager>().Uri;
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(owner, module.Lease, "/obsolete", "obsolete-history"));
+        var leave = Button(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => module.ReleasedOwners.ShouldBe([owner]));
+        module.WriteCalls.ShouldBe(0);
+        if (changeOwner)
+        {
+            await cut.InvokeAsync(() => cut.Render(parameters => parameters.Add(component => component.State, new CampaignWorkspaceEvaluationState { ParticipantId = 302 })));
+            await cut.WaitForAssertionAsync(() => module.Owner.ShouldNotBe(owner, StringComparer.Ordinal));
+        }
+        else
+        {
+            storage.ReadJson = EvaluationRecoverySnapshot(new() { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = 301, Content = "Original pending evidence" });
+            await Button(cut, "Retry storage").ClickAsync(new MouseEventArgs());
+            cut.Find("#evaluation-note").GetAttribute("value").ShouldBe("Original pending evidence");
+        }
+        if (changeOwner) { await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/newest", "newest-history")); }
+        var writesBeforeReleaseCompletes = module.WriteCalls;
+
+        release.SetResult();
+        await leave;
+
+        if (!changeOwner) { await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/newest", "newest-history")); }
+        module.ResumedKeys.ShouldBeEmpty();
+        module.RetainUnreadable.ShouldBe([true]);
+        module.ReleasedOwners.ShouldBe([owner]);
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldBe(originalUrl);
+        if (changeOwner) { module.CanceledOwners.ShouldNotContain(module.Owner, StringComparer.Ordinal); cut.Markup.ShouldContain("Alex Morgan"); }
+        else
+        {
+            cut.FindAll(".evaluation-protection button").ShouldContain(button => string.Equals(button.TextContent.Trim(), "Retry original operation", StringComparison.Ordinal));
+            cut.FindAll("button").ShouldNotContain(button => button.TextContent.Contains("Leave and keep", StringComparison.Ordinal));
+            JsonNode.DeepEquals(JsonNode.Parse(storage.ReadJson!)!["Pending"], JsonNode.Parse(_storage.Writes.Single())!["Pending"]).ShouldBeTrue();
+        }
+        storage.ClearCalls.ShouldBe(0);
+        module.WriteCalls.ShouldBe(writesBeforeReleaseCompletes);
+        _notes.ReceivedCalls().ShouldBeEmpty();
+        _tags.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    private (StorageRecoveryModule Storage, NavigationRecoveryModule Navigation) PrepareEvaluationUnreadableNavigation()
+    {
+        Services.AddSingleton(_ => new StorageRecoveryModule(_storage) { ReadJson = "{}" });
+        Services.AddSingleton(provider => new NavigationRecoveryModule(provider.GetRequiredService<StorageRecoveryModule>()));
+        Services.AddSingleton<IJSRuntime>(provider => new NavigationRecoveryRuntime(JSInterop.JSRuntime, provider.GetRequiredService<NavigationRecoveryModule>()));
+        return (Services.GetRequiredService<StorageRecoveryModule>(), Services.GetRequiredService<NavigationRecoveryModule>());
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -52,6 +145,7 @@ public sealed partial class CampaignEvaluationPanelTests
         await Button(cut, "Discard and leave").ClickAsync(new MouseEventArgs());
 
         module.ResumedKeys.ShouldBe(["old-history", "new-history"]);
+        module.RetainUnreadable.ShouldBe([false, false]);
         module.ReleasedOwners.Count.ShouldBe(2);
         module.ReleasedOwners.ShouldAllBe(owner => string.Equals(owner, module.Owner, StringComparison.Ordinal));
         Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("/original");
@@ -189,6 +283,7 @@ internal sealed class NavigationRecoveryModule(IJSObjectReference fallback) : IJ
     public List<string> ReleasedOwners { get; } = [];
     public List<string> CanceledOwners { get; } = [];
     public List<string> ResumedKeys { get; } = [];
+    public List<bool> RetainUnreadable { get; } = [];
     public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => InvokeAsync<TValue>(identifier, default, args);
     public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
     {
@@ -202,6 +297,7 @@ internal sealed class NavigationRecoveryModule(IJSObjectReference fallback) : IJ
         if (string.Equals(identifier, "releaseNavigation", StringComparison.Ordinal))
         {
             ReleasedOwners.Add((string)args![1]!);
+            RetainUnreadable.Add(args.Length > 3 && args[3] is true);
             return AwaitReleaseAsync<TValue>(ReleaseResults.Count > 0 ? ReleaseResults.Dequeue() : Task.CompletedTask);
         }
         if (string.Equals(identifier, "resumeHistory", StringComparison.Ordinal))

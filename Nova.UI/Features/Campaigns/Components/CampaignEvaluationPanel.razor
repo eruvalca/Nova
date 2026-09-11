@@ -13,6 +13,12 @@
                 <p>Resolve the pending submission before changing players or leaving this workspace.</p>
                 <button type="button" class="btn btn-primary" disabled="@_dispatching" @onclick="DispatchPendingAsync">Retry original operation</button>
             }
+            else if (_captureRestoreFailed && !_storageReady)
+            {
+                <p>Recovery data could not be read, so a previous submission's outcome may be unknown. Leaving discards visible unsaved text; copy it first. Existing recovery data will stay in this tab.</p>
+                <button type="button" class="btn btn-primary" @onclick="() => _leaveTarget = null">Keep working</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="DiscardAndLeaveAsync">Leave and keep recovery data</button>
+            }
             else
             {
                 <p>Your text has not been saved as shared evidence.</p>

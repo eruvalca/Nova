@@ -2,13 +2,12 @@
 
 ## Current round
 
-Round ten follows `107823225aeb7d23f3fbce40402fe511fd2c63b8`: Build and Unit Tests
-passed remotely. Review `5182209381` contains seven suppressed findings, so its
+Round eleven follows `397ccf1f394a608707a74dd5d60abb590a416af2`: Build and Unit Tests
+passed remotely. Review `5182803975` contains one suppressed finding, so its
 “Needs a closer look” summary does not satisfy the clean stopping exception.
-[Round-ten validation](review-round-10.md) records ten workflow locations, the limits
-of exposed wording, relative CSS dimensions and validation before context creation.
-Build and all three local suites pass (3,153 unit / 608 PostgreSQL / 176 browser,
-zero failures or skips); full format verification also passes. Fresh remote CI and
+[Round-eleven validation](review-round-11.md) records the complete review collection,
+the unreadable-storage departure fix and its Roster sibling. Build, full format, 3,159 unit and 183 browser tests pass; the unchanged backend retains its 608-test PostgreSQL pass on the base.
+Fresh remote CI and
 automatic review follow the combined push. No new inline threads were created.
 Watching is active. The user requires PR replies or a comment **before the combined
 commit is pushed**; resolve threads only after the fix is available remotely.

@@ -10,6 +10,7 @@ public sealed class EvaluationCaptureStorageBrowserTests(BrowserSuiteFixture fix
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("empty")]
+    [InlineData("unavailable")]
     [InlineData("missing-pending")]
     [InlineData("false-pending")]
     [InlineData("zero-pending")]
@@ -86,14 +87,25 @@ public sealed class EvaluationCaptureStorageBrowserTests(BrowserSuiteFixture fix
                 const original = scenario === 'empty' ? '' : JSON.stringify(invalid);
                 sessionStorage.setItem(key, original);
                 let rejected = false;
+                const getItem = Storage.prototype.getItem;
+                if (scenario === 'unavailable') Storage.prototype.getItem = () => { throw new Error('Storage unavailable'); };
                 try { module.read(root, 'owner', 'lease'); } catch { rejected = true; }
+                finally { Storage.prototype.getItem = getItem; }
                 check(rejected, 'invalid retained bytes must reject');
                 check(sessionStorage.getItem(key) === original, 'rejection must not erase or rewrite retained bytes');
                 check(protectedDeparture(), 'unknown retained outcome must protect departure');
+                module.releaseNavigation(root, 'owner', 'lease', true);
+                check(!protectedDeparture(), 'confirmed retained-data departure must be possible');
+                check(sessionStorage.getItem(key) === original, 'confirmed departure must preserve exact bytes');
+                module.cancelNavigation(root, 'owner', 'lease');
+                check(protectedDeparture(), 'interrupted departure must restore pending protection');
                 sessionStorage.setItem(key, JSON.stringify(valid));
                 const recovered = module.read(root, 'owner', 'lease');
                 check(JSON.stringify(recovered.pending) === JSON.stringify(pending), 'recovery must retain exact original operation');
                 check(protectedDeparture(), 'valid pending recovery must remain protected');
+                let blocked = false;
+                try { module.releaseNavigation(root, 'owner', 'lease'); } catch { blocked = true; }
+                check(blocked, 'normal departure cannot bypass a known pending operation');
                 sessionStorage.setItem(key, JSON.stringify({ ...valid, pending: null }));
                 check(module.read(root, 'owner', 'lease').pending === null, 'explicit null is a valid settled capture');
                 check(!protectedDeparture(), 'settled capture may leave when no editable draft is present');

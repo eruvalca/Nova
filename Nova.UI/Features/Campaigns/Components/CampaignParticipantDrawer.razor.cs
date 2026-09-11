@@ -941,6 +941,7 @@ public partial class CampaignParticipantDrawer(
         ++_mutationSequence;
         _storedOperation = null;
         _drawerStorageReady = false;
+        _drawerReadFailed = false;
         _recoveryOwner = null;
         _drawerLeaveAction = null;
         ++_drawerDepartureSequence;

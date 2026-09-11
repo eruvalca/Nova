@@ -12,6 +12,92 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignParticipantDrawerTests
 {
+    [Fact]
+    public async Task DrawerUnreadableRecoveryCanKeepWorkingThenLeaveWithoutChangingStoredDataAsync()
+    {
+        var notes = Substitute.For<ICampaignEvaluationNoteService>();
+        var (storage, module) = PrepareDrawerUnreadableNavigation(notes);
+        module.ResumeResults.Enqueue(Task.FromResult(false));
+        var cut = StorageRecoveryDrawer();
+        await cut.WaitForAssertionAsync(() => FindButtonByText(cut, "Retry recovery storage").ShouldNotBeNull());
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/retained", "retained-history"));
+        cut.FindAll("p").ShouldContain(paragraph => paragraph.TextContent.Contains("a previous submission's outcome may be unknown", StringComparison.Ordinal));
+
+        await FindButtonByText(cut, "Keep working").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("button").ShouldNotContain(button => button.TextContent.Contains("Leave and keep", StringComparison.Ordinal));
+        module.ReleasedOwners.ShouldBeEmpty();
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/retained", "retained-history"));
+        await FindButtonByText(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+        module.CanceledOwners.ShouldBe([module.Owner]);
+        cut.Markup.ShouldContain("Navigation was interrupted");
+        await FindButtonByText(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+
+        module.RetainUnreadable.ShouldBe([true, true]);
+        module.ResumedKeys.ShouldBe(["retained-history", "retained-history"]);
+        cut.FindAll("button").ShouldNotContain(button => button.TextContent.Contains("Leave and keep", StringComparison.Ordinal));
+        storage.ReadJson.ShouldBe("{}");
+        storage.ClearCalls.ShouldBe(0);
+        storage.SuccessfulCalls.ShouldNotContain("writeOperation", StringComparer.Ordinal);
+        notes.ReceivedCalls().ShouldBeEmpty();
+        Services.GetRequiredService<ICampaignTagApplicationService>().ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DrawerUnreadableDepartureCannotOutliveRestorationOrOwnerChangeAsync(bool changeOwner)
+    {
+        var notes = Substitute.For<ICampaignEvaluationNoteService>();
+        var (storage, module) = PrepareDrawerUnreadableNavigation(notes);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cleanup = new NavigationCompletionCleanup(() => release.TrySetResult());
+        module.ReleaseResults.Enqueue(release.Task);
+        var cut = StorageRecoveryDrawer();
+        await cut.WaitForAssertionAsync(() => FindButtonByText(cut, "Retry recovery storage").ShouldNotBeNull());
+        var owner = module.Owner;
+        var originalUrl = Services.GetRequiredService<NavigationManager>().Uri;
+        await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(owner, module.Lease, "/obsolete", "obsolete-history"));
+        var leave = FindButtonByText(cut, "Leave and keep recovery data").ClickAsync(new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => module.ReleasedOwners.ShouldBe([owner]));
+        if (changeOwner)
+        {
+            await cut.InvokeAsync(() => cut.Render(parameters => parameters.Add(component => component.AuthorityScope, "new-owner:club-2:False")));
+            await cut.WaitForAssertionAsync(() => module.Owner.ShouldNotBe(owner, StringComparer.Ordinal));
+        }
+        else
+        {
+            storage.ReadJson = StoredDrawerAdd(new() { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = 301, Content = "Original pending evidence" });
+            await FindButtonByText(cut, "Retry recovery storage").ClickAsync(new MouseEventArgs());
+            cut.Find("textarea").GetAttribute("value").ShouldBe("Original pending evidence");
+        }
+        if (changeOwner) { await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/newest", "newest-history")); }
+
+        release.SetResult();
+        await leave;
+
+        if (!changeOwner) { await cut.InvokeAsync(() => cut.Instance.ProtectNativeNavigationAsync(module.Owner, module.Lease, "/newest", "newest-history")); }
+        module.ResumedKeys.ShouldBeEmpty();
+        module.RetainUnreadable.ShouldBe([true]);
+        module.ReleasedOwners.ShouldBe([owner]);
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldBe(originalUrl);
+        if (changeOwner) { module.CanceledOwners.ShouldNotContain(module.Owner, StringComparer.Ordinal); FindButtonByText(cut, "Leave and keep recovery data").ShouldNotBeNull(); }
+        else { FindButtonByText(cut, "Recover original operation").ShouldNotBeNull(); cut.FindAll("button").ShouldNotContain(button => button.TextContent.Contains("Leave and keep", StringComparison.Ordinal)); }
+        storage.ClearCalls.ShouldBe(0);
+        storage.SuccessfulCalls.ShouldNotContain("writeOperation", StringComparer.Ordinal);
+        notes.ReceivedCalls().ShouldBeEmpty();
+        Services.GetRequiredService<ICampaignTagApplicationService>().ReceivedCalls().ShouldBeEmpty();
+    }
+
+    private (StorageRecoveryModule Storage, NavigationRecoveryModule Navigation) PrepareDrawerUnreadableNavigation(ICampaignEvaluationNoteService notes)
+    {
+        RegisterMutableDrawer(notes);
+        Services.AddSingleton(_ => new StorageRecoveryModule(Substitute.For<IJSObjectReference>()) { ReadJson = "{}" });
+        Services.AddSingleton(provider => new NavigationRecoveryModule(provider.GetRequiredService<StorageRecoveryModule>()));
+        Services.AddSingleton<IJSRuntime>(provider => new NavigationRecoveryRuntime(JSInterop.JSRuntime, provider.GetRequiredService<NavigationRecoveryModule>()));
+        return (Services.GetRequiredService<StorageRecoveryModule>(), Services.GetRequiredService<NavigationRecoveryModule>());
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -54,6 +140,7 @@ public sealed partial class CampaignParticipantDrawerTests
         await FindButtonByText(cut, "Discard and leave").ClickAsync(new MouseEventArgs());
 
         module.ResumedKeys.ShouldBe(["old-history", "new-history"]);
+        module.RetainUnreadable.ShouldBe([false, false]);
         module.ReleasedOwners.Count.ShouldBe(2);
         module.ReleasedOwners.ShouldAllBe(owner => string.Equals(owner, module.Owner, StringComparison.Ordinal));
         Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("/original");

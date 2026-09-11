@@ -17,6 +17,7 @@ public partial class CampaignEvaluationPanel
     private PendingCapture? _pending;
     private bool _dispatching;
     private bool _storageReady;
+    private bool _captureRestoreFailed;
     private string? _captureError;
     private string? _storageError;
     private long _storageRevision;
@@ -33,6 +34,7 @@ public partial class CampaignEvaluationPanel
         _pending = null;
         _dispatching = false;
         _storageReady = false;
+        _captureRestoreFailed = false;
         _storageRevision = 0;
         _captureError = _storageError = _statusMessage = _leaveTarget = null;
         _leaveHistoryKey = null;
@@ -44,6 +46,7 @@ public partial class CampaignEvaluationPanel
     private async Task RestoreCaptureAsync(string owner)
     {
         var sequence = ++_captureRestoreSequence;
+        _captureRestoreFailed = false;
         var revision = _storageRevision;
         try
         {
@@ -55,6 +58,7 @@ public partial class CampaignEvaluationPanel
 
             if (snapshot is not null && !ValidCaptureSnapshot(snapshot)) { throw new JsonException("Invalid retained evaluation capture."); }
             _storageReady = true;
+            _captureRestoreFailed = false;
             _storageError = null;
             if (snapshot is not null && revision == _storageRevision)
             {
@@ -78,6 +82,7 @@ public partial class CampaignEvaluationPanel
             if (Owns(owner) && sequence == _captureRestoreSequence)
             {
                 _storageReady = false;
+                _captureRestoreFailed = true;
                 _storageError = "Tab storage is unavailable. Nothing will be submitted until recovery storage is working. Your text remains copyable.";
             }
         }

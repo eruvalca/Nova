@@ -65,9 +65,11 @@
         }
         @if (_drawerLeaveAction is not null && _storedOperation is null)
         {
-            <p role="alert">Your text has not been saved.</p>
+            <p role="alert">@(_drawerReadFailed && !_drawerStorageReady
+                ? "Recovery data could not be read, so a previous submission's outcome may be unknown. Leaving discards visible unsaved text; copy it first. Existing recovery data will stay in this tab."
+                : "Your text has not been saved.")</p>
             <button type="button" class="btn btn-primary" @onclick="() => _drawerLeaveAction = null">Keep working</button>
-            <button type="button" class="btn btn-outline-secondary" @onclick="DiscardDrawerAndLeaveAsync">Discard and leave</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="DiscardDrawerAndLeaveAsync">@(_drawerReadFailed && !_drawerStorageReady ? "Leave and keep recovery data" : "Discard and leave")</button>
         }
         @if (AuthorizedStatus is { } lifecycle)
         {

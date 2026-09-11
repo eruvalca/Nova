@@ -15,6 +15,7 @@ public partial class CampaignParticipantDrawer
     private string? _recoveryOwner;
     private bool _drawerStorageFailed;
     private bool _drawerStorageReady;
+    private bool _drawerReadFailed;
     private long _drawerRestoreSequence;
     private long _drawerStorageRetrySequence;
     private string? _drawerStorageRetryOwner;
@@ -43,6 +44,8 @@ public partial class CampaignParticipantDrawer
 
         _recoveryOwner = owner;
         var sequence = ++_drawerRestoreSequence;
+        _drawerReadFailed = false;
+        var readStarted = false;
         var draft = (_addNoteContent, _editingNoteId, _editNoteContent);
         _drawerStorageReady = false;
         try
@@ -50,6 +53,7 @@ public partial class CampaignParticipantDrawer
             _drawerNavigationReceiver ??= DotNetObjectReference.Create(this);
             await module.InvokeVoidAsync("protectNavigation", _dialog, owner, _drawerNavigationLease, _drawerNavigationReceiver);
             if (!OwnsDrawerRestore(owner, sequence)) { return; }
+            readStarted = true;
             var json = await module.InvokeAsync<string?>("readOperation", _dialog, scope);
             if (!OwnsDrawerRestore(owner, sequence))
             {
@@ -71,6 +75,7 @@ public partial class CampaignParticipantDrawer
             if (OwnsDrawerRestore(owner, sequence))
             {
                 _drawerStorageFailed = true;
+                _drawerReadFailed = readStarted;
                 _mutationError = "Recovery storage or navigation protection is unavailable. Keep or copy your text; update your browser or retry.";
                 StateHasChanged();
             }
@@ -272,7 +277,9 @@ public partial class CampaignParticipantDrawer
 
     private async Task DiscardDrawerAndLeaveAsync()
     {
-        if (DrawerMutationBlocked || _drawerLeaveAction is not { } move || _drawerDepartureInFlight is not null)
+        var retainUnreadable = _drawerReadFailed && !_drawerStorageReady;
+        if (_isMutating || _storedOperation is not null || (!retainUnreadable && DrawerMutationBlocked)
+            || _drawerLeaveAction is not { } move || _drawerDepartureInFlight is not null)
         {
             return;
         }
@@ -280,22 +287,25 @@ public partial class CampaignParticipantDrawer
         var owner = ParticipantOwner;
         var context = ContextOwner;
         var request = _drawerDepartureSequence;
+        var restore = _drawerRestoreSequence;
         var draft = (_addNoteContent, _editNoteContent, _editingNoteId);
         bool current() => !ComponentCancellationToken.IsCancellationRequested && request == _drawerDepartureSequence
-            && string.Equals(context, ContextOwner, StringComparison.Ordinal) && _drawerLeaveAction == move;
+            && string.Equals(context, ContextOwner, StringComparison.Ordinal) && _drawerLeaveAction == move
+            && (!retainUnreadable || (restore == _drawerRestoreSequence && _drawerReadFailed && !_drawerStorageReady));
         _drawerDepartureInFlight = request;
         var departed = false;
         try
         {
             var module = await _moduleTask.Value;
-            if (!current() || DrawerMutationBlocked || draft != (_addNoteContent, _editNoteContent, _editingNoteId))
+            if (!current() || (!retainUnreadable && DrawerMutationBlocked)
+                || draft != (_addNoteContent, _editNoteContent, _editingNoteId))
             {
                 return;
             }
 
             _addNoteContent = _editNoteContent = string.Empty;
             _editingNoteId = null;
-            await module.InvokeVoidAsync("releaseNavigation", _dialog, owner, _drawerNavigationLease);
+            await module.InvokeVoidAsync("releaseNavigation", _dialog, owner, _drawerNavigationLease, retainUnreadable);
             if (!current() || DrawerProtected)
             {
                 return;

@@ -11,6 +11,46 @@ namespace Nova.Browser.Tests;
 [Collection(BrowserSuiteCollection.Name)]
 public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fixture)
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync(bool unavailable, bool wasm)
+    {
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenEvaluationAsync(page, seed.CampaignId, seed.AssignmentIds[1]);
+        await EvaluationInteractionHelpers.AssertComposerAttachedAsync(page);
+        var key = $"nova:evaluation:v1:{seed.EvaluatorUserId}:{seed.ClubId}:{seed.CampaignId}:{seed.AssignmentIds[1]}";
+        const string Retained = "{unreadable original recovery bytes";
+        await page.EvaluateAsync("([key, value]) => sessionStorage.setItem(key, value)", new[] { key, Retained });
+        if (unavailable)
+        {
+            await page.AddInitScriptAsync($"const originalGet = Storage.prototype.getItem; Storage.prototype.getItem = function(key) {{ if (key === {JsonSerializer.Serialize(key)}) throw new Error('Storage blocked'); return originalGet.call(this, key); }};");
+        }
+        if (wasm) { await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => Expect(page.GetByRole(AriaRole.Button, new() { Name = "Retry storage", Exact = true })).ToBeVisibleAsync()); }
+        else { await page.ReloadAsync(); }
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Retry storage", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.Locator(".evaluation-save")).ToBeDisabledAsync();
+        var evaluationUrl = page.Url;
+        var back = page.GetByRole(AriaRole.Link, new() { Name = "Back to campaigns", Exact = true });
+        await back.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep working", Exact = true }).ClickAsync();
+        page.Url.ShouldBe(evaluationUrl);
+        await back.ClickAsync();
+        await Expect(page.Locator(".evaluation-protection")).ToContainTextAsync("outcome may be unknown");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and keep recovery data", Exact = true }).ClickAsync();
+        await Expect(page).ToHaveURLAsync(new Uri(fixture.BaseUri, "/campaigns").ToString());
+        (await page.EvaluateAsync<string>("key => sessionStorage[key]", key)).ShouldBe(Retained);
+        await page.GoBackAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Retry storage", Exact = true })).ToBeVisibleAsync();
+        (await page.EvaluateAsync<string>("key => sessionStorage[key]", key)).ShouldBe(Retained);
+        await using var database = fixture.AppHost.CreateAdminContext();
+        (await database.Notes.CountAsync(note => note.PlayerCampaignAssignmentId == seed.AssignmentIds[1], TestContext.Current.CancellationToken)).ShouldBe(0);
+    }
+
     [Fact]
     public async Task PhoneLookupRequiresSelectionAndRepeatedCaptureKeepsEachPlayerOpenAsync()
     {

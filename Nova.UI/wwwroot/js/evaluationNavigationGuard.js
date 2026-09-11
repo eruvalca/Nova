@@ -91,11 +91,13 @@ export function markPending(root, pending) {
     if (pending) revokeReplay(state);
 }
 
-export function releaseNavigation(root, owner, lease) {
+export function releaseNavigation(root, owner, lease, retainUnreadable = false) {
     const state = guards.get(root);
-    if (!root.isConnected || state?.owner !== owner || state?.lease !== lease || state.pending || state.returning) {
+    if (!root.isConnected || state?.owner !== owner || state?.lease !== lease || (state.pending && !retainUnreadable) || state.returning) {
         throw new Error('Evaluation navigation cannot be released.');
     }
+    // Explicit unreadable-storage departure retains both the bytes and pending state.
+    // Cancellation or a new pending operation revokes this one departure's release.
     state.released = true;
 }
 
@@ -107,7 +109,7 @@ export function cancelNavigation(root, owner, lease) {
 export async function resumeHistory(root, owner, lease, key) {
     const state = guards.get(root);
     if (!root.isConnected || state?.owner !== owner || state?.lease !== lease || state.returning
-        || state.pending || !state.released || state.replay) return false;
+        || !state.released || state.replay) return false;
     if (navigation.currentEntry.key === key) return true;
     let accept, revoke;
     const accepted = new Promise(resolve => { accept = resolve; });
