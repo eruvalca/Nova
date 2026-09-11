@@ -181,7 +181,30 @@ public sealed class CampaignWorkspaceBrowserTests(BrowserSuiteFixture fixture)
             other.DecisionActorDisplayName = null;
             await db.SaveChangesAsync(token);
         }
-        await page.ReloadAsync();
+        try
+        {
+            await page.ReloadAsync();
+        }
+        catch (TimeoutException exception)
+        {
+            var evidence = $"URL: {page.Url}";
+            try
+            {
+                evidence = await page.EvaluateAsync<string>("""
+                JSON.stringify({
+                    url: location.href,
+                    readyState: document.readyState,
+                    pendingImages: [...document.images].filter(image => !image.complete).map(image => new URL(image.src).pathname),
+                    text: document.querySelector('.campaign-field')?.innerText
+                })
+                """);
+            }
+            catch (Exception diagnosticException) when (diagnosticException is PlaywrightException or TimeoutException)
+            {
+                // Keep the reload failure when the page cannot provide additional evidence.
+            }
+            throw new InvalidOperationException($"Closed roster reload failed: {evidence}", exception);
+        }
         await Expect(page.Locator(".workspace-board .alert-danger")).ToBeVisibleAsync();
         await Expect(page.Locator(".campaign-facts")).ToContainTextAsync("60");
         await CaptureAsync(page, "closed-integrity-error");

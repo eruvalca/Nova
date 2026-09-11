@@ -159,7 +159,7 @@ internal sealed class FailFirstCommittedTransactionInterceptor : DbTransactionIn
 /// ambiguous commit that precedes the gated verification.
 /// </summary>
 /// <param name="receiptTableName">The quoted mutation-receipt table name to gate on.</param>
-internal sealed class GateReceiptVerificationInterceptor(string receiptTableName = "\"EvaluationNoteMutationReceipts\"") : DbCommandInterceptor
+internal sealed class GateReceiptVerificationInterceptor(string receiptTableName = "\"EvaluationMutationReceipts\"") : DbCommandInterceptor
 {
     private readonly TaskCompletionSource _verificationAttempted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -726,8 +726,8 @@ internal sealed class GateReceiptDeleteInterceptor : DbCommandInterceptor
     }
 
     private static bool IsReceiptPrune(DbCommand command) =>
-        command.CommandText.Contains("DELETE FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal)
-        || command.CommandText.Contains("FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal);
+        command.CommandText.Contains("DELETE FROM \"EvaluationMutationReceipts\"", StringComparison.Ordinal)
+        || command.CommandText.Contains("FROM \"EvaluationMutationReceipts\"", StringComparison.Ordinal);
 }
 
 /// <summary>

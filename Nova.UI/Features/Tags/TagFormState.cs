@@ -12,7 +12,7 @@ public sealed class TagFormState : IValidatableObject
     /// <summary>
     /// The default color applied to newly created tag definitions.
     /// </summary>
-    private const string DefaultColor = "#0D6EFD";
+    private const string DefaultColor = Nova.SharedKernel.Features.Tags.CollaborativeTagPolicy.DefaultColor;
 
     /// <summary>
     /// Gets or sets whether this state represents edit mode.

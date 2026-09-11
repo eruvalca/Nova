@@ -11,15 +11,8 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
-file sealed class CampaignParticipantReadHarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaReadDbContext>
-{
-    public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
 
-    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(harness.CreateReadContext());
-}
-
-public sealed class CampaignParticipantQueryServiceTests : IDisposable
+public sealed partial class CampaignParticipantQueryServiceTests : IDisposable
 {
     private const long ClubAId = 1000;
     private const long ClubBId = 2000;
@@ -47,7 +40,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = null;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -64,7 +57,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -118,6 +111,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
 
             admin.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "A Member",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                 PlayerTagId = _tagAId,
@@ -128,7 +122,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         }
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -184,7 +178,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -204,7 +198,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -223,7 +217,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -231,18 +225,24 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
             TestContext.Current.CancellationToken);
 
+        var evidence = new CampaignEvaluationQueryService(new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()), _harness.CurrentUser);
+        var historyInput = new GetEvaluationHistoryInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId };
+        var notes = await evidence.GetNotesAsync(historyInput, TestContext.Current.CancellationToken);
+        var applications = await evidence.GetApplicationsAsync(historyInput, TestContext.Current.CancellationToken);
+        notes.IsSuccess.ShouldBeTrue();
+        applications.IsSuccess.ShouldBeTrue();
         result.IsSuccess.ShouldBeTrue();
         result.Value.DisplayName.ShouldBe("Avery Adams");
         result.Value.CampaignStatus.ShouldBe(CampaignStatus.Active);
         result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
-        result.Value.Notes.ShouldContain(note => note.Content == "Seed note");
-        result.Value.AppliedTags.ShouldContain(tag => tag.CampaignTagApplicationId > 0 && tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
-        result.Value.Notes[0].CanEdit.ShouldBeTrue();
-        result.Value.Notes[0].CanDelete.ShouldBeTrue();
-        result.Value.AppliedTags[0].CanRemove.ShouldBeTrue();
+        notes.Value.Items.ShouldContain(note => note.Content == "Seed note");
+        applications.Value.Items.ShouldContain(tag => tag.CampaignTagApplicationId > 0 && tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
+        notes.Value.Items[0].CanEdit.ShouldBeTrue();
+        notes.Value.Items[0].CanDelete.ShouldBeTrue();
+        applications.Value.Items[0].CanRemove.ShouldBeTrue();
         result.Value.Capabilities.CanAddNote.ShouldBeTrue();
         result.Value.Capabilities.CanApplyTag.ShouldBeTrue();
-        result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
+        result.Value.Capabilities.CanEditPlacement.ShouldBeTrue();
         result.Value.Capabilities.CanArchiveTagDefinitions.ShouldBeFalse();
     }
 
@@ -256,8 +256,8 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         {
             var sameInstant = DateTimeOffset.UtcNow;
             admin.Notes.AddRange(
-                new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
-                new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+                new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var otherTag = (await admin.PlayerTags.SingleAsync(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag", TestContext.Current.CancellationToken));
@@ -266,13 +266,13 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             admin.CampaignTagApplications.AddRange(
-                new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
-                new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+                new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
             await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -280,12 +280,18 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
             TestContext.Current.CancellationToken);
 
+        var evidence = new CampaignEvaluationQueryService(new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()), _harness.CurrentUser);
+        var historyInput = new GetEvaluationHistoryInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId };
+        var notes = await evidence.GetNotesAsync(historyInput, TestContext.Current.CancellationToken);
+        var applications = await evidence.GetApplicationsAsync(historyInput, TestContext.Current.CancellationToken);
+        notes.IsSuccess.ShouldBeTrue();
+        applications.IsSuccess.ShouldBeTrue();
         result.IsSuccess.ShouldBeTrue();
-        var pair = result.Value.Notes.Zip(result.Value.Notes.Skip(1));
+        var pair = notes.Value.Items.Zip(notes.Value.Items.Skip(1));
         pair.All(adjacent => adjacent.First.CreatedAt > adjacent.Second.CreatedAt
                              || (adjacent.First.CreatedAt == adjacent.Second.CreatedAt && adjacent.First.NoteId > adjacent.Second.NoteId))
             .ShouldBeTrue();
-        var tagPair = result.Value.AppliedTags.Zip(result.Value.AppliedTags.Skip(1));
+        var tagPair = applications.Value.Items.Zip(applications.Value.Items.Skip(1));
         tagPair.All(adjacent => adjacent.First.AppliedAt > adjacent.Second.AppliedAt
                                 || (adjacent.First.AppliedAt == adjacent.Second.AppliedAt && adjacent.First.CampaignTagApplicationId > adjacent.Second.CampaignTagApplicationId))
             .ShouldBeTrue();
@@ -307,7 +313,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         }
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -336,7 +342,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         }
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -344,8 +350,14 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
             TestContext.Current.CancellationToken);
 
+        var evidence = new CampaignEvaluationQueryService(new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()), _harness.CurrentUser);
+        var historyInput = new GetEvaluationHistoryInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId };
+        var notes = await evidence.GetNotesAsync(historyInput, TestContext.Current.CancellationToken);
+        var applications = await evidence.GetApplicationsAsync(historyInput, TestContext.Current.CancellationToken);
+        notes.IsSuccess.ShouldBeTrue();
+        applications.IsSuccess.ShouldBeTrue();
         result.IsSuccess.ShouldBeTrue();
-        result.Value.AppliedTags.Single(tag => string.Equals(tag.TagName, "Blue Tag", StringComparison.Ordinal)).CanRemove.ShouldBeFalse();
+        applications.Value.Items.Single(tag => string.Equals(tag.TagName, "Blue Tag", StringComparison.Ordinal)).CanRemove.ShouldBeFalse();
     }
 
     public static TheoryData<string, string, string[]> SortDirectionCases => new()
@@ -399,7 +411,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -452,7 +464,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         foreach (var direction in new[] { "asc", "desc" })
         {
             var service = new CampaignParticipantQueryService(
-                new CampaignParticipantReadHarnessDbContextFactory(_harness),
+                new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
                 _harness.CurrentUser,
                 NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -484,7 +496,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -528,7 +540,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         }
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -550,7 +562,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = null;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -572,7 +584,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = null;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -594,7 +606,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -616,7 +628,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
 
         var service = new CampaignParticipantQueryService(
-            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            new Nova.Unit.Tests.Account.TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext()),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
@@ -687,11 +699,11 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _tagAId = tagA.PlayerTagId;
 
         admin.CampaignTagApplications.AddRange(
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId },
-            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentB.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId });
+            new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new CampaignTagApplicationEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentB.PlayerCampaignAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId });
 
         admin.Notes.AddRange(
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = ClubAId, Content = "Seed note", CreatedById = ClubAMemberId });
+            new NoteEntity { AuthorDisplayName = "A Member", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = ClubAId, Content = "Seed note", CreatedById = ClubAMemberId });
 
         admin.SaveChanges();
     }

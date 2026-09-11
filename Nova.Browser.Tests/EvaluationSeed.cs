@@ -150,6 +150,7 @@ internal static class EvaluationSeed
             context.Add(new CampaignTagApplicationEntity
             {
                 CreationOperationId = Guid.NewGuid(),
+                AuthorDisplayName = (await context.Users.SingleAsync(user => user.Id == adminUserId, cancellationToken)).FullName.Trim(),
                 PlayerCampaignAssignmentId = seeded.AssignmentIds[0],
                 PlayerTagId = archivedTagId,
                 ClubId = clubId,

@@ -1,5 +1,7 @@
-﻿using Nova.Features.Common;
+﻿using Microsoft.AspNetCore.Mvc;
+using Nova.Features.Common;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
@@ -35,7 +37,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .WithName(CampaignEndpoints.AddEvaluationNoteRouteName);
 
             group.MapPut(CampaignEndpoints.EditEvaluationNoteRelative, EditEvaluationNoteHandlerAsync)
-                .Produces(StatusCodes.Status204NoContent)
+                .Produces<EvaluationNoteMutationSuccess>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -46,7 +48,8 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
                 .WithName(CampaignEndpoints.EditEvaluationNoteRouteName);
 
             group.MapDelete(CampaignEndpoints.DeleteEvaluationNoteRelative, DeleteEvaluationNoteHandlerAsync)
-                .Produces(StatusCodes.Status204NoContent)
+                .Produces<EvaluationNoteMutationSuccess>(StatusCodes.Status200OK)
+                .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
@@ -65,7 +68,7 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// <param name="input">The target participation and note content.</param>
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
-    /// <returns>A 201 response containing the created note identifier, or ProblemDetails.</returns>
+    /// <returns>A 201 response containing the note identifier, version, and immutable mutation receipt, or ProblemDetails.</returns>
     private static async Task<IResult> AddEvaluationNoteHandlerAsync(
         AddEvaluationNoteInput input,
         ICampaignEvaluationNoteService service,
@@ -79,10 +82,10 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// Edits one evaluation note.
     /// </summary>
     /// <param name="noteId">The evaluation note identifier to edit.</param>
-    /// <param name="body">The updated note content.</param>
+    /// <param name="body">The updated content, expected version, and operation identity.</param>
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
-    /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
+    /// <returns>A 200 response containing the immutable mutation receipt, or ProblemDetails on failure.</returns>
     private static async Task<IResult> EditEvaluationNoteHandlerAsync(
         long noteId,
         PutEvaluationNoteInput body,
@@ -90,24 +93,28 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await service.EditAsync(
-            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content },
+            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content, ExpectedVersion = body.ExpectedVersion, OperationId = body.OperationId },
             cancellationToken);
-        return result.ToHttpResult(_ => TypedResults.NoContent());
+        return result.ToHttpResult(TypedResults.Ok);
     }
 
     /// <summary>
     /// Deletes one evaluation note.
     /// </summary>
     /// <param name="noteId">The evaluation note identifier to delete.</param>
+    /// <param name="input">The matching note identifier, expected version and original operation identity.</param>
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
-    /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
+    /// <returns>A 200 response containing the immutable mutation receipt, or ProblemDetails on failure.</returns>
     private static async Task<IResult> DeleteEvaluationNoteHandlerAsync(
         long noteId,
+        [FromBody] DeleteEvaluationNoteInput input,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)
     {
-        var result = await service.DeleteAsync(noteId, cancellationToken);
-        return result.ToHttpResult(_ => TypedResults.NoContent());
+        ServiceResult<EvaluationNoteMutationSuccess> result = noteId != input.NoteId
+            ? ServiceProblem.Validation(nameof(input.NoteId), "The note must match the route.")
+            : await service.DeleteAsync(input, cancellationToken);
+        return result.ToHttpResult(TypedResults.Ok);
     }
 }

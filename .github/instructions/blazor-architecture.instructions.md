@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova/Program.cs,Nova.Client/Program.cs"
+applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova.UI/wwwroot/js/**,Nova/Program.cs,Nova.Client/Program.cs"
 description: "Blazor architecture: placement, SSR-first render modes, persisted state, safe navigation/rendering, bounded data, feature organization, component service access, and JavaScript interop."
 ---
 
@@ -118,9 +118,13 @@ Nova.UI/
   `string` parameter is a literal unless it is marked as a C# expression. Use
   `ErrorMessage="@_formError"` to pass a backing field; `ErrorMessage="_formError"` renders the field
   name. This is separate from the rule that the receiving `[Parameter]` member is a public property.
-- **Preserve mutation feedback across refreshes**: when a successful mutation sets a status message
-  and then reloads data, the reload helper must not clear that message before it can render. Clear
-  feedback at an intentional user-action boundary instead.
+- **Preserve mutation feedback across refreshes**: keep success, conflict and recovery feedback
+  visible while affected data reloads; retaining a field is insufficient if a loading branch hides
+  its markup. Clear feedback at an intentional user-action or ownership boundary.
+- **Bind versioned confirmations to reviewed state**: capture the subject ID and expected version
+  when a destructive confirmation opens. A refresh must not replace that version at submission.
+  Clear the confirmation on cancellation, owner/lifecycle changes and definitive settlement;
+  an already-dispatched recovery operation retains its original payload independently.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 
@@ -145,8 +149,10 @@ Nova.UI/
   across reloads, persist the original operation ID and required payload before dispatch on **every**
   submission path, including confirmation/retry. A failed storage write cannot enable an unpersisted
   commit. Browser recovery context is never authorization or readiness evidence.
-- Scope recovery context to the authenticated user and club, including permission changes. Clear
-  unavailable or no-longer-authorized visible data before awaiting browser-storage cleanup.
+- Scope recovery storage to the authenticated user and club. Permission changes invalidate visible
+  data, capabilities and in-flight UI ownership, but must not strand an unresolved operation by
+  changing its storage key. Reauthorize every replay on the server; a retained payload grants no
+  permissions. Clear unavailable or no-longer-authorized visible data before awaiting cleanup.
 - Report committed effects from the command's immutable receipt, not a refreshed preview or later
   aggregate count. See `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md` for recovery.
 

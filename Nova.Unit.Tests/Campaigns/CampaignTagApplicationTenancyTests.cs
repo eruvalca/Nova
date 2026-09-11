@@ -28,8 +28,8 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     private readonly TenancyTestHarness _harness = new();
 
     // Assigned during Seed() so tests reference the same durable operation identifiers.
-    private Guid _clubARemovalOperationId;
-    private Guid _clubBRemovalOperationId;
+    private Guid _clubAOperationId;
+    private Guid _clubBOperationId;
 
     /// <summary>
     /// Initializes campaign tag application data for two tenants.
@@ -101,6 +101,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         using var db = _harness.CreateTenantContext();
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = ClubBAssignmentId,
             PlayerTagId = ClubBTagId,
@@ -122,7 +123,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
 
-        var receipts = db.CampaignTagApplicationRemovalReceipts.ToList();
+        var receipts = db.EvaluationMutationReceipts.ToList();
 
         receipts.Count.ShouldBe(1);
         receipts.ShouldAllBe(receipt => receipt.ClubId == ClubAId);
@@ -136,10 +137,13 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
-        db.CampaignTagApplicationRemovalReceipts.Add(new CampaignTagApplicationRemovalReceiptEntity
+        db.EvaluationMutationReceipts.Add(new EvaluationMutationReceiptEntity
         {
-            RemovalOperationId = Guid.CreateVersion7(),
-            CampaignTagApplicationId = 1501,
+            OperationId = Guid.CreateVersion7(),
+            ActorUserId = ClubAUserId,
+            RequestSha256 = new string('A', 64),
+            ResultJson = "{}",
+            RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
             ClubId = ClubBId,
             CreatedById = ClubAUserId
         });
@@ -358,6 +362,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubAApplicationId,
                 PlayerCampaignAssignmentId = ClubAAssignmentId,
@@ -367,6 +372,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubBApplicationId,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
@@ -376,6 +382,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClubADraftApplicationId,
                 PlayerCampaignAssignmentId = ClubADraftAssignmentId,
@@ -384,20 +391,26 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
                 CreatedById = ClubAUserId
             });
 
-        _clubARemovalOperationId = Guid.CreateVersion7();
-        _clubBRemovalOperationId = Guid.CreateVersion7();
-        db.CampaignTagApplicationRemovalReceipts.AddRange(
-            new CampaignTagApplicationRemovalReceiptEntity
+        _clubAOperationId = Guid.CreateVersion7();
+        _clubBOperationId = Guid.CreateVersion7();
+        db.EvaluationMutationReceipts.AddRange(
+            new EvaluationMutationReceiptEntity
             {
-                RemovalOperationId = _clubARemovalOperationId,
-                CampaignTagApplicationId = ClubAApplicationId,
+                OperationId = _clubAOperationId,
+                ActorUserId = ClubAUserId,
+                RequestSha256 = new string('A', 64),
+                ResultJson = "{}",
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
             },
-            new CampaignTagApplicationRemovalReceiptEntity
+            new EvaluationMutationReceiptEntity
             {
-                RemovalOperationId = _clubBRemovalOperationId,
-                CampaignTagApplicationId = ClubBApplicationId,
+                OperationId = _clubBOperationId,
+                ActorUserId = ClubBUserId,
+                RequestSha256 = new string('A', 64),
+                ResultJson = "{}",
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
             });

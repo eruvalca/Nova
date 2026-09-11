@@ -141,6 +141,8 @@ builder.Services.AddScoped<ICampaignLifecycleService>(services => services.GetRe
 builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, CampaignParticipantQueryService>();
+builder.Services.AddScoped<ICampaignEvaluationQueryService, CampaignEvaluationQueryService>();
+builder.Services.AddHostedService<EvaluationReceiptCleanupService>();
 builder.Services.AddScoped<ICampaignPlacementQueryService, CampaignPlacementQueryService>();
 builder.Services.AddScoped<IEffectivePlacementQueryService, EffectivePlacementQueryService>();
 builder.Services.AddScoped<ICampaignCloseoutQueryService, CampaignCloseoutQueryService>();

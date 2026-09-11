@@ -52,6 +52,7 @@
 
 .campaign-sign h1 {
     margin: 0;
+    overflow-wrap: anywhere;
     font-size: clamp(2rem, 3vw, 3rem);
     font-weight: 700;
     letter-spacing: -0.04em;

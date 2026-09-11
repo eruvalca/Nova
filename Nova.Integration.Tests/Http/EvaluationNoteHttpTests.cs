@@ -16,7 +16,7 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
+public sealed partial class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 
@@ -37,11 +37,11 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await anonymousClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(42),
-            ValidEditInput("Note"),
+            ValidEditInput(await NoteVersionAsync(42), "Note"),
             cancellationToken);
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-        using var deleteResponse = await anonymousClient.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(anonymousClient, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -68,11 +68,11 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolut
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(42),
-            ValidEditInput("Note"),
+            ValidEditInput(await NoteVersionAsync(42), "Note"),
             cancellationToken);
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var deleteResponse = await client.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(client, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -128,7 +128,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(42), UriKind.RelativeOrAbsolut
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, memberClient, cancellationToken);
         detail.ShouldNotBeNull();
         detail.Capabilities.CanAddNote.ShouldBeTrue();
         var note = detail.Notes.ShouldHaveSingleItem();
@@ -183,9 +183,10 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             cancellationToken,
             campaignStatus: CampaignStatus.Closed);
 
+        var input = ValidAddInput(assignmentId, "Note on a closed campaign.");
         using var response = await client.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
-            ValidAddInput(assignmentId, "Note on a closed campaign."),
+            input,
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -193,14 +194,15 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept new notes.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
+        document.RootElement.GetProperty(EvaluationMutationRejection.OperationIdExtension).GetGuid().ShouldBe(input.OperationId);
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot add a note to a Draft campaign and no note or receipt is persisted.
+    /// Verifies a club administrator cannot add a note to a Draft campaign and a durable rejection is retained without a note.
     /// </summary>
     [Fact]
-    public async Task AddEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task AddEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -225,15 +227,15 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept new notes.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = fixture.CreateAdminContext();
         var noteCount = await verify.Notes
             .CountAsync(note => note.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
         noteCount.ShouldBe(0);
-        var receiptCount = await verify.EvaluationNoteMutationReceipts
+        var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -280,7 +282,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
     /// Verifies the note author can edit their note and the row is updated with audit stamps preserved.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNoteReturnsNoContentAndUpdatesRowForAuthorAsync()
+    public async Task EditEvaluationNoteReturnsReceiptAndUpdatesRowForAuthorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -307,9 +309,9 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await memberClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput("Revised content."),
+            ValidEditInput(await NoteVersionAsync(added.NoteId), "Revised content."),
             cancellationToken);
-        editResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        editResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await using var context = fixture.CreateAdminContext();
 #pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
@@ -327,7 +329,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, memberClient, cancellationToken);
         detail.ShouldNotBeNull();
         var note = detail.Notes.ShouldHaveSingleItem();
         note.Content.ShouldBe("Revised content.");
@@ -375,7 +377,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await otherMemberClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput("Sneaky edit."),
+            ValidEditInput(await NoteVersionAsync(added.NoteId), "Sneaky edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -383,7 +385,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             await editResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only the note author or a club administrator may edit evaluation notes.");
+            .ShouldBe("Only the author can edit or delete this shared note.");
         await AssertNotePersistedAsync(added.NoteId, "Owner content.", cancellationToken);
     }
 
@@ -409,7 +411,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(noteId),
-            ValidEditInput("Attempted edit."),
+            ValidEditInput(await NoteVersionAsync(noteId), "Attempted edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -417,15 +419,15 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             await editResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept note edits.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot edit a note in a Draft campaign and no mutation receipt is persisted.
+    /// Verifies a club administrator cannot edit a note in a Draft campaign and a durable rejection receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task EditEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task EditEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -443,7 +445,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(noteId),
-            ValidEditInput("Attempted edit."),
+            ValidEditInput(await NoteVersionAsync(noteId), "Attempted edit."),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -451,13 +453,13 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept note edits.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
 
         await using var verify = fixture.CreateAdminContext();
-        var receiptCount = await verify.EvaluationNoteMutationReceipts
+        var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -478,7 +480,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(noteId),
-            ValidEditInput("   "),
+            ValidEditInput(await NoteVersionAsync(noteId), "   "),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -505,7 +507,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(noteId),
-            ValidEditInput(new string('x', 4001)),
+            ValidEditInput(await NoteVersionAsync(noteId), new string('x', 4001)),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -547,7 +549,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 
         using var editResponse = await otherClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput("Cross-tenant edit."),
+            ValidEditInput(await NoteVersionAsync(added.NoteId), "Cross-tenant edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -558,7 +560,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
     /// Verifies the note author can delete their note and the row is deleted from the database and detail payload.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNoteReturnsNoContentAndDeletesRowForAuthorAsync()
+    public async Task DeleteEvaluationNoteReturnsReceiptAndDeletesRowForAuthorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -584,10 +586,10 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
         addResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
         var added = await addResponse.Content.ReadFromJsonAsync<EvaluationNoteMutationSuccess>(cancellationToken);
 
-        using var deleteResponse = await memberClient.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(memberClient, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
-        deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        deleteResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await using var context = fixture.CreateAdminContext();
         var persisted = await context.Notes
@@ -598,7 +600,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.Relativ
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, memberClient, cancellationToken);
         detail.ShouldNotBeNull();
         detail.Notes.ShouldNotContain(note => note.NoteId == added.NoteId);
     }
@@ -638,7 +640,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
         await UpdateUserAsync(otherMemberEmail, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(otherMemberClient, cancellationToken);
 
-        using var deleteResponse = await otherMemberClient.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(otherMemberClient, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -647,7 +649,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.Relativ
             await deleteResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only the note author or a club administrator may delete evaluation notes.");
+            .ShouldBe("Only the author can edit or delete this shared note.");
         await AssertNotePersistedAsync(added.NoteId, "Owner note.", cancellationToken);
     }
 
@@ -671,7 +673,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.Relativ
             campaignStatus: CampaignStatus.Closed);
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
-        using var deleteResponse = await client.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(client, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -680,15 +682,15 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
             await deleteResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept note deletions.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
     }
 
     /// <summary>
-    /// Verifies a club administrator cannot delete a note in a Draft campaign and no mutation receipt is persisted.
+    /// Verifies a club administrator cannot delete a note in a Draft campaign and a durable rejection receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task DeleteEvaluationNoteReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
+    public async Task DeleteEvaluationNoteReturnsConflictWithoutEvidenceWritesForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -704,7 +706,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
             campaignStatus: CampaignStatus.Draft);
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
-        using var response = await client.DeleteAsync(
+        using var response = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(client, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -713,13 +715,13 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Only active campaigns can accept note deletions.");
+            .ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
 
         await using var verify = fixture.CreateAdminContext();
-        var receiptCount = await verify.EvaluationNoteMutationReceipts
+        var receiptCount = await verify.EvaluationMutationReceipts
             .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
-        receiptCount.ShouldBe(0);
+        receiptCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -753,7 +755,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbs
         await RefreshClubMembershipCookieAsync(otherClient, cancellationToken);
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
-        using var deleteResponse = await otherClient.DeleteAsync(
+        using var deleteResponse = await EvaluationEvidenceHttpTestSupport.DeleteEvaluationNoteForTestAsync(otherClient, fixture,
 new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
@@ -787,7 +789,7 @@ new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(added.NoteId), UriKind.Relativ
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, client, cancellationToken);
         detail.ShouldNotBeNull();
         detail.Notes.ShouldContain(
             note => note.NoteId == added.NoteId
@@ -809,15 +811,21 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
     /// <param name="content">The note content.</param>
     /// <returns>A valid request for server serialization.</returns>
     private static AddEvaluationNoteInput ValidAddInput(long assignmentId, string content)
-        => new() { PlayerCampaignAssignmentId = assignmentId, Content = content };
+        => new() { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = assignmentId, Content = content };
 
     /// <summary>
     /// Creates a valid edit-note request body.
     /// </summary>
     /// <param name="content">The note content.</param>
     /// <returns>A valid request body for server serialization.</returns>
-    private static PutEvaluationNoteInput ValidEditInput(string content)
-        => new() { Content = content };
+    private static PutEvaluationNoteInput ValidEditInput(Guid expectedVersion, string content)
+        => new() { OperationId = Guid.CreateVersion7(), ExpectedVersion = expectedVersion, Content = content };
+
+    private async Task<Guid> NoteVersionAsync(long noteId)
+    {
+        await using var db = fixture.CreateAdminContext();
+        return await db.Notes.Where(note => note.NoteId == noteId).Select(note => (Guid?)note.Version).SingleOrDefaultAsync(TestContext.Current.CancellationToken) ?? Guid.NewGuid();
+    }
 
     /// <summary>
     /// Creates a club and returns the resulting club DTO.
@@ -959,6 +967,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
 #pragma warning restore CA1862
             var note = new NoteEntity
             {
+                AuthorDisplayName = "Test User",
                 CreationOperationId = Guid.NewGuid(),
                 Content = content,
                 PlayerCampaignAssignmentId = assignmentId,

@@ -14,6 +14,8 @@ public partial class CampaignParticipantPlacementContext(IEffectivePlacementQuer
     [Parameter] public long ParticipantId { get; set; }
     /// <summary>The authoritative campaign lifecycle.</summary>
     [Parameter] public CampaignStatus Status { get; set; }
+    /// <summary>Shows brief context with optional provenance in the evaluation sheet.</summary>
+    [Parameter] public bool Compact { get; set; }
     /// <summary>The already loaded Active row, avoiding an extra read for page selections.</summary>
     [Parameter] public CampaignEffectivePlacementItem? WorkingRow { get; set; }
     /// <summary>The authority owning this context.</summary>
@@ -41,6 +43,8 @@ public partial class CampaignParticipantPlacementContext(IEffectivePlacementQuer
     [PersistentState] public bool PersistedError { get; set; }
     private string LocalOutcomeLabel => (_working?.LocalDecision ?? _closed?.Source.Decision) is { } decision
         ? CampaignRosterDisplay.OutcomeLabel(decision.Outcome) : "No campaign decision";
+    private string EffectiveOutcomeLabel => _working?.EffectiveTeam?.TeamName
+        ?? (_working?.EffectiveDecision is { } source ? CampaignRosterDisplay.OutcomeLabel(source.Decision.Outcome) : "No saved placement");
 
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()

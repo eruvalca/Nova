@@ -56,14 +56,16 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     /// page JS required); Blazor renders the form fields (antiforgery token + <c>_handler</c>)
     /// into static HTML.
     /// </param>
+    /// <param name="deviceScaleFactor">Raster pixels per CSS pixel for device captures.</param>
     /// <returns>The signed-in browser context.</returns>
     public async Task<IBrowserContext> NewSignedInContextAsync(
         string email,
         string password,
         ViewportSize? viewport = null,
-        bool javaScriptEnabled = true)
+        bool javaScriptEnabled = true,
+        float deviceScaleFactor = 1)
     {
-        var context = await NewAnonymousContextAsync(viewport, javaScriptEnabled);
+        var context = await NewAnonymousContextAsync(viewport, javaScriptEnabled, deviceScaleFactor);
         await SignInAsync(context.Pages[0], email, password);
         return context;
     }
@@ -73,16 +75,19 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     /// </summary>
     /// <param name="viewport">The viewport size, or <see langword="null"/> for the default 1280×800.</param>
     /// <param name="javaScriptEnabled">Whether JavaScript is enabled in the context.</param>
+    /// <param name="deviceScaleFactor">Raster pixels per CSS pixel for device captures.</param>
     /// <returns>The anonymous browser context.</returns>
     public async Task<IBrowserContext> NewAnonymousContextAsync(
         ViewportSize? viewport = null,
-        bool javaScriptEnabled = true)
+        bool javaScriptEnabled = true,
+        float deviceScaleFactor = 1)
     {
         var browser = _browser ?? throw new InvalidOperationException("Playwright has not been started.");
         var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,
             JavaScriptEnabled = javaScriptEnabled,
+            DeviceScaleFactor = deviceScaleFactor,
             ViewportSize = viewport ?? new ViewportSize { Width = 1280, Height = 800 }
         });
         _ = await context.NewPageAsync();

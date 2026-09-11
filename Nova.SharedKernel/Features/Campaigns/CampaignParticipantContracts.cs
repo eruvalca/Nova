@@ -60,8 +60,6 @@ public sealed record CampaignParticipantTagSummaryDto(
 /// <param name="ModifiedAt">When the campaign assignment was last modified, when applicable.</param>
 /// <param name="CampaignStatus">The campaign lifecycle status.</param>
 /// <param name="ConcurrencyToken">The optimistic-concurrency token for the assignment.</param>
-/// <param name="Notes">The participant notes in the detail payload.</param>
-/// <param name="AppliedTags">The tag applications in the detail payload.</param>
 /// <param name="Capabilities">The caller capabilities for this participant detail view.</param>
 public sealed record CampaignParticipantDetailDto(
     long PlayerCampaignAssignmentId,
@@ -75,8 +73,6 @@ public sealed record CampaignParticipantDetailDto(
     DateTimeOffset? ModifiedAt,
     CampaignStatus CampaignStatus,
     Guid ConcurrencyToken,
-    IReadOnlyList<CampaignParticipantNoteDto> Notes,
-    IReadOnlyList<CampaignParticipantTagApplicationDto> AppliedTags,
     CampaignParticipantCapabilitiesDto Capabilities);
 
 /// <summary>
@@ -89,6 +85,7 @@ public sealed record CampaignParticipantDetailDto(
 /// <param name="ModifiedAt">When the note was last modified, when it has been edited.</param>
 /// <param name="CanEdit">Whether the caller can edit this note.</param>
 /// <param name="CanDelete">Whether the caller can delete this note.</param>
+/// <param name="Version">The opaque version required for editing or deleting this note.</param>
 public sealed record CampaignParticipantNoteDto(
     long NoteId,
     string Content,
@@ -96,7 +93,8 @@ public sealed record CampaignParticipantNoteDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ModifiedAt,
     bool CanEdit,
-    bool CanDelete);
+    bool CanDelete,
+    Guid Version);
 
 /// <summary>
 /// Tag application summary attached to a participant detail payload.

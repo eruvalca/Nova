@@ -2,6 +2,22 @@
 
 Status: Confirmed
 
+## Direction contract
+
+THESIS: Shared evidence notebook keeps two recent observations beside the next deliberate capture; it is not a completion queue.
+
+OWN-WORLD: Fieldhouse Wayfinding system typography, teal actions, ink text, white sheets, sea-glass navigation and fine rules.
+
+STORY: Find, verify, read two short observations, capture a trait or note, deliberately find another player.
+
+FIRST VIEWPORT: Existing campaign chrome precedes a number-led identity, applied traits, two bounded observation previews, visible composer, Save note and Find another player. Older history follows. Phone stages alternate; desktop finder remains beside the sheet.
+
+FORM: Shared evidence notebook, rank 7, surface seed d6060110; user approved `.impeccable/mocks/decision/issue-198-shared-notebook.png`. Shared shell remains authoritative; the comp governs Evaluate content.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+The approved layout places at most two recent observations above quick capture; remaining shared history is bounded below it. This refines the earlier below-composer-only layout. Demo observations are illustrative. Functional controls, 4,000-character validation, and accessibility remain governed by this brief.
+
 Issues: [#165](https://github.com/eruvalca/Nova/issues/165), child of [#163](https://github.com/eruvalca/Nova/issues/163)
 
 Visitor mode: Operate

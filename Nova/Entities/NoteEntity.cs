@@ -13,6 +13,9 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public long NoteId { get; set; }
 
+    /// <summary>Gets or sets the opaque version required for author edits and deletion.</summary>
+    public Guid Version { get; set; } = Guid.NewGuid();
+
     /// <summary>
     /// Gets or sets the stable identifier for the logical note-creation operation.
     /// </summary>
@@ -22,6 +25,9 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// Gets or sets the note content.
     /// </summary>
     public required string Content { get; set; }
+
+    /// <summary>Gets or sets the author's display name captured at creation, independent of later account changes.</summary>
+    public required string AuthorDisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets the campaign participation this note belongs to.

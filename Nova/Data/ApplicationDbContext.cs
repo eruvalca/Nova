@@ -81,10 +81,9 @@ internal abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity,
     /// Gets the Notes.
     /// </summary>
     public DbSet<NoteEntity> Notes => Set<NoteEntity>();
-    /// <summary>
-    /// Gets the Evaluation Note Mutation Receipts.
-    /// </summary>
-    public DbSet<EvaluationNoteMutationReceiptEntity> EvaluationNoteMutationReceipts => Set<EvaluationNoteMutationReceiptEntity>();
+
+    /// <summary>Gets immutable, tenant-scoped evaluation operation receipts.</summary>
+    public DbSet<EvaluationMutationReceiptEntity> EvaluationMutationReceipts => Set<EvaluationMutationReceiptEntity>();
     /// <summary>
     /// Gets the Player Photos.
     /// </summary>
@@ -100,10 +99,6 @@ internal abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity,
     /// Gets the Campaign Tag Applications.
     /// </summary>
     public DbSet<CampaignTagApplicationEntity> CampaignTagApplications => Set<CampaignTagApplicationEntity>();
-    /// <summary>
-    /// Gets the Campaign Tag Application Removal Receipts.
-    /// </summary>
-    public DbSet<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts => Set<CampaignTagApplicationRemovalReceiptEntity>();
     /// <summary>
     /// Gets the Activity Events.
     /// </summary>

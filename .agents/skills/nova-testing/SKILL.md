@@ -45,15 +45,15 @@ attach, focus/keyboard, history/URL state, real HTTP/Identity, multi-user sessio
 ## Run commands
 
 All three test projects use xUnit v4 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
-Use the explicit `--project` form and avoid bare csproj invocation, which has been observed to fail
-MTP test discovery in this repo:
+Build first as directed by `AGENTS.md`, then use `--no-build` with the explicit `--project` form.
+Avoid bare csproj invocation, which has been observed to fail MTP discovery in this repo:
 
 ```powershell
-dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj
-dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
-dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj
-dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*Name"
-dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"
+dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build
+dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build
+dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class "*Name"
+dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-class "*CampaignParticipantHttpTests"
 ```
 
 Do not pass VSTest-only flags (`--nologo`, `--collect`, `--logger`); MTP rejects them.
@@ -107,6 +107,6 @@ validation summary.
     queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory
     invocations are not reader-command evidence. The interceptor does not observe synchronous,
     scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
-14. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+14. Run the smallest targeted command with `dotnet test --project <project> --no-build --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
 15. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.

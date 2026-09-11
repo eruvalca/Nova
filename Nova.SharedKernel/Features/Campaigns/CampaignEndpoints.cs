@@ -7,10 +7,54 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// </summary>
 public static class CampaignEndpoints
 {
+    /// <summary>The bounded note-history route.</summary>
+    public const string EvaluationNotesRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/notes";
+    /// <summary>The bounded application-history route.</summary>
+    public const string EvaluationApplicationsRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/applications";
+    /// <summary>The complete active trait choices and selected-player status route.</summary>
+    public const string EvaluationTagChoicesRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/tag-choices";
+    /// <summary>The bounded note-history endpoint name.</summary>
+    public const string EvaluationNotesRouteName = "Campaigns.EvaluationNotes";
+    /// <summary>The bounded application-history endpoint name.</summary>
+    public const string EvaluationApplicationsRouteName = "Campaigns.EvaluationApplications";
+    /// <summary>The selected-player trait-choice endpoint name.</summary>
+    public const string EvaluationTagChoicesRouteName = "Campaigns.EvaluationTagChoices";
+
+    /// <summary>Builds an encoded note-history URL, omitting an incomplete or invalid optional cursor.</summary>
+    public static string EvaluationNotesUrl(GetEvaluationHistoryInput input) => EvaluationHistoryUrl(input, "notes");
+    /// <summary>Builds an encoded application-history URL, omitting an incomplete or invalid optional cursor.</summary>
+    public static string EvaluationApplicationsUrl(GetEvaluationHistoryInput input) => EvaluationHistoryUrl(input, "applications");
+    /// <summary>Builds the complete selected-player trait choices URL.</summary>
+    public static string EvaluationTagChoicesUrl(GetCampaignParticipantDetailInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return $"{GroupPrefix}/{input.CampaignId}/participants/{input.PlayerCampaignAssignmentId}/tag-choices";
+    }
+
+    private static string EvaluationHistoryUrl(GetEvaluationHistoryInput input, string region)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var route = $"{GroupPrefix}/{input.CampaignId}/participants/{input.PlayerCampaignAssignmentId}/{region}";
+        return input.BeforeCreatedAt is { } before && before > DateTimeOffset.UnixEpoch && input.BeforeId is > 0 and var id
+            ? route + $"?beforeCreatedAt={Uri.EscapeDataString(before.ToString("O", System.Globalization.CultureInfo.InvariantCulture))}&beforeId={id}"
+            : route;
+    }
+
+    /// <summary>The atomic trait creation/application route relative to the campaign group.</summary>
+    public const string CreateAndApplyCampaignTagRelative = "tag-applications/create-and-apply";
+    /// <summary>The atomic trait creation/application route.</summary>
+    public const string CreateAndApplyCampaignTag = GroupPrefix + "/" + CreateAndApplyCampaignTagRelative;
+    /// <summary>The atomic trait creation/application endpoint name.</summary>
+    public const string CreateAndApplyCampaignTagRouteName = "Campaigns.CreateAndApplyTag";
+
     /// <summary>The Active campaign effective working set route.</summary>
     public const string EffectivePlacementsRelative = "{campaignId:long}/effective-placements";
     /// <summary>The campaign-local Closed record route.</summary>
     public const string ClosedRosterRelative = "{campaignId:long}/closed-roster";
+    /// <summary>The Active effective-placement endpoint name.</summary>
+    public const string EffectivePlacementsRouteName = "GetCampaignEffectivePlacements";
+    /// <summary>The Closed campaign roster endpoint name.</summary>
+    public const string ClosedRosterRouteName = "GetClosedCampaignRoster";
     /// <summary>Builds the effective placement context request.</summary>
     public static string EffectivePlacementsUrl(GetCampaignEffectivePlacementsInput input)
     {
@@ -496,6 +540,11 @@ public static class CampaignEndpoints
     {
         ArgumentNullException.ThrowIfNull(input);
         var querySegments = new List<string>();
+        if (input.ParticipantId is > 0)
+        {
+            querySegments.Add($"participantId={input.ParticipantId.Value}");
+        }
+
         if (input.GraduationYear is > 0)
         {
             querySegments.Add($"graduationYear={input.GraduationYear.Value}");
@@ -640,6 +689,7 @@ public static class CampaignEndpoints
 
         var normalizedSortBy = input.SortBy?.Trim().ToLowerInvariant() switch
         {
+            "searchrelevance" => "searchRelevance",
             "displayname" => "displayName",
             "graduationyear" => "graduationYear",
             "tryoutnumber" => "tryoutNumber",

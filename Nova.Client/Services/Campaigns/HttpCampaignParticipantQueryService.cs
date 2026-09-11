@@ -139,16 +139,11 @@ new Uri(CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(input.Campaig
            && detail.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
            && detail.CreatedAt != default(DateTimeOffset)
            && (detail.ModifiedAt is null || detail.ModifiedAt >= detail.CreatedAt)
-           && detail.Notes is not null
-           && detail.Notes.All(IsValidNote)
-           && detail.AppliedTags is not null
-           && detail.AppliedTags.All(IsValidTagApplication)
            && detail.Capabilities is not null
            && IsValidPlacementRelationship(detail.PlacementOutcome, detail.Team)
            && detail.ConcurrencyToken != Guid.Empty
            && detail.CampaignStatus is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
-           && AreNotesOrdered(detail.Notes)
-           && AreTagApplicationsOrdered(detail.AppliedTags);
+;
 
     /// <summary>
     /// Validates that a placement outcome is consistent with whether a team is present.
@@ -170,53 +165,6 @@ new Uri(CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(input.Campaig
 
         return false;
     }
-
-    /// <summary>
-    /// Validates the structural shape of a single participant note.
-    /// </summary>
-    /// <param name="note">The note to validate.</param>
-    /// <returns><see langword="true"/> when the note is structurally valid.</returns>
-    private static bool IsValidNote(CampaignParticipantNoteDto note)
-        => note is not null
-           && note.NoteId > 0
-           && !string.IsNullOrWhiteSpace(note.Content)
-           && !string.IsNullOrWhiteSpace(note.AuthorDisplayName)
-           && note.CreatedAt != default(DateTimeOffset)
-           && (note.ModifiedAt is null || note.ModifiedAt >= note.CreatedAt);
-
-    /// <summary>
-    /// Validates the structural shape of a single applied tag.
-    /// </summary>
-    /// <param name="tag">The tag application to validate.</param>
-    /// <returns><see langword="true"/> when the tag application is structurally valid.</returns>
-    private static bool IsValidTagApplication(CampaignParticipantTagApplicationDto tag)
-        => tag is not null
-           && tag.CampaignTagApplicationId > 0
-           && tag.PlayerTagId > 0
-           && !string.IsNullOrWhiteSpace(tag.TagName)
-           && !string.IsNullOrWhiteSpace(tag.TagColor)
-           && !string.IsNullOrWhiteSpace(tag.ActorDisplayName)
-           && tag.AppliedAt != default(DateTimeOffset);
-
-    /// <summary>
-    /// Validates that notes are sorted newest-first by creation time, with note id as the tie-breaker.
-    /// </summary>
-    /// <param name="notes">The notes to check.</param>
-    /// <returns><see langword="true"/> when every adjacent pair is in descending order.</returns>
-    private static bool AreNotesOrdered(IReadOnlyList<CampaignParticipantNoteDto> notes)
-        => notes.Zip(notes.Skip(1)).All(pair =>
-           pair.First.CreatedAt > pair.Second.CreatedAt
-           || (pair.First.CreatedAt == pair.Second.CreatedAt && pair.First.NoteId > pair.Second.NoteId));
-
-    /// <summary>
-    /// Validates that applied tags are sorted newest-first by application time, with application id as the tie-breaker.
-    /// </summary>
-    /// <param name="tags">The tag applications to check.</param>
-    /// <returns><see langword="true"/> when every adjacent pair is in descending order.</returns>
-    private static bool AreTagApplicationsOrdered(IReadOnlyList<CampaignParticipantTagApplicationDto> tags)
-        => tags.Zip(tags.Skip(1)).All(pair =>
-           pair.First.AppliedAt > pair.Second.AppliedAt
-           || (pair.First.AppliedAt == pair.Second.AppliedAt && pair.First.CampaignTagApplicationId > pair.Second.CampaignTagApplicationId));
 
     /// <summary>
     /// Validates that a decoded graduation-years list is positive and strictly ascending.

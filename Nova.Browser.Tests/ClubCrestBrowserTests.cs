@@ -42,17 +42,14 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
 
         var suffix = Guid.NewGuid().ToString("N");
         var clubName = $"Crest Club {suffix}";
-        await page.Locator("#club-name").FillAsync(clubName);
-        await page.Locator("#club-city").FillAsync("Austin");
-        await page.Locator("#club-state").FillAsync("TX");
 
         // Upload the required crest; the crop step appears with a free-form cropper, and the
         // selected image must be saved from the crop step before the form can be submitted.
         var crestPath = await WriteTempCrestAsync("onboarding");
         try
         {
-            // The page is on WebAssembly after the warmup reload, so the file input's change event
-            // reaches the component directly and the crop step appears without a hydration window.
+            // Warmup alone does not prove attachment. The crop step provides positive evidence
+            // that the file input's change event reached the interactive component.
             // Re-issue the upload until the cropper frame is visible, because the change→crop
             // round-trip can exceed a fixed Expect window under parallel load.
             await UploadCrestAndWaitForCropperAsync(page, "#club-crest", crestPath);
@@ -66,6 +63,13 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
                 saveCrest,
                 () => ExpectToSeeTextAsync(page, "Your club crest will appear in the navigation menu"));
             await Expect(page.Locator("img.club-crest-preview")).ToBeVisibleAsync();
+
+            // Saving the crop proves this component is interactive. Fill its bound fields now;
+            // visible prerendered inputs before the upload cannot prove their events are attached.
+            await page.Locator("#club-name").FillAsync(clubName);
+            await page.Locator("#club-city").FillAsync("Austin");
+            await page.Locator("#club-state").FillAsync("TX");
+            await page.Locator("#club-state").PressAsync("Tab");
 
             var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create Club", Exact = true });
             await InteractionHelpers.ActUntilAsync(
@@ -122,8 +126,8 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         var replacementPath = await WriteTempCrestAsync("replacement");
         try
         {
-            // The page is on WebAssembly after the warmup reload, so the file input's change event
-            // reaches the component directly and the crop step appears without a hydration window.
+            // Warmup alone does not prove attachment. The crop step provides positive evidence
+            // that the file input's change event reached the interactive component.
             // Re-issue the upload until the cropper frame is visible, because the change→crop
             // round-trip can exceed a fixed Expect window under parallel load.
             await UploadCrestAndWaitForCropperAsync(page, "#crest-file", replacementPath);
@@ -193,17 +197,14 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
 
         var suffix = Guid.NewGuid().ToString("N");
         var clubName = $"Aspect Crest Club {suffix}";
-        await page.Locator("#club-name").FillAsync(clubName);
-        await page.Locator("#club-city").FillAsync("Austin");
-        await page.Locator("#club-state").FillAsync("TX");
 
         // Upload a clearly non-square (300×200) crest and save it from the free-form crop step
         // without adjusting the crop box, so the uploaded aspect ratio stays 3:2.
         var crestPath = await WriteTempCrestAsync("aspect", width: 300, height: 200);
         try
         {
-            // The page is on WebAssembly after the warmup reload, so the file input's change event
-            // reaches the component directly and the crop step appears without a hydration window.
+            // Warmup alone does not prove attachment. The crop step provides positive evidence
+            // that the file input's change event reached the interactive component.
             // Re-issue the upload until the cropper frame is visible, because the change→crop
             // round-trip can exceed a fixed Expect window under parallel load.
             await UploadCrestAndWaitForCropperAsync(page, "#club-crest", crestPath);
@@ -217,6 +218,13 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
                 saveCrest,
                 () => ExpectToSeeTextAsync(page, "Your club crest will appear in the navigation menu"));
             await Expect(page.Locator("img.club-crest-preview")).ToBeVisibleAsync();
+
+            // Saving the crop proves this component is interactive. Fill its bound fields now;
+            // visible prerendered inputs before the upload cannot prove their events are attached.
+            await page.Locator("#club-name").FillAsync(clubName);
+            await page.Locator("#club-city").FillAsync("Austin");
+            await page.Locator("#club-state").FillAsync("TX");
+            await page.Locator("#club-state").PressAsync("Tab");
 
             var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create Club", Exact = true });
             await InteractionHelpers.ActUntilAsync(
@@ -347,13 +355,12 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Moves the current page to WebAssembly so file inputs and mutations run with browser-side
-    /// <c>/api/...</c> calls instead of the InteractiveServer circuit, and waits for the given
-    /// control to reappear after the reload so the test continues driving a hydrated page.
+    /// Warms the WebAssembly runtime and waits for the control to reappear after reloading.
+    /// Visibility alone is not attachment evidence; subsequent crop interactions establish it.
     /// </summary>
     /// <param name="page">The page currently rendered on the InteractiveServer circuit.</param>
     /// <param name="settled">The control expected to be visible after the reload.</param>
-    /// <returns>A task that completes once the page has switched to WebAssembly.</returns>
+    /// <returns>A task that completes after warmup and control visibility.</returns>
     private static async Task ReloadAsWebAssemblyAsync(IPage page, ILocator settled)
     {
         await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);

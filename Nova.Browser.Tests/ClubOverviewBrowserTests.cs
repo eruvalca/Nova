@@ -126,7 +126,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password, new() { Width = 390, Height = 844 });
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertMobileDirectoryAttachedAsync(page));
 
         var toggle = page.Locator(".club-directory-toggle");
         await InteractionHelpers.ActUntilAsync(page, () => toggle.PressAsync("Enter"),
@@ -136,6 +136,18 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         await page.WaitForURLAsync(url => string.Equals(new Uri(url).AbsolutePath, ClubRoutes.Members, StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Members", Exact = true })).ToBeVisibleAsync();
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
+        await Expect(directory).ToBeHiddenAsync();
+    }
+
+    private static async Task AssertMobileDirectoryAttachedAsync(IPage page)
+    {
+        var toggle = page.Locator(".club-directory-toggle");
+        var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+        await InteractionHelpers.ActUntilAsync(page, () => toggle.PressAsync("Enter"),
+            async () => string.Equals(await toggle.GetAttributeAsync("aria-expanded"), "true", StringComparison.Ordinal));
+        await Expect(directory).ToBeVisibleAsync();
+        await toggle.PressAsync("Enter");
         await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
         await Expect(directory).ToBeHiddenAsync();
     }

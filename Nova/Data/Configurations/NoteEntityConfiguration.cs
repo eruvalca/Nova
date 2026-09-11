@@ -17,6 +17,9 @@ internal class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
     public void Configure(EntityTypeBuilder<NoteEntity> builder)
     {
         builder.HasKey(e => e.NoteId);
+        builder.Property(e => e.AuthorDisplayName).IsRequired();
+        builder.Property(e => e.Version).IsConcurrencyToken();
+        builder.HasIndex(e => new { e.ClubId, e.PlayerCampaignAssignmentId, e.CreatedAt, e.NoteId });
         builder.Property(e => e.NoteId)
             .ValueGeneratedOnAdd();
 

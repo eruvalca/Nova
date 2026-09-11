@@ -171,6 +171,8 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         int year, int? tryout, PlacementOutcome outcome, CampaignParticipantTeamSummaryDto? team)
         => input.SortBy?.ToUpperInvariant() switch
         {
+            "SEARCHRELEVANCE" => new(int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var number) && tryout == number ? 0 : 1, last, first, id),
             "ASSIGNMENTID" => new(id, null, null, id),
             "GRADUATIONYEAR" => new(year, null, null, id),
             "TRYOUTNUMBER" => new(tryout ?? (string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? int.MinValue : int.MaxValue), null, null, id),
@@ -182,7 +184,8 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
     // Names follow database collation. Validate numeric order and exact-text ties without emulating it.
     private static bool OrderedDiscovery(IEnumerable<DiscoveryOrderKey> keys, CampaignRosterDiscoveryInput input)
     {
-        var descending = string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+        var descending = !string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(input.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
         DiscoveryOrderKey? previous = null;
         foreach (var key in keys)
         {

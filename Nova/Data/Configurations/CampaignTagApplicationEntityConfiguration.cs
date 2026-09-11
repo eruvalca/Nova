@@ -16,6 +16,7 @@ internal class CampaignTagApplicationEntityConfiguration : IEntityTypeConfigurat
     public void Configure(EntityTypeBuilder<CampaignTagApplicationEntity> builder)
     {
         builder.HasKey(e => e.CampaignTagApplicationId);
+        builder.Property(e => e.AuthorDisplayName).IsRequired();
         builder.Property(e => e.CampaignTagApplicationId)
             .ValueGeneratedOnAdd();
 

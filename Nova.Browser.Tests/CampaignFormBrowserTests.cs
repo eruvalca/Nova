@@ -153,8 +153,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
         await OpenNewCampaignAsync(page);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenNewCampaignAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => CheckInlineSeasonAsync(page));
 
         var suffix = Guid.NewGuid().ToString("N");
         var campaignName = $"Form Campaign {suffix}";
@@ -181,16 +180,23 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
-        await submit.ClickAsync();
-        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-        await Expect(submit.Locator(".spinner-border")).ToBeVisibleAsync();
+        try
+        {
+            var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
+            await submit.ClickAsync();
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(submit.Locator(".spinner-border")).ToBeVisibleAsync();
 
-        release.TrySetResult(null);
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
-        await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
-        await page.UnrouteAsync(IsCampaignCreateUrl);
+            release.TrySetResult(null);
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
+            await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
+        }
+        finally
+        {
+            release.TrySetResult(null);
+            await page.UnrouteAsync(IsCampaignCreateUrl);
+        }
     }
 
     [Fact]
@@ -201,8 +207,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
         await OpenNewCampaignAsync(page);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
-        await OpenNewCampaignAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => CheckInlineSeasonAsync(page));
 
         var suffix = Guid.NewGuid().ToString("N");
         var campaignName = $"Form Campaign {suffix}";
@@ -211,18 +216,25 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
         await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
 
-        await page.RouteAsync(
-            IsCampaignCreateUrl,
-            route => string.Equals(route.Request.Method, "POST"
-, StringComparison.Ordinal) ? route.FulfillAsync(new() { Status = 500 })
-                : route.ContinueAsync());
+        var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(IsCampaignCreateUrl, async route =>
+        {
+            if (!string.Equals(route.Request.Method, "POST", StringComparison.Ordinal)) { await route.ContinueAsync(); return; }
+            await route.FulfillAsync(new() { Status = 500 });
+            intercepted.TrySetResult();
+        });
 
-        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
-        await submit.ClickAsync();
-        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("The Draft could not be saved.");
-        page.Url.ShouldContain("/campaigns/new");
-
-        await page.UnrouteAsync(IsCampaignCreateUrl);
+        try
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true }).ClickAsync();
+            await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("The Draft could not be saved.");
+            page.Url.ShouldContain("/campaigns/new");
+        }
+        finally
+        {
+            await page.UnrouteAsync(IsCampaignCreateUrl);
+        }
         await page.GetByRole(AriaRole.Button, new() { Name = "Confirm creation result", Exact = true }).ClickAsync();
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
@@ -264,20 +276,17 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// Selects the "Create a new season" radio and waits for the inline-season fields to render,
-    /// retrying through the SSR hydration window. The rendered inline fields are the hydration proof
-    /// used by the scenarios that then drive the rest of the form.
+    /// retrying through the SSR hydration window. Also requires the enabled submit control, which
+    /// proves recovery storage initialization completed; prerendered inline fields alone are insufficient.
     /// </summary>
     private static async Task CheckInlineSeasonAsync(IPage page)
     {
-        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true })).ToBeEnabledAsync();
         var radio = page.Locator("#season-mode-inline");
         var inlineName = page.Locator("#inline-season-name");
+        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
         for (var attempt = 0; attempt < 20; attempt++)
         {
-            if (await inlineName.IsVisibleAsync())
-            {
-                return;
-            }
+            await AssertNoCreationSetupErrorAsync(page);
 
             try
             {
@@ -293,7 +302,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             try
             {
                 await Expect(inlineName).ToBeVisibleAsync(new() { Timeout = 1500 });
-                return;
+                if (await submit.IsEnabledAsync()) { break; }
             }
             catch (PlaywrightException)
             {
@@ -301,7 +310,19 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             }
         }
 
+        await AssertNoCreationSetupErrorAsync(page);
         await Expect(inlineName).ToBeVisibleAsync();
+        await Expect(radio).ToBeCheckedAsync();
+        await Expect(submit).ToBeEnabledAsync();
+    }
+
+    private static async Task AssertNoCreationSetupErrorAsync(IPage page)
+    {
+        var alerts = page.Locator("div.alert-danger[role=alert]");
+        if (await alerts.CountAsync() > 0)
+        {
+            throw new InvalidOperationException($"Campaign creation initialization failed: {string.Join("; ", await alerts.AllTextContentsAsync())}");
+        }
     }
 
     /// <summary>Seeds a club with a single administrator and returns the login credentials and identifiers.</summary>

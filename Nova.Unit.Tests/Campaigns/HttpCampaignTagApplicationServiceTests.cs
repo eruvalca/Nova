@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
-using Nova.Client.Services;
+using Nova.Client.Services.Campaigns;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
 using Shouldly;
@@ -11,8 +11,12 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>
 /// Verifies the WebAssembly campaign tag application client route and response contract.
 /// </summary>
-public sealed class HttpCampaignTagApplicationServiceTests
+public sealed partial class HttpCampaignTagApplicationServiceTests
 {
+    private readonly Guid _operationId = Guid.CreateVersion7();
+
+    private EvaluationMutationReceipt Receipt() => new(_operationId, 100, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(23));
+
     /// <summary>
     /// Captures the request and returns one configured response.
     /// </summary>
@@ -24,13 +28,16 @@ public sealed class HttpCampaignTagApplicationServiceTests
         /// </summary>
         public HttpRequestMessage? LastRequest { get; private set; }
 
+        public string? LastRequestBody { get; private set; }
+
         /// <inheritdoc />
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
-            return Task.FromResult(response);
+            LastRequestBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            return response;
         }
     }
 
@@ -42,7 +49,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(42))
+            Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(42, 200, false, Receipt()))
         };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -157,7 +164,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-        result.Problem.Detail.ShouldBe("The server returned an invalid campaign tag application response.");
+        result.Problem.Detail.ShouldBe("The server did not return a valid trait receipt. Retry the original operation to recover its result.");
     }
 
     /// <summary>
@@ -179,7 +186,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-        result.Problem.Detail.ShouldBe("The server returned an invalid campaign tag application response.");
+        result.Problem.Detail.ShouldBe("The server did not return a valid trait receipt. Retry the original operation to recover its result.");
     }
 
     /// <summary>
@@ -211,7 +218,7 @@ public sealed class HttpCampaignTagApplicationServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(0))
+            Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(0, 200, false, Receipt()))
         };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -225,12 +232,12 @@ public sealed class HttpCampaignTagApplicationServiceTests
     }
 
     /// <summary>
-    /// Verifies successful removal deletes the shared route and returns success for a no-content response.
+    /// Verifies successful removal deletes the shared route and returns the immutable mutation receipt.
     /// </summary>
     [Fact]
     public async Task RemoveAsyncDeletesToSharedRouteAndReturnsSuccessAsync()
     {
-        using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new CampaignTagApplicationMutationSuccess(42, 200, false, Receipt())) };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
@@ -329,8 +336,9 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Creates a valid apply request.
     /// </summary>
     /// <returns>A valid request for client serialization.</returns>
-    private static ApplyCampaignTagApplicationInput ValidApplyInput() => new()
+    private ApplyCampaignTagApplicationInput ValidApplyInput() => new()
     {
+        OperationId = _operationId,
         PlayerCampaignAssignmentId = 100,
         PlayerTagId = 200
     };
@@ -339,8 +347,9 @@ public sealed class HttpCampaignTagApplicationServiceTests
     /// Creates a valid remove request.
     /// </summary>
     /// <returns>A valid request for client serialization.</returns>
-    private static RemoveCampaignTagApplicationInput ValidRemoveInput() => new()
+    private RemoveCampaignTagApplicationInput ValidRemoveInput() => new()
     {
+        OperationId = _operationId,
         CampaignTagApplicationId = 42
     };
 }

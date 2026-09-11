@@ -18,8 +18,6 @@ internal sealed partial class PlayerDetailQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<PlayerDetailQueryService> logger) : IPlayerDetailService
 {
-    private const string UnresolvedActorFallback = "Former member";
-
     /// <inheritdoc />
 #pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<PlayerDetailDto>> GetPlayerDetailAsync(long playerId, CancellationToken cancellationToken = default)
@@ -81,6 +79,7 @@ internal sealed partial class PlayerDetailQueryService(
                 note.PlayerCampaignAssignmentId,
                 note.Content,
                 AuthorUserId = note.CreatedById,
+                note.AuthorDisplayName,
                 note.CreatedAt
             })
             .ToListAsync(cancellationToken);
@@ -96,30 +95,10 @@ internal sealed partial class PlayerDetailQueryService(
                 TagColor = application.PlayerTag.Color,
                 IsTagArchived = application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
                 ApplyingUserId = application.CreatedById,
+                application.AuthorDisplayName,
                 AppliedAt = application.CreatedAt
             })
             .ToListAsync(cancellationToken);
-
-        var actorUserIds = noteRows
-            .Select(note => note.AuthorUserId)
-            .Concat(tagRows.Select(application => application.ApplyingUserId))
-            .Distinct()
-            .ToArray();
-
-        var actorDisplayNames = actorUserIds.Length == 0
-            ? new Dictionary<long, string>()
-            : await db.Users
-                .Where(user => user.ClubId == clubId && actorUserIds.Contains(user.Id))
-                .Select(user => new
-                {
-                    user.Id,
-                    user.FirstName,
-                    user.LastName
-                })
-                .ToDictionaryAsync(
-                    row => row.Id,
-                    row => $"{row.FirstName} {row.LastName}",
-                    cancellationToken);
 
         var notesByAssignment = noteRows
             .GroupBy(note => note.PlayerCampaignAssignmentId)
@@ -132,7 +111,7 @@ internal sealed partial class PlayerDetailQueryService(
                         note.NoteId,
                         note.Content,
                         note.AuthorUserId,
-                        ResolveActorDisplayName(actorDisplayNames, note.AuthorUserId),
+                        note.AuthorDisplayName,
                         note.CreatedAt))
                     .ToList()
                     .AsReadOnly());
@@ -151,7 +130,7 @@ internal sealed partial class PlayerDetailQueryService(
                         application.TagColor,
                         application.IsTagArchived,
                         application.ApplyingUserId,
-                        ResolveActorDisplayName(actorDisplayNames, application.ApplyingUserId),
+                        application.AuthorDisplayName,
                         application.AppliedAt))
                     .ToList()
                     .AsReadOnly());
@@ -225,17 +204,6 @@ internal sealed partial class PlayerDetailQueryService(
             currentTraits,
             campaignHistory);
     }
-
-    /// <summary>
-    /// Resolves a display name for the supplied actor identifier, using the configured fallback for deleted or unavailable users.
-    /// </summary>
-    /// <param name="actorDisplayNames">The actor display-name lookup dictionary.</param>
-    /// <param name="actorUserId">The actor user identifier.</param>
-    /// <returns>The resolved display name, or the stable fallback text when unavailable.</returns>
-    private static string ResolveActorDisplayName(Dictionary<long, string> actorDisplayNames, long actorUserId)
-        => actorDisplayNames.TryGetValue(actorUserId, out var displayName)
-            ? displayName
-            : UnresolvedActorFallback;
 
     /// <summary>
     /// Logs a player detail request rejected because the caller is not a club member.

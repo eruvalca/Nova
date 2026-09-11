@@ -18,14 +18,14 @@
 
 - Build: `dotnet build Nova.slnx`
 - Within one worktree, do not run build-capable `dotnet build` or `dotnet test` commands concurrently: building `Nova/Nova.csproj` may execute `npm ci`, which replaces the shared `Nova/node_modules` tree. Run `dotnet build Nova.slnx` first, then use `--no-build` for tests.
-- Keep the Aspire-backed integration and browser suites serial. Every run — in the same worktree or another — shares the machine's single Docker engine, and a concurrent suite's load can push the browser suite's bounded hydration/Azurite retry windows into flaky timeouts. Only that capacity is shared: container names, session networks, host ports, and Postgres/Azurite data volumes are already randomized per run or hashed per checkout path (`aspire start --isolated` covers dev-run ports and user secrets) — so treat serialization as a per-machine mutex, not a name-collision guard.
+- Keep Aspire-backed integration and browser suites serial across all worktrees on this machine. Docker capacity is shared even though run identities, ports and data are isolated; concurrent suites can exhaust bounded hydration/storage retries. Keep application source and generated assets fixed while a browser suite runs so its result identifies one build.
 - Run: `dotnet run --project Nova.AppHost` (delegates through the Aspire 13.5 CLI bundle; Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
 - OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Bootstrap theme: `npm ci` then `npm run build:css` (from `Nova/`) compiles the Sass theme to `Nova/wwwroot/css/bootstrap-theme.css`; `npm run check:contrast` validates WCAG contrast and asserts no Bootstrap-blue literals. Run both from `Nova/` after any `scss/` or `package.json` change.
-- Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
-- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before opening a PR and before merge (see the pull request test gate below).
-- Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
+- After the build, unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`
+- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — see the local PR test gate below.
+- Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
 - **Pull request test gate**: before opening a PR, run all three suites locally — unit, integration, and browser — and ensure they pass. On pushes to an open PR, re-run the suites the change can affect: unit always (cheap, and CI runs them); integration for provider/HTTP-boundary or EF changes; browser for interactive UI, markup, CSS, or JS-interop changes. When in doubt, run all three. Re-run all three before merge. CI only builds and runs unit tests (the Aspire-dependent suites are local-only), so a green CI run is not proof the full suite is green. The PR template checklist in `.github/pull_request_template.md` restates this gate.
 
 ## Repository decisions
@@ -84,6 +84,19 @@ were applied. Generic Aspire, .NET inspection, and Playwright recipes also live 
 `.agents/skills/`; choose them by the actual operation.
 
 ## Completion and review
+
+- Commit durable design inputs and decisions: product/design documents, the design sidecar,
+  surface briefs, shared configuration, approved comps with provenance, and concise validation
+  and review records. Curate representative final captures and automated visual-test baselines.
+  Impeccable build state, scaffolds, rejected concepts, repeated captures, crops, heatmaps and raw
+  run output are local artifacts; `.gitignore` excludes them unless explicitly retained.
+  Add narrow `.gitignore` exceptions for each new approved comp/provenance and curated evidence
+  package; do not force-add an entire generated directory. Existing tracked artifacts are not
+  removed by new ignore rules; migrate them deliberately within the relevant change's scope.
+  Before untracking evidence, preserve required approval and failure history in a durable archive
+  with a revision/checksum and a link from the validation record. An ignored local file alone is
+  not a shared archive. Fix references to archived evidence, and preserve local files needed to
+  resume work. This retention policy does not waive any design or validation check.
 
 - Diagnostic suppressions, weakened validation, skipped tests, and disabled checks are quality-control
   changes: require an explicit rationale and review of their effect on coverage and enforcement.

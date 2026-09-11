@@ -1,0 +1,75 @@
+.evaluation-workspace { display: grid; grid-template-columns: minmax(17rem, 22rem) minmax(0, 48rem); gap: clamp(1.25rem, 3vw, 3rem); align-items: start; }
+.evaluation-protection { grid-column: 1 / -1; padding: 1rem; background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-radius: .375rem; }
+.evaluation-protection .btn { margin: .25rem .5rem .25rem 0; }
+.evaluation-finder { padding: 1.25rem 0; min-width: 0; }
+.evaluation-finder h2 { font-size: 1.25rem; margin-bottom: 1.25rem; }
+.evaluation-finder label, .evaluation-composer label { display: block; font-weight: 600; margin-bottom: .5rem; }
+.evaluation-search-row { display: flex; gap: .5rem; }
+.evaluation-empty, .evaluation-result-count { margin-top: 1.25rem; color: var(--bs-secondary-color); }
+.evaluation-results { list-style: none; margin: 0; padding: 0; }
+.evaluation-results li { border-bottom: 1px solid var(--bs-border-color); }
+.evaluation-results a { display: grid; grid-template-columns: 4.5rem 1fr auto; align-items: center; gap: .75rem; color: var(--bs-body-color); padding: 1rem .5rem; text-decoration: none; min-height: 4.5rem; }
+.evaluation-results a:hover, .evaluation-results a[aria-current] { background: var(--bs-primary-bg-subtle); }
+.evaluation-result-number { font-variant-numeric: tabular-nums; font-weight: 600; }
+.evaluation-result-year { display: block; color: var(--bs-secondary-color); font-size: .875rem; margin-top: .25rem; }
+.evaluation-result-placement { display: block; color: var(--bs-secondary-color); font-size: .875rem; }
+.evaluation-context { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: start; }
+.evaluation-context .evaluation-place { margin-top: 0; gap: .5rem; }
+.evaluation-workspace input, .evaluation-workspace textarea { background-color: var(--bs-white); }
+.evaluation-trait-details > summary { display: flex; align-items: center; gap: .35rem; min-height: 2.75rem; cursor: pointer; }
+.evaluation-trait-details > summary svg { flex-shrink: 0; }
+.evaluation-trait-details[open] > summary svg { transform: rotate(180deg); }
+.evaluation-trait-details[open] { max-width: 100%; }
+.evaluation-trait-details[open] .evaluation-trait-attribution { display: block; margin-top: .5rem; }
+.evaluation-trait-list { align-items: start; margin-bottom: 0; }
+.evaluation-trait-list li { align-items: start; }
+.evaluation-result-action { color: var(--bs-primary); font-size: .875rem; }
+.evaluation-paging, .evaluation-sequence { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.25rem; }
+.evaluation-sheet { padding: clamp(1rem, 2.6vw, 2rem); background: var(--bs-white); border: 1px solid var(--bs-border-color); border-radius: .375rem; min-width: 0; }
+.evaluation-back { display: inline-flex; align-items: center; min-height: 2.75rem; margin-bottom: .5rem; gap: .5rem; text-underline-offset: .2em; }
+.evaluation-identity { position: relative; padding-bottom: .75rem; border-bottom: 1px solid var(--bs-border-color); }
+.evaluation-identity h2 { font-size: clamp(2rem, 3vw, 2.25rem); line-height: 1.15; font-weight: 650; text-wrap: balance; overflow-wrap: anywhere; margin: 0 0 .5rem; }
+.evaluation-identity > p { margin: 0 0 .4rem; color: var(--bs-secondary-color); }
+.evaluation-identity ::deep .participant-placement-context { padding-bottom: .5rem; margin-bottom: .25rem; border-bottom: 0; }
+.evaluation-identity ::deep .participant-placement-context h3 { margin-block: .5rem .25rem; }
+.evaluation-identity ::deep .participant-placement-context > p:first-of-type { font-size: .875rem; margin-block: 0; padding-bottom: 0; border-bottom: 0; }
+.evaluation-identity ::deep .effective-placement-evidence > strong { font-size: 1rem; }
+.evaluation-identity ::deep .effective-placement-evidence > small,
+.evaluation-identity ::deep .effective-placement-evidence > span { font-size: .875rem; }
+.evaluation-place { display: inline-flex; align-items: center; min-height: 2.75rem; font-weight: 600; text-underline-offset: .2em; }
+.evaluation-traits { margin-top: .75rem; }
+.evaluation-sheet h3 { font-size: 1rem; font-weight: 600; margin: 0 0 .5rem; }
+.evaluation-trait-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .75rem; }
+.evaluation-trait-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; max-width: 100%; }
+.evaluation-trait { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-radius: .25rem; padding: .45rem .65rem; font-weight: 600; overflow-wrap: anywhere; }
+.evaluation-trait-attribution { color: var(--bs-secondary-color); font-size: .875rem; }
+.evaluation-trait-picker { margin-top: 1rem; padding: 1rem 0; }
+.evaluation-trait-choices { list-style: none; margin: .75rem 0; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; max-height: 18rem; overflow-y: auto; }
+.evaluation-observations { margin-top: 1rem; }
+.evaluation-composer { margin-top: 1rem; }
+.evaluation-composer textarea { min-height: 4.5rem; resize: vertical; caret-color: var(--bs-primary); margin-bottom: .5rem; }
+.evaluation-composer p { color: var(--bs-secondary-color); font-size: .875rem; margin: .4rem 0 .75rem; }
+.evaluation-composer-label { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 .75rem; }
+.evaluation-composer-label p { margin: 0 0 .5rem; }
+.evaluation-save, .evaluation-another { width: 100%; min-height: 3rem; display: flex; justify-content: center; align-items: center; }
+.evaluation-another { margin-top: .75rem; }
+.evaluation-older { display: block; margin: .75rem auto 0; }
+.evaluation-readonly { margin: 1rem 0; padding: 1rem; color: var(--bs-warning-text-emphasis); background: var(--bs-warning-bg-subtle); }
+.evaluation-capture-error { color: var(--bs-danger-text-emphasis); margin-top: 1rem; }
+.evaluation-status { color: var(--bs-success-text-emphasis); margin-top: 1rem; }
+.evaluation-workspace .btn, .evaluation-workspace input, .evaluation-workspace summary { min-height: 2.75rem; }
+.evaluation-workspace :focus-visible { outline: .1875rem solid var(--bs-primary); outline-offset: .1875rem; }
+.evaluation-workspace ::selection { background: var(--bs-primary); color: var(--bs-body-bg); }
+.evaluation-workspace { scrollbar-color: var(--bs-secondary-color) var(--bs-body-bg); }
+@media (max-width: 991px) {
+    .evaluation-workspace { display: block; }
+    .evaluation-workspace.has-selection > .evaluation-finder { display: none; }
+    .evaluation-sheet { max-width: 32.5rem; margin-inline: auto; padding-top: .5rem; border-radius: .375rem; }
+
+    .evaluation-result-action { display: none; }
+    .evaluation-results a { grid-template-columns: 4.5rem 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .evaluation-sheet { animation: evidence-arrival 160ms ease-out; }
+    @keyframes evidence-arrival { from { clip-path: inset(0 0 2% 0); } to { clip-path: inset(0); } }
+}

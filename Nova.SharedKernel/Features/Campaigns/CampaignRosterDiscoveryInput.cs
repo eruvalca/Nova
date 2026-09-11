@@ -35,7 +35,7 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
     public long? ParticipantId { get; init; }
 
     /// <summary>The roster sort; a direction alone uses display name. Omitting both fields preserves the read's default.</summary>
-    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName)$")]
+    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName|searchRelevance)$")]
     public string? SortBy { get; init; }
 
     /// <summary>Ascending or descending primary order; ties remain deterministic.</summary>

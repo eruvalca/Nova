@@ -1,10 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -14,7 +17,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>
 /// Tests campaign tag application authorization, lifecycle guards, tenant isolation, and uniqueness.
 /// </summary>
-public sealed class CampaignTagApplicationServiceTests : IDisposable
+public sealed partial class CampaignTagApplicationServiceTests : IDisposable
 {
     private const long ClubAId = 100;
     private const long ClubBId = 101;
@@ -53,14 +56,14 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = SecondaryActiveTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = SecondaryActiveTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
         var created = await verify.CampaignTagApplications
-            .SingleAsync(candidate => candidate.CampaignTagApplicationId == result.AsT0.CampaignTagApplicationId, TestContext.Current.CancellationToken);
+            .SingleAsync(candidate => candidate.CampaignTagApplicationId == result.Value.CampaignTagApplicationId, TestContext.Current.CancellationToken);
         created.PlayerCampaignAssignmentId.ShouldBe(ActiveAssignmentId);
         created.PlayerTagId.ShouldBe(SecondaryActiveTagId);
         created.ClubId.ShouldBe(ClubAId);
@@ -71,45 +74,53 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies duplicate participation/tag applications are rejected.
     /// </summary>
     [Fact]
-    public async Task ApplyAsyncReturnsConflictForDuplicateParticipationTagPairAsync()
+    public async Task ApplyAsyncReportsAlreadyAppliedWithoutChangingOriginalActorAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ActiveTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.AlreadyApplied.ShouldBeTrue();
+        result.Value.CampaignTagApplicationId.ShouldBe(ExistingApplicationId);
+        using var verify = _harness.CreateAdminContext();
+        (await verify.CampaignTagApplications.SingleAsync(application => application.CampaignTagApplicationId == ExistingApplicationId, TestContext.Current.CancellationToken)).CreatedById.ShouldBe(ClubAMemberId);
     }
 
     /// <summary>
-    /// Verifies Draft campaigns reject tag applications without persisting an application or side effect.
+    /// Verifies Draft campaigns reject tag applications without persisting an application or activity; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task ApplyAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task ApplyAsyncReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await service.ApplyAsync(
             new ApplyCampaignTagApplicationInput
             {
+                OperationId = operationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 PlayerTagId = SecondaryActiveTagId
             },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept tag applications.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.CampaignTagApplications.AnyAsync(
             application => application.PlayerCampaignAssignmentId == ActiveAssignmentId
                 && application.PlayerTagId == SecondaryActiveTagId,
             TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.CampaignTagApplicationRemovalReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -123,10 +134,11 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ArchivedTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ArchivedTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>
@@ -139,11 +151,12 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ClosedAssignmentId, PlayerTagId = ActiveTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ClosedAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept tag applications.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
@@ -156,10 +169,11 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ClubBAssignmentId, PlayerTagId = ActiveTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ClubBAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT2.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     /// <summary>
@@ -172,10 +186,11 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ClubBTagId },
+            new ApplyCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ClubBTagId },
             TestContext.Current.CancellationToken);
 
-        result.IsT2.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     /// <summary>
@@ -188,10 +203,10 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.CampaignTagApplications
@@ -209,10 +224,10 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
     }
 
     /// <summary>
@@ -225,10 +240,11 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>
@@ -241,35 +257,39 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ClosedCampaignApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ClosedCampaignApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can remove tag applications.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
-    /// Verifies Draft campaigns reject tag removal without deleting the application or recording side effects.
+    /// Verifies Draft campaigns reject tag removal without deleting the application; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task RemoveAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task RemoveAsyncReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = operationId, CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can remove tag applications.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.CampaignTagApplications.AnyAsync(
             application => application.CampaignTagApplicationId == ExistingApplicationId,
             TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await verify.CampaignTagApplicationRemovalReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -283,10 +303,11 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ArchivedTagApplicationId },
+            new RemoveCampaignTagApplicationInput { OperationId = Guid.CreateVersion7(), CampaignTagApplicationId = ArchivedTagApplicationId },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>
@@ -362,6 +383,14 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
                 State = "MA",
                 CreatedById = ClubBMemberId
             });
+
+        db.Users.AddRange(
+            new NovaUserEntity { Id = ClubAAdminId, ClubId = ClubAId, FirstName = "Admin", LastName = "A" },
+            new NovaUserEntity { Id = ClubAMemberId, ClubId = ClubAId, FirstName = "Member", LastName = "A" },
+            new NovaUserEntity { Id = ClubAOtherMemberId, ClubId = ClubAId, FirstName = "Other", LastName = "A" },
+            new NovaUserEntity { Id = ClubBMemberId, ClubId = ClubBId, FirstName = "Member", LastName = "B" });
+        db.Roles.Add(new IdentityRole<long> { Id = 900, Name = Roles.ClubAdmin, NormalizedName = Roles.ClubAdmin.ToUpperInvariant() });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 900 });
 
         db.Seasons.AddRange(
             new SeasonEntity
@@ -515,6 +544,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ExistingApplicationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -524,6 +554,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ClosedCampaignApplicationId,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
@@ -533,6 +564,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Member A",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = ArchivedTagApplicationId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,

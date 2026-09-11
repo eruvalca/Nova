@@ -25,7 +25,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// states, roster-load ordering, URL-backed roster filters and sorting, paging, empty states, and
 /// persisted-state restoration.
 /// </summary>
-public sealed class CampaignWorkspaceTests : BunitContext
+public sealed partial class CampaignWorkspaceTests : BunitContext
 {
     private const string WorkspaceModulePath = "./_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js";
 
@@ -111,7 +111,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var markers = cut.FindAll("ul.route-marker-list a.route-marker");
         markers.Count.ShouldBe(4);
         markers.Select(marker => marker.GetAttribute("href")).ShouldBe(
-            ["/campaigns/10/roster?tab=roster", "/campaigns/10?tab=evaluate", "/campaigns/10?tab=place", "/campaigns/10?tab=close"]);
+            ["/campaigns/10/roster?tab=roster&evaluation=true", "/campaigns/10?tab=evaluate&evaluation=true", "/campaigns/10?tab=place&evaluation=true", "/campaigns/10?tab=close&evaluation=true"]);
         cut.FindAll("ul.route-marker-list button").ShouldBeEmpty();
     }
 
@@ -222,7 +222,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Overview / Closeout tabs ──────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspaceEvaluateUrlRendersOverviewRegion()
+    public void CampaignWorkspaceEvaluateUrlRendersBlankEvaluationFinder()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -233,8 +233,40 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=evaluate"));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("overview-region-heading"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("evaluation-finder-heading"));
         cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void BlankEvaluateDefersRosterReadsUntilReturnWithPreservedQuery()
+    {
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreatePagedRoster(2, 150, [301], pageSize: 50)));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?tab=evaluate&evaluation=true&search=Avery&page=2&eligibility=NeedsPlacement");
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Find("#evaluation-search").GetAttribute("value").ShouldBeEmpty());
+        cut.Markup.ShouldContain("Summer Tryouts");
+        var reads = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+        _ = reads.DidNotReceive().GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignParticipantQueryService>().DidNotReceive()
+            .GetRosterGraduationYearsAsync(Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ITagDefinitionQueryService>().DidNotReceive().GetChoicesAsync(Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ITeamRosterService>().DidNotReceive().GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignQueryService>().Received(1).GetCampaignDetailAsync(Arg.Is<GetCampaignDetailInput>(input => input.CampaignId == 10), Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignCloseoutQueryService>().Received(1).GetCloseoutReadinessAsync(Arg.Is<GetCampaignCloseoutReadinessInput>(input => input.CampaignId == 10), Arg.Any<CancellationToken>());
+        var rosterUrl = cut.FindAll("ul.route-marker-list a.route-marker")
+            .Single(marker => string.Equals(marker.QuerySelector(".route-marker-label")!.TextContent.Trim(), "Roster", StringComparison.Ordinal)).GetAttribute("href")!;
+        navigation.NavigateTo(rosterUrl);
+        cut.WaitForAssertion(() => cut.Find("#roster-search").GetAttribute("value").ShouldBe("Avery"));
+        cut.WaitForAssertion(() =>
+        {
+            _ = reads.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.CampaignId == 10
+                && input.Search == "Avery" && input.Page == 2 && input.Eligibility == "NeedsPlacement"), Arg.Any<CancellationToken>());
+        });
+        _ = Services.GetRequiredService<ITagDefinitionQueryService>().Received(1).GetChoicesAsync(Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignParticipantQueryService>().Received(1)
+            .GetRosterGraduationYearsAsync(Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -264,7 +296,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
         cut.FindAll("ul.route-marker-list .nav-link.active")[0].QuerySelector(".route-marker-label")!.TextContent.Trim().ShouldBe("Evaluate");
-        cut.Markup.ShouldContain("overview-region-heading");
+        cut.Markup.ShouldContain("evaluation-finder-heading");
     }
 
     [Fact]
@@ -994,13 +1026,19 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
         navigation.Uri.ShouldContain("search=original");
         navigation.Uri.ShouldNotContain("abandoned");
-        if (string.Equals(destination, "tab", StringComparison.Ordinal))
+        var reads = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        _ = reads.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+        var returnsFromEvaluate = string.Equals(destination, "tab", StringComparison.Ordinal);
+        if (returnsFromEvaluate)
         {
+            await cut.WaitForAssertionAsync(() => cut.Find("#evaluation-search").GetAttribute("value").ShouldBeEmpty());
             navigation.NavigateTo("/campaigns/10?search=original&tab=roster");
         }
         await cut.WaitForAssertionAsync(() => cut.Find("#roster-search").GetAttribute("value").ShouldBe("original"));
-        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1).GetCampaignEffectivePlacementsAsync(
-            Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+        _ = reads.Received(returnsFromEvaluate ? 2 : 1).GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "original", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+        _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(
+            Arg.Is<GetCampaignEffectivePlacementsInput>(input => string.Equals(input.Search, "abandoned draft", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1168,7 +1206,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
         RegisterServices(participantQueryService: participantService);
         Services.GetRequiredService<ICampaignEvaluationNoteService>().AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99))));
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99, Guid.NewGuid(), new(Guid.CreateVersion7(), 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24))))));
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=roster&participant=301");
 
         var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
@@ -1427,7 +1465,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.Find("aside.participant-drawer .btn-close").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
-        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=roster");
+        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=roster&evaluation=true");
         cut.Markup.ShouldContain("Avery Johnson");
 
         cut.WaitForAssertion(() =>
@@ -2425,6 +2463,24 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
 #pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    [Fact]
+    public void ApprovedMemberEvaluationHandoffCanSavePlacementThroughWorkspaceAdapter()
+    {
+        RegisterServices(isClubAdmin: false);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=place&evaluation=true&evalParticipant=301&placementParticipant=301&returnToEvaluation=true");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(c => c.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var placement = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacementsPanel>();
+        placement.Instance.CanEditPlacements.ShouldBeTrue();
+        placement.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        placement.Find("button.btn-primary").Click();
+        placement.WaitForAssertion(() => placement.Markup.ShouldContain("Saved"));
+        _ = Services.GetRequiredService<ICampaignPlacementService>().Received(1).UpdatePlacementAsync(
+            Arg.Is<UpdateCampaignPlacementInput>(i => i.PlayerCampaignAssignmentId == 301 && i.Outcome == PlacementOutcome.NotSelected), Arg.Any<CancellationToken>());
+        placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal))
+            .GetAttribute("href")!.ShouldContain("evalParticipant=301");
+    }
+
     private void RegisterServices(
 #pragma warning restore MA0051
         ICampaignQueryService? campaignQueryService = null,
@@ -2521,6 +2577,15 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         Services.AddSingleton(participantDetails);
         Services.AddSingleton(effectivePlacementQueryService);
         Services.AddSingleton(tagDefinitionQueryService);
+        var evidence = Substitute.For<ICampaignEvaluationQueryService>();
+        evidence.GetNotesAsync(Arg.Any<GetEvaluationHistoryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(new EvaluationHistoryPage<CampaignParticipantNoteDto>(
+                [new(1, "Strong defensive player.", "Coach Rivera", new DateTimeOffset(2026, 5, 2, 9, 0, 0, TimeSpan.Zero), null, false, false, Guid.NewGuid())], null))));
+        evidence.GetApplicationsAsync(Arg.Any<GetEvaluationHistoryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>(new EvaluationHistoryPage<CampaignParticipantTagApplicationDto>([], null))));
+        evidence.GetTagChoicesAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<EvaluationTagChoice>>(Array.Empty<EvaluationTagChoice>())));
+        Services.AddSingleton(evidence);
         Services.AddSingleton(evaluationNoteService);
         Services.AddSingleton(tagApplicationService);
         Services.AddSingleton(teamRosterService);
@@ -2672,18 +2737,6 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         ModifiedAt: new DateTimeOffset(2026, 5, 3, 14, 30, 0, TimeSpan.Zero),
         CampaignStatus: CampaignStatus.Active,
         ConcurrencyToken: Guid.NewGuid(),
-        Notes:
-        [
-            new CampaignParticipantNoteDto(
-                NoteId: 1,
-                Content: "Strong defensive player.",
-                AuthorDisplayName: "Coach Rivera",
-                CreatedAt: new DateTimeOffset(2026, 5, 2, 9, 0, 0, TimeSpan.Zero),
-                ModifiedAt: null,
-                CanEdit: false,
-                CanDelete: false)
-        ],
-        AppliedTags: [],
         Capabilities: new CampaignParticipantCapabilitiesDto(
             CanEditPlacement: false,
             CanAddNote: false,

@@ -91,10 +91,10 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies unresolved note/tag actors use the stable non-sensitive fallback display text.
+    /// Verifies note/tag attribution retains the original display name after the actor is deleted.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsyncUsesFormerMemberFallbackWhenActorCannotBeResolvedAsync()
+    public async Task GetPlayerDetailAsyncPreservesSnapshotWhenActorCannotBeResolvedAsync()
     {
         ActAs(ClubAViewerId, ClubAId);
         var service = CreateService();
@@ -103,8 +103,8 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         var activeCampaign = result.Value.CampaignHistory.Single(history => history.CampaignId == ActiveCampaignId);
-        activeCampaign.Notes.Single(note => note.NoteId == NewerActiveNoteId).AuthorDisplayName.ShouldBe("Former member");
-        activeCampaign.TagApplications.Single(application => application.PlayerTagId == AgilityTagId).ApplyingUserDisplayName.ShouldBe("Former member");
+        activeCampaign.Notes.Single(note => note.NoteId == NewerActiveNoteId).AuthorDisplayName.ShouldBe("Original Evaluator");
+        activeCampaign.TagApplications.Single(application => application.PlayerTagId == AgilityTagId).ApplyingUserDisplayName.ShouldBe("Original Evaluator");
     }
 
     /// <summary>
@@ -374,6 +374,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Notes.AddRange(
             new NoteEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 NoteId = OlderActiveNoteId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -383,6 +384,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new NoteEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 NoteId = NewerActiveNoteId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -392,6 +394,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new NoteEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 NoteId = 902,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
@@ -403,6 +406,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10000,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -412,6 +416,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10001,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
@@ -421,6 +426,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10002,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
@@ -430,6 +436,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Original Evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10003,
                 PlayerCampaignAssignmentId = OlderAssignmentId,

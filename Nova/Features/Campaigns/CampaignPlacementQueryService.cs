@@ -59,6 +59,11 @@ internal sealed partial class CampaignPlacementQueryService(
         var query = db.PlayerCampaignAssignments
             .Where(assignment => assignment.ClubId == currentClubId && assignment.CampaignId == input.CampaignId);
 
+        if (input.ParticipantId is { } participantId)
+        {
+            query = query.Where(assignment => assignment.PlayerCampaignAssignmentId == participantId);
+        }
+
         if (input.GraduationYear is int graduationYear)
         {
             query = query.Where(assignment => assignment.Player.GraduationYear == graduationYear);

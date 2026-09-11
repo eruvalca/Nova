@@ -86,12 +86,6 @@ public class ClubEntity : BaseEntity
     public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
 #pragma warning restore CA2227
     /// <summary>
-    /// Gets or sets the campaign tag application removal receipts.
-    /// </summary>
-#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
-    public ICollection<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts { get; set; } = [];
-#pragma warning restore CA2227
-    /// <summary>
     /// Gets or sets the Join Requests.
     /// </summary>
 #pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.

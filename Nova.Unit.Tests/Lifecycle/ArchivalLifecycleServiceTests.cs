@@ -678,6 +678,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
 
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             CreationOperationId = Guid.NewGuid(),
             CampaignTagApplicationId = 900,
             PlayerCampaignAssignmentId = 801,

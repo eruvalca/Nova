@@ -43,6 +43,7 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// <param name="jsRuntime">The JavaScript runtime used to import the collocated drawer module.</param>
 public partial class CampaignParticipantDrawer(
     ICampaignParticipantQueryService participantQueryService,
+    ICampaignEvaluationQueryService evaluationQueryService,
     ICampaignEvaluationNoteService noteService,
     ICampaignTagApplicationService tagApplicationService,
     ITagDefinitionQueryService tagDefinitionQueryService,
@@ -68,7 +69,7 @@ public partial class CampaignParticipantDrawer(
     /// <summary>
     /// The lazily imported collocated drawer module managing the focus trap and focus return.
     /// </summary>
-    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+    private Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
         .InvokeAsync<IJSObjectReference>(
             "import", "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js")
         .AsTask());
@@ -121,6 +122,8 @@ public partial class CampaignParticipantDrawer(
     [Parameter] public CampaignStatus? AuthorizedStatus { get; set; }
     /// <summary>The user, club and authority owning the participant context.</summary>
     [Parameter] public string? AuthorityScope { get; set; }
+    /// <summary>The stable authenticated user and club owning retained operations.</summary>
+    [Parameter] public string? CaptureScope { get; set; }
     /// <summary>Refreshes roster and tag evidence after a successful capture.</summary>
     [Parameter] public EventCallback OnDataChanged { get; set; }
     /// <summary>Reconciles participant lifecycle evidence through authorized campaign detail.</summary>
@@ -335,9 +338,9 @@ public partial class CampaignParticipantDrawer(
     private Dictionary<string, string[]> _editNoteErrors = [];
 
     /// <summary>
-    /// The note identifier whose delete confirmation is open, or <see langword="null"/>.
+    /// The note identifier and reviewed version for the open delete confirmation, or <see langword="null"/>.
     /// </summary>
-    private long? _deletingNoteId;
+    private (long NoteId, Guid Version)? _deletingNote;
 
     /// <summary>
     /// Indicates whether the open delete confirmation checkbox is checked.
@@ -382,7 +385,7 @@ public partial class CampaignParticipantDrawer(
         _tagChoices is null
             ? []
             : _tagChoices
-                .Where(choice => _detail is null || _detail.AppliedTags.All(applied => applied.PlayerTagId != choice.PlayerTagId))
+                .Where(choice => _detail is null || _applications.All(applied => applied.PlayerTagId != choice.PlayerTagId))
                 .OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -419,8 +422,17 @@ public partial class CampaignParticipantDrawer(
             {
                 _statusMessage = null;
                 _mutationError = null;
+                ResetMutationUiState();
+                ResetEvidenceOwner();
             }
-            ResetMutationUiState();
+            else
+            {
+                ++_drawerDepartureSequence;
+                ++_mutationSequence;
+                _isMutating = false;
+                _mutatingKind = null;
+                CancelDeleteNote();
+            }
             await LoadDetailAsync();
         }
     }
@@ -428,36 +440,37 @@ public partial class CampaignParticipantDrawer(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        var owner = ParticipantOwner;
+        if (!await EnsureDrawerInteropAsync())
+        {
+            return;
+        }
         var module = await _moduleTask.Value;
-        if (ComponentCancellationToken.IsCancellationRequested)
+        await RestoreDrawerOperationAsync(module);
+        if (!string.Equals(owner, ParticipantOwner, StringComparison.Ordinal) || ComponentCancellationToken.IsCancellationRequested) { return; }
+        try
         {
-            return;
-        }
+            if (_focusErrorSummary && _mutationError is not null)
+            {
+                _focusErrorSummary = false;
+                await _errorSummary.FocusAsync();
+            }
 
-        if (firstRender)
-        {
-            await module.InvokeVoidAsync("open", _dialog, _closeButton);
-            _focusTrapInstalled = true;
+            if (!_focusTrapInstalled || ParticipantId == _lastRenderedParticipantId)
+            {
+                return;
+            }
+
             _lastRenderedParticipantId = ParticipantId;
-            return;
-        }
 
-        if (_focusErrorSummary && _detail is not null && _mutationError is not null)
+            // A boundary move renders the clicked prev/next button disabled, which drops focus to
+            // <body>; re-focus inside the dialog so the trap and Escape keep working.
+            await module.InvokeVoidAsync("restoreFocus", _dialog, _closeButton);
+        }
+        catch (JSException)
         {
-            _focusErrorSummary = false;
-            await _errorSummary.FocusAsync();
+            // Optional focus restoration does not invalidate installed navigation protection.
         }
-
-        if (!_focusTrapInstalled || ParticipantId == _lastRenderedParticipantId)
-        {
-            return;
-        }
-
-        _lastRenderedParticipantId = ParticipantId;
-
-        // A boundary move renders the clicked prev/next button disabled, which drops focus to
-        // <body>; re-focus inside the dialog so the trap and Escape keep working.
-        await module.InvokeVoidAsync("restoreFocus", _dialog, _closeButton);
     }
 
     /// <summary>
@@ -467,6 +480,8 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when restoration is finished.</returns>
     private async Task RestorePersistedStateAsync()
     {
+        var owner = ContextOwner;
+        var request = _detailRequestSequence;
         _detail = PersistedDetail;
         _detailError = PersistedDetailError;
         _loadedParticipantId = ParticipantId;
@@ -486,6 +501,14 @@ public partial class CampaignParticipantDrawer(
         }
 
         await LoadTagChoicesIfNeededAsync();
+        if (request != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested) { return; }
+        if (PersistedNotes is { } notesPage) { _notes = [.. notesPage.Items]; _notesNext = notesPage.Next; }
+        else { await LoadNotesAsync(false); }
+        if (request != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested) { return; }
+        if (PersistedApplications is { } applicationsPage) { _applications = [.. applicationsPage.Items]; _applicationsNext = applicationsPage.Next; }
+        else { await LoadApplicationsAsync(false); }
     }
 
     /// <summary>
@@ -503,19 +526,52 @@ public partial class CampaignParticipantDrawer(
         _loadedParticipantOwner = ParticipantOwner;
 
         var requestId = ++_detailRequestSequence;
+        var owner = ContextOwner;
         var input = new GetCampaignParticipantDetailInput
         {
             CampaignId = CampaignId,
             PlayerCampaignAssignmentId = ParticipantId
         };
 
-        var result = await participantQueryService.GetParticipantDetailAsync(input, ComponentCancellationToken);
+        ServiceResult<CampaignParticipantDetailDto> result;
+        try
+        {
+            result = await participantQueryService.GetParticipantDetailAsync(input, ComponentCancellationToken);
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
+        {
+            result = ServiceProblem.ServerError("Participant details are unavailable. Please retry.");
+        }
 
-        if (requestId != _detailRequestSequence || ComponentCancellationToken.IsCancellationRequested)
+        if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
 
+        ApplyDetailResult(result);
+
+        if (_detailState == DetailLoadState.Loaded)
+        {
+            if (AuthorizedStatus is not null && _detail?.CampaignStatus != AuthorizedStatus)
+            {
+                _enteredReadOnlyFromConflict = true;
+                await OnLifecycleChanged.InvokeAsync();
+                return;
+            }
+            await LoadTagChoicesIfNeededAsync();
+            if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested) { return; }
+            await LoadNotesAsync(false);
+            if (requestId != _detailRequestSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested) { return; }
+            await LoadApplicationsAsync(false);
+        }
+    }
+
+    /// <summary>Applies a current owner's authoritative identity result and persists its startup state.</summary>
+    private void ApplyDetailResult(ServiceResult<CampaignParticipantDetailDto> result)
+    {
         result.Switch(
             detail =>
             {
@@ -539,17 +595,6 @@ public partial class CampaignParticipantDrawer(
         PersistedOwner = _loadedOwner;
         PersistedDetailError = _detailError;
         Initialized = true;
-
-        if (_detailState == DetailLoadState.Loaded)
-        {
-            if (AuthorizedStatus is not null && _detail?.CampaignStatus != AuthorizedStatus)
-            {
-                _enteredReadOnlyFromConflict = true;
-                await OnLifecycleChanged.InvokeAsync();
-                return;
-            }
-            await LoadTagChoicesIfNeededAsync();
-        }
     }
 
     /// <summary>
@@ -613,22 +658,32 @@ public partial class CampaignParticipantDrawer(
         var owner = ContextOwner;
         _tagChoicesError = null;
 
-        var result = await tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
-
-        if (request != _tagChoiceSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
-            || ComponentCancellationToken.IsCancellationRequested)
+        try
         {
-            return;
-        }
+            var result = await tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
 
-        result.Switch(
-            choices =>
+            if (request != _tagChoiceSequence || !string.Equals(owner, ContextOwner, StringComparison.Ordinal)
+                || ComponentCancellationToken.IsCancellationRequested)
             {
-                _tagChoices = choices;
-                _tagChoicesLoaded = true;
-                PersistedTagChoices = _tagChoices;
-            },
-            problem => _tagChoicesError = FirstNonBlank(problem.Detail, "Couldn't load tag choices."));
+                return;
+            }
+
+            result.Switch(
+                choices =>
+                {
+                    _tagChoices = choices;
+                    _tagChoicesLoaded = true;
+                    PersistedTagChoices = _tagChoices;
+                },
+                problem => _tagChoicesError = FirstNonBlank(problem.Detail, "Couldn't load tag choices."));
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException)
+        {
+            if (request == _tagChoiceSequence && string.Equals(owner, ContextOwner, StringComparison.Ordinal))
+            {
+                _tagChoicesError = "Couldn't load tag choices.";
+            }
+        }
     }
 
     /// <summary>
@@ -642,7 +697,7 @@ public partial class CampaignParticipantDrawer(
     /// selected participant's roster row after the parent accepts navigation.
     /// </summary>
     /// <returns>A task that completes when the callback is delivered.</returns>
-    private Task CloseAsync() => OnClose.InvokeAsync();
+    private Task CloseAsync() => GuardDrawerMoveAsync(() => OnClose.InvokeAsync());
 
     /// <summary>
     /// Removes the focus trap when the component is disposed. Disposal also happens when browser
@@ -658,6 +713,7 @@ public partial class CampaignParticipantDrawer(
         ++_mutationSequence;
         ++_tagChoiceSequence;
         await base.DisposeAsyncCore();
+        _drawerNavigationReceiver?.Dispose();
         if (!_moduleTask.IsValueCreated)
         {
             return;
@@ -763,7 +819,7 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the mutation settles.</returns>
     private async Task RunMutationAsync(MutationKind kind, Func<MutationOwner, Task> serviceCall)
     {
-        if (_isMutating || IsReadOnly)
+        if (DrawerMutationBlocked || IsReadOnly)
         {
             return;
         }
@@ -778,14 +834,14 @@ public partial class CampaignParticipantDrawer(
         {
             await serviceCall(owner);
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        catch (Exception ex) when (!ComponentCancellationToken.IsCancellationRequested && ex is HttpRequestException or OperationCanceledException or JSException)
         {
             if (!OwnsMutation(owner))
             {
                 return;
             }
 
-            _mutationError = "Could not reach the server. Check your connection and retry.";
+            _mutationError = "The submission could not finish. If recovery storage failed, nothing was dispatched. Otherwise, recover the original operation before retrying.";
             FocusMutationError();
         }
         finally
@@ -883,6 +939,14 @@ public partial class CampaignParticipantDrawer(
     private void ResetMutationUiState()
     {
         ++_mutationSequence;
+        _storedOperation = null;
+        _drawerStorageReady = false;
+        _drawerReadFailed = false;
+        _drawerNavigationPermit = null;
+        _recoveryOwner = null;
+        _drawerLeaveAction = null;
+        ++_drawerDepartureSequence;
+        _drawerDepartureInFlight = null;
         _isMutating = false;
         _mutatingKind = null;
         _showAddNoteForm = false;
@@ -891,7 +955,7 @@ public partial class CampaignParticipantDrawer(
         _editingNoteId = null;
         _editNoteContent = string.Empty;
         _editNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _selectedTagId = null;
         _removingTagApplicationId = null;
@@ -903,13 +967,14 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     private void ShowAddNoteForm()
     {
+        if (DrawerMutationBlocked) { return; }
         _showAddNoteForm = true;
         _addNoteContent = string.Empty;
         _addNoteErrors = [];
         _editingNoteId = null;
         _editNoteContent = string.Empty;
         _editNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _statusMessage = null;
     }
@@ -938,6 +1003,7 @@ public partial class CampaignParticipantDrawer(
         var input = new AddEvaluationNoteInput
         {
             PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId,
+            OperationId = Guid.CreateVersion7(),
             Content = _addNoteContent
         };
         _addNoteErrors = InputValidator.Validate(input);
@@ -950,7 +1016,7 @@ public partial class CampaignParticipantDrawer(
             MutationKind.AddNote,
             async lease =>
             {
-                var result = await noteService.AddAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => noteService.AddAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note added.",
@@ -971,11 +1037,13 @@ public partial class CampaignParticipantDrawer(
     {
         _editingNoteId = note.NoteId;
         _editNoteContent = note.Content;
+        _editNoteOriginal = note.Content;
+        _editExpectedVersion = note.Version;
         _editNoteErrors = [];
         _showAddNoteForm = false;
         _addNoteContent = string.Empty;
         _addNoteErrors = [];
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
         _statusMessage = null;
     }
@@ -1005,6 +1073,8 @@ public partial class CampaignParticipantDrawer(
         var input = new EditEvaluationNoteInput
         {
             NoteId = note.NoteId,
+            OperationId = Guid.CreateVersion7(),
+            ExpectedVersion = _editExpectedVersion,
             Content = _editNoteContent
         };
         _editNoteErrors = InputValidator.Validate(input);
@@ -1017,7 +1087,7 @@ public partial class CampaignParticipantDrawer(
             MutationKind.EditNote,
             async lease =>
             {
-                var result = await noteService.EditAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => noteService.EditAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note updated.",
@@ -1036,7 +1106,8 @@ public partial class CampaignParticipantDrawer(
     /// <param name="note">The note to delete.</param>
     private void BeginDeleteNote(CampaignParticipantNoteDto note)
     {
-        _deletingNoteId = note.NoteId;
+        if (DrawerMutationBlocked || IsReadOnly || !note.CanDelete) { return; }
+        _deletingNote = (note.NoteId, note.Version);
         _deleteNoteConfirmed = false;
         _showAddNoteForm = false;
         _editingNoteId = null;
@@ -1048,18 +1119,17 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     private void CancelDeleteNote()
     {
-        _deletingNoteId = null;
+        _deletingNote = null;
         _deleteNoteConfirmed = false;
     }
 
     /// <summary>
     /// Deletes the confirmed note and refreshes the detail on success.
     /// </summary>
-    /// <param name="note">The note to delete.</param>
     /// <returns>A task that completes when the mutation settles.</returns>
-    private async Task ConfirmDeleteNoteAsync(CampaignParticipantNoteDto note)
+    private async Task ConfirmDeleteNoteAsync()
     {
-        if (_isMutating)
+        if (_isMutating || !_deleteNoteConfirmed || _deletingNote is not { } reviewed)
         {
             return;
         }
@@ -1068,13 +1138,14 @@ public partial class CampaignParticipantDrawer(
             MutationKind.DeleteNote,
             async lease =>
             {
-                var result = await noteService.DeleteAsync(note.NoteId, ComponentCancellationToken);
+                var input = new DeleteEvaluationNoteInput { NoteId = reviewed.NoteId, ExpectedVersion = reviewed.Version, OperationId = Guid.CreateVersion7() };
+                var result = await CallStoredAsync(input, token => noteService.DeleteAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Note deleted.",
                     () =>
                     {
-                        _deletingNoteId = null;
+                        _deletingNote = null;
                         _deleteNoteConfirmed = false;
                     });
             });
@@ -1094,6 +1165,7 @@ public partial class CampaignParticipantDrawer(
         var input = new ApplyCampaignTagApplicationInput
         {
             PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId,
+            OperationId = Guid.CreateVersion7(),
             PlayerTagId = _selectedTagId.Value
         };
 
@@ -1101,10 +1173,10 @@ public partial class CampaignParticipantDrawer(
             MutationKind.ApplyTag,
             async lease =>
             {
-                var result = await tagApplicationService.ApplyAsync(input, ComponentCancellationToken);
+                var result = await CallStoredAsync(input, token => tagApplicationService.ApplyAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
-                    "Tag applied.",
+                    result.IsSuccess && result.Value.AlreadyApplied ? "Tag was already applied; its original author is unchanged." : "Tag applied.",
                     () => _selectedTagId = null);
             });
     }
@@ -1145,9 +1217,8 @@ public partial class CampaignParticipantDrawer(
             MutationKind.RemoveTag,
             async lease =>
             {
-                var result = await tagApplicationService.RemoveAsync(
-                    new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = tag.CampaignTagApplicationId },
-                    ComponentCancellationToken);
+                var input = new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = tag.CampaignTagApplicationId, OperationId = Guid.CreateVersion7() };
+                var result = await CallStoredAsync(input, token => tagApplicationService.RemoveAsync(input, token), lease);
                 await HandleMutationResultAsync(lease,
                     result,
                     "Tag removed.",

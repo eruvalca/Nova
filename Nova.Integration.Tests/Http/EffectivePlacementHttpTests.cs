@@ -198,6 +198,7 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
         {
             db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 PlayerCampaignAssignmentId = seed.AssignmentId,
                 PlayerTagId = appliedTag,
                 ClubId = member.ClubId,

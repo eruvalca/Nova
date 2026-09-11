@@ -1,10 +1,13 @@
 @using Nova.SharedKernel.Features.Campaigns
+@using Nova.SharedKernel.Enums
 
+<Microsoft.AspNetCore.Components.Routing.NavigationLock ConfirmExternalNavigation="DrawerNavigationProtected" OnBeforeInternalNavigation="GuardDrawerNavigationAsync" />
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
        @ref="_dialog"
        role="region"
        data-participant-context="true"
+       data-evidence-protected="@DrawerProtected.ToString().ToLowerInvariant()"
        aria-labelledby="participant-drawer-heading"
        @onkeydown="OnKeyDownAsync">
     <header class="participant-drawer-header">
@@ -19,7 +22,7 @@
         }
         <div class="participant-drawer-navigation">
             <button type="button" class="btn btn-outline-primary participant-drawer-nav-button" id="participant-drawer-previous"
-                    aria-label="Previous participant" disabled="@(!HasPrevious)" @onclick="OnPrevious">
+                    aria-label="Previous participant" disabled="@(!HasPrevious)" @onclick="() => GuardDrawerMoveAsync(() => OnPrevious.InvokeAsync())">
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12H4m6-6-6 6 6 6" /></svg> Previous
             </button>
             @if (Position is { } position)
@@ -27,12 +30,47 @@
                 <span class="participant-drawer-position" id="participant-drawer-position">@position of @TotalCount</span>
             }
             <button type="button" class="btn btn-outline-primary participant-drawer-nav-button" id="participant-drawer-next"
-                    aria-label="Next participant" disabled="@(!HasNext)" @onclick="OnNext">Next
+                    aria-label="Next participant" disabled="@(!HasNext)" @onclick="() => GuardDrawerMoveAsync(() => OnNext.InvokeAsync())">Next
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
             </button>
         </div>
     </header>
     <div class="participant-drawer-body">
+        @if (_mutationError is not null)
+        {
+            <div class="alert alert-danger participant-drawer-mutation-error"
+                 role="alert"
+                 aria-live="assertive"
+                 tabindex="-1"
+                 @ref="_errorSummary">@_mutationError</div>
+        }
+        @if (AuthorizedStatus == CampaignStatus.Closed)
+        {
+            <p class="alert alert-warning participant-drawer-readonly-note" role="status">Read-only — campaign is closed.</p>
+        }
+        @if (_drawerStorageFailed)
+        {
+            <p role="alert">Recovery storage could not be read. Keep or copy your text.</p>
+            <button type="button" class="btn btn-outline-primary" @onclick="RetryDrawerStorageAsync">Retry recovery storage</button>
+        }
+        @if ((IsReadOnly && DrawerHasDraft) || (_editingNoteId is { } retainedEditId && _notes.All(note => note.NoteId != retainedEditId)))
+        {
+            <label for="drawer-retained-draft">Your unsaved text — copy it to keep it</label>
+            <textarea id="drawer-retained-draft" class="form-control" readonly rows="4" value="@(_addNoteContent + (_addNoteContent.Length > 0 && _editNoteContent.Length > 0 ? "\n" : string.Empty) + _editNoteContent)"></textarea>
+        }
+        @if (_storedOperation is not null)
+        {
+            <p role="status">A submission needs its original receipt.</p>
+            <button type="button" class="btn btn-primary" disabled="@_isMutating" @onclick="ReplayDrawerOperationAsync">Recover original operation</button>
+        }
+        @if (_drawerLeaveAction is not null && _storedOperation is null)
+        {
+            <p role="alert">@(_drawerReadFailed && !_drawerStorageReady
+                ? "Recovery data could not be read, so a previous submission's outcome may be unknown. Leaving discards visible unsaved text; copy it first. Existing recovery data will stay in this tab."
+                : "Your text has not been saved.")</p>
+            <button type="button" class="btn btn-primary" @onclick="() => _drawerLeaveAction = null">Keep working</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="DiscardDrawerAndLeaveAsync">@(_drawerReadFailed && !_drawerStorageReady ? "Leave and keep recovery data" : "Discard and leave")</button>
+        }
         @if (AuthorizedStatus is { } lifecycle)
         {
             <CampaignParticipantPlacementContext CampaignId="CampaignId" ParticipantId="ParticipantId" Status="lifecycle"
@@ -57,14 +95,6 @@
         }
         else if (_detail is { } detail)
         {
-            @if (_mutationError is not null)
-            {
-                <div class="alert alert-danger participant-drawer-mutation-error"
-                     role="alert"
-                     aria-live="assertive"
-                     tabindex="-1"
-                     @ref="_errorSummary">@_mutationError</div>
-            }
             @if (_statusMessage is not null && !IsNoteStatus)
             {
                 <div class="alert alert-success" role="status" aria-live="polite">@_statusMessage</div>
@@ -107,7 +137,7 @@
             </section>
 
             }
-            else if (IsReadOnly)
+            else if (IsReadOnly && AuthorizedStatus != CampaignStatus.Closed)
             {
                 <p class="alert alert-warning participant-drawer-readonly-note" role="status">Read-only — campaign is closed.</p>
             }
@@ -116,14 +146,16 @@
                     <h3 class="participant-drawer-section-title">Notes</h3>
                     @if (IsNoteStatus) { <div class="alert-success note-status" role="status" aria-live="polite">@_statusMessage</div> }
                 </div>
-                @if (detail.Notes.Count == 0)
+                @if (_notesError is not null) { <p role="alert">@_notesError <button class="btn btn-outline-primary" @onclick="() => LoadNotesAsync(false)">Retry notes</button></p> }
+                @if (_notesNext is not null) { <button class="btn btn-outline-primary" @onclick="() => LoadNotesAsync(true)">Load older notes</button> }
+                @if (_notes.Count == 0)
                 {
                     <p class="text-muted mb-0">No notes yet.</p>
                 }
                 else
                 {
                     <ul class="participant-drawer-list">
-                        @foreach (var note in detail.Notes)
+                        @foreach (var note in _notes)
                         {
                             <li class="participant-drawer-note">
                                 @if (!IsReadOnly && _editingNoteId == note.NoteId)
@@ -134,20 +166,20 @@
                                                   class="form-control @(_editNoteErrors.Count > 0 ? "is-invalid" : null)"
                                                   maxlength="4000"
                                                   rows="3"
-                                                  @bind="_editNoteContent" @bind:event="oninput"></textarea>
+                                                  data-evidence-original="@_editNoteOriginal" readonly="@DrawerMutationBlocked" @bind="_editNoteContent" @bind:event="oninput"></textarea>
                                         @if (_editNoteErrors.TryGetValue(nameof(EditEvaluationNoteInput.Content), out var editNoteMessages))
                                         {
                                             <div class="invalid-feedback">@string.Join(" ", editNoteMessages)</div>
                                         }
                                         <div class="d-flex gap-2 mt-2">
-                                            <button type="button" class="btn btn-sm btn-primary" disabled="@_isMutating" @onclick="() => SaveEditNoteAsync(note)">
+                                            <button type="button" class="btn btn-sm btn-primary" disabled="@DrawerMutationBlocked" @onclick="() => SaveEditNoteAsync(note)">
                                                 @if (IsPending(MutationKind.EditNote))
                                                 {
                                                     <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
                                                 }
                                                 Save
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelEditNote">Cancel</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@DrawerMutationBlocked" @onclick="CancelEditNote">Cancel</button>
                                         </div>
                                     </div>
                                 }
@@ -160,37 +192,37 @@
                                     <p class="note-content mb-1">@note.Content</p>
                                     @if (!IsReadOnly && (note.CanEdit || note.CanDelete))
                                     {
-                                        <div class="note-actions @(_deletingNoteId == note.NoteId ? "note-actions-confirm" : null)">
+                                        <div class="note-actions @(_deletingNote?.NoteId == note.NoteId ? "note-actions-confirm" : null)">
                                             @if (note.CanEdit)
                                             {
-                                                <button type="button" class="btn btn-sm btn-link p-0" disabled="@_isMutating" @onclick="() => BeginEditNote(note)">Edit</button>
+                                                <button type="button" class="btn btn-sm btn-link p-0" disabled="@DrawerMutationBlocked" @onclick="() => BeginEditNote(note)">Edit</button>
                                             }
                                             @if (note.CanDelete)
                                             {
-                                                @if (_deletingNoteId == note.NoteId)
+                                                @if (_deletingNote?.NoteId == note.NoteId)
                                                 {
                                                     <span class="d-flex flex-wrap gap-2 align-items-center">
                                                         <span class="form-check">
                                                             <input id="participant-drawer-note-delete-confirm-@note.NoteId"
                                                                    class="form-check-input"
                                                                    type="checkbox"
-                                                                   disabled="@_isMutating"
+                                                                   disabled="@DrawerMutationBlocked"
                                                                    @bind="_deleteNoteConfirmed" />
                                                             <label class="form-check-label" for="participant-drawer-note-delete-confirm-@note.NoteId">Confirm delete</label>
                                                         </span>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_deleteNoteConfirmed || _isMutating)" @onclick="() => ConfirmDeleteNoteAsync(note)">
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_deleteNoteConfirmed || DrawerMutationBlocked)" @onclick="ConfirmDeleteNoteAsync">
                                                             @if (IsPending(MutationKind.DeleteNote))
                                                             {
                                                                 <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
                                                             }
                                                             Delete
                                                         </button>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelDeleteNote">Cancel</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@DrawerMutationBlocked" @onclick="CancelDeleteNote">Cancel</button>
                                                     </span>
                                                 }
                                                 else
                                                 {
-                                                    <button type="button" class="btn btn-sm btn-link p-0 text-danger" disabled="@_isMutating" @onclick="() => BeginDeleteNote(note)">Delete</button>
+                                                    <button type="button" class="btn btn-sm btn-link p-0 text-danger" disabled="@DrawerMutationBlocked" @onclick="() => BeginDeleteNote(note)">Delete</button>
                                                 }
                                             }
                                         </div>
@@ -210,26 +242,26 @@
                                       class="form-control @(_addNoteErrors.Count > 0 ? "is-invalid" : null)"
                                       maxlength="4000"
                                       rows="3"
-                                      @bind="_addNoteContent" @bind:event="oninput"></textarea>
+                                      data-evidence-original="" readonly="@DrawerMutationBlocked" @bind="_addNoteContent" @bind:event="oninput"></textarea>
                             @if (_addNoteErrors.TryGetValue(nameof(AddEvaluationNoteInput.Content), out var addNoteMessages))
                             {
                                 <div class="invalid-feedback">@string.Join(" ", addNoteMessages)</div>
                             }
                             <div class="d-flex gap-2 mt-2">
-                                <button type="button" class="btn btn-sm btn-primary" disabled="@_isMutating" @onclick="SaveAddNoteAsync">
+                                <button type="button" class="btn btn-sm btn-primary" disabled="@DrawerMutationBlocked" @onclick="SaveAddNoteAsync">
                                     @if (IsPending(MutationKind.AddNote))
                                     {
                                         <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
                                     }
                                     Save note
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelAddNote">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@DrawerMutationBlocked" @onclick="CancelAddNote">Cancel</button>
                             </div>
                         </div>
                     }
                     else
                     {
-                        <button type="button" class="btn btn-outline-primary w-100 add-note" disabled="@_isMutating" @onclick="ShowAddNoteForm">
+                        <button type="button" class="btn btn-outline-primary w-100 add-note" disabled="@DrawerMutationBlocked" @onclick="ShowAddNoteForm">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2v12M2 8h12" /></svg>
                             Add note
                         </button>
@@ -239,14 +271,16 @@
 
             <section class="participant-drawer-section">
                 <h3 class="participant-drawer-section-title">Applied tags</h3>
-                @if (detail.AppliedTags.Count == 0)
+                @if (_applicationsError is not null) { <p role="alert">@_applicationsError <button class="btn btn-outline-primary" @onclick="() => LoadApplicationsAsync(false)">Retry applications</button></p> }
+                @if (_applicationsNext is not null) { <button class="btn btn-outline-primary" @onclick="() => LoadApplicationsAsync(true)">Load older applications</button> }
+                @if (_applications.Count == 0)
                 {
                     <p class="text-muted mb-0">No tags applied.</p>
                 }
                 else
                 {
                     <ul class="participant-drawer-list">
-                        @foreach (var tag in detail.AppliedTags)
+                        @foreach (var tag in _applications)
                         {
                             <li class="participant-drawer-tag-item">
                                 <span class="badge rounded-pill participant-drawer-tag @(tag.IsArchived ? "participant-drawer-tag-archived" : null)"
@@ -263,23 +297,23 @@
                                                 <input id="participant-drawer-tag-remove-confirm-@tag.CampaignTagApplicationId"
                                                        class="form-check-input"
                                                        type="checkbox"
-                                                       disabled="@_isMutating"
+                                                       disabled="@DrawerMutationBlocked"
                                                        @bind="_removeTagConfirmed" />
                                                 <label class="form-check-label" for="participant-drawer-tag-remove-confirm-@tag.CampaignTagApplicationId">Confirm remove</label>
                                             </span>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_removeTagConfirmed || _isMutating)" @onclick="() => ConfirmRemoveTagAsync(tag)">
+                                            <button type="button" class="btn btn-sm btn-outline-danger" disabled="@(!_removeTagConfirmed || DrawerMutationBlocked)" @onclick="() => ConfirmRemoveTagAsync(tag)">
                                                 @if (IsPending(MutationKind.RemoveTag))
                                                 {
                                                     <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
                                                 }
                                                 Remove
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelRemoveTag">Cancel</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@DrawerMutationBlocked" @onclick="CancelRemoveTag">Cancel</button>
                                         </span>
                                     }
                                     else
                                     {
-                                        <button type="button" class="btn btn-sm btn-link p-0 text-danger d-block" disabled="@_isMutating" @onclick="() => BeginRemoveTag(tag)">Remove</button>
+                                        <button type="button" class="btn btn-sm btn-link p-0 text-danger d-block" disabled="@DrawerMutationBlocked" @onclick="() => BeginRemoveTag(tag)">Remove</button>
                                     }
                                 }
                             </li>
@@ -317,7 +351,7 @@
                                     <option value="@choice.PlayerTagId">@choice.Name</option>
                                 }
                             </select>
-                            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@(_selectedTagId is null || _isMutating)" @onclick="ApplySelectedTagAsync">
+                            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@(_selectedTagId is null || DrawerMutationBlocked)" @onclick="ApplySelectedTagAsync">
                                 @if (IsPending(MutationKind.ApplyTag))
                                 {
                                     <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>

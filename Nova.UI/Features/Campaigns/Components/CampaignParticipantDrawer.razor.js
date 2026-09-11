@@ -1,3 +1,6 @@
+import { attachGuard, detachGuard, markPending } from '../../../js/evaluationNavigationGuard.js';
+export { resumeHistory, releaseNavigation, cancelNavigation } from '../../../js/evaluationNavigationGuard.js';
+export function protectNavigation(dialog, owner, lease, receiver) { attachGuard(dialog, owner, lease, receiver); }
 let keydownListener = null;
 let previouslyFocused = null;
 let activeDialog = null;
@@ -85,6 +88,7 @@ export function restoreFocus(dialog, closeButton) {
 }
 
 export function close(restoreFallbackId, dialog) {
+    detachGuard(dialog);
     if (activeDialog !== dialog) return;
     const state = takeDownTrap();
     if (!state) {
@@ -131,4 +135,25 @@ function getFocusableElements(container) {
 
 function isElementVisible(element) {
     return element.offsetWidth > 0 || element.offsetHeight > 0 || element.getClientRects().length > 0;
+}
+
+const operationKey = scope => `nova:evaluation-drawer:v1:${scope}`;
+export function readOperation(dialog, scope) {
+    if (activeDialog !== dialog) throw new Error('Participant owner changed.');
+    const payload = sessionStorage.getItem(operationKey(scope));
+    markPending(dialog, payload !== null);
+    return payload;
+}
+export function writeOperation(dialog, scope, payload) {
+    if (activeDialog !== dialog) throw new Error('Participant owner changed.');
+    const existing = sessionStorage.getItem(operationKey(scope));
+    if (existing !== null && existing !== payload) throw new Error('Recover the existing operation first.');
+    sessionStorage.setItem(operationKey(scope), payload);
+    if (sessionStorage.getItem(operationKey(scope)) !== payload) throw new Error('Recovery storage verification failed.');
+    markPending(dialog, true);
+}
+export function clearOperation(dialog, scope, expected) {
+    if (activeDialog !== dialog) throw new Error('Participant owner changed.');
+    if (sessionStorage.getItem(operationKey(scope)) === expected) sessionStorage.removeItem(operationKey(scope));
+    markPending(dialog, sessionStorage.getItem(operationKey(scope)) !== null);
 }

@@ -118,7 +118,11 @@ internal sealed partial class EffectivePlacementQueryService(
         playerFilter = FilterPlayers(db, playerFilter, input.GraduationYear, null, tryoutSearch: true);
         // Apply local discovery before the effective-decision join. An EXISTS over the same
         // participation root duplicates its tenant/navigation joins in every count and page.
-        query = EffectivePlacementQueries.WorkingSet(db, clubId, playerFilter);
+        var pageBeforeEnrichment = input.TeamId is null && input.Eligibility is null
+            && string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase);
+        var enrichmentFilter = pageBeforeEnrichment
+            ? OrderAssignments(playerFilter, input).Skip(Offset(input)).Take(Size(input)) : playerFilter;
+        query = EffectivePlacementQueries.WorkingSet(db, clubId, enrichmentFilter);
         if (input.TeamId is long teamId)
         {
             query = query.Where(row => row.Eligibility == EffectivePlacementEligibility.OptionalReassignment && row.Decision!.TeamId == teamId);
@@ -132,7 +136,7 @@ internal sealed partial class EffectivePlacementQueryService(
         var ordered = input.SortBy is null && input.SortDirection is null ? query.OrderBy(row => row.Participation.Player.GraduationYear)
             .ThenBy(row => row.Participation.Player.LastName).ThenBy(row => row.Participation.Player.FirstName)
             .ThenBy(row => row.Participation.PlayerId) : OrderWorking(query, input);
-        var rows = await ordered.Skip(Offset(input)).Take(Size(input))
+        var rows = await ordered.Skip(pageBeforeEnrichment ? 0 : Offset(input)).Take(Size(input))
             .Select(PlacementReadProjection.WorkingRow(clubId)).ToListAsync(token);
         var tags = await ReadTagsAsync(db, clubId, rows.Select(row => row.PlayerCampaignAssignmentId).ToArray(), token);
         rows = rows.Select(row => row with { AppliedTags = tags.GetValueOrDefault(row.PlayerCampaignAssignmentId, []) }).ToList();

@@ -269,6 +269,7 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "act
 
             db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = defenderTag.PlayerTagId,

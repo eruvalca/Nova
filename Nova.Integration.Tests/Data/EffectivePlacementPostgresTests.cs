@@ -14,7 +14,7 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>Exercises bounded effective-placement queries against PostgreSQL and real tenant filters.</summary>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
+public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
     public async Task LatestOpeningSequenceWinsOverCampaignIdTimestampAndTechnicalEnrollmentAsync()
@@ -333,6 +333,7 @@ public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
         var assignments = await db.PlayerCampaignAssignments.Where(a => a.CampaignId == campaignId).ToListAsync(token);
         db.CampaignTagApplications.AddRange(assignments.Select(row => new CampaignTagApplicationEntity
         {
+            AuthorDisplayName = "Seeded evaluator",
             PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId,
             PlayerTagId = tag.PlayerTagId,
             ClubId = clubId,

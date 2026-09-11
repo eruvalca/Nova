@@ -197,6 +197,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
             context.Notes.Add(
                 new NoteEntity
                 {
+                    AuthorDisplayName = "Seeded evaluator",
                     CreationOperationId = Guid.NewGuid(),
                     Content = "Solid footwork.",
                     PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
@@ -206,6 +207,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
             context.CampaignTagApplications.Add(
                 new CampaignTagApplicationEntity
                 {
+                    AuthorDisplayName = "Seeded evaluator",
                     CreationOperationId = Guid.NewGuid(),
                     PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
                     PlayerTagId = tag.PlayerTagId,

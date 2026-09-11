@@ -52,6 +52,14 @@ public partial class CampaignPlacementsPanel(
     [Parameter]
     public long CampaignId { get; set; }
 
+    /// <summary>The deliberately selected participant handed off from evaluation.</summary>
+    [Parameter] public long? SelectedParticipantId { get; set; }
+    /// <summary>The canonical evaluation destination with lookup and Roster context preserved.</summary>
+    [Parameter] public string? EvaluationReturnPath { get; set; }
+    private long? _appliedSelection;
+    private ElementReference _linkedSelectionHeading;
+    private bool _focusLinkedSelection;
+
     /// <summary>
     /// Gets or sets the campaign lifecycle status, controlling the read-only frozen view.
     /// </summary>
@@ -189,9 +197,9 @@ public partial class CampaignPlacementsPanel(
     private string? _summaryWarning;
 
     /// <summary>
-    /// The placement state requested while a save was in flight, applied once every save completes.
+    /// The placement state and selection requested during a save, applied once every save completes.
     /// </summary>
-    private CampaignWorkspacePlacementState? _pendingState;
+    private (CampaignWorkspacePlacementState State, long? ParticipantId)? _pendingRequest;
 
     /// <summary>
     /// The placement state that produced the currently loaded roster.
@@ -287,18 +295,18 @@ public partial class CampaignPlacementsPanel(
             _reloading = false;
         }
 
-        if (State != _appliedState)
+        if (State != _appliedState || SelectedParticipantId != _appliedSelection)
         {
             if (saveInFlight)
             {
                 // A row save is in flight. Defer the roster reload so back/forward navigation
                 // cannot rebuild drafts out from under the in-flight save; apply the requested
                 // state once the save completes. The latest requested state wins.
-                _pendingState = State;
+                _pendingRequest = (State, SelectedParticipantId);
                 return;
             }
 
-            _appliedState = State;
+            ApplyPlacementRequest(State, SelectedParticipantId);
             await ReloadRosterHoldingLoadingAsync();
         }
         else
@@ -307,13 +315,26 @@ public partial class CampaignPlacementsPanel(
             // deferred state so completing a save cannot apply a stale request for a state the
             // user already left (the URL and roster would otherwise disagree until the next
             // navigation).
-            _pendingState = null;
+            _pendingRequest = null;
         }
+    }
+
+    /// <summary>Applies one coherent placement destination and its linked-selection focus intent.</summary>
+    private void ApplyPlacementRequest(CampaignWorkspacePlacementState state, long? participantId)
+    {
+        _appliedState = state;
+        _appliedSelection = participantId;
+        _focusLinkedSelection = participantId is not null;
     }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_focusLinkedSelection && SelectedParticipantId is not null)
+        {
+            _focusLinkedSelection = false;
+            await _linkedSelectionHeading.FocusAsync();
+        }
         if (_shouldFocusConflict)
         {
             _shouldFocusConflict = false;
@@ -351,9 +372,10 @@ public partial class CampaignPlacementsPanel(
         var input = new GetCampaignPlacementRosterInput
         {
             CampaignId = CampaignId,
-            GraduationYear = _appliedState.GraduationYear,
-            UnresolvedOnly = _appliedState.UnresolvedOnly ? true : null,
-            Page = _appliedState.Page,
+            ParticipantId = SelectedParticipantId,
+            GraduationYear = SelectedParticipantId is null ? _appliedState.GraduationYear : null,
+            UnresolvedOnly = SelectedParticipantId is null && _appliedState.UnresolvedOnly ? true : null,
+            Page = SelectedParticipantId is null ? _appliedState.Page : 1,
             PageSize = PlacementPageSize
         };
 
@@ -808,10 +830,10 @@ public partial class CampaignPlacementsPanel(
             // Show the loading state for the whole deferred reload: the row controls are hidden
             // while it is set, so a second save cannot be dispatched into the reload window and
             // have its draft replaced when the reload rebuilds drafts.
-            if (_pendingState is { } pending && !_savingActive)
+            if (_pendingRequest is { } pending && !_savingActive)
             {
-                _pendingState = null;
-                _appliedState = pending;
+                _pendingRequest = null;
+                ApplyPlacementRequest(pending.State, pending.ParticipantId);
                 _isLoading = true;
                 // Blazor only re-renders an async event handler after its task completes, so the
                 // loading state must be flushed explicitly to hide the row controls for the whole

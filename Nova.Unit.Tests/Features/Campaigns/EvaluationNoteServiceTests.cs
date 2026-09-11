@@ -5,30 +5,17 @@ using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Campaigns;
 
 /// <summary>
-/// A minimal <see cref="IDbContextFactory{TContext}"/> that creates contexts from the shared
-/// in-memory SQLite connection in <see cref="TenancyTestHarness"/>.
-/// </summary>
-file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaDbContext>
-{
-    /// <inheritdoc />
-    public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
-
-    /// <inheritdoc />
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(harness.CreateTenantContext());
-}
-
-/// <summary>
 /// Unit tests for <see cref="EvaluationNoteService"/> covering add, edit, and delete authorization,
 /// campaign-status guards, cross-tenant rejection, and input validation.
 /// </summary>
-public sealed class EvaluationNoteServiceTests : IDisposable
+public sealed partial class EvaluationNoteServiceTests : IDisposable
 {
     private const long ClubAId = 100;
     private const long ClubBId = 200;
@@ -64,12 +51,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "Good footwork."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue(); // Success
-        result.AsT0.NoteId.ShouldBeGreaterThan(0);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.NoteId.ShouldBeGreaterThan(0);
 
         using var db = _harness.CreateAdminContext();
         var addedNote = await db.Notes
@@ -89,11 +77,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "Should fail."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue(); // LifecycleForbidden
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>Verifies that a user with no club cannot add a note.</summary>
@@ -105,11 +95,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "Should fail."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue(); // LifecycleForbidden
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>Verifies that adding to a participation from another club returns NotFound.</summary>
@@ -121,11 +113,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _assignmentId, // belongs to Club A
             Content = "Cross-tenant attempt."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT2.ShouldBeTrue(); // NotFound
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     /// <summary>Verifies that adding to a Closed campaign participation returns a conflict.</summary>
@@ -137,38 +131,44 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _closedAssignmentId,
             Content = "Should fail — campaign is closed."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue(); // LifecycleConflict
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept new notes.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note creation without adding a note, mutation receipt, or activity event.
+    /// Verifies a Draft campaign rejects note creation without adding a note or activity event; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task AddReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task AddReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = operationId,
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "Draft campaign note."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept new notes.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(
             note => note.Content == "Draft campaign note.",
             TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -181,11 +181,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.AddAsync(new AddEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             PlayerCampaignAssignmentId = _assignmentId,
             Content = "   "
         }, TestContext.Current.CancellationToken);
 
-        result.IsT1.ShouldBeTrue(); // Error<...>
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
     }
 
     // ── Edit ───────────────────────────────────────────────────────────────────
@@ -203,11 +205,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             NoteId = _existingNoteId,
+            ExpectedVersion = await NoteVersionAsync(_existingNoteId),
             Content = "Updated content."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue(); // Success
+        result.IsSuccess.ShouldBeTrue();
 
         using var db = _harness.CreateAdminContext();
         var editedNote = (await db.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken));
@@ -217,20 +221,26 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         editedNote.ModifiedById.ShouldBe(ClubAMember1Id);
     }
 
-    /// <summary>Verifies that a club administrator can edit any note in their club.</summary>
+    /// <summary>Verifies that administrator privileges do not permit editing another author�s note.</summary>
     [Fact]
-    public async Task EditSucceedsForClubAdminAsync()
+    public async Task EditReturnsForbiddenForNonAuthorClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             NoteId = _existingNoteId,
+            ExpectedVersion = await NoteVersionAsync(_existingNoteId),
             Content = "Admin override."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue(); // Success
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken)).Content.ShouldBe("Initial note.");
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies that a non-author, non-admin club member cannot edit the note.</summary>
@@ -242,11 +252,14 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             NoteId = _existingNoteId,
+            ExpectedVersion = await NoteVersionAsync(_existingNoteId),
             Content = "Unauthorized edit."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue(); // LifecycleForbidden
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>Verifies that editing a note whose campaign is closed returns a conflict.</summary>
@@ -260,32 +273,40 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
+            OperationId = Guid.CreateVersion7(),
             NoteId = closedNoteId,
+            ExpectedVersion = await NoteVersionAsync(closedNoteId),
             Content = "Should fail — campaign is closed."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue(); // LifecycleConflict
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept note edits.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note edits without changing the note or recording side effects.
+    /// Verifies a Draft campaign rejects note edits without changing the note; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task EditReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task EditReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
+        var operationId = Guid.CreateVersion7();
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
+            OperationId = operationId,
             NoteId = _existingNoteId,
+            ExpectedVersion = await NoteVersionAsync(_existingNoteId),
             Content = "Draft campaign edit."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
-        result.AsT4.Detail.ShouldBe("Only active campaigns can accept note edits.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         var note = await verify.Notes.SingleAsync(
@@ -294,7 +315,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         note.Content.ShouldBe("Initial note.");
         note.ModifiedAt.ShouldBeNull();
         note.ModifiedById.ShouldBeNull();
-        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -307,11 +328,14 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
-            NoteId = _existingNoteId, // belongs to Club A
+            OperationId = Guid.CreateVersion7(),
+            NoteId = _existingNoteId,
+            ExpectedVersion = await NoteVersionAsync(_existingNoteId), // belongs to Club A
             Content = "Cross-tenant edit."
         }, TestContext.Current.CancellationToken);
 
-        result.IsT2.ShouldBeTrue(); // NotFound
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     // ── Delete ─────────────────────────────────────────────────────────────────
@@ -324,22 +348,26 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(noteId, TestContext.Current.CancellationToken);
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue(); // Success
+        result.IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>Verifies that a club administrator can delete any note in their club.</summary>
+    /// <summary>Verifies that administrator privileges do not permit deleting another author�s note.</summary>
     [Fact]
-    public async Task DeleteSucceedsForClubAdminAsync()
+    public async Task DeleteReturnsForbiddenForNonAuthorClubAdminAsync()
     {
         var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(noteId, TestContext.Current.CancellationToken);
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue(); // Success
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Notes.AnyAsync(note => note.NoteId == noteId, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await verify.EvaluationMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies that a non-author, non-admin club member cannot delete the note.</summary>
@@ -350,9 +378,10 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         ActAs(ClubAMember2Id, ClubAId, isClubAdmin: false);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(noteId, TestContext.Current.CancellationToken);
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
 
-        result.IsT2.ShouldBeTrue(); // LifecycleForbidden
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>Verifies that deleting a note on a closed campaign returns a conflict.</summary>
@@ -363,32 +392,36 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(noteId, TestContext.Current.CancellationToken);
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = noteId, ExpectedVersion = await NoteVersionAsync(noteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue(); // LifecycleConflict
-        result.AsT3.Detail.ShouldBe("Only active campaigns can accept note deletions.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
     }
 
     /// <summary>
-    /// Verifies a Draft campaign rejects note deletion without deleting the note or recording side effects.
+    /// Verifies a Draft campaign rejects note deletion without deleting the note; a durable rejection receipt is retained.
     /// </summary>
     [Fact]
-    public async Task DeleteReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
+    public async Task DeleteReturnsConflictWithoutEvidenceWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(_existingNoteId, TestContext.Current.CancellationToken);
+        var operationId = Guid.CreateVersion7();
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = _existingNoteId, ExpectedVersion = await NoteVersionAsync(_existingNoteId), OperationId = operationId }, TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue();
-        result.AsT3.Detail.ShouldBe("Only active campaigns can accept note deletions.");
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        EvaluationMutationRejection.IsNotCommitted(result.Problem, operationId).ShouldBeTrue();
+        result.Problem.Detail.ShouldBe("This campaign is read-only. Refresh to see its current status; keep or copy your draft.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.Notes.AnyAsync(
             note => note.NoteId == _existingNoteId,
             TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationMutationReceipts.CountAsync(receipt => receipt.OperationId == operationId, TestContext.Current.CancellationToken)).ShouldBe(1);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
@@ -399,9 +432,10 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         ActAs(ClubBMemberId, ClubBId);
         var sut = CreateService();
 
-        var result = await sut.DeleteAsync(_existingNoteId, TestContext.Current.CancellationToken);
+        var result = await sut.DeleteAsync(new DeleteEvaluationNoteInput { NoteId = _existingNoteId, ExpectedVersion = await NoteVersionAsync(_existingNoteId), OperationId = Guid.CreateVersion7() }, TestContext.Current.CancellationToken);
 
-        result.IsT1.ShouldBeTrue(); // NotFound
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -416,7 +450,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Creates the service under test using the shared harness.</summary>
     private EvaluationNoteService CreateService() =>
-        new(new HarnessDbContextFactory(_harness), _harness.CurrentUser, NullLogger<EvaluationNoteService>.Instance);
+        new(new Nova.Unit.Tests.Account.TestDbContextFactory<NovaDbContext>(() => _harness.CreateTenantContext()), _harness.CurrentUser, NullLogger<EvaluationNoteService>.Instance);
 
     /// <summary>
     /// Changes the campaign for an existing assignment from Active to Draft for mutation rejection tests.
@@ -453,6 +487,9 @@ public sealed class EvaluationNoteServiceTests : IDisposable
             new NovaUserEntity { Id = ClubAMember2Id, FirstName = "Aaron", LastName = "A", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubBMemberId, FirstName = "Bob", LastName = "B", ClubId = ClubBId });
+
+        db.Roles.Add(new Microsoft.AspNetCore.Identity.IdentityRole<long> { Id = 10, Name = Nova.SharedKernel.Security.Roles.ClubAdmin, NormalizedName = Nova.SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant() });
+        db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 10 });
 
         var player = new PlayerEntity
         {
@@ -525,6 +562,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         // Seed one note authored by ClubAMember1Id for edit/delete tests.
         var existingNote = new NoteEntity
         {
+            AuthorDisplayName = "Alice A",
             CreationOperationId = Guid.NewGuid(),
             Content = "Initial note.",
             PlayerCampaignAssignmentId = _assignmentId,
@@ -549,6 +587,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
         var note = new NoteEntity
         {
+            AuthorDisplayName = "Alice A",
             CreationOperationId = Guid.NewGuid(),
             Content = "Seeded note.",
             PlayerCampaignAssignmentId = assignmentId,

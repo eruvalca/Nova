@@ -296,7 +296,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignment
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await response.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(response, client, cancellationToken);
         detail.ShouldNotBeNull();
         detail.PlayerCampaignAssignmentId.ShouldBe(assignmentId);
         detail.Notes.Count.ShouldBe(1);
@@ -343,14 +343,14 @@ new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignPartici
 new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        var detail = await EvaluationEvidenceHttpTestSupport.ReadEvaluationEvidenceAsync(detailResponse, memberClient, cancellationToken);
         detail.ShouldNotBeNull();
         detail.Notes[0].CanEdit.ShouldBeTrue();
         detail.Notes[0].CanDelete.ShouldBeTrue();
         detail.AppliedTags[0].CanRemove.ShouldBeTrue();
         detail.Capabilities.CanAddNote.ShouldBeTrue();
         detail.Capabilities.CanApplyTag.ShouldBeTrue();
-        detail.Capabilities.CanEditPlacement.ShouldBeFalse();
+        detail.Capabilities.CanEditPlacement.ShouldBeTrue();
         detail.Capabilities.CanArchiveTagDefinitions.ShouldBeFalse();
     }
 
@@ -515,8 +515,8 @@ new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignPartici
             context.Add(assignment);
             await context.SaveChangesAsync(cancellationToken);
 
-            context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
-            context.Notes.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
+            context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
+            context.Notes.Add(new NoteEntity { AuthorDisplayName = "Seeded evaluator", CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
             await context.SaveChangesAsync(cancellationToken);
 
             return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);

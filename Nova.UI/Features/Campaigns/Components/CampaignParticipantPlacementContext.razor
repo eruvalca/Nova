@@ -2,7 +2,7 @@
 @using Nova.SharedKernel.Enums
 @inherits Nova.UI.Components.NovaComponentBase
 
-<section class="participant-placement-context" aria-label="Participant placement evidence">
+<section class="participant-placement-context @(Compact ? "is-compact" : null)" aria-label="Participant placement evidence">
     @if (_loading)
     {
         <p role="status">Loading placement context…</p>
@@ -11,6 +11,21 @@
     {
         <p role="status">Placement context unavailable.</p>
         <button type="button" class="btn btn-outline-secondary" @onclick="LoadAsync">Retry placement context</button>
+    }
+    else if (Compact)
+    {
+        <details class="context-provenance">
+            <summary><span class="context-label">Campaign:</span> @((_working?.LocalDecision ?? _closed?.Source.Decision) is null ? "No decision" : LocalOutcomeLabel)@if ((_working?.LocalTeam ?? _closed?.Source.Team) is { } localTeam) { <span> · @localTeam.TeamName</span> }<span class="visually-hidden"> · placement details</span></summary>
+            @if (_working is not null) { <CampaignEffectivePlacementSummary Item="_working" /> }
+            @if ((_working?.LocalDecision ?? _closed?.Source.Decision) is { } recorded)
+            {
+                <p>Campaign decision by @recorded.ActorDisplayName · @recorded.RecordedAt.ToString("MMM d, yyyy")</p>
+            }
+        </details>
+        @if (_working is not null)
+        {
+            <p><span class="context-label">Season:</span> @EffectiveOutcomeLabel</p>
+        }
     }
     else
     {

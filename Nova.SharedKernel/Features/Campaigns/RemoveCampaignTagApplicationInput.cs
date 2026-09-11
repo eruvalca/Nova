@@ -5,7 +5,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// <summary>
 /// Input model for removing a campaign tag application.
 /// </summary>
-public sealed record RemoveCampaignTagApplicationInput
+public sealed record RemoveCampaignTagApplicationInput : EvaluationOperationInput
 {
     /// <summary>The campaign tag application identifier to remove.</summary>
     [Required]

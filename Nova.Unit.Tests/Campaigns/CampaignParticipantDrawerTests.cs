@@ -1,4 +1,5 @@
-﻿using AngleSharp.Dom;
+﻿using System.Text.Json;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +9,6 @@ using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
 using NSubstitute;
-using OneOf.Types;
 using Shouldly;
 using CampaignParticipantDrawerComponent = Nova.UI.Features.Campaigns.Components.CampaignParticipantDrawer;
 
@@ -19,8 +19,10 @@ namespace Nova.Unit.Tests.Campaigns;
 /// stale-response discard, parameter-change reloads, close/Escape callbacks, focus-trap management,
 /// and persisted-state restoration.
 /// </summary>
-public sealed class CampaignParticipantDrawerTests : BunitContext
+public sealed partial class CampaignParticipantDrawerTests : BunitContext
 {
+    private readonly Dictionary<long, (IReadOnlyList<CampaignParticipantNoteDto> Notes, IReadOnlyList<CampaignParticipantTagApplicationDto> Applications)> _evidence = [];
+
     private const string DrawerModulePath = "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js";
 
     // ── Loading state ─────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                 [
                     new CampaignParticipantNoteDto(
                         NoteId: 1,
+                        Version: Guid.NewGuid(),
                         Content: "Strong defensive player.",
                         AuthorDisplayName: "Coach Rivera",
                         CreatedAt: new DateTimeOffset(2026, 5, 2, 9, 0, 0, TimeSpan.Zero),
@@ -287,6 +290,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var close = drawerModule.SetupVoid("close", _ => true);
@@ -313,6 +318,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var close = drawerModule.SetupVoid("close", _ => true);
@@ -340,6 +347,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var close = drawerModule.SetupVoid("close", _ => true);
@@ -365,7 +374,10 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
-        var open = JSInterop.SetupModule(DrawerModulePath).SetupVoid("open", _ => true);
+        var module = JSInterop.SetupModule(DrawerModulePath);
+        module.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        var read = module.Setup<string?>("readOperation", _ => true);
+        var open = module.SetupVoid("open", _ => true);
         open.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
@@ -378,6 +390,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         var invocation = open.Invocations.Single();
         invocation.Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(dialogRefId);
         invocation.Arguments[1].ShouldBeOfType<ElementReference>().Id.ShouldBe(closeRefId);
+        read.SetResult(null);
+        open.Invocations.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -386,6 +400,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
@@ -406,6 +422,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
@@ -415,8 +433,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
-        var dialogRefId = cut.Find("aside.participant-drawer").GetAttribute("blazor:elementreference");
-        var closeRefId = cut.Find("#participant-drawer-close").GetAttribute("blazor:elementreference");
+        var dialogRefId = open.Invocations.Single().Arguments[0].ShouldBeOfType<ElementReference>().Id;
+        var closeRefId = open.Invocations.Single().Arguments[1].ShouldBeOfType<ElementReference>().Id;
 
         cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
 
@@ -431,6 +449,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
@@ -452,6 +472,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var detach = drawerModule.SetupVoid("detach", _ => true);
@@ -477,6 +499,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
         var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        drawerModule.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        drawerModule.Setup<string?>("readOperation", _ => true).SetResult(null);
         var open = drawerModule.SetupVoid("open", _ => true);
         open.SetVoidResult();
         var close = drawerModule.SetupVoid("close", _ => true);
@@ -520,6 +544,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     {
         RegisterServices();
         var module = JSInterop.SetupModule(DrawerModulePath);
+        module.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        module.Setup<string?>("readOperation", _ => true).SetResult(null);
         module.Mode = JSRuntimeMode.Loose;
         var open = module.SetupVoid("open", _ => true);
         open.SetVoidResult();
@@ -550,6 +576,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     {
         RegisterServices();
         var module = JSInterop.SetupModule(DrawerModulePath);
+        module.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        module.Setup<string?>("readOperation", _ => true).SetResult(null);
         module.Mode = JSRuntimeMode.Loose;
         var open = module.SetupVoid("open", _ => true);
         open.SetVoidResult();
@@ -869,7 +897,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             FindButtonByText(cut, "Edit").HasAttribute("disabled").ShouldBeTrue();
         });
 
-        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99)));
+        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(99)));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note added."));
     }
 
@@ -891,7 +919,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(5))));
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(5))));
 
         RegisterServices(queryService, noteService);
 
@@ -976,7 +1004,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(1))));
 
         RegisterServices(queryService, noteService);
 
@@ -1040,8 +1068,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                         : CreateDetail()));
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
-        noteService.DeleteAsync(1, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+        noteService.DeleteAsync(Arg.Is<DeleteEvaluationNoteInput>(input => input.NoteId == 1 && input.ExpectedVersion != Guid.Empty && input.OperationId != Guid.Empty), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(1))));
 
         RegisterServices(queryService, noteService);
 
@@ -1060,7 +1088,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note deleted."));
         cut.Markup.ShouldContain("No notes yet.");
-        _ = noteService.Received(1).DeleteAsync(1, Arg.Any<CancellationToken>());
+        _ = noteService.Received(1).DeleteAsync(Arg.Is<DeleteEvaluationNoteInput>(input => input.NoteId == 1 && input.ExpectedVersion != Guid.Empty && input.OperationId != Guid.Empty), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1181,7 +1209,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
         cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
 
-        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99)));
+        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(99)));
         cut.WaitForAssertion(() =>
         {
             _ = queryService.Received(1).GetParticipantDetailAsync(
@@ -1364,7 +1392,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         var tagApplicationService = Substitute.For<ICampaignTagApplicationService>();
         tagApplicationService.ApplyAsync(Arg.Any<ApplyCampaignTagApplicationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(
-                new CampaignTagApplicationMutationSuccess(1))));
+                TagSuccess(1))));
         var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
         tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(CreateTagChoices().ToList())));
@@ -1433,7 +1461,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var tagApplicationService = Substitute.For<ICampaignTagApplicationService>();
         tagApplicationService.RemoveAsync(Arg.Any<RemoveCampaignTagApplicationInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+            .Returns(Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(TagSuccess(1))));
 
         RegisterServices(queryService, tagApplicationService: tagApplicationService);
 
@@ -1495,8 +1523,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."), call.Arg<AddEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1530,8 +1557,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                 capabilities: MutationCapabilities(canAddNote: true)))));
         var notes = Substitute.For<ICampaignEvaluationNoteService>();
         notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Campaign closed before this note could be saved."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Campaign closed before this note could be saved."), call.Arg<AddEvaluationNoteInput>().OperationId))));
         RegisterServices(query, notes);
         var lifecycleRefreshes = 0;
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
@@ -1548,7 +1574,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Render(parameters => parameters.Add(component => component.AuthorizedStatus, CampaignStatus.Closed));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Read-only"));
         cut.Markup.ShouldContain("Campaign closed before this note could be saved.");
-        cut.FindAll("textarea").ShouldBeEmpty();
+        cut.Find("textarea").GetAttribute("value").ShouldBe("An observation from before closing");
+        cut.Find("textarea").HasAttribute("readonly").ShouldBeTrue();
         cut.FindAll("button").ShouldNotContain(button => string.Equals(button.TextContent.Trim(), "Add note", StringComparison.Ordinal));
 
         if (string.Equals(nextContext, "participant", StringComparison.Ordinal))
@@ -1565,7 +1592,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public void DrawerConflictReadOnlyTransitionClosesOpenNoteEditor()
+    public void DrawerConflictReadOnlyTransitionKeepsEditCopyableAndRemovesMutationControls()
     {
         var callCount = 0;
         var queryService = Substitute.For<ICampaignParticipantQueryService>();
@@ -1582,8 +1609,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept note edits."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept note edits."), call.Arg<EditEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1602,10 +1628,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Closed campaigns are read-only and cannot accept note edits."));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Read-only — campaign is closed."));
 
-        // The open editor is gone, and no Save/Cancel remains in the read-only drawer.
-        cut.FindAll("textarea").ShouldBeEmpty();
-        cut.Markup.ShouldNotContain("Save");
-        cut.Markup.ShouldNotContain("Cancel");
+        // The unsaved edit remains copyable while mutation actions disappear.
+        cut.Find("textarea").GetAttribute("value").ShouldBe("Attempted edit on a closed campaign");
+        cut.Find("textarea").HasAttribute("readonly").ShouldBeTrue();
+        cut.FindAll("button").ShouldAllBe(button => !string.Equals(button.TextContent.Trim(), "Save", StringComparison.Ordinal)
+            && !string.Equals(button.TextContent.Trim(), "Cancel", StringComparison.Ordinal));
         // Read content still renders in full.
         cut.Markup.ShouldContain("Strong defensive player.");
     }
@@ -1624,8 +1651,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var tagApplicationService = Substitute.For<ICampaignTagApplicationService>();
         tagApplicationService.ApplyAsync(Arg.Any<ApplyCampaignTagApplicationInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(
-                ServiceProblem.Conflict("The selected tag has already been applied to this participation."))));
+            .Returns(call => Task.FromResult(new ServiceResult<CampaignTagApplicationMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("The selected tag has already been applied to this participation."), call.Arg<ApplyCampaignTagApplicationInput>().OperationId))));
         var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
         tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(CreateTagChoices().ToList())));
@@ -1664,8 +1690,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             });
         var noteService = Substitute.For<ICampaignEvaluationNoteService>();
         noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(
-                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."))));
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes."), call.Arg<AddEvaluationNoteInput>().OperationId))));
 
         RegisterServices(queryService, noteService);
 
@@ -1832,13 +1857,13 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Find("textarea").Input("New club note");
         FindButtonByText(cut, "Save note").Click();
         oldMutation.SetResult(obsoleteSuccess
-            ? new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(1))
+            ? new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(1))
             : new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Forbidden("Old authority denied")));
         cut.WaitForAssertion(() => FindButtonByText(cut, "Cancel").HasAttribute("disabled").ShouldBeTrue());
         cut.Markup.ShouldNotContain("Old authority denied");
         cut.Markup.ShouldNotContain("Note added.");
         refreshes.ShouldBe(0);
-        newMutation.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(2)));
+        newMutation.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(2)));
         cut.WaitForAssertion(() => refreshes.ShouldBe(1));
         cut.Markup.ShouldContain("Note added.");
     }
@@ -1854,7 +1879,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                 Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(assignmentId: 302, displayName: "New participant"))));
         var notes = Substitute.For<ICampaignEvaluationNoteService>();
         notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(1))));
+            .Returns(Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(NoteSuccess(1))));
         RegisterServices(query, notes);
         var refreshes = 0;
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
@@ -1875,6 +1900,49 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
+    public void DrawerKeepsCloseRejectionAndCopyableDraftVisibleWhileIdentityRefreshIsPending()
+    {
+        const string Draft = "Keep this observation after the campaign closes.";
+        const string Rejection = "Closed campaigns are read-only and cannot accept evaluation notes.";
+        var pending = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var query = Substitute.For<ICampaignParticipantQueryService>();
+        query.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(capabilities: MutationCapabilities(canAddNote: true)))), pending.Task);
+        var notes = Substitute.For<ICampaignEvaluationNoteService>();
+        notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(EvaluationMutationRejection.NotCommitted(ServiceProblem.Conflict(Rejection), call.Arg<AddEvaluationNoteInput>().OperationId))));
+        RegisterServices(query, notes);
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10).Add(component => component.ParticipantId, 301)
+            .Add(component => component.AuthorizedStatus, CampaignStatus.Active));
+        try
+        {
+            cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").HasAttribute("disabled").ShouldBeFalse());
+            FindButtonByText(cut, "Add note").Click();
+            cut.Find("#participant-drawer-note-content").Input(Draft);
+            FindButtonByText(cut, "Save note").Click();
+            cut.WaitForAssertion(() => cut.Find(".participant-drawer-mutation-error").TextContent.ShouldBe(Rejection));
+            cut.Markup.ShouldContain("Loading participant details");
+            cut.Render(parameters => parameters.Add(component => component.AuthorizedStatus, CampaignStatus.Closed));
+            cut.WaitForAssertion(() => cut.Find(".participant-drawer-readonly-note").TextContent.ShouldContain("Read-only — campaign is closed."));
+            cut.Find(".participant-drawer-mutation-error").TextContent.ShouldBe(Rejection);
+            cut.Find("#drawer-retained-draft").GetAttribute("value").ShouldBe(Draft);
+            cut.Find("#drawer-retained-draft").HasAttribute("readonly").ShouldBeTrue();
+            cut.Find("#drawer-retained-draft").HasAttribute("disabled").ShouldBeFalse();
+            cut.Markup.ShouldContain("Loading participant details");
+            pending.Task.IsCompleted.ShouldBeFalse();
+            _ = notes.Received(1).AddAsync(Arg.Is<AddEvaluationNoteInput>(input => input.Content == Draft && input.PlayerCampaignAssignmentId == 301), Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            pending.TrySetResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(campaignStatus: CampaignStatus.Closed)));
+        }
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Loading participant details"));
+        cut.Find(".participant-drawer-mutation-error").TextContent.ShouldBe(Rejection);
+        cut.Find("#drawer-retained-draft").GetAttribute("value").ShouldBe(Draft);
+    }
+
+    [Fact]
     public void DrawerDisablesCaptureImmediatelyWhenAuthorizedLifecycleClosesBeforeDetailReturns()
     {
         var pending = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>();
@@ -1892,6 +1960,139 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         pending.SetResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(campaignStatus: CampaignStatus.Closed, capabilities: MutationCapabilities(true, true))));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Read-only"));
         cut.FindAll("button").ShouldNotContain(button => string.Equals(button.TextContent.Trim(), "Add note", StringComparison.Ordinal) || string.Equals(button.TextContent.Trim(), "Apply", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DrawerGuardsDraftMovementUntilDiscardIsExplicit()
+    {
+        var query = Substitute.For<ICampaignParticipantQueryService>();
+        query.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(capabilities: MutationCapabilities(canAddNote: true)))));
+        RegisterServices(query);
+        var closed = false;
+        var cut = Render<CampaignParticipantDrawerComponent>(p => p.Add(c => c.CampaignId, 10).Add(c => c.ParticipantId, 301)
+            .Add(c => c.OnClose, () => closed = true));
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Unsubmitted observation");
+        cut.Find("button[aria-label='Close participant details']").Click();
+        closed.ShouldBeFalse();
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Keep working").ShouldNotBeNull());
+        FindButtonByText(cut, "Keep working").Click();
+        cut.Find("textarea").GetAttribute("value").ShouldBe("Unsubmitted observation");
+        cut.Find("button[aria-label='Close participant details']").Click();
+        FindButtonByText(cut, "Discard and leave").Click();
+        closed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void DrawerUnknownSubmissionRetainsOriginalOperationAndPayloadForReplay()
+    {
+        var query = Substitute.For<ICampaignParticipantQueryService>();
+        query.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(capabilities: MutationCapabilities(canAddNote: true)))));
+        var notes = Substitute.For<ICampaignEvaluationNoteService>();
+        var inputs = new List<AddEvaluationNoteInput>();
+        notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            inputs.Add(call.Arg<AddEvaluationNoteInput>());
+            return inputs.Count == 1 ? Task.FromException<ServiceResult<EvaluationNoteMutationSuccess>>(new HttpRequestException("Lost response"))
+                : Task.FromResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(1, Guid.NewGuid(),
+                    new(inputs[^1].OperationId, 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24)))));
+        });
+        RegisterServices(query, notes);
+        var cut = Render<CampaignParticipantDrawerComponent>(p => p.Add(c => c.CampaignId, 10).Add(c => c.ParticipantId, 301));
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Keep original payload");
+        FindButtonByText(cut, "Save note").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Any(button => button.TextContent.Contains("Recover original operation", StringComparison.Ordinal)).ShouldBeTrue());
+        FindButtonByText(cut, "Recover original operation").HasAttribute("disabled").ShouldBeFalse();
+        FindButtonByText(cut, "Recover original operation").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Note saved."));
+        inputs.Count.ShouldBe(2);
+        inputs[1].ShouldBe(inputs[0]);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DrawerReloadRestoresCopyableOriginalNoteAndPreservesItAfterExpiryRejection(bool editing)
+    {
+        const string RetainedText = "  Keep this original observation.\nSecond line.";
+        var original = CreateNote(canEdit: true);
+        var query = Substitute.For<ICampaignParticipantQueryService>();
+        query.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(notes: [original], capabilities: MutationCapabilities(canAddNote: true)))));
+        var notes = Substitute.For<ICampaignEvaluationNoteService>();
+        var rejection = new ServiceResult<EvaluationNoteMutationSuccess>(ServiceProblem.Conflict("The 24-hour recovery window has expired."));
+        notes.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(rejection));
+        notes.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(rejection));
+        RegisterServices(query, notes);
+        var module = JSInterop.SetupModule(DrawerModulePath);
+        module.SetupVoid("protectNavigation", _ => true).SetVoidResult();
+        var read = module.Setup<string?>("readOperation", _ => true);
+        var operationId = Guid.CreateVersion7();
+        EvaluationOperationInput input = editing
+            ? new EditEvaluationNoteInput { NoteId = original.NoteId, Content = RetainedText, ExpectedVersion = original.Version, OperationId = operationId }
+            : new AddEvaluationNoteInput { PlayerCampaignAssignmentId = 301, Content = RetainedText, OperationId = operationId };
+        var stored = JsonSerializer.Serialize(new { Kind = input.GetType().Name, Payload = JsonSerializer.Serialize(input, input.GetType()) });
+        var cut = Render<CampaignParticipantDrawerComponent>(p => p.Add(c => c.CampaignId, 10).Add(c => c.ParticipantId, 301));
+        cut.WaitForAssertion(() => read.Invocations.Count.ShouldBe(1));
+        FindButtonByText(cut, "Add note").HasAttribute("disabled").ShouldBeTrue();
+        read.SetResult(stored);
+        var selector = editing ? "#participant-drawer-note-edit-1" : "#participant-drawer-note-content";
+        cut.WaitForAssertion(() => cut.Find(selector).GetAttribute("value").ShouldBe(RetainedText));
+        cut.Find(selector).HasAttribute("readonly").ShouldBeTrue();
+        cut.Find(selector).HasAttribute("disabled").ShouldBeFalse();
+        FindButtonByText(cut, "Recover original operation").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("24-hour recovery window has expired"));
+        cut.Find(selector).GetAttribute("value").ShouldBe(RetainedText);
+        cut.FindAll("button").Any(button => button.TextContent.Contains("Recover original operation", StringComparison.Ordinal)).ShouldBeTrue();
+        if (editing)
+        {
+            _ = notes.Received(1).EditAsync(Arg.Is<EditEvaluationNoteInput>(value => value.OperationId == operationId && value.Content == RetainedText && value.ExpectedVersion == original.Version), Arg.Any<CancellationToken>());
+            _ = notes.DidNotReceive().AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>());
+        }
+        else
+        {
+            _ = notes.Received(1).AddAsync(Arg.Is<AddEvaluationNoteInput>(value => value.OperationId == operationId && value.Content == RetainedText && value.PlayerCampaignAssignmentId == 301), Arg.Any<CancellationToken>());
+            _ = notes.DidNotReceive().EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>());
+        }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DrawerNeverShowsPreviousPlayersEvidenceWhileNewEvidenceIsDelayedOrFailsAsync(bool failure)
+    {
+        var query = Substitute.For<ICampaignParticipantQueryService>();
+        query.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var id = call.Arg<GetCampaignParticipantDetailInput>().PlayerCampaignAssignmentId;
+            return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(assignmentId: id,
+                displayName: id == 301 ? "Previous player" : "Replacement player",
+                notes: id == 301 ? [CreateNote(content: "Previous shared observation")] : [],
+                tags: id == 301 ? [CreateTag(tagName: "Previous trait")] : [])));
+        });
+        RegisterServices(query);
+        var evidence = Services.GetRequiredService<ICampaignEvaluationQueryService>();
+        var notes = new TaskCompletionSource<ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var applications = new TaskCompletionSource<ServiceResult<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        evidence.GetNotesAsync(Arg.Is<GetEvaluationHistoryInput>(i => i.PlayerCampaignAssignmentId == 302), Arg.Any<CancellationToken>()).Returns(notes.Task);
+        evidence.GetApplicationsAsync(Arg.Is<GetEvaluationHistoryInput>(i => i.PlayerCampaignAssignmentId == 302), Arg.Any<CancellationToken>()).Returns(applications.Task);
+        var cut = Render<CampaignParticipantDrawerComponent>(p => p.Add(c => c.CampaignId, 10).Add(c => c.ParticipantId, 301));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Previous shared observation"));
+        cut.Render(p => p.Add(c => c.ParticipantId, 302));
+        await cut.WaitForAssertionAsync(() => cut.Find("#participant-drawer-heading").TextContent.ShouldBe("Replacement player"));
+        cut.Markup.ShouldNotContain("Previous shared observation");
+        cut.Markup.ShouldNotContain("Previous trait");
+        notes.SetResult(failure ? new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(ServiceProblem.ServerError("Replacement notes failed"))
+            : new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(new EvaluationHistoryPage<CampaignParticipantNoteDto>([CreateNote(content: "Replacement evidence")], null)));
+        applications.SetResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>(new EvaluationHistoryPage<CampaignParticipantTagApplicationDto>([], null)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain(failure ? "Replacement notes failed" : "Replacement evidence"));
+        cut.Markup.ShouldNotContain("Previous shared observation");
+        cut.Markup.ShouldNotContain("Previous trait");
     }
 
     private void RegisterServices(
@@ -1918,6 +2119,14 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
                     CreateTagChoices().ToList())));
         }
 
+        var evidence = Substitute.For<ICampaignEvaluationQueryService>();
+        evidence.GetNotesAsync(Arg.Any<GetEvaluationHistoryInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>(
+                new EvaluationHistoryPage<CampaignParticipantNoteDto>(_evidence.GetValueOrDefault(call.Arg<GetEvaluationHistoryInput>().PlayerCampaignAssignmentId).Notes ?? [], null))));
+        evidence.GetApplicationsAsync(Arg.Any<GetEvaluationHistoryInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>(
+                new EvaluationHistoryPage<CampaignParticipantTagApplicationDto>(_evidence.GetValueOrDefault(call.Arg<GetEvaluationHistoryInput>().PlayerCampaignAssignmentId).Applications ?? [], null))));
+        Services.AddSingleton(evidence);
         Services.AddSingleton(queryService);
         Services.AddSingleton(noteService);
         Services.AddSingleton(tagApplicationService);
@@ -1931,7 +2140,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
-    private static CampaignParticipantDetailDto CreateDetail(
+    private CampaignParticipantDetailDto CreateDetail(
         long assignmentId = 301,
         string displayName = "Avery Johnson",
         int? tryoutNumber = 14,
@@ -1940,7 +2149,10 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         IReadOnlyList<CampaignParticipantNoteDto>? notes = null,
         IReadOnlyList<CampaignParticipantTagApplicationDto>? tags = null,
         CampaignParticipantCapabilitiesDto? capabilities = null,
-        CampaignStatus campaignStatus = CampaignStatus.Active) => new(
+        CampaignStatus campaignStatus = CampaignStatus.Active)
+    {
+        _evidence[assignmentId] = (notes ?? [], tags ?? []);
+        return new(
         PlayerCampaignAssignmentId: assignmentId,
         PlayerId: 7,
         DisplayName: displayName,
@@ -1952,13 +2164,18 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         ModifiedAt: new DateTimeOffset(2026, 5, 3, 14, 30, 0, TimeSpan.Zero),
         CampaignStatus: campaignStatus,
         ConcurrencyToken: Guid.NewGuid(),
-        Notes: notes ?? [],
-        AppliedTags: tags ?? [],
         Capabilities: capabilities ?? new CampaignParticipantCapabilitiesDto(
             CanEditPlacement: false,
             CanAddNote: false,
             CanApplyTag: false,
             CanArchiveTagDefinitions: false));
+    }
+
+    private static EvaluationMutationReceipt Receipt() => new(Guid.CreateVersion7(), 301, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24));
+
+    private static EvaluationNoteMutationSuccess NoteSuccess(long id) => new(id, Guid.NewGuid(), Receipt());
+
+    private static CampaignTagApplicationMutationSuccess TagSuccess(long id) => new(id, 11, false, Receipt());
 
     private static IReadOnlyList<TagDefinitionDto> CreateTagChoices() =>
     [
@@ -1979,6 +2196,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         bool modified = false)
         => new(
             NoteId: noteId,
+            Version: Guid.NewGuid(),
             Content: content,
             AuthorDisplayName: "Coach Rivera",
             CreatedAt: new DateTimeOffset(2026, 5, 2, 9, 0, 0, TimeSpan.Zero),
@@ -2052,11 +2270,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     private sealed class RestoredDrawer(
 #pragma warning restore CA1812
         ICampaignParticipantQueryService participantQueryService,
+        ICampaignEvaluationQueryService evaluationQueryService,
         ICampaignEvaluationNoteService noteService,
         ICampaignTagApplicationService tagApplicationService,
         ITagDefinitionQueryService tagDefinitionQueryService,
         IJSRuntime jsRuntime)
-        : CampaignParticipantDrawerComponent(participantQueryService, noteService, tagApplicationService, tagDefinitionQueryService, jsRuntime)
+        : CampaignParticipantDrawerComponent(participantQueryService, evaluationQueryService, noteService, tagApplicationService, tagDefinitionQueryService, jsRuntime)
     {
         /// <summary>
         /// Gets or sets the persisted detail payload seeded before initialization.

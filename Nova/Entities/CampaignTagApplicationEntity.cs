@@ -13,6 +13,9 @@ public class CampaignTagApplicationEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public long CampaignTagApplicationId { get; set; }
 
+    /// <summary>Gets or sets the original actor's display name captured when this trait was applied.</summary>
+    public required string AuthorDisplayName { get; set; }
+
     /// <summary>
     /// Gets or sets the campaign participation identifier receiving the tag.
     /// </summary>

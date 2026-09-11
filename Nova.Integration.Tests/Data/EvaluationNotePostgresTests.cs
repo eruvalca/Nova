@@ -42,6 +42,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
         {
             db.Notes.Add(new NoteEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 Content = "Cascade test note.",
                 PlayerCampaignAssignmentId = data.AssignmentId,
@@ -89,6 +90,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
         {
             db.Notes.Add(new NoteEntity
             {
+                AuthorDisplayName = "Seeded evaluator",
                 CreationOperationId = Guid.NewGuid(),
                 Content = "Tenant filter test.",
                 PlayerCampaignAssignmentId = data.AssignmentId,

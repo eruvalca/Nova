@@ -361,6 +361,43 @@ public sealed class CampaignWorkspaceUrlStateTests
             .ShouldBe($"/campaigns/10?{query}&participant=301&placementGraduationYear=2032&placementPage=2&tab=place");
     }
 
+    [Fact]
+    public void EvaluationLookupKeepsIndependentSearchPagingSelectionAndRosterLanding()
+    {
+        var roster = new CampaignWorkspaceRosterState { Search = "Roster & filter", Page = 4, GraduationYears = [2030], TagDefinitionIds = [11] };
+        var evaluation = new CampaignWorkspaceEvaluationState { Search = "42", Page = 2, ParticipantId = 301, RosterLanding = true };
+        var url = CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(10, evaluation, roster, 999);
+        url.ShouldContain("search=Roster%20%26%20filter");
+        url.ShouldContain("page=4");
+        url.ShouldContain("participant=999");
+        url.ShouldContain("evalSearch=42");
+        url.ShouldContain("evalPage=2");
+        url.ShouldContain("evalParticipant=301");
+        url.ShouldContain("rosterLanding=true");
+        url.ShouldContain("tab=evaluate");
+        roster.Search.ShouldBe("Roster & filter");
+        roster.Page.ShouldBe(4);
+    }
+
+    [Fact]
+    public void BlankEvaluationContextNeverBorrowsRosterSearchOrSelection()
+    {
+        var url = CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(10, new(), new() { Search = "Roster only", Page = 4 }, 999);
+        url.ShouldContain("evaluation=true");
+        url.ShouldContain("search=Roster%20only");
+        url.ShouldContain("participant=999");
+        url.ShouldNotContain("evalSearch=");
+        url.ShouldNotContain("evalPage=");
+        url.ShouldNotContain("evalParticipant=");
+    }
+
+    [Fact]
+    public void EvaluationContextEscapesLiteralSearchAndOmitsInvalidOptionalSelection()
+    {
+        var url = CampaignWorkspaceUrlState.WithEvaluationContext("/campaigns/10?tab=place", new() { Search = "  A&B?#42  ", Page = -1, ParticipantId = -1 });
+        url.ShouldBe("/campaigns/10?tab=place&evaluation=true&evalSearch=A%26B%3F%2342");
+    }
+
     private static CampaignWorkspaceRosterState ParseFromQuery(string query)
     {
         string? ValueOf(string key)

@@ -12,7 +12,7 @@ Canonical files:
   + one shared Chromium, exposes `NewSignedInContextAsync` and `CloseCampaignAsAdminAsync`) and
   the `BrowserSuiteCollection` collection fixture.
 - `Nova.Browser.Tests\EvaluationSeed.cs` — `EvaluationSeed.SeedAsync`: registers an admin and an
-  approved evaluator over HTTP, seeds the workspace (60 participants = 2 pages, active + archived
+  approved evaluator over HTTP, seeds the workspace (60 participants, active + archived
   tags, an archived pre-application), returns `SeededEvaluationWorkspace`.
 - `Nova.Browser.Tests\CampaignEvaluationBrowserTests.cs` — the scenario tests plus the
   `OpenWorkspaceAsync`/`OpenParticipantAsync`/`CloseDrawerAsync` helpers (which delegate to
@@ -66,6 +66,12 @@ Use these patterns when the scenario crosses prerender, interactive attachment, 
    or testing preservation of user focus. For navigation-focus regressions, exercise the real
    destination through attachment, including delayed content and navigation between routes that
    reuse a shell; immediate SSR focus alone is insufficient. See `ClubOverviewBrowserTests`.
+7. **HTTP interception needs a verified interactive document.** Pass a caller-specific UI action
+   to `WasmWarmupHelper.ReloadAsWebAssemblyAsync` when a scenario depends on browser HTTP calls.
+   The helper observes server negotiation through that action; no negotiation during a fixed delay
+   alone is not attachment proof. Keep the verified document, and observe the intercepted request
+   before asserting an injected error. Photo islands may have no startup API read, so a generic
+   “any API request” probe is not a substitute for their actual upload/crop interaction.
 
 ## Parallelization
 
@@ -113,7 +119,7 @@ when closing the participant drawer after opening it as a hydration proof.
   already signed in through the real `/Account/Login` page. `viewport` defaults to 1280×800;
   pass `new ViewportSize { Width = 480, Height = 800 }` for narrow-layout scenarios.
 - `fixture.CloseCampaignAsAdminAsync(campaignId, adminUserId, clubId, ct)` drives
-  `CampaignLifecycleService` directly (there is no close UI or endpoint yet) through the
+  `CampaignLifecycleService` directly through the
   fixture's `CreateTenantContextFactory()` under a `UseUser` scope that restores the previous
   simulated user on completion. Use it for stale-close/conflict scenarios.
 - Dispose each context with `await using`.
@@ -142,9 +148,9 @@ when closing the participant drawer after opening it as a hydration proof.
   assertions executed. Flags: `NOVA_BROWSER_HEADED=1` (visible browser),
   `NOVA_A11Y_SCREENSHOTS=1` (accessibility evidence: screenshots plus computed contrast and
   touch-target measurements written to `%TEMP%\nova-a11y-screenshots`).
-- Accessibility regression assertions stay in the scenario that exercises the control: touch
-  targets ≥24×24 CSS px on drawer controls, tag chip text contrast ≥4.5:1 (WCAG AA) against its
-  club-defined background.
+- Accessibility regression assertions stay in the scenario that exercises the control. Follow
+  Nova's 44px phone target contract; older 24px baseline assertions do not define new designs.
+  Tag chip text needs contrast ≥4.5:1 (WCAG AA) against its club-defined background.
 - Use Playwright's auto-retrying assertions (`ToBeFocusedAsync`, `ToBeVisibleAsync`,
   `ToHaveTextAsync`) instead of one-shot `EvaluateAsync` probes; `document.activeElement`
   is assigned after render, so a single probe races.
@@ -164,16 +170,35 @@ when closing the participant drawer after opening it as a hydration proof.
 
 ## Run commands
 
+Build first and serialize Aspire-backed suites as described in `AGENTS.md`.
+
 ```powershell
 # one-time per machine:
 Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium
 # set PLAYWRIGHT_BROWSERS_PATH to relocate the browser cache
 
-dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj
-dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*CampaignEvaluationBrowserTests"
 
-# slower CI host: raise the hydration-retry window
-NOVA_BROWSER_RETRY_MAX_ATTEMPTS=80 NOVA_BROWSER_RETRY_DELAY_MS=500 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
+# diagnose a stalled run without changing retry budgets:
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --output Detailed --long-running 90 --xunit-diagnostics on
 ```
 
 Local-only: CI runs build and unit tests only, so run the suite locally before opening a PR, before merge, and on pushes that change UI markup, styles, or JS interop.
+
+## Diagnosing a stalled or slow run
+
+Identify the active case from the diagnostic command above and inspect its awaited operation. An
+outer retry count is not an elapsed time limit: each Playwright action may spend its own timeout on
+every attempt. Check rendered select values and locators before increasing retry budgets. Tests
+holding intercepted requests must release them and remove routes in `finally` so a failed assertion
+cannot strand teardown.
+
+Distinguish a functional completion deadline from a performance requirement. A scale scenario should
+fail on a surfaced read error, assert exact counts/page contents, and record elapsed time; it proves
+a latency target only when that target was explicitly specified. Timeout changes remain quality-control
+changes subject to the rationale and review rule in `AGENTS.md`, not a default cure for a slow run.
+
+For modified-click navigation, observe new pages through the browser context; an opener-specific
+popup event is not guaranteed for native links. Retain assertions for the destination and unchanged
+source-page draft.

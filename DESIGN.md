@@ -189,6 +189,8 @@ Public surfaces use Bootstrap containers, asymmetric two-column compositions whe
 
 Touch targets are at least `2.75rem`. Tables stay inside responsive scroll regions, route-marker sequences remain horizontally scrollable when their minimum width exceeds the viewport, and focus indicators must never be clipped by those regions.
 
+Evaluation applies this model as a finder beside a flat player sheet when space permits, then one focused finder or selected-player stage on narrower screens. The single-stage sheet is centered with a bounded reading width and a compact leading inset. Identity and campaign headings wrap rather than force horizontal page overflow. Shared observations use ruled rows and bounded previews so history can grow without displacing the next capture; placement and trait provenance remain available through inline disclosures. These are applications of the existing board and working-text rules, not a new global grid or type scale.
+
 ### Named Rules
 
 **The One Route Rule.** Navigation and workflow progress remain visible as one legible route; never hide required destinations or abbreviate labels into ambiguity.
@@ -263,6 +265,19 @@ Components feel tactile, legible, and restrained. Their identity comes from sema
 ### Route Markers
 
 Connected circular stops turn campaigns and multi-step workflows into a visible route. The active stop uses Wayfinding Teal and Sea Glass; inactive stops use quiet hairlines and ink. Route markers supplement labels and never replace them.
+
+### Shared Evidence Sheet
+
+A flat, attributable working record extends the existing board language for evaluation.
+
+- **Identity and context:** tryout number and full name lead the sheet. Graduation year, written campaign outcome, and effective season context remain subordinate. Compact placement provenance opens inline; directional SVGs accompany Back to results and the Active-campaign Place player handoff.
+- **Shared traits:** wrapping, gently squared Sea Glass labels use emphasis text and a disclosure chevron. Their expanded state reveals actor and time attribution and any permitted removal action. The treatment identifies shared applied evidence; it does not assign meaning to trait colors.
+- **Observation rows:** author and time frame readable text above a hairline. Notes preserve line breaks, wrap long content, and bound sustained reading to `70ch`. Older history and full long-note text use explicit disclosure; author actions retain both the minimum target width and height.
+- **Capture and state:** Paper White inputs sit within the sheet. The note composer keeps sharing/count help beside its label, followed by distinct full-width Save note and Find another player actions. Visible focus, written mutation feedback, and inline read-only explanation carry state. Closed history preserves evidence and any retained text while removing mutation affordances.
+
+The evaluation composition and locked comp remain in the [evaluation surface brief](.impeccable/surfaces/evaluation.md) and [approved Shared evidence notebook image](.impeccable/mocks/decision/issue-198-shared-notebook.png). The [issue #198 finish record](.impeccable/review/issue-198/finish-review.md) records the independent reviewer's scoped ship verdict: all eight fixes resolved with no material regressions. The user approved sheet-relative Evaluate measurement with a separate preserved-shell review. The [measurement manifest](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/manifest.json) and [report](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/report.json) record **76.11% against the unchanged 72% threshold**, using one border-based translation of 113 native pixels, with no resizing or additional regional shift. The original full-frame **73.43%** report and raw regional missing/drift labels remain preserved; the scoped approval does not convert them into an unqualified mechanical pass. The reviewer resolved those regional findings through visible-content inspection and the accepted touch-context and system-typography adaptations. The [separate shell and coverage review](.impeccable/review/issue-198/sheet-relative/shell-review.md) preserves incumbent navigation and campaign context; older history is evidenced in mobile/desktop full-page captures, outside the hero's quantitative coverage. This records visual acceptance for source `381d5019`, not publication or an independent rerun of its behavioral validation.
+
+No new palette, type, spacing, radius, or acceptance-threshold token is introduced by this surface. The observed score is not a design rule. Existing system-display, eyebrow, and marketing-offset guidance is preserved as incumbent authority under the explicit preservation scope; this merge does not extend those devices into new evaluation rules or erase their craft-floor conflicts.
 
 ## Do's and Don'ts
 
