@@ -408,16 +408,15 @@ Nova/wwwroot/css/
 .impeccable/review/**
 !.impeccable/review/**/
 !.impeccable/review/**/*.md
-!.impeccable/review/issue-198/artifact-archive.json
 !.impeccable/review/issue-198/capture-manifest.json
 !.impeccable/review/issue-198/concepts.json
 !.impeccable/review/issue-198/options.json
 !.impeccable/review/issue-198/detector.json
 !.impeccable/review/issue-198/captures/*.png
 !.impeccable/review/issue-198/captures/*.json
-!.impeccable/review/issue-198/sheet-relative/manifest.json
-!.impeccable/review/issue-198/sheet-relative/report.json
-!.impeccable/review/issue-198/sheet-relative/spec.json
+# Historical records remain available through evidence-archive.md's pinned commit.
+.impeccable/review/issue-198/local-code-review.md
+.impeccable/review/issue-198/review-round-[1-6]*.md
 # OpenAI Codex: ignore local state (config, logs, sessions), but commit the
 # repo-level hook manifest and the project-scoped custom agents.
 .codex/*

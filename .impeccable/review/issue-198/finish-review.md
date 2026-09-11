@@ -37,7 +37,7 @@ Final validation capture is byte-identical to the funded-round hero (SHA-256 247
 
 ## Approved comparison scope — final disposition
 
-The user answered **“Yes please feel free to do so”** to **“May I measure Evaluate relative to its sheet, reviewing the shell separately? Implementation is committed; PR delivery remains pending this decision.”** This authorizes the measurement scope recorded in `sheet-relative/manifest.json`; it does not lower the overall threshold or turn the original full-frame regional report into a pass.
+The user answered **“Yes please feel free to do so”** to **“May I measure Evaluate relative to its sheet, reviewing the shell separately? Implementation is committed; PR delivery remains pending this decision.”** This authorizes the measurement scope recorded in [sheet-relative/manifest.json](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/manifest.json); it does not lower the overall threshold or turn the original full-frame regional report into a pass.
 
 The same independent finish reviewer prescribed and verified one native-pixel border registration: comp top row 475, build top row 588, one 113px translation, no resizing or additional regional shifts. The long-border rows are confirmed programmatically. `measure-sheet.mjs` reproduces the crops, spec, raw scores and manifest. A direct unshifted `scorePair` assertion confirms **76.11% overall**, above the unchanged **72%** threshold. The standard comparator's extra-shift output is separately retained; the final regional report omits that shift while preserving the same scoring and minimum-crop rules.
 

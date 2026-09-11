@@ -18,7 +18,7 @@ Reviewed the implementation and its recorded failures against [Microsoft's instr
 
 ## Guidance and evidence inspected
 
-Read `AGENTS.md`, matching instruction routing, Blazor/testing/UI-design guidance, and the relevant existing UI state/interop, persistence retry/query, testing/browser and Impeccable new-work references. Applied the installed `skill-creator` guidance for scoped skill edits and the installed .NET `run-tests` guidance for validation commands; the repository run-tests overlay is absent. Reviewed the PR's `local-code-review.md`, final visual disposition, source contracts and named implementation examples. The independent reviewer also inspected the affected source/test examples.
+Read `AGENTS.md`, matching instruction routing, Blazor/testing/UI-design guidance, and the relevant existing UI state/interop, persistence retry/query, testing/browser and Impeccable new-work references. Applied the installed `skill-creator` guidance for scoped skill edits and the installed .NET `run-tests` guidance for validation commands; the repository run-tests overlay is absent. Reviewed the PR's [local-code-review.md](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/local-code-review.md), final visual disposition, source contracts and named implementation examples. The independent reviewer also inspected the affected source/test examples.
 
 Both repository Impeccable copies were updated. Their changed bodies/references match after existing provider-specific metadata, path and command-prefix substitutions. No custom agent definitions or hooks changed.
 

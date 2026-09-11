@@ -6,7 +6,7 @@ The user approved measuring Evaluate relative to its sheet and reviewing the pre
 
 `measure-sheet.mjs` reads the original comp and final hero capture at native resolution. A long-border scan across physical x=100..800 confirms top-border rows 475 and 588 in their preidentified neighborhoods. Both crops begin at x=59 and retain width 780; neither image is resized. The single translation is 113 physical pixels (75⅓ CSS pixels). The bottom boundary is physical y=1667, before the fixed navigation, giving 1079 pixels of unobscured sheet coverage.
 
-`report.json` retains the shared scoring functions, thresholds, original region IDs and minimum 48-pixel regional sampling rule. It omits the comparator's additional best-shift search to honor the single-translation method. The unmodified comparator output, including its extra regional shift, is separately preserved under `standard-tool/`. No per-element position, font, scale or image content was altered.
+[report.json](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/report.json) retains the shared scoring functions, thresholds, original region IDs and minimum 48-pixel regional sampling rule. It omits the comparator's additional best-shift search to honor the single-translation method. The unmodified comparator output, including its extra regional shift, is separately preserved under `standard-tool/`. No per-element position, font, scale or image content was altered.
 
 ## Shell review
 
