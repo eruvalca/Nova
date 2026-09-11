@@ -4,12 +4,12 @@ Evaluate implements find player → verify identity → capture shared evidence 
 The user locked **Shared evidence notebook** within Fieldhouse Wayfinding; the approved
 [comp](../../mocks/decision/issue-198-shared-notebook.png), provenance and [surface brief](../../surfaces/evaluation.md) remain tracked.
 
-[Round seven](review-round-7.md) identifies the current application validation: build and
-format passed, 3,126 unit tests passed, and the unchanged provider boundary retains 605
-passing integration tests at `f76ae557`. Full browser runs were 171/176 and 175/176; after
-the final test-readiness correction, the changed class passed 20/20. This is not a clean
-full-browser gate. All three local suites and a clean full browser run remain required
-before merge. [Round eight](review-round-8.md) records the review-size correction.
+[Round nine](review-round-9.md) is the current validation record: the corrected build
+passes all 3,133 unit, 608 PostgreSQL and 176 browser tests, with zero failures or skips.
+It records both review findings and the earlier failed run that exposed a Closed-history
+refresh loop. Final format verification passed. Earlier passing and failed runs
+remain in the [historical evidence archive](evidence-archive.md). All three local
+suites are required before merge.
 
 The [finish disposition](finish-review.md) retains explicit user approval for sheet-relative
 measurement: **76.11% against 72%**, with a separate [shell review](sheet-relative/shell-review.md).
@@ -26,6 +26,6 @@ Previously tracked generated build/diff files are restored to the base revision 
 represent current Evaluate evidence. No application code, tests or checks were removed.
 
 Guidance read and its source examples are recorded in [instructions hygiene](instructions-hygiene-review.md),
-[round seven](review-round-7.md) and its [separate review](review-round-7-local-review.md).
+[round seven](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-7.md) and its [separate review](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-7-local-review.md).
 Parent #170 retains complete campaign-loop acceptance. Monitoring remains active as described
 in [the watch protocol](pr-watch.md); no merge is authorized.

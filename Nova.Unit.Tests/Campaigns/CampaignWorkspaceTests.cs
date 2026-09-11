@@ -25,7 +25,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// states, roster-load ordering, URL-backed roster filters and sorting, paging, empty states, and
 /// persisted-state restoration.
 /// </summary>
-public sealed class CampaignWorkspaceTests : BunitContext
+public sealed partial class CampaignWorkspaceTests : BunitContext
 {
     private const string WorkspaceModulePath = "./_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js";
 

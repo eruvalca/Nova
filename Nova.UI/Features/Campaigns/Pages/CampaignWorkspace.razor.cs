@@ -863,17 +863,7 @@ public partial class CampaignWorkspace(
 
         if (result.IsProblem && result.Problem.Kind == ServiceProblemKind.Conflict && !_reconcilingLifecycle)
         {
-            _reconcilingLifecycle = true;
-            _isLoading = true;
-            StateHasChanged();
-            try
-            {
-                await LoadDetailAsync();
-            }
-            finally
-            {
-                _reconcilingLifecycle = false;
-            }
+            await OnCampaignReloadRequestedAsync();
             return;
         }
 
@@ -1174,8 +1164,22 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the detail reload is finished.</returns>
     private async Task OnCampaignReloadRequestedAsync()
     {
-        await LoadDetailAsync();
-        PersistStartupState();
+        if (_reconcilingLifecycle)
+        {
+            return;
+        }
+        _reconcilingLifecycle = true;
+        try
+        {
+            // Retain mounted evidence regions: a persistent data conflict must not recreate
+            // a child whose initial read requests the same lifecycle refresh again.
+            await LoadDetailAsync();
+            PersistStartupState();
+        }
+        finally
+        {
+            _reconcilingLifecycle = false;
+        }
     }
 
     /// <summary>

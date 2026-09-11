@@ -4,7 +4,7 @@ Per-file SHA-256 values identify the pre-archive working-tree bytes. Git blob ID
 
 All entries below are retained in immutable commit `b577001319b3302da723d93de60356852b3ba00b` and its [shared tree](https://github.com/eruvalca/Nova/tree/b577001319b3302da723d93de60356852b3ba00b/.impeccable). The local ZIP `.impeccable/archive/issue-198-before-line-retention.zip` has SHA-256 `3E9FF14BF435E0B0004C71655257DE45AC9A885DD14142750BBE5FA5F2FE9705`; it is a resumable copy, not the shared archive.
 
-`restore-base` removes this PR's churn in previously tracked generated files, restoring base `3e0253c28677838858b1887b2351a133eac7bc16`. Those working-tree files are baseline artifacts, not current Evaluate evidence. `archive` untracks PR-added historical records while preserving their local files. Current approved comp, provenance, captures, finish decisions and round-seven validation remain in the branch.
+`restore-base` removes this PR's churn in previously tracked generated files, restoring base `3e0253c28677838858b1887b2351a133eac7bc16`. Those working-tree files are baseline artifacts, not current Evaluate evidence. `archive` untracks PR-added historical records while preserving their local files. Current approved comp, provenance, captures, finish decisions and current-round validation remain in the branch.
 
 | Path under `.impeccable/` | Disposition | Git blob | SHA-256 |
 | --- | --- | --- | --- |
@@ -52,3 +52,14 @@ All entries below are retained in immutable commit `b577001319b3302da723d93de603
 | [review/issue-198/sheet-relative/manifest.json](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/manifest.json) | archive | `069e802a128e1862605cce8b3a80716b90179be9` | `0D3590D850580768EEB6F4CD1B06F033F7246A3918FD6F9B22B541B7F6C5C2E6` |
 | [review/issue-198/sheet-relative/report.json](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/report.json) | archive | `23500d2d7b1a681b6ef2f91b8f9c498e2d61c18e` | `D38175FFA8ABD32F709BC09C5DF217CE4E570529F7D2D109A4C2C9510E3A896B` |
 | [review/issue-198/sheet-relative/spec.json](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/spec.json) | archive | `b5c6f8b7bb5bf47b72351803b955fd3e36542867` | `B2A071C9ABABDCE36FA68E49249F774BF71EF50DE50004370ABB790B912D38C9` |
+
+## Rounds seven and eight
+
+These four superseded records remain shared at immutable commit fae6ed6753339174b6d58534b84157eb996fd480. Their local copies are preserved; hashes describe pre-untracking working-tree bytes, and Git blobs identify canonical content. Current validation is in [round nine](review-round-9.md).
+
+| Record | Git blob | SHA-256 |
+| --- | --- | --- |
+| [review-round-7.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-7.md) | 96e3c0f8834cea97f1df2e1d4465d86b25584a2a | 24106291DBF398100B16CDD45E9AA42706BD7D51B495447885D1D6D1232846B0 |
+| [review-round-7-local-review.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-7-local-review.md) | 77c127c621c87801dbcf8e11bf46fb648c677c7b | 3AA2F4485C4EB6D6705D17680B2DB092368F3D26B6B2A2EC7F87824A57035792 |
+| [review-round-8.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-8.md) | 49e5c71ddec46f1a9e3e07d90de5b6098f1518c8 | DAB9BC50EAF2B12C72E946B3C3098EB623D2E31201434F7ADAF419D95CDF478E |
+| [review-round-8-local-review.md](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/review-round-8-local-review.md) | 29ec9856237ef51e2bcb15803484276f3290ed33 | 293B1F48D50C9AB47C0EB7517E48EE01DF59D1219441E78B14992F196FD6DE07 |

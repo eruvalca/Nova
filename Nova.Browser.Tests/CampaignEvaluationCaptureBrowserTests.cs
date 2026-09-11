@@ -117,7 +117,7 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
         await AssertPendingOperationBlocksPlayerLinkAsync(page, seed.AssignmentIds[0]);
         await page.UnrouteAsync(mutationUrl);
         page.Dialog += async (_, dialog) => await dialog.AcceptAsync();
-        await page.ReloadAsync();
+        await ReloadRetainedCaptureAsync(page);
         await Expect(page.Locator(".evaluation-capture-error")).ToContainTextAsync("previous submission needs its receipt");
         await Expect(page.Locator("#evaluation-note")).ToHaveValueAsync("Recover original transport receipt.");
         string? replayPayload = null;
@@ -481,6 +481,21 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
             record('installed', {});
         }
         """);
+
+    private static async Task ReloadRetainedCaptureAsync(IPage page)
+    {
+        await page.ReloadAsync();
+        await InteractionHelpers.ActUntilAsync(page, () => Task.CompletedTask, async () =>
+        {
+            // Observe restoration without typing into or clearing the retained operation. Any
+            // terminal error or unexpectedly editable empty state ends the wait and fails below.
+            var terminal = await page.EvaluateAsync<bool>("""
+                () => !!document.querySelector('.evaluation-workspace [role="alert"], .evaluation-save:not([disabled])')
+                    || !!document.querySelector('#evaluation-note:not([readonly])')
+                """);
+            return terminal;
+        });
+    }
 
     private async Task OpenEvaluationAsync(IPage page, long campaignId, long? participantId = null, string? search = null)
     {

@@ -14,7 +14,7 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>Exercises bounded effective-placement queries against PostgreSQL and real tenant filters.</summary>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
+public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
     public async Task LatestOpeningSequenceWinsOverCampaignIdTimestampAndTechnicalEnrollmentAsync()

@@ -1,50 +1,21 @@
 # PR #253 review watch
 
-## Scope and current round
+## Current round
 
-- Round eight: CI passed at `b5770013`, but automatic review `5181018931` exceeded 20,000 lines. Both stored findings are independently inapplicable; [round eight](review-round-8.md) records the evidence-preserving size correction. Watching remains active, with fresh automatic review required after its single push.
-- The user explicitly resumed monitoring after the reduced PR was pushed as `f76ae557`. Both CI checks passed. Automatic review `5179984193` recommends changes, with two posted comments and additional stored findings. [Round seven](review-round-7.md) records complete collection, independent assessment and corrective work. The heartbeat is active; no merge is authorized.
-- The user stopped monitoring after review `5174740093` on `1a9cb8be`. CI passed, but Copilot failed its 300-file limit after storing four findings. [Round six](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/review-round-6.md) records the corrections, independent assessment and evidence-retention cleanup. The user subsequently authorized one combined push. The heartbeat remains paused; this does not resume continuous review watching or authorize a merge.
-- Round four was pushed once as `33a07928fedac5aa86ff3586580b7258f4b49ff8`; all 15 prior threads are explained/resolved and CI passed. Completed review `5174428186` posted zero comments but reports six suppressed findings. [Round five](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/review-round-5.md) records all six located findings and the independent source assessment. This is not a clean stopping review.
+Round nine follows `fae6ed6753339174b6d58534b84157eb996fd480`: Build and Unit Tests
+passed remotely. Review `5181303665` contains two actionable findings, so its
+“Needs a closer look” summary does not satisfy the clean stopping exception.
+[Round-nine validation](review-round-9.md) records complete posted/stored collection,
+Place handoff correction, relevance coverage and the browser-conflict correction.
+Build, full format and all three local suites pass (3,133 unit / 608 PostgreSQL /
+176 browser, zero failures or skips). Fresh remote CI and automatic review follow
+the combined push; both current threads already have pre-push explanations.
+Watching is active. The user requires PR replies or a comment **before the combined
+commit is pushed**; resolve threads only after the fix is available remotely.
 
-## Round-four history
-
-- Round three was pushed once as `339ee66e3e3fdd13e67dd74a28795f22c30bdb05`; all fourteen prior threads are explained/resolved and both CI checks passed. Completed review `5174200087` posted one endpoint-name finding but stored a second, withheld navigation-replay race. [Round four](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/review-round-4.md) addresses both and the related ownership/abandoned-release cases. Its complete evidence accompanies the next single combined commit; fresh CI and automatic review follow the push.
-
-## Round-three history
-
-- Round two was pushed once as `d0914cffe277e39932d138ccc25b18e0842b4570`; all twelve prior posted threads are explained/resolved and both CI checks passed. Fresh review `PRR_kwDOSz2VcM8AAAABNEqFNQ` found two note-confirmation version races. [Round three](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/review-round-3.md) addresses both plus the sibling lifecycle reset and browser attachment preconditions. Build/format and all applicable local suites passed; the final patch fingerprint and retained failed attempts are in that record. This record accompanies the single combined round-three commit. Thread explanations/resolution and fresh CI/automatic review follow its push. No review was requested.
-
-## Round-two history
-
-- Round one was pushed once as `af99924213e2cbf455bbfca12cef5551f5bc36db`; all six threads were explained and resolved after the push, and the three withheld findings were covered in the PR summary comment. Both CI checks passed.
-- Fresh review `PRR_kwDOSz2VcM8AAAABNEZlCg` recommends changes. [Round two](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/review-round-2.md) collects all six new threads and eight matching raw stored entries. Production corrections passed all three local suites; the single combined round-two commit will carry final validation evidence. Its fresh remote CI and automatic review remain the next gate. No review was requested manually.
-
-## Round-one history
-
-- PR: https://github.com/eruvalca/Nova/pull/253
-- Watcher: `watch-nova-pr-253`; use GitHub MCP or GitHub CLI for all further GitHub operations.
-- Round starts at `63235f98d61d58d4dd80c3f19f057206852ccde4`; Build and Unit Tests succeeded.
-- All round-one fixes and local validation are complete. This record is included in the single combined review-fix commit; fresh remote CI and automatic review are the next gate.
-- First review: `PRR_kwDOSz2VcM8AAAABNDwRgg`, six posted threads; its eight stored entries duplicate those findings.
-- Second review: `PRR_kwDOSz2VcM8AAAABND4x3w`, zero posted comments but three actionable stored findings. Its “Needs a closer look” summary does not clear these findings.
-- Session evidence: [first](https://github.com/eruvalca/Nova/sessions/2003ace3-8aae-41cd-9b99-7ac5aaec19ec), [second](https://github.com/eruvalca/Nova/sessions/ce410964-c5b0-46c7-92e5-c27c0266ddcf). Stored inputs inspected before the user's CLI/MCP-only preference.
-
-## Findings collected
-
-| Finding | Source | Implemented disposition |
-| --- | --- | --- |
-| Retention worker must survive non-provider failures | Thread `PRRT_kwDOSz2VcM6hNrSq` | Catch/log non-shutdown failures around the complete pass; propagate shutdown cancellation. |
-| Drawer notes and applications fail independently | Thread `PRRT_kwDOSz2VcM6hNrTi` | Regional transport handling with owner/sequence checks and cancellation propagation; inspect Evaluate siblings. |
-| PUT payload documentation | Thread `PRRT_kwDOSz2VcM6hNrTx` | Document content, expected version and operation identity. |
-| Receipt immutability diagnostic | Thread `PRRT_kwDOSz2VcM6hNrUC` | Use generic mutation-receipt wording. |
-| Tag removal response documentation | Thread `PRRT_kwDOSz2VcM6hNrUh` | Document 200 with immutable receipt. |
-| Note edit/delete response documentation | Thread `PRRT_kwDOSz2VcM6hNrVD` | Document 200 with immutable receipt; inspect sibling create docs. |
-| Unchanged successful edit version accepted | Second session stored 001 | Reject unchanged edit version; preserve delete's matching-version contract. |
-| Historical attribution disappears after membership/account changes | Second session stored 002 | Persist original author names at note/application creation; project snapshots in Evaluate, Roster and player history; incremental migration. |
-| Invalid optional placement participant emitted in URL | Second session stored 003 | Omit nonpositive optional participant values. |
-
-The PR description's “Close #200” wording accidentally registered #200 as a closing reference. It now says “Close redesign (#200)”; CLI verification reports only #198 as a closing reference.
+[Historical evidence](evidence-archive.md) retains every prior round and failure.
+The [previous watch record](https://github.com/eruvalca/Nova/blob/fae6ed6753339174b6d58534b84157eb996fd480/.impeccable/review/issue-198/pr-watch.md)
+retains the original per-finding table and status history. No merge is authorized.
 
 ## CLI access to stored review comments
 
@@ -60,4 +31,4 @@ The second session's three stored comments were independently recovered through 
 
 ## Completion protocol
 
-Validate the combined round, obtain separate local review, push one commit, explain fixed or inapplicable findings in the PR, and resolve only those addressed threads. Wait for successful CI and fresh automatic review without requesting one. Older actionable findings and suppressed findings remain obligations. Stop only at the user's approval condition or clean “closer look/human reviewer” exception; then update related issues as needed and pause the watcher. Do not merge without explicit authorization.
+Validate the combined round, obtain separate local review, and explain fixed or inapplicable findings in PR replies or a comment before pushing the single combined commit. Resolve addressed threads only after their correction is available remotely. Wait for successful CI and fresh automatic review without requesting one. Older actionable findings and suppressed findings remain obligations. Stop only at the user's approval condition or clean “closer look/human reviewer” exception; then update related issues as needed and pause the watcher. Do not merge without explicit authorization.

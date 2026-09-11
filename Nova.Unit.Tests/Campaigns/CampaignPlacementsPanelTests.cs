@@ -17,7 +17,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// rendering, read-only views, the per-row edit state machine, validation, token adoption,
 /// conflict recovery, and the Closed transition.
 /// </summary>
-public sealed class CampaignPlacementsPanelTests : BunitContext
+public sealed partial class CampaignPlacementsPanelTests : BunitContext
 {
     /// <summary>Both responsive editors display enrollment without offering a decision-clearing action.</summary>
     /// <param name="outcome">The currently displayed enrollment or saved outcome.</param>
