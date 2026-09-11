@@ -19,6 +19,11 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
     /// <inheritdoc />
     public async Task<ServiceResult<EvaluationHistoryPage<CampaignParticipantNoteDto>>> GetNotesAsync(GetEvaluationHistoryInput input, CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var access = await GetAccessAsync(db, input, cancellationToken);
         if (access.IsProblem)
@@ -55,6 +60,11 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
     /// <inheritdoc />
     public async Task<ServiceResult<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>> GetApplicationsAsync(GetEvaluationHistoryInput input, CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var access = await GetAccessAsync(db, input, cancellationToken);
         if (access.IsProblem)
@@ -93,6 +103,11 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
     /// <inheritdoc />
     public async Task<ServiceResult<IReadOnlyList<EvaluationTagChoice>>> GetTagChoicesAsync(GetCampaignParticipantDetailInput input, CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var access = await GetAccessAsync(db, new GetEvaluationHistoryInput
         {
@@ -116,12 +131,6 @@ internal sealed class CampaignEvaluationQueryService(IDbContextFactory<NovaReadD
     /// <summary>Rechecks persisted membership, tenant visibility and current capabilities for every region.</summary>
     private async Task<ServiceResult<EvidenceAccess>> GetAccessAsync(NovaReadDbContext db, GetEvaluationHistoryInput input, CancellationToken token)
     {
-        var errors = InputValidator.Validate(input);
-        if (errors.Count > 0)
-        {
-            return ServiceProblem.Validation(errors);
-        }
-
         if (currentUser.UserId is not long actor || currentUser.ClubId is not long club
             || !await db.Users.AnyAsync(user => user.Id == actor && user.ClubId == club, token))
         {

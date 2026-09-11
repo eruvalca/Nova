@@ -10,5 +10,5 @@
 .participant-placement-context.is-compact > p { font-size: .875rem; margin: .25rem 0; padding: 0; border: 0; line-height: 1.5; }
 .context-label { color: var(--bs-secondary-color); }
 .context-provenance { font-size: .875rem; }
-.context-provenance summary { min-height: 44px; line-height: 44px; color: var(--bs-primary); cursor: pointer; }
+.context-provenance summary { min-height: 2.75rem; line-height: 2.75rem; color: var(--bs-primary); cursor: pointer; }
 .context-provenance p { margin: .5rem 0; }

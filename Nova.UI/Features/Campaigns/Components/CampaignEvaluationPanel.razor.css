@@ -16,7 +16,7 @@
 .evaluation-context { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: start; }
 .evaluation-context .evaluation-place { margin-top: 0; gap: .5rem; }
 .evaluation-workspace input, .evaluation-workspace textarea { background-color: var(--bs-white); }
-.evaluation-trait-details > summary { display: flex; align-items: center; gap: .35rem; min-height: 44px; cursor: pointer; }
+.evaluation-trait-details > summary { display: flex; align-items: center; gap: .35rem; min-height: 2.75rem; cursor: pointer; }
 .evaluation-trait-details > summary svg { flex-shrink: 0; }
 .evaluation-trait-details[open] > summary svg { transform: rotate(180deg); }
 .evaluation-trait-details[open] { max-width: 100%; }
@@ -26,7 +26,7 @@
 .evaluation-result-action { color: var(--bs-primary); font-size: .875rem; }
 .evaluation-paging, .evaluation-sequence { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.25rem; }
 .evaluation-sheet { padding: clamp(1rem, 2.6vw, 2rem); background: var(--bs-white); border: 1px solid var(--bs-border-color); border-radius: .375rem; min-width: 0; }
-.evaluation-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: .5rem; gap: .5rem; text-underline-offset: .2em; }
+.evaluation-back { display: inline-flex; align-items: center; min-height: 2.75rem; margin-bottom: .5rem; gap: .5rem; text-underline-offset: .2em; }
 .evaluation-identity { position: relative; padding-bottom: .75rem; border-bottom: 1px solid var(--bs-border-color); }
 .evaluation-identity h2 { font-size: clamp(2rem, 3vw, 2.25rem); line-height: 1.15; font-weight: 650; text-wrap: balance; overflow-wrap: anywhere; margin: 0 0 .5rem; }
 .evaluation-identity > p { margin: 0 0 .4rem; color: var(--bs-secondary-color); }
@@ -36,7 +36,7 @@
 .evaluation-identity ::deep .effective-placement-evidence > strong { font-size: 1rem; }
 .evaluation-identity ::deep .effective-placement-evidence > small,
 .evaluation-identity ::deep .effective-placement-evidence > span { font-size: .875rem; }
-.evaluation-place { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; text-underline-offset: .2em; }
+.evaluation-place { display: inline-flex; align-items: center; min-height: 2.75rem; font-weight: 600; text-underline-offset: .2em; }
 .evaluation-traits { margin-top: .75rem; }
 .evaluation-sheet h3 { font-size: 1rem; font-weight: 600; margin: 0 0 .5rem; }
 .evaluation-trait-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .75rem; }
@@ -51,14 +51,14 @@
 .evaluation-composer p { color: var(--bs-secondary-color); font-size: .875rem; margin: .4rem 0 .75rem; }
 .evaluation-composer-label { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 .75rem; }
 .evaluation-composer-label p { margin: 0 0 .5rem; }
-.evaluation-save, .evaluation-another { width: 100%; min-height: 48px; display: flex; justify-content: center; align-items: center; }
+.evaluation-save, .evaluation-another { width: 100%; min-height: 3rem; display: flex; justify-content: center; align-items: center; }
 .evaluation-another { margin-top: .75rem; }
 .evaluation-older { display: block; margin: .75rem auto 0; }
 .evaluation-readonly { margin: 1rem 0; padding: 1rem; color: var(--bs-warning-text-emphasis); background: var(--bs-warning-bg-subtle); }
 .evaluation-capture-error { color: var(--bs-danger-text-emphasis); margin-top: 1rem; }
 .evaluation-status { color: var(--bs-success-text-emphasis); margin-top: 1rem; }
-.evaluation-workspace .btn, .evaluation-workspace input, .evaluation-workspace summary { min-height: 44px; }
-.evaluation-workspace :focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+.evaluation-workspace .btn, .evaluation-workspace input, .evaluation-workspace summary { min-height: 2.75rem; }
+.evaluation-workspace :focus-visible { outline: .1875rem solid var(--bs-primary); outline-offset: .1875rem; }
 .evaluation-workspace ::selection { background: var(--bs-primary); color: var(--bs-body-bg); }
 .evaluation-workspace { scrollbar-color: var(--bs-secondary-color) var(--bs-body-bg); }
 @media (max-width: 991px) {

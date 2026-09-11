@@ -2,14 +2,14 @@
 
 ## Current round
 
-Round nine follows `fae6ed6753339174b6d58534b84157eb996fd480`: Build and Unit Tests
-passed remotely. Review `5181303665` contains two actionable findings, so its
+Round ten follows `107823225aeb7d23f3fbce40402fe511fd2c63b8`: Build and Unit Tests
+passed remotely. Review `5182209381` contains seven suppressed findings, so its
 “Needs a closer look” summary does not satisfy the clean stopping exception.
-[Round-nine validation](review-round-9.md) records complete posted/stored collection,
-Place handoff correction, relevance coverage and the browser-conflict correction.
-Build, full format and all three local suites pass (3,133 unit / 608 PostgreSQL /
-176 browser, zero failures or skips). Fresh remote CI and automatic review follow
-the combined push; both current threads already have pre-push explanations.
+[Round-ten validation](review-round-10.md) records ten workflow locations, the limits
+of exposed wording, relative CSS dimensions and validation before context creation.
+Build and all three local suites pass (3,153 unit / 608 PostgreSQL / 176 browser,
+zero failures or skips); full format verification also passes. Fresh remote CI and
+automatic review follow the combined push. No new inline threads were created.
 Watching is active. The user requires PR replies or a comment **before the combined
 commit is pushed**; resolve threads only after the fix is available remotely.
 
