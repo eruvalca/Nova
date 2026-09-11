@@ -60,11 +60,11 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
     private static void MapEvidenceReads(RouteGroupBuilder group)
     {
         var notes = group.MapGet(CampaignEndpoints.EvaluationNotesRelative, GetEvaluationNotesHandlerAsync)
-            .Produces<EvaluationHistoryPage<CampaignParticipantNoteDto>>().WithName("Campaigns.EvaluationNotes");
+            .Produces<EvaluationHistoryPage<CampaignParticipantNoteDto>>().WithName(CampaignEndpoints.EvaluationNotesRouteName);
         var applications = group.MapGet(CampaignEndpoints.EvaluationApplicationsRelative, GetEvaluationApplicationsHandlerAsync)
-            .Produces<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>().WithName("Campaigns.EvaluationApplications");
+            .Produces<EvaluationHistoryPage<CampaignParticipantTagApplicationDto>>().WithName(CampaignEndpoints.EvaluationApplicationsRouteName);
         var choices = group.MapGet(CampaignEndpoints.EvaluationTagChoicesRelative, GetEvaluationTagChoicesHandlerAsync)
-            .Produces<IReadOnlyList<EvaluationTagChoice>>().WithName("Campaigns.EvaluationTagChoices");
+            .Produces<IReadOnlyList<EvaluationTagChoice>>().WithName(CampaignEndpoints.EvaluationTagChoicesRouteName);
         foreach (var endpoint in new[] { notes, applications, choices })
         {
             endpoint.ProducesValidationProblem().ProducesProblem(StatusCodes.Status401Unauthorized)

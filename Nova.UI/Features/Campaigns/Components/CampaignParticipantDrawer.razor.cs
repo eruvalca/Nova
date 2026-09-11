@@ -427,6 +427,7 @@ public partial class CampaignParticipantDrawer(
             }
             else
             {
+                ++_drawerDepartureSequence;
                 ++_mutationSequence;
                 _isMutating = false;
                 _mutatingKind = null;
@@ -943,7 +944,8 @@ public partial class CampaignParticipantDrawer(
         _drawerStorageReady = false;
         _recoveryOwner = null;
         _drawerLeaveAction = null;
-        _drawerAllowNavigation = false;
+        ++_drawerDepartureSequence;
+        _drawerDepartureInFlight = null;
         _isMutating = false;
         _mutatingKind = null;
         _showAddNoteForm = false;

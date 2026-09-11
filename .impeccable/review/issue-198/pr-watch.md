@@ -2,6 +2,10 @@
 
 ## Scope and current round
 
+- Round three was pushed once as `339ee66e3e3fdd13e67dd74a28795f22c30bdb05`; all fourteen prior threads are explained/resolved and both CI checks passed. Completed review `5174200087` posted one endpoint-name finding but stored a second, withheld navigation-replay race. [Round four](review-round-4.md) addresses both and the related ownership/abandoned-release cases. Its complete evidence accompanies the next single combined commit; fresh CI and automatic review follow the push.
+
+## Round-three history
+
 - Round two was pushed once as `d0914cffe277e39932d138ccc25b18e0842b4570`; all twelve prior posted threads are explained/resolved and both CI checks passed. Fresh review `PRR_kwDOSz2VcM8AAAABNEqFNQ` found two note-confirmation version races. [Round three](review-round-3.md) addresses both plus the sibling lifecycle reset and browser attachment preconditions. Build/format and all applicable local suites passed; the final patch fingerprint and retained failed attempts are in that record. This record accompanies the single combined round-three commit. Thread explanations/resolution and fresh CI/automatic review follow its push. No review was requested.
 
 ## Round-two history

@@ -16,8 +16,9 @@ public partial class CampaignParticipantDrawer
     private bool _drawerStorageReady;
     private DotNetObjectReference<CampaignParticipantDrawer>? _drawerNavigationReceiver;
     private readonly string _drawerNavigationLease = Guid.NewGuid().ToString("N");
-    private Func<Task>? _drawerLeaveAction;
-    private bool _drawerAllowNavigation;
+    private Func<Task<bool>>? _drawerLeaveAction;
+    private long _drawerDepartureSequence;
+    private long? _drawerDepartureInFlight;
     private Guid _editExpectedVersion;
     private string _editNoteOriginal = string.Empty;
     private string DrawerStorageScope => $"{CaptureScope ?? AuthorityScope}:{CampaignId}:{ParticipantId}";
@@ -203,7 +204,8 @@ public partial class CampaignParticipantDrawer
             return move();
         }
 
-        _drawerLeaveAction = move;
+        ++_drawerDepartureSequence;
+        _drawerLeaveAction = async () => { await move(); return true; };
         if (_storedOperation is not null)
         {
             _mutationError = "Recover the pending submission before changing players.";
@@ -225,17 +227,82 @@ public partial class CampaignParticipantDrawer
 
     private async Task DiscardDrawerAndLeaveAsync()
     {
-        if (_storedOperation is not null || _drawerLeaveAction is not { } move)
+        if (_storedOperation is not null || _drawerLeaveAction is not { } move || _drawerDepartureInFlight is not null)
         {
             return;
         }
 
-        _addNoteContent = _editNoteContent = string.Empty;
-        _editingNoteId = null;
-        _drawerAllowNavigation = true;
-        _drawerLeaveAction = null;
-        await (await _moduleTask.Value).InvokeVoidAsync("releaseNavigation", _dialog, ParticipantOwner, _drawerNavigationLease);
-        await move();
+        var owner = ParticipantOwner;
+        var context = ContextOwner;
+        var request = _drawerDepartureSequence;
+        var draft = (_addNoteContent, _editNoteContent, _editingNoteId);
+        bool current() => !ComponentCancellationToken.IsCancellationRequested && request == _drawerDepartureSequence
+            && string.Equals(context, ContextOwner, StringComparison.Ordinal) && _drawerLeaveAction == move;
+        _drawerDepartureInFlight = request;
+        var departed = false;
+        try
+        {
+            var module = await _moduleTask.Value;
+            if (!current() || DrawerMutationBlocked || draft != (_addNoteContent, _editNoteContent, _editingNoteId))
+            {
+                return;
+            }
+
+            _addNoteContent = _editNoteContent = string.Empty;
+            _editingNoteId = null;
+            await module.InvokeVoidAsync("releaseNavigation", _dialog, owner, _drawerNavigationLease);
+            if (!current() || DrawerProtected)
+            {
+                return;
+            }
+
+            var resumed = await move();
+            departed = resumed;
+            if (current() && !DrawerProtected)
+            {
+                if (resumed)
+                {
+                    _drawerLeaveAction = null;
+                }
+                else
+                {
+                    _mutationError = "Navigation was interrupted. Keep working or try leaving again.";
+                }
+            }
+        }
+        catch (JSException)
+        {
+            if (current())
+            {
+                _mutationError = "Navigation could not continue. Keep working or try leaving again.";
+            }
+        }
+        finally
+        {
+            await FinishDrawerDepartureAsync(owner, request, departed, current);
+        }
+    }
+
+    private async Task FinishDrawerDepartureAsync(string owner, long request, bool departed, Func<bool> current)
+    {
+        if (_drawerDepartureInFlight == request)
+        {
+            if (!departed)
+            {
+                try { await (await _moduleTask.Value).InvokeVoidAsync("cancelNavigation", _dialog, owner, _drawerNavigationLease); }
+                catch (JSException)
+                {
+                    if (current())
+                    {
+                        _mutationError = "Navigation protection could not be restored. Reload before continuing.";
+                    }
+                }
+            }
+            if (_drawerDepartureInFlight == request)
+            {
+                _drawerDepartureInFlight = null;
+            }
+        }
     }
 
     /// <summary>Protects owned drafts from native enhanced links and history traversal.</summary>
@@ -244,17 +311,12 @@ public partial class CampaignParticipantDrawer
     {
         if (string.Equals(owner, ParticipantOwner, StringComparison.Ordinal)
             && string.Equals(lease, _drawerNavigationLease, StringComparison.Ordinal)
-            && !ComponentCancellationToken.IsCancellationRequested && !_drawerAllowNavigation)
+            && !ComponentCancellationToken.IsCancellationRequested)
         {
+            ++_drawerDepartureSequence;
             _drawerLeaveAction = historyKey is null
-                ? () => { DrawerNavigation.NavigateTo(target); return Task.CompletedTask; }
-            : async () =>
-            {
-                if (!await (await _moduleTask.Value).InvokeAsync<bool>("resumeHistory", _dialog, owner, lease, historyKey))
-                {
-                    _drawerAllowNavigation = false;
-                }
-            };
+                ? () => { DrawerNavigation.NavigateTo(target); return Task.FromResult(true); }
+            : async () => await (await _moduleTask.Value).InvokeAsync<bool>("resumeHistory", _dialog, owner, lease, historyKey);
             StateHasChanged();
         }
         return Task.CompletedTask;

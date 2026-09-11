@@ -2,6 +2,15 @@
 // Keep existing history entries intact; protect only the currently attached evidence owner.
 const guards = new WeakMap();
 
+function revokeReplay(state) {
+    state.released = false;
+    state.permitted = null;
+    if (state.replay) {
+        state.replay.revoked = true;
+        state.replay.revoke(false);
+    }
+}
+
 export function attachGuard(root, owner, lease, receiver) {
     const existing = guards.get(root);
     if (existing?.owner === owner && existing.lease === lease) { existing.receiver = receiver; return; }
@@ -10,14 +19,14 @@ export function attachGuard(root, owner, lease, receiver) {
         throw new Error('This browser cannot protect evaluation history. Update the browser to enable capture.');
     }
     const state = { owner, lease, receiver, pending: false, origin: navigation.currentEntry.key,
-        controller: new AbortController(), returning: null, destination: null, request: 0, permitted: null, released: false };
+        controller: new AbortController(), returning: null, destination: null, request: 0, permitted: null, replay: null, released: false };
     guards.set(root, state);
     const owned = () => root.isConnected && guards.get(root) === state;
     const protectedWork = () => !state.released && (state.pending || root.dataset.evidenceProtected === 'true'
         || Array.from(root.querySelectorAll('textarea[data-evidence-original]'))
             .some(input => input.value !== input.dataset.evidenceOriginal));
     const options = { capture: true, signal: state.controller.signal };
-    root.addEventListener('input', () => { state.released = false; state.permitted = null; }, options);
+    root.addEventListener('input', () => revokeReplay(state), options);
     window.addEventListener('beforeunload', event => {
         if (!owned() || !protectedWork()) return;
         event.preventDefault();
@@ -41,12 +50,13 @@ export function attachGuard(root, owner, lease, receiver) {
         notify(target.href, null, ++state.request);
     }, options);
     navigation.addEventListener('currententrychange', () => {
-        if (owned() && !protectedWork() && !state.returning) state.origin = navigation.currentEntry.key;
+        if (owned() && !protectedWork() && !state.returning && !state.replay) state.origin = navigation.currentEntry.key;
     }, { signal: state.controller.signal });
     window.addEventListener('popstate', event => {
         if (!owned()) return;
         const key = navigation.currentEntry.key;
-        if (state.permitted === key) {
+        if (state.permitted?.key === key) {
+            state.permitted.accept();
             state.permitted = null;
             state.origin = key;
             return;
@@ -78,7 +88,7 @@ export function markPending(root, pending) {
     const state = guards.get(root);
     if (!state || !root.isConnected) throw new Error('Evaluation navigation protection is not ready.');
     state.pending = pending;
-    if (pending) { state.released = false; state.permitted = null; }
+    if (pending) revokeReplay(state);
 }
 
 export function releaseNavigation(root, owner, lease) {
@@ -89,17 +99,41 @@ export function releaseNavigation(root, owner, lease) {
     state.released = true;
 }
 
-export function resumeHistory(root, owner, lease, key) {
+export function cancelNavigation(root, owner, lease) {
+    const state = guards.get(root);
+    if (state?.owner === owner && state.lease === lease) revokeReplay(state);
+}
+
+export async function resumeHistory(root, owner, lease, key) {
     const state = guards.get(root);
     if (!root.isConnected || state?.owner !== owner || state?.lease !== lease || state.returning
-        || state.pending || !state.released) return false;
-    state.permitted = key;
-    return navigation.traverseTo(key).committed.then(() => true);
+        || state.pending || !state.released || state.replay) return false;
+    if (navigation.currentEntry.key === key) return true;
+    let accept, revoke;
+    const accepted = new Promise(resolve => { accept = resolve; });
+    const revoked = new Promise(resolve => { revoke = resolve; });
+    const replay = { key, accept, revoke, revoked: false };
+    state.replay = state.permitted = replay;
+    try {
+        const traversal = navigation.traverseTo(key);
+        // Enhanced navigation can reject finished after the history entry committed.
+        void traversal.finished.catch(() => {});
+        const committed = Promise.all([traversal.committed, accepted]).then(() => true);
+        const completed = await Promise.race([committed, revoked]);
+        return completed && !replay.revoked && root.isConnected && guards.get(root) === state;
+    } catch {
+        revokeReplay(state);
+        return false;
+    } finally {
+        if (state.permitted === replay) state.permitted = null;
+        if (state.replay === replay) state.replay = null;
+    }
 }
 
 export function detachGuard(root) {
     const state = guards.get(root);
     if (!state) return;
+    revokeReplay(state);
     state.controller.abort();
     guards.delete(root);
 }

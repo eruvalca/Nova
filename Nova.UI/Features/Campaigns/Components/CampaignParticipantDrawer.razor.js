@@ -1,5 +1,5 @@
 import { attachGuard, detachGuard, markPending } from '../../../js/evaluationNavigationGuard.js';
-export { resumeHistory, releaseNavigation } from '../../../js/evaluationNavigationGuard.js';
+export { resumeHistory, releaseNavigation, cancelNavigation } from '../../../js/evaluationNavigationGuard.js';
 export function protectNavigation(dialog, owner, lease, receiver) { attachGuard(dialog, owner, lease, receiver); }
 let keydownListener = null;
 let previouslyFocused = null;

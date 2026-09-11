@@ -13,6 +13,12 @@ public static class CampaignEndpoints
     public const string EvaluationApplicationsRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/applications";
     /// <summary>The complete active trait choices and selected-player status route.</summary>
     public const string EvaluationTagChoicesRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/tag-choices";
+    /// <summary>The bounded note-history endpoint name.</summary>
+    public const string EvaluationNotesRouteName = "Campaigns.EvaluationNotes";
+    /// <summary>The bounded application-history endpoint name.</summary>
+    public const string EvaluationApplicationsRouteName = "Campaigns.EvaluationApplications";
+    /// <summary>The selected-player trait-choice endpoint name.</summary>
+    public const string EvaluationTagChoicesRouteName = "Campaigns.EvaluationTagChoices";
 
     /// <summary>Builds an encoded note-history URL with its exclusive keyset cursor.</summary>
     public static string EvaluationNotesUrl(GetEvaluationHistoryInput input) => EvaluationHistoryUrl(input, "notes");
@@ -45,6 +51,10 @@ public static class CampaignEndpoints
     public const string EffectivePlacementsRelative = "{campaignId:long}/effective-placements";
     /// <summary>The campaign-local Closed record route.</summary>
     public const string ClosedRosterRelative = "{campaignId:long}/closed-roster";
+    /// <summary>The Active effective-placement endpoint name.</summary>
+    public const string EffectivePlacementsRouteName = "GetCampaignEffectivePlacements";
+    /// <summary>The Closed campaign roster endpoint name.</summary>
+    public const string ClosedRosterRouteName = "GetClosedCampaignRoster";
     /// <summary>Builds the effective placement context request.</summary>
     public static string EffectivePlacementsUrl(GetCampaignEffectivePlacementsInput input)
     {

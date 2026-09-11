@@ -67,7 +67,8 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private bool _focusFinder;
     private string? _leaveTarget;
     private string? _leaveHistoryKey;
-    private bool _allowNavigation;
+    private long _departureSequence;
+    private long? _departureInFlight;
     private bool _historyExpanded;
     private string? _statusMessage;
     private bool Owns(string owner) => string.Equals(owner, Owner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
@@ -106,7 +107,6 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
-        _allowNavigation = false;
         var ownerChanged = !string.Equals(_loadedParticipantOwner, Owner, StringComparison.Ordinal);
         var lifecycleChanged = _loadedStatus != Status;
         if (ownerChanged || !string.Equals(_loadedFinderOwner, FinderOwner, StringComparison.Ordinal))
@@ -117,7 +117,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         {
             ResetParticipantOwner();
         }
-        if (lifecycleChanged) { CancelDeleteNote(); }
+        if (lifecycleChanged) { ++_departureSequence; CancelDeleteNote(); }
 
         var restoredEvidence = (ownerChanged || lifecycleChanged) && RestoreEvidence();
         _loadedStatus = Status;
@@ -401,6 +401,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         }
 
         context.PreventNavigation();
+        ++_departureSequence;
         _leaveTarget = context.TargetLocation;
         _leaveHistoryKey = null;
         StateHasChanged();
@@ -411,8 +412,9 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     [JSInvokable]
     public Task ProtectNativeNavigationAsync(string owner, string lease, string target, string? historyKey)
     {
-        if (Owns(owner) && string.Equals(lease, _lease, StringComparison.Ordinal) && !_allowNavigation)
+        if (Owns(owner) && string.Equals(lease, _lease, StringComparison.Ordinal))
         {
+            ++_departureSequence;
             _leaveTarget = target;
             _leaveHistoryKey = historyKey;
             StateHasChanged();
@@ -422,7 +424,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
 
     private async Task DiscardAndLeaveAsync()
     {
-        if (_pending is not null || _leaveTarget is null)
+        if (_pending is not null || _leaveTarget is null || _departureInFlight is not null)
         {
             return;
         }
@@ -430,23 +432,90 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         var owner = Owner;
         var target = _leaveTarget;
         var historyKey = _leaveHistoryKey;
-        _draft = string.Empty;
-        _editingNoteId = null;
-        _editContent = _editOriginal = string.Empty;
-        if (!await PersistCaptureAsync() || !Owns(owner) || Protected || !string.Equals(target, _leaveTarget, StringComparison.Ordinal))
+        var request = _departureSequence;
+        _departureInFlight = request;
+        try
         {
-            return;
-        }
+            _draft = string.Empty;
+            _editingNoteId = null;
+            _editContent = _editOriginal = string.Empty;
+            if (!await PersistCaptureAsync() || !Owns(owner) || Protected
+                || !string.Equals(target, _leaveTarget, StringComparison.Ordinal) || request != _departureSequence)
+            {
+                return;
+            }
 
-        _allowNavigation = true;
-        if (_module is not null) { await _module.InvokeVoidAsync("releaseNavigation", _root, Owner, _lease); }
-        if (historyKey is { } key && _module is not null)
-        {
-            if (!await _module.InvokeAsync<bool>("resumeHistory", _root, owner, _lease, key)) { _allowNavigation = false; }
+            await ExecuteDepartureAsync(owner, request, target, historyKey);
         }
-        else
+        finally
         {
-            navigation.NavigateTo(target);
+            if (_departureInFlight == request)
+            {
+                _departureInFlight = null;
+            }
+        }
+    }
+
+    private async Task ExecuteDepartureAsync(string owner, long request, string target, string? historyKey)
+    {
+        bool current() => Owns(owner) && request == _departureSequence && _leaveTarget is not null;
+        var departed = false;
+        try
+        {
+            if (_module is null)
+            {
+                return;
+            }
+
+            await _module.InvokeVoidAsync("releaseNavigation", _root, owner, _lease);
+            if (!current() || Protected)
+            {
+                return;
+            }
+
+            var resumed = true;
+            if (historyKey is { } key)
+            {
+                resumed = await _module.InvokeAsync<bool>("resumeHistory", _root, owner, _lease, key);
+            }
+            else
+            {
+                navigation.NavigateTo(target);
+            }
+
+            departed = resumed;
+            if (current() && !Protected)
+            {
+                if (resumed)
+                {
+                    _leaveTarget = null;
+                }
+                else
+                {
+                    _captureError = "Navigation was interrupted. Keep working or try leaving again.";
+                }
+            }
+        }
+        catch (JSException)
+        {
+            if (current())
+            {
+                _captureError = "Navigation could not continue. Keep working or try leaving again.";
+            }
+        }
+        finally
+        {
+            if (!departed && _departureInFlight == request && _module is not null)
+            {
+                try { await _module.InvokeVoidAsync("cancelNavigation", _root, owner, _lease); }
+                catch (JSException)
+                {
+                    if (current())
+                    {
+                        _captureError = "Navigation protection could not be restored. Reload before continuing.";
+                    }
+                }
+            }
         }
     }
 

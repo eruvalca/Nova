@@ -15,12 +15,12 @@ internal static class EffectivePlacementEndpointRouteBuilderExtensions
         {
             var seasons = endpoints.MapGroup(SeasonEndpoints.GroupPrefix).RequireAuthorization(Policies.RequireClubMember);
             Describe<CurrentSeasonRosterResult>(seasons.MapGet(SeasonEndpoints.CurrentRosterRelative, CurrentRosterHandlerAsync))
-                .WithName("GetCurrentSeasonRoster");
+                .WithName(SeasonEndpoints.CurrentRosterRouteName);
             var campaigns = endpoints.MapGroup(CampaignEndpoints.GroupPrefix).RequireAuthorization(Policies.RequireClubMember);
             Describe<CampaignEffectivePlacementsResult>(campaigns.MapGet(CampaignEndpoints.EffectivePlacementsRelative, WorkingHandlerAsync))
-                .ProducesProblem(StatusCodes.Status409Conflict).WithName("GetCampaignEffectivePlacements");
+                .ProducesProblem(StatusCodes.Status409Conflict).WithName(CampaignEndpoints.EffectivePlacementsRouteName);
             Describe<ClosedCampaignRosterResult>(campaigns.MapGet(CampaignEndpoints.ClosedRosterRelative, ClosedHandlerAsync))
-                .ProducesProblem(StatusCodes.Status409Conflict).WithName("GetClosedCampaignRoster");
+                .ProducesProblem(StatusCodes.Status409Conflict).WithName(CampaignEndpoints.ClosedRosterRouteName);
             return endpoints;
         }
     }

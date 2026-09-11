@@ -1,5 +1,5 @@
 import { attachGuard, detachGuard, markPending } from '../../../js/evaluationNavigationGuard.js';
-export { resumeHistory, releaseNavigation } from '../../../js/evaluationNavigationGuard.js';
+export { resumeHistory, releaseNavigation, cancelNavigation } from '../../../js/evaluationNavigationGuard.js';
 const owners = new WeakMap();
 const storageKey = owner => `nova:evaluation:v1:${owner}`;
 const scrollKey = owner => `nova:evaluation-scroll:v1:${owner}`;

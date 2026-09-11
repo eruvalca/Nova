@@ -32,7 +32,8 @@ public partial class CampaignEvaluationPanel
         _storageRevision = 0;
         _captureError = _storageError = _statusMessage = _leaveTarget = null;
         _leaveHistoryKey = null;
-        _allowNavigation = false;
+        ++_departureSequence;
+        _departureInFlight = null;
         _historyExpanded = false;
     }
 

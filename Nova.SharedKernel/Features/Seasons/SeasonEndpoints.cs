@@ -8,6 +8,8 @@ public static class SeasonEndpoints
 {
     /// <summary>The effective current-season roster route relative to the season group.</summary>
     public const string CurrentRosterRelative = "current/roster";
+    /// <summary>The effective current-season roster endpoint name.</summary>
+    public const string CurrentRosterRouteName = "GetCurrentSeasonRoster";
     /// <summary>Builds a bounded effective current-season roster request.</summary>
     public static string CurrentRosterUrl(GetCurrentSeasonRosterInput input)
     {
