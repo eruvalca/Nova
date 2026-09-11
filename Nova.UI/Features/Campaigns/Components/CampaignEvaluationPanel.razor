@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Components.Routing
 @inherits Nova.UI.Components.NovaComponentBase
 
-<NavigationLock ConfirmExternalNavigation="Protected" OnBeforeInternalNavigation="GuardNavigationAsync" />
+<NavigationLock ConfirmExternalNavigation="NavigationProtected" OnBeforeInternalNavigation="GuardNavigationAsync" />
 <div class="evaluation-workspace @(State.ParticipantId is null ? "is-finding" : "has-selection")" @ref="_root" data-evaluation-workspace data-evidence-protected="@Protected.ToString().ToLowerInvariant()">
     @if (_leaveTarget is not null)
     {
@@ -61,7 +61,7 @@
             <ol class="evaluation-results" data-evaluation-results>
                 @foreach (var row in _results)
                 {
-                    <li @key="row.Id"><a href="@PlayerUrl(row.Id)" data-eval-result aria-current="@(row.Id == State.ParticipantId ? "true" : null)">
+                    <li @key="row.Id"><a href="@PlayerUrl(row.Id)" data-eval-result aria-current="@(row.Id == State.ParticipantId ? "page" : null)">
                         <span class="evaluation-result-number">@(row.TryoutNumber is { } number ? $"#{number}" : "No number")</span>
                         <span><strong>@row.Name</strong><span class="evaluation-result-year">Graduation year @row.GraduationYear</span><span class="evaluation-result-placement">@row.PlacementContext</span></span>
                         <span class="evaluation-result-action">Select</span>

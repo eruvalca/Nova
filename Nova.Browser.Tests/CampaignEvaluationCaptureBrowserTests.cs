@@ -36,7 +36,8 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
         await Expect(page.Locator(".evaluation-save")).ToBeDisabledAsync();
         var evaluationUrl = page.Url;
         var back = page.GetByRole(AriaRole.Link, new() { Name = "Back to campaigns", Exact = true });
-        await back.ClickAsync();
+        await page.Locator("#evaluation-search").FillAsync("60");
+        await page.Locator("#evaluation-search").PressAsync("Enter");
         await page.GetByRole(AriaRole.Button, new() { Name = "Keep working", Exact = true }).ClickAsync();
         page.Url.ShouldBe(evaluationUrl);
         await back.ClickAsync();
@@ -305,6 +306,7 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
         await page.GoForwardAsync(new() { WaitUntil = WaitUntilState.Commit });
         await page.WaitForURLAsync(selectedUrl, new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#evaluation-player-heading")).ToContainTextAsync("#60 ");
+        await Expect(page.Locator("a[data-eval-result][aria-current='page']")).ToHaveCountAsync(1);
         await Expect(page.Locator("#evaluation-search")).ToHaveValueAsync("60");
         await Expect(page.Locator("#evaluation-note")).ToHaveValueAsync(string.Empty);
         (await page.EvaluateAsync<string>("navigation.currentEntry.key")).ShouldBe(selectedKey);

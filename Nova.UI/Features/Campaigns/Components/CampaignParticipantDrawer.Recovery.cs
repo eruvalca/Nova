@@ -24,13 +24,18 @@ public partial class CampaignParticipantDrawer
     private Func<Task<bool>>? _drawerLeaveAction;
     private long _drawerDepartureSequence;
     private long? _drawerDepartureInFlight;
+    private (string Owner, long Request, long Restore)? _drawerNavigationPermit;
     private Guid _editExpectedVersion;
     private string _editNoteOriginal = string.Empty;
     // ParticipantOwner invalidates UI authority; this stable key retains the original operation
     // through role changes. The server reauthorizes each replay before returning its receipt.
     private string DrawerStorageScope => $"{CaptureScope ?? AuthorityScope}:{CampaignId}:{ParticipantId}";
     private bool DrawerHasDraft => _addNoteContent.Length > 0 || (_editingNoteId is not null && !string.Equals(_editNoteContent, _editNoteOriginal, StringComparison.Ordinal));
-    private bool DrawerProtected => _storedOperation is not null || DrawerHasDraft;
+    private bool DrawerHasCapture => _storedOperation is not null || DrawerHasDraft;
+    private bool DrawerProtected => DrawerHasCapture || _drawerReadFailed;
+    private bool DrawerNavigationProtected => DrawerProtected && !(_drawerNavigationPermit is { } permit
+        && string.Equals(permit.Owner, ParticipantOwner, StringComparison.Ordinal) && permit.Request == _drawerDepartureSequence
+        && permit.Restore == _drawerRestoreSequence && !DrawerHasDraft && _storedOperation is null);
     private bool DrawerMutationBlocked => _isMutating || _storedOperation is not null || _drawerStorageFailed || !_drawerStorageReady;
 
     private async Task RestoreDrawerOperationAsync(IJSObjectReference module)
@@ -44,7 +49,7 @@ public partial class CampaignParticipantDrawer
 
         _recoveryOwner = owner;
         var sequence = ++_drawerRestoreSequence;
-        _drawerReadFailed = false;
+
         var readStarted = false;
         var draft = (_addNoteContent, _editingNoteId, _editNoteContent);
         _drawerStorageReady = false;
@@ -66,6 +71,7 @@ public partial class CampaignParticipantDrawer
             _storedOperation = stored;
             if (draft == (_addNoteContent, _editingNoteId, _editNoteContent)) { RestoreDrawerNoteText(input); }
             _drawerStorageFailed = false;
+            _drawerReadFailed = false;
             _drawerStorageReady = true;
             if (_storedOperation is not null) { _mutationError = "A submission needs its original receipt. Recover it before moving to another player."; }
             StateHasChanged();
@@ -75,7 +81,7 @@ public partial class CampaignParticipantDrawer
             if (OwnsDrawerRestore(owner, sequence))
             {
                 _drawerStorageFailed = true;
-                _drawerReadFailed = readStarted;
+                if (readStarted) { _drawerReadFailed = true; }
                 _mutationError = "Recovery storage or navigation protection is unavailable. Keep or copy your text; update your browser or retry.";
                 StateHasChanged();
             }
@@ -249,7 +255,7 @@ public partial class CampaignParticipantDrawer
 
     private Task GuardDrawerMoveAsync(Func<Task> move)
     {
-        if (!DrawerProtected)
+        if (!DrawerNavigationProtected)
         {
             return move();
         }
@@ -266,7 +272,7 @@ public partial class CampaignParticipantDrawer
 
     private Task GuardDrawerNavigationAsync(LocationChangingContext context)
     {
-        if (!DrawerProtected)
+        if (!DrawerNavigationProtected)
         {
             return Task.CompletedTask;
         }
@@ -306,14 +312,14 @@ public partial class CampaignParticipantDrawer
             _addNoteContent = _editNoteContent = string.Empty;
             _editingNoteId = null;
             await module.InvokeVoidAsync("releaseNavigation", _dialog, owner, _drawerNavigationLease, retainUnreadable);
-            if (!current() || DrawerProtected)
+            if (!current() || DrawerHasCapture || (!retainUnreadable && _drawerReadFailed))
             {
                 return;
             }
 
-            var resumed = await move();
+            var resumed = await ResumeDrawerDepartureAsync(owner, request, restore, move);
             departed = resumed;
-            if (current() && !DrawerProtected)
+            if (current() && !DrawerHasDraft && _storedOperation is null)
             {
                 if (resumed)
                 {
@@ -335,6 +341,28 @@ public partial class CampaignParticipantDrawer
         finally
         {
             await FinishDrawerDepartureAsync(owner, request, departed, current);
+        }
+    }
+
+    private async Task<bool> ResumeDrawerDepartureAsync(string owner, long request, long restore, Func<Task<bool>> move)
+    {
+        var permit = (owner, request, restore);
+        _drawerNavigationPermit = permit;
+        StateHasChanged(); // Update NavigationLock only for the confirmed navigation or drawer move.
+        var resumed = false;
+        try { resumed = await move(); return resumed; }
+        finally
+        {
+            if (_drawerNavigationPermit == permit)
+            {
+                _drawerNavigationPermit = null;
+                // A parent move may finish without navigating (for example, superseded scroll capture).
+                // NavigateTo invokes our synchronous .NET guard before returning; history awaits traversal.
+                if (resumed && request == _drawerDepartureSequence)
+                {
+                    await (await _moduleTask.Value).InvokeVoidAsync("cancelNavigation", _dialog, owner, _drawerNavigationLease);
+                }
+            }
         }
     }
 

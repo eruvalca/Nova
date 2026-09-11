@@ -40,13 +40,13 @@ public partial class CampaignEvaluationPanel
         _leaveHistoryKey = null;
         ++_departureSequence;
         _departureInFlight = null;
+        _navigationPermit = null;
         _historyExpanded = false;
     }
 
     private async Task RestoreCaptureAsync(string owner)
     {
         var sequence = ++_captureRestoreSequence;
-        _captureRestoreFailed = false;
         var revision = _storageRevision;
         try
         {
@@ -88,7 +88,7 @@ public partial class CampaignEvaluationPanel
         }
     }
 
-    private async Task<bool> PersistCaptureAsync()
+    private async Task<bool> PersistCaptureAsync(bool discardDraft = false)
     {
         var owner = Owner;
         if (!_storageReady || _module is null)
@@ -97,10 +97,11 @@ public partial class CampaignEvaluationPanel
             return false;
         }
         var snapshot = new CaptureSnapshot(++_storageRevision, _draft, _editingNoteId, _editContent, _editOriginal, _editVersion, _pending, _traitSearch);
+        if (discardDraft) { snapshot = snapshot with { Draft = string.Empty, TraitSearch = string.Empty, EditingNoteId = null, EditContent = string.Empty, EditOriginal = string.Empty, EditVersion = Guid.Empty }; }
         try
         {
             var saved = await _module.InvokeAsync<bool>("write", _root, owner, _lease, snapshot);
-            if (!Owns(owner))
+            if (!Owns(owner) || snapshot.Revision != _storageRevision)
             {
                 return false;
             }
@@ -110,7 +111,7 @@ public partial class CampaignEvaluationPanel
         }
         catch (JSException)
         {
-            if (Owns(owner))
+            if (Owns(owner) && snapshot.Revision == _storageRevision)
             {
                 _storageError = "Tab storage could not save this action. Nothing new was submitted. Keep or copy your text and retry storage.";
             }

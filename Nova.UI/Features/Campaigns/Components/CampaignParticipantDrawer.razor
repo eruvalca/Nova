@@ -1,7 +1,7 @@
 @using Nova.SharedKernel.Features.Campaigns
 @using Nova.SharedKernel.Enums
 
-<Microsoft.AspNetCore.Components.Routing.NavigationLock ConfirmExternalNavigation="DrawerProtected" OnBeforeInternalNavigation="GuardDrawerNavigationAsync" />
+<Microsoft.AspNetCore.Components.Routing.NavigationLock ConfirmExternalNavigation="DrawerNavigationProtected" OnBeforeInternalNavigation="GuardDrawerNavigationAsync" />
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
        @ref="_dialog"

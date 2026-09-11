@@ -69,6 +69,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private string? _leaveHistoryKey;
     private long _departureSequence;
     private long? _departureInFlight;
+    private (string Owner, long Request, long Restore)? _navigationPermit;
     private bool _historyExpanded;
     private string? _statusMessage;
     private bool Owns(string owner) => string.Equals(owner, Owner, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
@@ -80,7 +81,9 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private int SelectedIndex => _results.FindIndex(row => row.Id == State.ParticipantId);
     private bool HasDraft => _draft.Length > 0 || _traitSearch.Length > 0
         || (_editingNoteId is not null && !string.Equals(_editContent, _editOriginal, StringComparison.Ordinal));
-    private bool Protected => HasDraft || _pending is not null;
+    private bool Protected => HasDraft || _pending is not null || _captureRestoreFailed;
+    private bool NavigationProtected => Protected && !(_navigationPermit is { } permit && Owns(permit.Owner)
+        && permit.Request == _departureSequence && permit.Restore == _captureRestoreSequence && !HasDraft && _pending is null);
     private string LookupUrl(CampaignWorkspaceEvaluationState state) => CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId);
     private string PlayerUrl(long id) => LookupUrl(State with { ParticipantId = id });
     private string PlacePlayerUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
@@ -378,7 +381,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
 
     private Task GuardNavigationAsync(LocationChangingContext context)
     {
-        if (!Protected)
+        if (!NavigationProtected)
         {
             return Task.CompletedTask;
         }
@@ -417,19 +420,19 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         var historyKey = _leaveHistoryKey;
         var request = _departureSequence;
         long? failedRestore = _captureRestoreFailed ? _captureRestoreSequence : null;
+        var savedRevision = _storageRevision + (failedRestore is null ? 1 : 0);
         _departureInFlight = request;
         try
         {
-            _draft = string.Empty;
-            _traitSearch = string.Empty;
-            _editingNoteId = null;
-            _editContent = _editOriginal = string.Empty;
-            if ((failedRestore is null && !await PersistCaptureAsync()) || !Owns(owner) || Protected
-                || !string.Equals(target, _leaveTarget, StringComparison.Ordinal) || request != _departureSequence)
+            if ((failedRestore is null && !await PersistCaptureAsync(discardDraft: true)) || !Owns(owner) || _pending is not null
+                || _storageRevision != savedRevision || !string.Equals(target, _leaveTarget, StringComparison.Ordinal) || request != _departureSequence)
             {
                 return;
             }
 
+            _draft = _traitSearch = _editContent = _editOriginal = string.Empty;
+            _editingNoteId = null;
+            _editVersion = Guid.Empty;
             await ExecuteDepartureAsync(owner, request, target, historyKey, failedRestore);
         }
         finally
@@ -445,6 +448,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     {
         bool current() => Owns(owner) && request == _departureSequence && _leaveTarget is not null
             && (failedRestore is null || (failedRestore == _captureRestoreSequence && _captureRestoreFailed && !_storageReady));
+        bool blocked() => HasDraft || _pending is not null || (failedRestore is null && _captureRestoreFailed);
         var departed = false;
         try
         {
@@ -454,14 +458,14 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
             }
 
             await _module.InvokeVoidAsync("releaseNavigation", _root, owner, _lease, failedRestore is not null);
-            if (!current() || Protected)
+            if (!current() || blocked())
             {
                 return;
             }
 
-            var resumed = await ResumeDepartureAsync(owner, target, historyKey);
+            var resumed = await ResumeDepartureAsync(owner, request, target, historyKey);
             departed = resumed;
-            if (current() && !Protected)
+            if (current() && !blocked())
             {
                 if (resumed)
                 {
@@ -496,15 +500,22 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         }
     }
 
-    private async Task<bool> ResumeDepartureAsync(string owner, string target, string? historyKey)
+    private async Task<bool> ResumeDepartureAsync(string owner, long request, string target, string? historyKey)
     {
-        if (historyKey is { } key)
+        var permit = (owner, request, _captureRestoreSequence);
+        _navigationPermit = permit;
+        StateHasChanged(); // Update NavigationLock for this confirmed departure before navigation interop.
+        try
         {
-            return await _module!.InvokeAsync<bool>("resumeHistory", _root, owner, _lease, key);
-        }
+            if (historyKey is { } key)
+            {
+                return await _module!.InvokeAsync<bool>("resumeHistory", _root, owner, _lease, key);
+            }
 
-        navigation.NavigateTo(target);
-        return true;
+            navigation.NavigateTo(target);
+            return true;
+        }
+        finally { if (_navigationPermit == permit) { _navigationPermit = null; } }
     }
 
     /// <inheritdoc />

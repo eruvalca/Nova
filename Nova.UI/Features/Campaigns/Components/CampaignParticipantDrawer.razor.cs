@@ -942,6 +942,7 @@ public partial class CampaignParticipantDrawer(
         _storedOperation = null;
         _drawerStorageReady = false;
         _drawerReadFailed = false;
+        _drawerNavigationPermit = null;
         _recoveryOwner = null;
         _drawerLeaveAction = null;
         ++_drawerDepartureSequence;

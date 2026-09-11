@@ -55,7 +55,7 @@ All entries below are retained in immutable commit `b577001319b3302da723d93de603
 
 ## Rounds seven and eight
 
-These four superseded records remain shared at immutable commit fae6ed6753339174b6d58534b84157eb996fd480. Their local copies are preserved; hashes describe pre-untracking working-tree bytes, and Git blobs identify canonical content. Current validation is in [round eleven](review-round-11.md).
+These four superseded records remain shared at immutable commit fae6ed6753339174b6d58534b84157eb996fd480. Their local copies are preserved; hashes describe pre-untracking working-tree bytes, and Git blobs identify canonical content. Current validation is in [round twelve](review-round-12.md).
 
 | Record | Git blob | SHA-256 |
 | --- | --- | --- |
