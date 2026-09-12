@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `3a013cff9623b0e311a60dec7033dc43265d4a3695c458567d3dc325166eba35`. Documentation
+line) with SHA-256 `3414aa452168dfeb170a9a9b08b3bc8ff31fa3fc2713a4d9be7456ee768e3695`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -181,6 +181,24 @@ Three further suppressed findings, all valid and fixed.
 - **The record and the pull-request description disagreed** on the unit count. Both now report the same
   verified number.
 
+## Review round 6 — pull-request review
+
+Three further findings, all about coverage and convention rather than behaviour, and all fixed.
+
+- **The history region's interactive retry was untested.** Only the current region's retry was clicked and
+  verified. `RetryHistoryReloadsOnlyTheHistoryRegion` now clicks the history retry and asserts the region
+  recovers while the current-season read is not repeated, mirroring the existing current-region case.
+- **No test navigated an ordinary member to the new administrator route.** The member browser case proved the
+  entry point was hidden but never that `/club/seasons/start-next` refuses a member, so a policy regression
+  could have exposed it while every existing authorization test still passed.
+  `DirectoryMemberCannotReachTheAdvancementRouteDirectlyAsync` now navigates a member straight to the route and
+  expects the permissions-changed recovery. The guard is verified to be real: temporarily weakening the page
+  policy to `RequireClubMember` makes the test fail, and it passes again once the administrator policy is
+  restored.
+- **A browser fixture duplicated shared membership seeding.** `AttachMemberAsync` reimplemented the
+  normalized-email lookup and direct club assignment; it now calls `SeedingHelpers.UpdateUserAsync`, so browser
+  fixtures stay aligned if membership seeding changes.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -222,16 +240,16 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,198/3,198, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,199/3,199, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 190 total; 182 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 191 total; 183 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |
 | `node .agents/skills/impeccable/scripts/detect.mjs --json <seasons surface files>` | Zero findings. |
 | `npm run check:contrast` | Not applicable: `Nova/scss/**` and `Nova/package.json` are unchanged by this slice. |
 
 ### The only browser failures seen were pre-existing and flaky
 
-The final full browser run is green (190 total, zero failures). Two unrelated failures appeared in three
+The final full browser run is green (191 total, zero failures). Two unrelated failures appeared in three
 earlier runs and not in two others: `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync_002`
 and `_004`, the two `wasm: True` theory cases, failing in the WebAssembly attachment probe. They are not
 caused by this change: a clean `git worktree` at the unmodified base commit `71fcd89b`, built and run with the

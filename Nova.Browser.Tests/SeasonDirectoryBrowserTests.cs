@@ -166,6 +166,23 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
+    public async Task DirectoryMemberCannotReachTheAdvancementRouteDirectlyAsync()
+    {
+        var seed = await SeedDirectoryAsync(pastSeasonCount: 1, TestContext.Current.CancellationToken);
+        var member = await AttachMemberAsync(seed.ClubId, TestContext.Current.CancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(member, Password);
+        var page = context.Pages[0];
+
+        // An ordinary member never sees the entry, and the route itself must refuse them too.
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.StartNextSeason).ToString());
+
+        await page.WaitForURLAsync(url =>
+            string.Equals(new Uri(url).PathAndQuery, ClubRoutes.OverviewWithPermissionsChanged, StringComparison.Ordinal));
+        await Expect(page.GetByText("You don't have access to that section. Club navigation reflects your current permissions."))
+            .ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task DirectoryPhoneSeasonLinkMeetsBothTargetDimensionsForAShortNameAsync()
     {
         var seed = await SeedDirectoryAsync(
@@ -421,18 +438,7 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
         using var member = fixture.AppHost.CreateNovaHttpClient();
         var email = SeedingHelpers.UniqueEmail("seasons-directory-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(member, email, Password, cancellationToken);
-#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
-        await using (var context = fixture.AppHost.CreateAdminContext())
-#pragma warning restore MA0004
-        {
-            var user = await context.Users.SingleAsync(
-#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
-                item => item.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-#pragma warning restore CA1862
-            user.ClubId = clubId;
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
+        await SeedingHelpers.UpdateUserAsync(fixture.AppHost, email, clubId, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(member, cancellationToken);
         return email;
     }

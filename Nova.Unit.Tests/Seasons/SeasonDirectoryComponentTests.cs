@@ -223,6 +223,38 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
     }
 
     [Fact]
+    public void RetryHistoryReloadsOnlyTheHistoryRegion()
+    {
+        var historyReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize == 1)
+                {
+                    return Task.FromResult(CurrentSeasonRead());
+                }
+
+                return Interlocked.Increment(ref historyReads) == 1
+                    ? Task.FromResult(Failed("Season history unavailable."))
+                    : Task.FromResult(HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025)));
+            });
+        Register(seasons: seasons);
+
+        var cut = RenderDirectory();
+        cut.Markup.ShouldContain("Season history unavailable.");
+
+        cut.Find(".season-history .region-failure a").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Season history unavailable."));
+        cut.Markup.ShouldContain("2025–26");
+        cut.Markup.ShouldContain("2026–27");
+        // The history retry must not repeat the current-season read.
+        _ = seasons.Received(1).ListAsync(
+            Arg.Is<GetSeasonListInput>(input => input.PageSize == 1), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void RenderKeepsNonInteractiveRetriesOnTheDirectory()
     {
         Register(current: Failed("Current season unavailable."));
