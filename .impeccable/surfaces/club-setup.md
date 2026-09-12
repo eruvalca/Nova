@@ -16,7 +16,7 @@ The creator's activation moment is arriving at the dashboard with a real club an
 
 - A creator establishes exactly one club and its first season through a short, honest sequence. Teams are explicitly deferred; the completion state points toward the dashboard and the next operational task rather than extending onboarding.
 - A joiner can find a club by recognizable identity and location, place one join request, understand its status, cancel it, recover from rejection, and enter the dashboard after approval.
-- Club members always see one coherent Club area. Role-filtered navigation exposes Overview and Teams to members and adds Seasons, Members, Requests, Tags, and Crest for club administrators.
+- Club members always see one coherent Club area. Role-filtered navigation exposes Overview, Seasons, and Teams to members and adds Members, Requests, Tags, and Crest for club administrators. The Seasons directory is readable by every approved member; only advancement inside it is administrator-only.
 - The design proves its product specificity through real club identity, season timing, membership state, and request attention—not generic setup cards, invented testimonials, or tutorial content.
 
 ## Selected direction
@@ -78,7 +78,7 @@ The Club area is one destination with a Manage-style sub-navigation and one work
 
 - **Overview** (all members): club identity, current season, and concise orientation to the club's active work.
 - **Teams** (all members): the durable team directory. Members can inspect teams; administrator-only mutations remain absent for members.
-- **Seasons** (administrators): a directory led by the current season, followed by archived past seasons. Opening a season shows its campaigns and a teams snapshot. **Start next season** is an explicit administrator action.
+- **Seasons** (all approved members): a directory led by the current season, followed by archived past seasons. Opening a season shows its campaigns and a teams snapshot. **Start next season** is an explicit administrator action.
 - **Members** (administrators): membership directory with promote/demote ClubAdmin, remove member, and leave-club paths. Sole-admin and last-member guards are explained before an action, not discovered after submission.
 - **Requests** (administrators): the canonical pending join-request queue. The dashboard attention rail shows a count and links here; it does not duplicate approval controls.
 - **Tags** (administrators): rename/archive housekeeping for club-wide evaluation tags; inline creation during evaluation remains outside this surface.
@@ -141,7 +141,7 @@ Explicit anti-goals:
 
 ## Decision record
 
-- Use one Club area with Manage-style, role-filtered sub-navigation; members see Overview and Teams, while administrators also see Seasons, Members, Requests, Tags, and Crest.
+- Use one Club area with Manage-style, role-filtered sub-navigation; members see Overview, Seasons, and Teams, while administrators also see Members, Requests, Tags, and Crest.
 - Advance seasons only through an explicit administrator action in the Seasons directory.
 - Keep Requests as the canonical approval surface; the dashboard attention rail links to it without duplicating decisions.
 - Commit club and first-season creation atomically from the creator's perspective; optional crest recovery remains independent.

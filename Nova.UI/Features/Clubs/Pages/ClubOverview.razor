@@ -78,6 +78,7 @@ FORM: Stacked Waypoints, user-selected; surface seed 896dce4e, assigned.
                             <h3>@_currentSeason.Name</h3>
                             <p><strong>Current</strong> · @FormatDateWindow(_currentSeason.StartDate, _currentSeason.EndDate)
                             </p>
+                            <a class="text-action" href="@ClubRoutes.Seasons">Go to Seasons</a>
                         }
                         else
                         {
@@ -85,13 +86,12 @@ FORM: Stacked Waypoints, user-selected; surface seed 896dce4e, assigned.
                             @if (_isClubAdmin)
                             {
                                 <p>Establish a current season before campaign work begins.</p>
-                                <a class="text-action" href="@ClubRoutes.Seasons">Go to Seasons</a>
                             }
                             else
                             {
                                 <p>A club administrator establishes the current season.</p>
-                                <a class="text-action" href="@ClubRoutes.Teams">Browse teams</a>
                             }
+                            <a class="text-action" href="@ClubRoutes.Seasons">Go to Seasons</a>
                         }
                     </div>
                 </section>

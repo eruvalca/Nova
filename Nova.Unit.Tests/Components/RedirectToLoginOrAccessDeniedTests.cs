@@ -52,7 +52,8 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
     {
         SetAuthenticationState(isAuthenticated: true, hasClub: true);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/club/seasons");
+        // The seasons directory is member-readable; use a genuinely administrator-only destination.
+        navigationManager.NavigateTo("/club/members");
 
         Render<RedirectToLoginOrAccessDenied>();
 

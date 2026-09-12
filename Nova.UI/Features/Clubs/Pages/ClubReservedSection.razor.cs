@@ -18,7 +18,6 @@ public partial class ClubReservedSection(NavigationManager navigationManager)
 #pragma warning restore S1075
             return path.ToLowerInvariant() switch
             {
-                ClubRoutes.Seasons => ("Seasons", "Season management is reserved for issue #204 and is not available here yet."),
                 ClubRoutes.Members => ("Members", "Member management is reserved for issue #205 and is not available here yet."),
                 ClubRoutes.Requests => ("Requests", "Join-request management is reserved for issue #206 and is not available here yet."),
                 ClubRoutes.Tags => ("Tags", "Tag management is reserved for issue #207 and is not available here yet."),

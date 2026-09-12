@@ -1,0 +1,13 @@
+@page "/club/seasons/{SeasonId:long}"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.SharedKernel.Security
+@using Nova.UI.Features.Clubs.Components
+@using Nova.UI.Features.Seasons.Components
+
+<PageTitle>Season</PageTitle>
+<ClubShell CurrentLabel="Seasons">
+    <SeasonReservedNotice Title="Season"
+                         Explanation="A full season record is reserved for issue #259 and is not available here yet." />
+</ClubShell>

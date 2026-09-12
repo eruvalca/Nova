@@ -50,14 +50,16 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldContain("Fall evaluations");
         cut.Markup.ShouldContain("Open campaign");
         cut.Markup.ShouldNotContain("Participant");
+        // The waypoint's own directory entry is member-visible. Assert it inside the waypoint, because
+        // the ClubShell nav link also emits this href and would otherwise satisfy a whole-page check.
+        cut.Find("section[aria-labelledby='current-season-heading'] a.text-action")
+            .GetAttribute("href").ShouldBe(ClubRoutes.Seasons);
         if (isAdministrator)
         {
-            cut.Markup.ShouldContain("href=\"/club/seasons\"");
             cut.Markup.ShouldContain(">Crest<");
         }
         else
         {
-            cut.Markup.ShouldNotContain("href=\"/club/seasons\"");
             cut.Markup.ShouldNotContain(">Crest<");
         }
         _ = services.IdentityService.Received(1).GetCurrentAsync(Arg.Any<CancellationToken>());
@@ -139,8 +141,9 @@ public sealed class ClubOverviewComponentTests : BunitContext
 
         cut.Markup.ShouldContain("No current season");
         cut.Markup.ShouldContain("A club administrator establishes the current season.");
-        cut.Markup.ShouldContain("Browse teams");
-        cut.Markup.ShouldNotContain("Go to Seasons");
+        // Recovery points members at the directory, asserted within the waypoint rather than the page.
+        cut.Find("section[aria-labelledby='current-season-heading'] a.text-action")
+            .GetAttribute("href").ShouldBe(ClubRoutes.Seasons);
         cut.Markup.ShouldNotContain("Create campaign");
     }
 
@@ -265,7 +268,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
         auth.Change(AdministratorPrincipal());
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain(">Crest<"));
-        cut.Markup.ShouldContain("href=\"/club/seasons\"");
+        cut.Markup.ShouldContain("href=\"/club/members\"");
     }
 
     [Fact]
@@ -281,7 +284,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
         auth.Change(MemberPrincipal());
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain(">Crest<"));
-        cut.Markup.ShouldNotContain("href=\"/club/seasons\"");
+        cut.Markup.ShouldNotContain("href=\"/club/members\"");
     }
 
     [Fact]

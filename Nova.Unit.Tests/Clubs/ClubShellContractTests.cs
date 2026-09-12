@@ -10,13 +10,24 @@ public sealed class ClubShellContractTests
     {
         ClubRoutes.Overview.ShouldBe("/club");
         ClubRoutes.Seasons.ShouldBe("/club/seasons");
+        ClubRoutes.SeasonDetailTemplate.ShouldBe("/club/seasons/{SeasonId:long}");
+        ClubRoutes.SeasonDetail(17).ShouldBe("/club/seasons/17");
+        ClubRoutes.StartNextSeason.ShouldBe("/club/seasons/start-next");
         ClubRoutes.Teams.ShouldBe("/club/teams");
         ClubRoutes.TeamDetail(17).ShouldBe("/club/teams/17");
         ClubRoutes.Members.ShouldBe("/club/members");
         ClubRoutes.Requests.ShouldBe("/club/requests");
         ClubRoutes.Tags.ShouldBe("/club/tags");
         ClubRoutes.Crest.ShouldBe("/club/crest");
-        ClubRoutes.IsAdministratorRoute("club/seasons?x=1").ShouldBeTrue();
+        // Every approved member reads the seasons directory, so neither it nor its season records
+        // are administrator routes; only advancement inside it keeps the demoted-admin recovery.
+        ClubRoutes.IsAdministratorRoute("club/seasons").ShouldBeFalse();
+        ClubRoutes.IsAdministratorRoute("club/seasons?page=2").ShouldBeFalse();
+        ClubRoutes.IsAdministratorRoute("club/seasons/17").ShouldBeFalse();
+        ClubRoutes.IsAdministratorRoute("club/seasons/start-next").ShouldBeTrue();
+        ClubRoutes.IsAdministratorRoute("club/seasons/start-next?x=1").ShouldBeTrue();
+        ClubRoutes.IsAdministratorRoute("club/members").ShouldBeTrue();
+        ClubRoutes.IsAdministratorRoute("club/crest").ShouldBeTrue();
         ClubRoutes.IsAdministratorRoute("club/teams/17").ShouldBeFalse();
         // Legacy pre-shell admin route is still linked from the dashboard and uses
         // RequireClubAdmin, so demoted admins recover with the permissions-changed notice there.
@@ -71,6 +82,8 @@ public sealed class ClubShellContractTests
     [InlineData("Nova.UI/Features/Clubs/Pages/ClubReservedSection.razor")]
     [InlineData("Nova.UI/Features/Clubs/Pages/ClubDetail.razor")]
     [InlineData("Nova.UI/Features/Teams/Pages/LegacyTeamsRedirect.razor")]
+    [InlineData("Nova.UI/Features/Seasons/Pages/SeasonDetailReserved.razor")]
+    [InlineData("Nova.UI/Features/Seasons/Pages/StartNextSeasonReserved.razor")]
     public void ClubRouteComponentsKeepLogicInCodeBehind(string relativePath)
     {
         var root = FindRepoRoot();

@@ -125,7 +125,10 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password, new() { Width = 390, Height = 844 });
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
+        // Seasons left the shared reserved-section component in issue #258; Tags still shares it with Members,
+        // so this keeps proving the reused component collapses the directory. The directory page's own mobile
+        // behavior is covered by SeasonDirectoryBrowserTests.
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Tags).ToString());
         await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => AssertMobileDirectoryAttachedAsync(page));
 
         var toggle = page.Locator(".club-directory-toggle");
@@ -168,7 +171,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task OverviewMemberDirectoryHidesAdministratorRoutesAndDeniedRouteShowsPermissionNoticeAsync()
+    public async Task OverviewMemberDirectoryShowsMemberRoutesAndDeniedAdministratorRouteShowsPermissionNoticeAsync()
     {
         var seed = await SeedMemberAsync(TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password);
@@ -176,14 +179,17 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
         var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
-        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Overview", Exact = true })).ToBeVisibleAsync();
-        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToBeVisibleAsync();
-        foreach (var label in new[] { "Seasons", "Members", "Requests", "Tags", "Crest" })
+        // Every approved member reads the seasons directory; only administrator destinations are hidden.
+        foreach (var label in new[] { "Overview", "Seasons", "Teams" })
+        {
+            await Expect(directory.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToBeVisibleAsync();
+        }
+        foreach (var label in new[] { "Members", "Requests", "Tags", "Crest" })
         {
             await Expect(directory.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToHaveCountAsync(0);
         }
 
-        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Members).ToString());
         new Uri(page.Url).PathAndQuery.ShouldBe(ClubRoutes.OverviewWithPermissionsChanged);
         await Expect(page.GetByText("You don't have access to that section. Club navigation reflects your current permissions."))
             .ToBeVisibleAsync();

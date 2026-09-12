@@ -5,8 +5,12 @@ public static class ClubRoutes
 {
     /// <summary>The club overview route.</summary>
     public const string Overview = "/club";
-    /// <summary>The club seasons route.</summary>
+    /// <summary>The club seasons directory route, readable by every approved club member.</summary>
     public const string Seasons = "/club/seasons";
+    /// <summary>The club season-detail route template, with a route constraint on the season identifier.</summary>
+    public const string SeasonDetailTemplate = "/club/seasons/{SeasonId:long}";
+    /// <summary>The club season-advancement route, reserved for club administrators.</summary>
+    public const string StartNextSeason = "/club/seasons/start-next";
     /// <summary>The club teams route.</summary>
     public const string Teams = "/club/teams";
     /// <summary>The club team-detail route template, with a route constraint on the team identifier.</summary>
@@ -32,8 +36,16 @@ public static class ClubRoutes
     public static string TeamDetail(long teamId) => $"/club/teams/{teamId}";
 
     /// <summary>
+    /// Builds the club season-detail route for the given season.
+    /// </summary>
+    /// <param name="seasonId">The season identifier.</param>
+    /// <returns>The season-detail URL.</returns>
+    public static string SeasonDetail(long seasonId) => $"/club/seasons/{seasonId}";
+
+    /// <summary>
     /// Determines whether a path targets an administrator-only club route, including legacy
     /// pre-shell admin routes, so demoted admins can be recovered with the permissions-changed notice.
+    /// The seasons directory is deliberately absent: every approved member reads it.
     /// </summary>
     /// <param name="path">The request path to inspect.</param>
     /// <returns><c>true</c> when the path is an administrator route; otherwise, <c>false</c>.</returns>
@@ -41,7 +53,7 @@ public static class ClubRoutes
     {
         ArgumentNullException.ThrowIfNull(path);
         var normalized = "/" + path.Trim().TrimStart('/').Split(['?', '#'], StringSplitOptions.None)[0].TrimEnd('/');
-        return normalized.Equals(Seasons, StringComparison.OrdinalIgnoreCase)
+        return normalized.Equals(StartNextSeason, StringComparison.OrdinalIgnoreCase)
             || normalized.Equals(Members, StringComparison.OrdinalIgnoreCase)
             || normalized.Equals(Requests, StringComparison.OrdinalIgnoreCase)
             || normalized.Equals(Tags, StringComparison.OrdinalIgnoreCase)

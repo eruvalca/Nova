@@ -1,0 +1,450 @@
+﻿using System.Globalization;
+using System.Security.Claims;
+using Bunit;
+using Bunit.Rendering;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.UI.Features.Seasons.Pages;
+using NSubstitute;
+using Shouldly;
+
+namespace Nova.Unit.Tests.Seasons;
+
+/// <summary>
+/// Component-level tests for the seasons directory: current-season identity, bounded paging,
+/// first-season and recovery states, role-shaped affordances, per-region recovery, and stale results.
+/// </summary>
+public sealed class SeasonDirectoryComponentTests : BunitContext
+{
+    private const string RoutePath = "/club/seasons";
+
+    /// <summary>Configures the shell's browser-only focus restoration while component tests exercise its content.</summary>
+    public SeasonDirectoryComponentTests()
+    {
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+            .Setup<bool>("restoreHeadingFocusAfterAttach", _ => true).SetResult(true);
+    }
+
+    [Fact]
+    public void RouteDeclaresInteractiveAutoAndKeepsLogicInCodeBehind()
+    {
+        var root = FindRepoRoot();
+        var razorPath = Path.Join(root, "Nova.UI", "Features", "Seasons", "Pages", "SeasonDirectory.razor");
+        var markup = File.ReadAllText(razorPath);
+
+        markup.ShouldContain("@page \"/club/seasons\"");
+        markup.ShouldContain("@rendermode InteractiveAuto");
+        markup.ShouldContain("@attribute [Authorize(Policy = Policies.RequireClubMember)]");
+        markup.ShouldNotContain("@code");
+        markup.ShouldNotContain("@inject");
+        File.Exists($"{razorPath}.cs").ShouldBeTrue();
+    }
+
+    /// <summary>Verifies the current season leads with explicit identity and role-shaped advancement entry points.</summary>
+    /// <param name="isClubAdmin">Whether the current member has administrator permissions.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RenderLeadsWithTheCurrentSeasonAndShapesAdvancementByRole(bool isClubAdmin)
+    {
+        Register(isClubAdmin: isClubAdmin);
+
+        var cut = RenderDirectory();
+
+        cut.Find("#current-season-heading").TextContent.ShouldBe("Current season");
+        cut.Find(".season-stop-current .season-status").TextContent.ShouldBe("Current");
+        cut.Find(".season-stop-current .season-stop-name").TextContent.Trim().ShouldBe("2026–27");
+        cut.Markup.ShouldContain(FormatWindow(new DateOnly(2026, 9, 1), new DateOnly(2027, 5, 31)));
+        // Every approved member reaches a season record; only administrators see advancement.
+        cut.Find(".season-stop-current .season-stop-name a").GetAttribute("href")
+            .ShouldBe(ClubRoutes.SeasonDetail(2));
+        cut.Find(".season-stops a").GetAttribute("href").ShouldBe(ClubRoutes.SeasonDetail(1));
+        if (isClubAdmin)
+        {
+            cut.Markup.ShouldContain($"href=\"{ClubRoutes.StartNextSeason}\"");
+        }
+        else
+        {
+            cut.Markup.ShouldNotContain(ClubRoutes.StartNextSeason);
+        }
+    }
+
+    [Fact]
+    public void RenderShowsTheCurrentSeasonOnceSoItNeverRepeatsInHistory()
+    {
+        Register(history: HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025)));
+
+        var cut = RenderDirectory();
+
+        cut.FindAll(".season-stop-current").Count.ShouldBe(1);
+        cut.FindAll(".season-stops .season-stop").Count.ShouldBe(1);
+        cut.Markup.ShouldContain("2025–26");
+        CountOccurrences(cut.Markup, "2026–27").ShouldBe(1);
+        cut.Markup.ShouldContain("The current season is shown above.");
+    }
+
+    /// <summary>Verifies the first-season state is stated rather than inferred from an empty list.</summary>
+    /// <param name="isClubAdmin">Whether the current member has administrator permissions.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RenderStatesTheFirstSeasonStateWhenNoSeasonIsRecorded(bool isClubAdmin)
+    {
+        Register(
+            isClubAdmin: isClubAdmin,
+            current: Read([], 0),
+            history: HistoryPage(1, 0));
+
+        var cut = RenderDirectory();
+
+        cut.Markup.ShouldContain("No season has been established yet");
+        cut.Markup.ShouldContain(isClubAdmin
+            ? "Establish the club's first season, including when you create its first campaign."
+            : "A club administrator establishes the club's first season.");
+        cut.Markup.ShouldContain("No past seasons are recorded yet");
+        cut.Markup.ShouldNotContain("No current season");
+    }
+
+    [Fact]
+    public void RenderStatesTheRecoveryStateWhenRecordedSeasonsHaveNoCurrentOne()
+    {
+        Register(
+            isClubAdmin: true,
+            current: Read([PastSeasonSummary(1, "2025–26", 2025)], 3),
+            history: HistoryPage(1, 3, PastSeasonSummary(1, "2025–26", 2025), PastSeasonSummary(2, "2024–25", 2024)));
+
+        var cut = RenderDirectory();
+
+        cut.Markup.ShouldContain("No current season");
+        cut.Markup.ShouldContain("3 recorded seasons");
+        cut.Markup.ShouldContain("Start next season establishes one.");
+        cut.FindAll(".season-stops .season-stop").Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void RenderPagesHistoryFromTheUrlAndKeepsTheCurrentSeasonOffEveryPage()
+    {
+        Register(history: HistoryPage(2, 45, PastSeasonSummary(11, "2016–17", 2016), PastSeasonSummary(12, "2015–16", 2015)));
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=2");
+
+        var cut = RenderDirectory();
+
+        cut.FindAll(".season-stops .season-stop").Count.ShouldBe(2);
+        cut.Markup.ShouldContain("Page 2 of 3");
+        cut.Markup.ShouldContain("45 recorded seasons");
+        // Page one is canonical, so the previous link carries no query string.
+        var pagerLinks = cut.FindAll(".season-pager a");
+        pagerLinks.Count.ShouldBe(2);
+        pagerLinks[0].TextContent.Trim().ShouldBe("Previous page");
+        pagerLinks[0].GetAttribute("href").ShouldBe(RoutePath);
+        pagerLinks[1].TextContent.Trim().ShouldBe("Next page");
+        pagerLinks[1].GetAttribute("href").ShouldBe($"{RoutePath}?page=3");
+    }
+
+    [Fact]
+    public void RenderOffersRecoveryToTheFirstPageWhenTheRequestedPageIsBeyondHistory()
+    {
+        Register(history: HistoryPage(9, 2));
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=9");
+
+        var cut = RenderDirectory();
+
+        cut.Markup.ShouldContain("No seasons are recorded on page 9.");
+        cut.Find(".season-history-recover").GetAttribute("href").ShouldBe(RoutePath);
+    }
+
+    /// <summary>Verifies one failing region leaves the other region's loaded content intact.</summary>
+    /// <param name="currentFails">Whether the current-season read fails.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RenderPreservesTheLoadedRegionWhenTheOtherFails(bool currentFails)
+    {
+        Register(
+            current: currentFails ? Failed("Current season unavailable.") : CurrentSeasonPage(),
+            history: currentFails
+                ? HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025))
+                : Failed("Season history unavailable."));
+
+        var cut = RenderDirectory();
+
+        cut.FindAll(".region-failure").Count.ShouldBe(1);
+        if (currentFails)
+        {
+            cut.Markup.ShouldContain("Current season unavailable.");
+            cut.Markup.ShouldContain("2025–26");
+        }
+        else
+        {
+            cut.Markup.ShouldContain("Season history unavailable.");
+            cut.Markup.ShouldContain("2026–27");
+        }
+    }
+
+    [Fact]
+    public void RetryCurrentReloadsOnlyTheCurrentRegion()
+    {
+        var currentReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize != 1)
+                {
+                    return Task.FromResult(HistoryPage(
+                        1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025)));
+                }
+
+                return Interlocked.Increment(ref currentReads) == 1
+                    ? Task.FromResult(Failed("Current season unavailable."))
+                    : Task.FromResult(CurrentSeasonPage());
+            });
+        Register(seasons: seasons);
+
+        var cut = RenderDirectory();
+        cut.Markup.ShouldContain("Current season unavailable.");
+
+        cut.Find(".season-stop-current .region-failure a").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Current season unavailable."));
+        cut.Markup.ShouldContain("2026–27");
+        cut.Markup.ShouldContain("2025–26");
+        _ = seasons.Received(1).ListAsync(
+            Arg.Is<GetSeasonListInput>(input => input.PageSize != 1), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RenderDiscardsStaleResultsWhenTheClubChangesAsync()
+    {
+        var previousClubRead = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();
+        var currentReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize != 1)
+                {
+                    return Task.FromResult(HistoryPage(1, 1, CurrentSeasonSummary()));
+                }
+
+                return Interlocked.Increment(ref currentReads) == 1
+                    ? previousClubRead.Task
+                    : Task.FromResult(CurrentSeasonPage());
+            });
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal(clubId: "1"));
+        Register(seasons: seasons, auth: auth);
+
+        var cut = RenderDirectory();
+
+        auth.Change(MemberPrincipal(clubId: "2"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("2026–27"));
+
+        // The superseded club's slower response must not repopulate the directory.
+        previousClubRead.SetResult(Read(
+            [PastSeasonSummary(99, "SUPERSEDED CLUB SEASON", 2001) with { IsCurrent = true }], 1));
+        await Task.Yield();
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain("SUPERSEDED CLUB SEASON"));
+        cut.Markup.ShouldContain("2026–27");
+    }
+
+    [Fact]
+    public void RenderRoutesForbiddenSeasonReadsToAccessDenied()
+    {
+        Register(current: new ServiceResult<SeasonPageResult>(
+            ServiceProblem.Forbidden("A current club membership is required.")));
+
+        _ = RenderDirectory();
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.Uri.ShouldEndWith("/Account/AccessDenied");
+    }
+
+    [Fact]
+    public void RenderCanonicalizesAMalformedSeasonPageInTheUrl()
+    {
+        Register();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=not-a-page");
+
+        var cut = RenderDirectory();
+
+        cut.WaitForAssertion(() => new Uri(navigationManager.Uri).PathAndQuery.ShouldBe(RoutePath));
+        cut.Markup.ShouldContain("2026–27");
+    }
+
+    [Fact]
+    public void RenderKeepsTheFirstSeasonPageFreeOfAQueryString()
+    {
+        Register();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=1");
+
+        var cut = RenderDirectory();
+
+        cut.WaitForAssertion(() => new Uri(navigationManager.Uri).PathAndQuery.ShouldBe(RoutePath));
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        var index = text.IndexOf(value, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
+
+    private static string FormatWindow(DateOnly start, DateOnly? end)
+        => end is null
+            ? $"{start.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)} onward"
+            : $"{start.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)} – {end.Value.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)}";
+
+    private IRenderedComponent<ContainerFragment> RenderDirectory()
+        => Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(child =>
+            {
+                child.OpenComponent<SeasonDirectory>(0);
+                child.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+    private static string FindRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Join(directory.FullName, "Nova.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new DirectoryNotFoundException();
+    }
+
+    private void Register(
+        bool isClubAdmin = false,
+        ServiceResult<SeasonPageResult>? current = null,
+        ServiceResult<SeasonPageResult>? history = null,
+        ISeasonQueryService? seasons = null,
+        AuthenticationStateProvider? auth = null)
+    {
+        var service = seasons ?? Substitute.For<ISeasonQueryService>();
+        if (seasons is null)
+        {
+            var currentResult = current ?? CurrentSeasonRead();
+            var historyResult = history ?? HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025));
+            service.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+                .Returns(call => Task.FromResult(
+                    call.Arg<GetSeasonListInput>().PageSize == 1 ? currentResult : historyResult));
+        }
+
+        Services.AddSingleton(service);
+        Services.AddSingleton(auth ?? new TestAuthenticationStateProvider(
+            isClubAdmin ? AdministratorPrincipal() : MemberPrincipal()));
+        Services.AddSingleton<IAuthorizationPolicyProvider>(
+            new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        Services.AddSingleton<IAuthorizationService>(new RoleAuthorizationService());
+    }
+
+    private static ServiceResult<SeasonPageResult> CurrentSeasonRead()
+        => Read([CurrentSeasonSummary()], 1);
+
+    private static ServiceResult<SeasonPageResult> Read(IReadOnlyList<SeasonSummary> items, int totalCount)
+        => new(new SeasonPageResult { Items = items, Page = 1, PageSize = 1, TotalCount = totalCount });
+
+    private static ServiceResult<SeasonPageResult> HistoryPage(int page, int totalCount, params SeasonSummary[] items)
+        => new(new SeasonPageResult
+        {
+            Items = items,
+            Page = page,
+            PageSize = GetSeasonListInput.DefaultPageSize,
+            TotalCount = totalCount
+        });
+
+    private static ServiceResult<SeasonPageResult> CurrentSeasonPage()
+        => HistoryPage(1, 1, CurrentSeasonSummary());
+
+    private static ServiceResult<SeasonPageResult> Failed(string detail)
+        => new(ServiceProblem.ServerError(detail));
+
+    private static SeasonSummary CurrentSeasonSummary() => new()
+    {
+        SeasonId = 2,
+        Name = "2026–27",
+        StartDate = new DateOnly(2026, 9, 1),
+        EndDate = new DateOnly(2027, 5, 31),
+        IsCurrent = true,
+        ConcurrencyToken = Guid.NewGuid()
+    };
+
+    private static SeasonSummary PastSeasonSummary(long seasonId, string name, int startYear) => new()
+    {
+        SeasonId = seasonId,
+        Name = name,
+        StartDate = new DateOnly(startYear, 9, 1),
+        EndDate = new DateOnly(startYear + 1, 5, 31),
+        IsCurrent = false,
+        ConcurrencyToken = Guid.NewGuid()
+    };
+
+    private static ClaimsPrincipal MemberPrincipal(string? clubId = "1")
+    {
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "10") };
+        if (clubId is not null)
+        {
+            claims.Add(new Claim(NovaClaimTypes.ClubId, clubId));
+        }
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private static ClaimsPrincipal AdministratorPrincipal()
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "10"),
+            new(NovaClaimTypes.ClubId, "1"),
+            new(ClaimTypes.Role, Roles.ClubAdmin)
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private sealed class TestAuthenticationStateProvider(ClaimsPrincipal initialPrincipal)
+        : AuthenticationStateProvider
+    {
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(initialPrincipal));
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+
+        public void Change(ClaimsPrincipal principal)
+        {
+            _state = Task.FromResult(new AuthenticationState(principal));
+            NotifyAuthenticationStateChanged(_state);
+        }
+    }
+
+    private sealed class RoleAuthorizationService : IAuthorizationService
+    {
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
+            => Task.FromResult(AuthorizationResult.Success());
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
+            => Task.FromResult(string.Equals(policyName, Roles.ClubAdmin, StringComparison.Ordinal) && !user.IsInRole(Roles.ClubAdmin)
+                ? AuthorizationResult.Failed()
+                : AuthorizationResult.Success());
+    }
+}

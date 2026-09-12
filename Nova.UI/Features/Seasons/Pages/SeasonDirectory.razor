@@ -1,0 +1,120 @@
+@page "/club/seasons"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.SharedKernel.Features.Clubs
+@using Nova.SharedKernel.Security
+@using Nova.UI.Features.Clubs.Components
+
+<PageTitle>Seasons</PageTitle>
+<!-- THESIS: One vertical season route; the current season is the lit stop and past seasons descend beneath it.
+OWN-WORLD: Flat Fieldhouse boards, one hairline spine, circular route stops, compact ruled rows, teal for the live stop.
+STORY: Confirm the current season, walk bounded history, and open any season's record.
+FIRST VIEWPORT: The Seasons heading and the lit current-season stop with its date window and Current chip.
+FORM: Two independent regions on one spine: the current stop always leads; paged history stops follow it. -->
+
+<ClubShell CurrentLabel="Seasons">
+    <div class="container py-4">
+        <div class="season-route-head">
+            <h1>Seasons</h1>
+            @if (_isClubAdmin)
+            {
+                <a class="btn btn-outline-primary" href="@ClubRoutes.StartNextSeason">Start next season</a>
+            }
+        </div>
+
+        <div class="season-route">
+            <section class="season-stop season-stop-current" aria-labelledby="current-season-heading">
+                <span class="season-stop-marker" aria-hidden="true"></span>
+                <div class="season-stop-body">
+                    <h2 id="current-season-heading">Current season</h2>
+                    @if (_currentLoading)
+                    {
+                        <p class="season-stop-status" role="status" aria-live="polite">Loading the current season…</p>
+                    }
+                    else if (_currentError is not null)
+                    {
+                        <RegionFailure Message="@_currentError" Retry="RetryCurrentAsync" />
+                    }
+                    else if (_currentSeason is not null)
+                    {
+                        <p class="season-stop-name">
+                            <a href="@SeasonUrl(_currentSeason.SeasonId)">@_currentSeason.Name</a>
+                        </p>
+                        <p class="season-stop-facts">
+                            <span class="season-status">Current</span>
+                            <span>@FormatDateWindow(_currentSeason.StartDate, _currentSeason.EndDate)</span>
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="season-stop-name">@AbsentSeasonLabel</p>
+                        <p class="season-stop-facts">@AbsentSeasonExplanation</p>
+                    }
+                </div>
+            </section>
+
+            <section class="season-history" aria-labelledby="season-history-heading">
+                <h2 id="season-history-heading">Season history</h2>
+                @if (_historyLoading)
+                {
+                    <p class="season-stop-status" role="status" aria-live="polite">Loading season history…</p>
+                }
+                else if (_historyError is not null)
+                {
+                    <RegionFailure Message="@_historyError" Retry="ReloadHistoryPageAsync" />
+                }
+                else if (_pastSeasons.Count == 0)
+                {
+                    @if (PageBeyondHistory)
+                    {
+                        <p class="season-stop-status">No seasons are recorded on page @_page.</p>
+                        <a class="season-history-recover" href="@FirstPageUrl()">Back to the first page</a>
+                    }
+                    else
+                    {
+                        <p class="season-stop-status">No past seasons are recorded yet.</p>
+                    }
+                }
+                else
+                {
+                    <p class="season-history-note">
+                        @(_historyExcludedCurrent
+                            ? "Recorded seasons, newest first. The current season is shown above."
+                            : "Recorded seasons, newest first.")
+                    </p>
+                    <ol class="season-stops">
+                        @foreach (var season in _pastSeasons)
+                        {
+                            <li class="season-stop">
+                                <span class="season-stop-marker" aria-hidden="true"></span>
+                                <div class="season-stop-body">
+                                    <p class="season-stop-name">
+                                        <a href="@SeasonUrl(season.SeasonId)">@season.Name</a>
+                                    </p>
+                                    <p class="season-stop-facts">@FormatDateWindow(season.StartDate, season.EndDate)</p>
+                                </div>
+                            </li>
+                        }
+                    </ol>
+                }
+
+                @if (!_historyLoading && _historyError is null && TotalPages > 1)
+                {
+                    <nav class="season-pager" aria-label="Season pages">
+                        @if (_page > 1)
+                        {
+                            <a class="btn btn-outline-primary" href="@PageUrl(_page - 1)">Previous page</a>
+                        }
+                        <span class="season-pager-position">Page @_page of @TotalPages ·
+                            @DescribeRecordedSeasons(TotalSeasonCount)</span>
+                        @if (_page < TotalPages)
+                        {
+                            <a class="btn btn-outline-primary" href="@PageUrl(_page + 1)">Next page</a>
+                        }
+                    </nav>
+                }
+            </section>
+        </div>
+    </div>
+</ClubShell>

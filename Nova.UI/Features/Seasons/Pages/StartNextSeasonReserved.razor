@@ -1,0 +1,13 @@
+@page "/club/seasons/start-next"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubAdmin)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.SharedKernel.Security
+@using Nova.UI.Features.Clubs.Components
+@using Nova.UI.Features.Seasons.Components
+
+<PageTitle>Start next season</PageTitle>
+<ClubShell CurrentLabel="Seasons">
+    <SeasonReservedNotice Title="Start next season"
+                         Explanation="Season advancement is reserved for issue #260 and is not available here yet." />
+</ClubShell>

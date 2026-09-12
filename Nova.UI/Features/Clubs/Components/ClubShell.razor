@@ -19,12 +19,9 @@
                 <li>
                     <NavLink href="@ClubRoutes.Overview" Match="NavLinkMatch.All">Overview</NavLink>
                 </li>
-                @if (_isClubAdmin)
-                {
-                    <li>
-                        <NavLink href="@ClubRoutes.Seasons" Match="NavLinkMatch.Prefix">Seasons</NavLink>
-                    </li>
-                }
+                <li>
+                    <NavLink href="@ClubRoutes.Seasons" Match="NavLinkMatch.Prefix">Seasons</NavLink>
+                </li>
                 <li>
                     <NavLink href="@ClubRoutes.Teams" Match="NavLinkMatch.Prefix">Teams</NavLink>
                 </li>

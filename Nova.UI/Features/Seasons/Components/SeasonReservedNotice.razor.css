@@ -1,0 +1,17 @@
+.season-reserved-notice {
+    max-width: 48rem;
+    padding-block: clamp(1rem, 5vw, 4rem);
+}
+
+.season-reserved-notice h1 {
+    margin-bottom: 1rem;
+    font-size: 2rem;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+}
+
+.season-reserved-notice p {
+    max-width: 65ch;
+    margin-bottom: 2rem;
+    color: var(--bs-secondary-color);
+}
