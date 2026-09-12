@@ -158,8 +158,47 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
 
         cut.Markup.ShouldContain("No current season");
         cut.Markup.ShouldContain("3 recorded seasons");
-        cut.Markup.ShouldContain("Start next season establishes one.");
+        cut.Markup.ShouldContain("Establish the current season when you create the club's next campaign.");
         cut.FindAll(".season-stops .season-stop").Count.ShouldBe(2);
+    }
+
+    /// <summary>Verifies the advancement entry is withheld while the club has no current season.</summary>
+    /// <param name="hasNoSeasonAtAll">Whether the club has recorded no season at all.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RenderWithholdsAdvancementWhenNoCurrentSeasonIsLoaded(bool hasNoSeasonAtAll)
+    {
+        Register(
+            isClubAdmin: true,
+            current: hasNoSeasonAtAll ? Read([], 0) : Read([PastSeasonSummary(1, "2025–26", 2025)], 3),
+            history: hasNoSeasonAtAll
+                ? HistoryPage(1, 0)
+                : HistoryPage(1, 3, PastSeasonSummary(1, "2025–26", 2025)));
+
+        var cut = RenderDirectory();
+
+        // Starting the next season conflicts without a current season, so the entry must not be offered.
+        cut.Markup.ShouldNotContain(ClubRoutes.StartNextSeason);
+    }
+
+    [Fact]
+    public void RenderShowsLoadingBeforeAuthenticationResolves()
+    {
+        var pendingAuthentication = new TaskCompletionSource<AuthenticationState>();
+        var auth = Substitute.For<AuthenticationStateProvider>();
+        auth.GetAuthenticationStateAsync().Returns(pendingAuthentication.Task);
+        Register(auth: auth);
+
+        var cut = Render<SeasonDirectory>();
+
+        // Authentication can still be resolving on client startup; the absent-season states must not flash.
+        cut.Markup.ShouldContain("Loading the current season…");
+        cut.Markup.ShouldContain("Loading season history…");
+        cut.Markup.ShouldNotContain("No season has been established yet");
+        cut.Markup.ShouldNotContain("No past seasons are recorded yet");
+
+        pendingAuthentication.SetResult(new AuthenticationState(MemberPrincipal()));
     }
 
     [Fact]

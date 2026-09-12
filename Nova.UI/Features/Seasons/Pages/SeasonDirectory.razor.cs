@@ -131,6 +131,13 @@ public partial class SeasonDirectory(
         => _historyOmittedCurrent && _currentSeason is not null && _currentError is null && !_currentLoading;
 
     /// <summary>
+    /// Whether the advancement entry can be offered. Starting the next season requires an expected current
+    /// season and returns a conflict without one, so the entry appears only once a current season is loaded;
+    /// a club with none must establish one through campaign creation instead.
+    /// </summary>
+    protected bool CanStartNextSeason => _isClubAdmin && _currentSeason is not null && _currentError is null;
+
+    /// <summary>
     /// Label for an absent current season, stating the first-season state separately from the
     /// recovery state where recorded seasons exist without a current one.
     /// </summary>
@@ -150,7 +157,7 @@ public partial class SeasonDirectory(
             }
 
             return _isClubAdmin
-                ? $"{DescribeRecordedSeasons(_currentSeasonCount)} remain and no current season is set. Start next season establishes one."
+                ? $"{DescribeRecordedSeasons(_currentSeasonCount)} remain and no current season is set. Establish the current season when you create the club's next campaign."
                 : $"{DescribeRecordedSeasons(_currentSeasonCount)} remain and no current season is set. A club administrator establishes the next one.";
         }
     }
@@ -194,6 +201,9 @@ public partial class SeasonDirectory(
     protected override async Task OnInitializedAsync()
     {
         var authenticationVersion = _authenticationVersion;
+        // Both regions render as loading before the first await: authentication can still be resolving on
+        // client startup, and without this the component would briefly render the absent-season states.
+        _currentLoading = _historyLoading = true;
         var state = await authenticationStateProvider.GetAuthenticationStateAsync();
         if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
         {
@@ -212,12 +222,15 @@ public partial class SeasonDirectory(
             var restoredPage = _page;
             _page = requestedPage;
             SyncPageToUrl();
+            // The restored current-season projection is authoritative; only the history region may load.
+            _currentLoading = false;
             // A persisted page or error for this page is already this pass's history state. Re-requesting
             // either one is the duplicate startup fetch PersistentState exists to prevent, so a recorded
             // failure for the requested page counts as initialized exactly like a successful payload.
             if (restoredPage == requestedPage
                 && ((_historyPage is not null && _historyPage.Page == requestedPage) || _historyError is not null))
             {
+                _historyLoading = false;
                 return;
             }
 

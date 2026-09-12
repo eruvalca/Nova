@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `28a12a346807feb6dfcbcdfdb26e318d7ef010eaa69aa2d89640aadd4e102f12`. Documentation
+line) with SHA-256 `02f9d4a94f4cfe26be512dc3f544b37085f1e6896a7cba0df63526bf9b72cef6`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -235,6 +235,24 @@ Four findings; three strengthened required coverage and one corrected this recor
 - **This record's targeted browser line was stale.** It reported 6/6 for a class that has since grown, so the
   documented command was re-run and its actual discovered/passed count recorded below.
 
+## Review round 9 — pull-request review
+
+Three findings; two are product-correctness rather than coverage.
+
+- **The directory offered an advancement action that cannot succeed.** The entry was gated only on the
+  administrator role, so the first-season and no-current recovery states both offered "Start next season" even
+  though `StartNextAsync` rejects a club with no current season with a conflict
+  (`SeasonCommandService.cs:375-384`). The entry is now gated on a loaded current season
+  (`CanStartNextSeason`), and `RenderWithholdsAdvancementWhenNoCurrentSeasonIsLoaded` covers both absent states.
+- **The recovery copy pointed at that same impossible action.** The administrator's no-current-season sentence
+  told them to use advancement; it now directs them to establish the current season through the creation path,
+  matching the season-lifecycle rule that inline season creation is the no-current-state route.
+- **The absent-season states could flash before authentication resolved.** Neither loading flag was set before
+  the first authentication await, so the component rendered its default values first — briefly showing "No
+  season has been established yet" and "No past seasons are recorded yet" during client startup.
+  `RenderShowsLoadingBeforeAuthenticationResolves` renders against an unresolved provider and fails against the
+  previous ordering.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -276,7 +294,7 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,202/3,202, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,205/3,205, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 192 total; 184 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 9/9 discovered, including the contrast, touch-target and state-capture evidence pass. |

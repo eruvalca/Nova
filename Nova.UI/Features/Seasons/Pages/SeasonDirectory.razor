@@ -17,7 +17,7 @@ FORM: Two independent regions on one spine: the current stop always leads; paged
     <div class="container py-4">
         <div class="season-route-head">
             <h1>Seasons</h1>
-            @if (_isClubAdmin)
+            @if (CanStartNextSeason)
             {
                 <a class="btn btn-outline-primary" href="@ClubRoutes.StartNextSeason">Start next season</a>
             }
