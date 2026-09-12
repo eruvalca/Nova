@@ -106,8 +106,9 @@ One thread corrected the record rather than the code: the club-setup brief **exp
 club-plus-first-season creation (`club-setup.md:17` and `:147`), so describing that finding as the reviewer's
 inference misstated its source. The record now states the divergence plainly and attributes it to the
 club-setup slice as an open foundation gap. The final thread's point — that the missing comp leaves an
-acceptance criterion unmet — is accepted, and is now stated explicitly together with the fact that this pull
-request carries no closing keyword for issue #258.
+acceptance criterion unmet — is accepted, and is now stated explicitly. A later review round caught that the
+pull request body still carried a `Fixes: #258` closing reference that the host had appended at creation,
+contradicting this record; that reference was removed so merging cannot close the issue as satisfied.
 
 ## Review round 3 — pull-request review
 
@@ -154,10 +155,12 @@ and the surface brief with the direction contract and finish-review record. The 
 
 **This leaves one acceptance criterion unmet.** Issue #258 requires a comp-led decision and approved comp
 evidence, and neither exists here. The disclosure above records the substitution; it does not discharge the
-criterion. This pull request therefore does not close issue #258 — its title and body carry no closing keyword
-— because closing requires either supplying the required comp and re-reviewing this surface against it, or
-formally amending the issue's acceptance criteria to accept a code-led build with wireframe-card evidence.
-That choice belongs to the repository owner, and the same statement is recorded on the issue.
+criterion. This pull request therefore must not close issue #258. The host appended a `Fixes: #258` closing
+reference to this description when the pull request was created; review caught it and it has been removed, so
+merging cannot close the issue as satisfied. Closing it requires either supplying the required comp and
+re-reviewing this surface against it, or formally amending the issue's acceptance criteria to accept a
+code-led build with wireframe-card evidence. That choice belongs to the repository owner, and the same
+statement is recorded on the issue.
 
 ## Guidance actually read
 
