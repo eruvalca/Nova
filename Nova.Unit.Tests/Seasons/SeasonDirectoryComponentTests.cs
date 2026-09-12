@@ -366,6 +366,50 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
         cut.WaitForAssertion(() => new Uri(navigationManager.Uri).PathAndQuery.ShouldBe(RoutePath));
     }
 
+    [Fact]
+    public async Task RenderKeepsTheNewerPageWhenABatchHistoryResponseArrivesLateAsync()
+    {
+        var batchHistory = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();
+        var historyReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize == 1)
+                {
+                    return Task.FromResult(CurrentSeasonRead());
+                }
+
+                return Interlocked.Increment(ref historyReads) switch
+                {
+                    1 => Task.FromResult(HistoryPage(1, 45, PastSeasonSummary(9, "STARTUP SEASON", 2018))),
+                    2 => batchHistory.Task,
+                    _ => Task.FromResult(HistoryPage(2, 45, PastSeasonSummary(11, "PAGE TWO SEASON", 2016)))
+                };
+            });
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal(clubId: "1"));
+        Register(seasons: seasons, auth: auth);
+
+        var cut = Render<SeasonDirectory>();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("STARTUP SEASON"));
+
+        // A club change starts a batch whose history read stays outstanding.
+        auth.Change(MemberPrincipal(clubId: "2"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain("STARTUP SEASON"));
+
+        // A URL page change must supersede that still-pending batch read.
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=2");
+        cut.Render();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("PAGE TWO SEASON"));
+
+        // The superseded batch response must not replace the newer page's rows.
+        batchHistory.SetResult(HistoryPage(1, 45, PastSeasonSummary(7, "STALE PAGE ONE SEASON", 2010)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Page 2 of 3"));
+        cut.Markup.ShouldContain("PAGE TWO SEASON");
+        cut.Markup.ShouldNotContain("STALE PAGE ONE SEASON");
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;

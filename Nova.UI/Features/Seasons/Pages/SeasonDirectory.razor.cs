@@ -207,7 +207,8 @@ public partial class SeasonDirectory(
             // A persisted page or error for this page is already this pass's history state. Re-requesting
             // either one is the duplicate startup fetch PersistentState exists to prevent, so a recorded
             // failure for the requested page counts as initialized exactly like a successful payload.
-            if (restoredPage == requestedPage && (_historyPage is not null || _historyError is not null))
+            if (restoredPage == requestedPage
+                && ((_historyPage is not null && _historyPage.Page == requestedPage) || _historyError is not null))
             {
                 return;
             }
@@ -248,9 +249,11 @@ public partial class SeasonDirectory(
     {
         var (version, requestToken) = BeginReloadBatch();
         _currentLoading = _historyLoading = true;
+        // History always loads under its own region source, so a later page change supersedes this
+        // request by cancellation while the batch version still supersedes both regions at once.
         await Task.WhenAll(
             LoadCurrentAsync(version, requestToken),
-            LoadHistoryAsync(version, requestToken));
+            ReloadHistoryPageAsync());
         if (IsCurrentBatch(version, requestToken))
         {
             Initialized = true;
@@ -368,7 +371,7 @@ public partial class SeasonDirectory(
 
     /// <summary>
     /// Reloads only the season-history region for the loaded page under a fresh region request, so a
-    /// newer page supersedes an older one by cancellation.
+    /// newer request supersedes an older one by cancellation — including a batch read still in flight.
     /// </summary>
     private async Task ReloadHistoryPageAsync()
     {
@@ -500,7 +503,7 @@ public partial class SeasonDirectory(
         await InvokeAsync(StateHasChanged);
         await Task.WhenAll(
             LoadCurrentAsync(version, requestToken),
-            LoadHistoryAsync(version, requestToken));
+            ReloadHistoryPageAsync());
         if (IsCurrentBatch(version, requestToken))
         {
             Initialized = true;

@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 21
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `a65d55927f475f8601d9a33b195785e6ea5c88da9760d1d3f95c9a606d84335f`. Documentation
+line) with SHA-256 `2ec72774e7e4ac462153b56672647814911d699694d9efea1bc52e207d450eb5`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -109,6 +109,31 @@ club-setup slice as an open foundation gap. The final thread's point — that th
 acceptance criterion unmet — is accepted, and is now stated explicitly together with the fact that this pull
 request carries no closing keyword for issue #258.
 
+## Review round 3 — pull-request review
+
+A second pull-request review raised three further threads; all were evaluated on their merits and are fixed.
+
+- **A page change could not supersede an in-flight batch history read.** The reload batch and the
+  identity-change batch loaded history under the batch token while `BeginRegionRetry` cancelled only the
+  region source, and both requests shared the same `_reloadVersion`. A URL page change during a batch
+  therefore left the older page-1 response still authoritative, so it could overwrite the newer page's rows
+  while the URL and caption said page two. The history region now always loads under its own source, so a
+  newer request supersedes an older one by cancellation while the batch version still supersedes both regions
+  at once. `RenderKeepsTheNewerPageWhenABatchHistoryResponseArrivesLateAsync` reproduces the interleaving with
+  a delayed batch response and fails against the previous ownership. The persisted-restore guard was tightened
+  at the same time to require the restored payload's own page to match the requested page, so a snapshot
+  written while a supersession was in flight can no longer skip a needed reload.
+- **The reserved destinations' control was below the documented height.** "Back to Seasons" inherited the
+  theme's shorter `.btn` (measured 38px), which is under Nova's 44px phone control contract. It is now a
+  centered inline-flex control with the documented minimum, and
+  `DirectoryAdministratorReachesTheReservedAdvancementDestinationAsync` asserts the measured height is at
+  least 44px — the assertion fails when that rule is removed.
+- **The reserved pages did not use the page-title typography.** The notice heading now carries DESIGN's
+  page-title token (weight 700, line-height 1.2, `-.025em`) rather than Bootstrap's heading weight and the
+  `-.035em` inherited from the incumbent reserved-section stylesheet, so the reserved destinations do not drift
+  from the directory. The incumbent `ClubReservedSection` styling is deliberately left untouched as
+  pre-existing.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -148,7 +173,7 @@ That choice belongs to the repository owner, and the same statement is recorded 
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,193/3,193, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,194/3,194, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 189 total; 181 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |

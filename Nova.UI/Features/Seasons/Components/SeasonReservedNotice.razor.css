@@ -3,11 +3,21 @@
     padding-block: clamp(1rem, 5vw, 4rem);
 }
 
+/* DESIGN's page-title token, so the reserved destinations match the directory. */
 .season-reserved-notice h1 {
     margin-bottom: 1rem;
     font-size: 2rem;
-    letter-spacing: -.035em;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -.025em;
     overflow-wrap: anywhere;
+}
+
+/* The reserved destination's control keeps the documented control height on phones. */
+.season-reserved-notice .btn {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
 }
 
 .season-reserved-notice p {

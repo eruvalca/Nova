@@ -63,6 +63,13 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
             .ToBeVisibleAsync();
         await Expect(page.GetByText("Season advancement is reserved for issue #260 and is not available here yet."))
             .ToBeVisibleAsync();
+
+        // The reserved destination's own control keeps the documented Nova control height.
+        var back = page.GetByRole(AriaRole.Link, new() { Name = "Back to Seasons", Exact = true });
+        await Expect(back).ToBeVisibleAsync();
+        var backSize = await back.EvaluateAsync<double[]>(
+            "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
+        backSize[1].ShouldBeGreaterThanOrEqualTo(44, "reserved-destination control height");
     }
 
     [Fact]
