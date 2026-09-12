@@ -39,6 +39,17 @@
 
 - **Issue roadmaps are hand-maintained.** Each parent issue carries a `<!-- native-child-roadmap:start -->` … `<!-- native-child-roadmap:end -->` block; nothing generates it, and a block exists only when the issue has native children. Before editing one, reconcile membership and state with `gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate`. Mark a child complete only when its closing PR is merged into `main` — a validated revision may be off-main when the merge was squashed. A superseding comment resolves an old one. Procedure: `sync-epic-roadmap`.
 
+- **Operations stay provider-agnostic.** No build, test, review, or design step may require one specific
+  vendor or agent harness. Generate comps and other design artifacts with **any** image-generation capability
+  that is available; when none is available, build code-led with wireframe evidence and record the
+  substitution in the surface brief, the validation record, and the pull request rather than blocking on a
+  provider or presenting a synthetic placeholder as an approved comp. This removes the *provider*
+  requirement only — it does not relax the comp/contract evidence an issue asks for, which still applies
+  whenever generation is possible. The vendored `.agents/skills/impeccable/` scripts hard-code a single image
+  API in their fallback path: treat it as one option, never as the required provider, and if that provider
+  list must change, change it upstream or in the `.github/skills/` copy in the same commit (see
+  "Dual-ecosystem compatibility").
+
 ## Dual-ecosystem compatibility (mandatory)
 
 All agent-facing guidance — instructions, skills, custom agents, and hooks — must work for **both GitHub Copilot and OpenAI Codex**, plus any other agent that reads the open standards. This is a hard rule, not a preference:
