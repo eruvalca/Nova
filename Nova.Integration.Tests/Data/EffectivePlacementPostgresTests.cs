@@ -1,10 +1,12 @@
 ﻿using System.Data.Common;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Integration.Tests.Http;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
@@ -485,6 +487,58 @@ public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture f
         snapshot.Participants.Items.ShouldHaveSingleItem().ShouldBe(original.Participants.Items.ShouldHaveSingleItem());
         snapshot.Participants.Items[0].Source.Decision.Outcome.ShouldBe(PlacementOutcome.Assigned);
         snapshot.Participants.Items[0].Source.Decision.TeamId.ShouldBe(seed.LatestTeamId);
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportReturnsEveryParticipantInOneSnapshotBeyondThePageBoundAsync()
+    {
+        var seed = await SeedAsync(120);
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var service = CreateService();
+
+        var record = (await service.GetClosedCampaignRosterAsync(
+            new() { CampaignId = seed.LatestClosedId }, TestContext.Current.CancellationToken))
+            .Value.ShouldBeOfType<ClosedCampaignRosterResult>();
+        var export = (await service.ExportClosedCampaignRosterAsync(
+            new() { CampaignId = seed.LatestClosedId }, TestContext.Current.CancellationToken))
+            .Value.ShouldBeOfType<ClosedCampaignRosterExport>();
+
+        record.Participants.TotalCount.ShouldBe(120);
+        var rows = ClosedRosterCsv.Rows(export.Content);
+        rows.Length.ShouldBe(record.Participants.TotalCount);
+        rows.ShouldAllBe(cells => cells.Length == ClosedCampaignRosterExportConstraints.Headers.Count);
+        rows.Select(cells => int.Parse(cells[4], CultureInfo.InvariantCulture)).Order().ShouldBe(Enumerable.Range(1, 120));
+        rows.ShouldAllBe(cells => cells[6] == nameof(PlacementOutcome.Assigned) && cells[7] == "Latest team");
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportRetainsArchivedParticipantsAndArchivedTeamsAsync()
+    {
+        var seed = await SeedAsync(2);
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var player = await db.Players.SingleAsync(
+                candidate => candidate.PlayerId == seed.PlayerIds[0], TestContext.Current.CancellationToken);
+            player.LifecycleStatus = LifecycleStatus.Archived;
+            player.ArchivedAt = DateTimeOffset.UtcNow;
+            player.ArchivedById = 1;
+            var team = await db.Teams.SingleAsync(
+                candidate => candidate.TeamId == seed.LatestTeamId, TestContext.Current.CancellationToken);
+            team.LifecycleStatus = LifecycleStatus.Archived;
+            team.ArchivedAt = DateTimeOffset.UtcNow;
+            team.ArchivedById = 1;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        using var user = fixture.UseUser(1, seed.ClubId, isClubAdmin: false);
+        var service = CreateService();
+
+        var export = (await service.ExportClosedCampaignRosterAsync(
+            new() { CampaignId = seed.LatestClosedId }, TestContext.Current.CancellationToken))
+            .Value.ShouldBeOfType<ClosedCampaignRosterExport>();
+
+        var rows = ClosedRosterCsv.Rows(export.Content);
+        rows.Length.ShouldBe(2);
+        rows.ShouldAllBe(cells => cells[7] == "Latest team");
     }
 
     private async Task<long> AdvanceSeasonAsync(long clubId)

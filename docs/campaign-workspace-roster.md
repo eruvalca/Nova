@@ -15,6 +15,7 @@ The existing `IEffectivePlacementQueryService` endpoints supply both rows and pl
 | --- | --- | --- |
 | Active | `GetCampaignEffectivePlacementsAsync` | Sum of the four unfiltered eligibility counts |
 | Closed | `GetClosedCampaignRosterAsync` | `ParticipantCount`, independent of discovery |
+| Closed export | `ExportClosedCampaignRosterAsync` | Every participant in one snapshot; no discovery filters |
 
 Both campaign reads accept these discovery parameters in addition to paging:
 
@@ -43,6 +44,30 @@ filtered count, page and tag enrichment share the existing repeatable-read trans
 integrity is checked before discovery, so even an exact participant link cannot hide another
 incomplete decision. No per-row history requests or browser joins of independently paged responses
 are required.
+
+## Closed roster CSV export
+
+`GET /api/campaigns/{campaignId}/closed-roster/export` serves the immutable Closed record as one
+BOM-prefixed UTF-8 CSV (`text/csv; charset=utf-8`) with an `attachment` disposition. Every approved
+club member may export; Draft, Active, and inaccessible campaigns are rejected without disclosing
+hidden state, and an incomplete decision record is a conflict, exactly as in the paged read.
+
+The export never inherits Roster discovery or paging: campaign identity, the Closed lifecycle guard,
+the integrity guard, and every participant row are read inside the single repeatable-read snapshot,
+so reopening or editing a campaign cannot produce a file that mixes two states. Rows keep the
+campaign-local outcome and original decision attribution — the latest effective-season roster is
+never consulted. Archived participants and teams are included, and a saved team is written only for
+an `Assigned` outcome.
+
+Columns are `Campaign`, `Season`, `First name`, `Last name`, `Tryout number`, `Graduation year`,
+`Final outcome`, `Final team`, `Decision author`, and `Decision time` (ISO-8601 round-trip). Notes,
+tags, photos, account data, diagnostics, effective-season placement, and unrelated history are
+excluded. Cell text is escaped so a value starting with a spreadsheet formula character is treated as
+literal text, quotes/commas/newlines are RFC 4180 quoted, and real names round-trip as UTF-8. The
+download name is sanitized from the campaign name to lowercase ASCII letters, digits, and dashes with
+a bounded fallback. A campaign above the shared participant bound fails with a conflict rather than
+truncating the file; the WASM client validates the media type, charset, disposition, filename shape,
+preamble, and header row before returning the bytes.
 
 The working-set query first selects each participant's latest saved assignment ID, ordered by
 opening sequence and assignment ID, then joins its evidence. Validity is evaluated after this
@@ -102,6 +127,7 @@ validated operation and matching acknowledgment; only that receipt requests Rost
   meanings. Reuse eligibility counts without inferring readiness. Placement mutations remain owned
   by the existing placement service and operation receipts.
 - **#200 Close:** use closeout readiness and immutable Closed reads. Close/reopen workflows remain
-  in their current panels; print/export remain deferred, and CSV still depends on #221.
+  in their current panels; print remains deferred, and the Closed-roster CSV action consumes the
+  export delivered by #221.
 
 The parent #170 integrated campaign-loop acceptance remains separate from this surface delivery.

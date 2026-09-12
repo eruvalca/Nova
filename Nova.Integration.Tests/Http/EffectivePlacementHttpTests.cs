@@ -1,4 +1,6 @@
-﻿using System.Net.Http.Json;
+﻿using System.Globalization;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
@@ -329,6 +331,145 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
         json["participants"]!["items"]!.AsArray().ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task ClosedRosterExportRejectsAnonymousCallerAsync()
+    {
+        using var client = fixture.CreateNovaHttpClient();
+        using var response = await client.GetAsync(ExportRoute(1), TestContext.Current.CancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportRejectsAuthenticatedCallerWithoutApprovedMembershipAsync()
+    {
+        using var client = fixture.CreateNovaHttpClient();
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client,
+            SeedingHelpers.UniqueEmail("effective-export-unapproved"), Password, TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync(ExportRoute(1), TestContext.Current.CancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportReturnsTheImmutableRecordAsOneBomPrefixedCsvFileAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, closed: true);
+
+        using var recordResponse = await client.GetAsync(Route("closed", seed.CampaignId, "pageSize=100"), token);
+        recordResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var record = await recordResponse.Content.ReadFromJsonAsync<JsonObject>(token);
+
+        using var response = await client.GetAsync(ExportRoute(seed.CampaignId), token);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");
+        response.Content.Headers.ContentType.CharSet.ShouldBe("utf-8");
+        response.Content.Headers.ContentDisposition!.DispositionType.ShouldBe("attachment");
+
+        var lines = ClosedRosterCsv.Lines(await response.Content.ReadAsByteArrayAsync(token));
+        lines[0].ShouldBe(string.Join(',', ClosedCampaignRosterExportConstraints.Headers));
+
+        var campaign = record!["campaign"]!.AsObject();
+        var items = record["participants"]!["items"]!.AsArray();
+        var disposition = response.Content.Headers.ContentDisposition;
+        (disposition.FileNameStar ?? disposition.FileName!).Trim('"')
+            .ShouldBe(ClosedCampaignRosterExportConstraints.CreateFileName(campaign["name"]!.GetValue<string>()));
+        lines.Length.ShouldBe(items.Count + 1);
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            var row = items[index]!.AsObject();
+            var source = row["source"]!.AsObject();
+            var decision = source["decision"]!.AsObject();
+            var cells = lines[index + 1].Split(',');
+            cells.Length.ShouldBe(ClosedCampaignRosterExportConstraints.Headers.Count);
+            cells[0].ShouldBe(campaign["name"]!.GetValue<string>());
+            cells[1].ShouldBe(campaign["season"]!["name"]!.GetValue<string>());
+            cells[2].ShouldBe(row["firstName"]!.GetValue<string>());
+            cells[3].ShouldBe(row["lastName"]!.GetValue<string>());
+            cells[4].ShouldBe(row["tryoutNumber"]!.GetValue<int>().ToString(CultureInfo.InvariantCulture));
+            cells[5].ShouldBe(row["graduationYear"]!.GetValue<int>().ToString(CultureInfo.InvariantCulture));
+            cells[7].ShouldBe(source["team"] is null ? string.Empty : source["team"]!["teamName"]!.GetValue<string>());
+            cells[8].ShouldBe(decision["actorDisplayName"]!.GetValue<string>());
+            DateTimeOffset.Parse(cells[9], CultureInfo.InvariantCulture).ShouldBe(
+                DateTimeOffset.Parse(decision["recordedAt"]!.GetValue<string>(), CultureInfo.InvariantCulture));
+        }
+
+        lines.Skip(1).Select(line => line.Split(',')[6]).ShouldBe(["Assigned", "NotSelected", "NotSelected"]);
+        lines.Skip(1).Select(line => line.Split(',')[4]).ShouldBe(["1", "2", "3"]);
+        lines[1].Split(',')[7].ShouldBe("Effective team");
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportEscapesFormulaLikeNamesAndUsesASafeContentDispositionAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, closed: true);
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var playerId = await db.PlayerCampaignAssignments
+                .Where(candidate => candidate.PlayerCampaignAssignmentId == seed.AssignmentId)
+                .Select(candidate => candidate.PlayerId)
+                .SingleAsync(token);
+            var player = await db.Players.SingleAsync(candidate => candidate.PlayerId == playerId, token);
+            player.FirstName = "=cmd|calc";
+            await db.SaveChangesAsync(token);
+        }
+
+        using var response = await client.GetAsync(ExportRoute(seed.CampaignId), token);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var lines = ClosedRosterCsv.Lines(await response.Content.ReadAsByteArrayAsync(token));
+
+        lines[1].Split(',')[2].ShouldBe("'=cmd|calc");
+        var disposition = response.Content.Headers.ContentDisposition!;
+        (disposition.FileNameStar ?? disposition.FileName!).Trim('"')
+            .ShouldMatch("^nova-[a-z0-9-]+-closed-roster\\.csv$");
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportHidesForeignAndDraftCampaignsAndReportsVisibleLifecycleConflictAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, closed: false);
+
+        using var active = await client.GetAsync(ExportRoute(seed.CampaignId), token);
+        await AssertProblemAsync(active, HttpStatusCode.Conflict);
+
+        using var outsider = fixture.CreateNovaHttpClient();
+        _ = await RegisterMemberAsync(outsider);
+        using var foreign = await outsider.GetAsync(ExportRoute(seed.CampaignId), token);
+        await AssertProblemAsync(foreign, HttpStatusCode.NotFound);
+
+        await using var db = fixture.CreateAdminContext();
+        var draft = new CampaignEntity
+        {
+            Name = "Private Draft",
+            CreationOperationId = Guid.NewGuid(),
+            ClubId = member.ClubId,
+            SeasonId = seed.SeasonId,
+            Status = CampaignStatus.Draft,
+            CreatedById = 1,
+        };
+        db.Campaigns.Add(draft);
+        await db.SaveChangesAsync(token);
+        using var hidden = await client.GetAsync(ExportRoute(draft.CampaignId), token);
+        await AssertProblemAsync(hidden, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ClosedRosterExportRejectsAnInvalidCampaignIdWithATraceBearingValidationProblemAsync()
+    {
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterMemberAsync(client);
+        using var response = await client.GetAsync(ExportRoute(0), TestContext.Current.CancellationToken);
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+    }
+
     private async Task<Member> RegisterMemberAsync(HttpClient client)
     {
         var email = SeedingHelpers.UniqueEmail("effective-member");
@@ -379,6 +520,9 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
         }).Split('?')[0];
         return new Uri(query is null ? path : $"{path}?{query}", UriKind.Relative);
     }
+
+    private static Uri ExportRoute(long campaignId)
+        => new(CampaignEndpoints.ClosedRosterExportUrl(new() { CampaignId = campaignId }), UriKind.Relative);
 
     private static void AssertSource(PlacementDecisionSource source, Seed seed)
     {

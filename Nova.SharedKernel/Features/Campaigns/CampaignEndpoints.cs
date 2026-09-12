@@ -51,10 +51,14 @@ public static class CampaignEndpoints
     public const string EffectivePlacementsRelative = "{campaignId:long}/effective-placements";
     /// <summary>The campaign-local Closed record route.</summary>
     public const string ClosedRosterRelative = "{campaignId:long}/closed-roster";
+    /// <summary>The immutable Closed-campaign roster CSV export route.</summary>
+    public const string ClosedRosterExportRelative = "{campaignId:long}/closed-roster/export";
     /// <summary>The Active effective-placement endpoint name.</summary>
     public const string EffectivePlacementsRouteName = "GetCampaignEffectivePlacements";
     /// <summary>The Closed campaign roster endpoint name.</summary>
     public const string ClosedRosterRouteName = "GetClosedCampaignRoster";
+    /// <summary>The Closed campaign roster export endpoint name.</summary>
+    public const string ClosedRosterExportRouteName = "ExportClosedCampaignRoster";
     /// <summary>Builds the effective placement context request.</summary>
     public static string EffectivePlacementsUrl(GetCampaignEffectivePlacementsInput input)
     {
@@ -67,6 +71,12 @@ public static class CampaignEndpoints
     {
         ArgumentNullException.ThrowIfNull(input);
         return PlacementQueryUrls.WithPage($"{GroupPrefix}/{input.CampaignId}/closed-roster", input);
+    }
+    /// <summary>Builds the immutable Closed-campaign roster CSV export request.</summary>
+    public static string ClosedRosterExportUrl(GetClosedCampaignRosterExportInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return $"{GroupPrefix}/{input.CampaignId}/closed-roster/export";
     }
     /// <summary>
     /// The group prefix for campaign endpoints.

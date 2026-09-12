@@ -104,12 +104,18 @@ agree even if the season advances between statements; Active campaign identity, 
 and rows agree even if the campaign closes. Closed lifecycle, integrity validation, count, and page
 share the same guarantee. Other list consumers retain their ordinary eventually consistent totals.
 Clients still validate portable ordering without reproducing database collation. A snapshot covers
-one response, not separate page requests; #221 must maintain a consistent read for an entire generated
-export. Neither receipts nor effective-season queries determine Closed rows.
+one response, not separate page requests, so #221 generates the whole export inside one snapshot read
+rather than joining independently paged responses. Neither receipts nor effective-season queries
+determine Closed rows.
 
 The existing campaign-local placement roster/summary remains campaign-local. #169/#199/#200/#217
-own UI consumption and #221 owns CSV generation. No UI, mutation controls, or schema migration
-were introduced by this query slice.
+own UI consumption. #221 delivered CSV generation: `ExportClosedCampaignRosterAsync` reuses the same
+campaign identity, Closed lifecycle, and integrity guards as the paged Closed read, projects every
+participant in one capped snapshot query, and serializes a UTF-8 BOM-prefixed, formula-escaped CSV
+whose download name is sanitized from the campaign name. The export is exposed at
+`GET /api/campaigns/{campaignId}/closed-roster/export`, consumed by the WASM client's download
+validation, and it rejects a campaign above the shared row bound instead of truncating. No UI,
+mutation controls, or schema migration were introduced by this query slice.
 
 #197 extends the two campaign reads with shared discovery, campaign-applied tag enrichment and
 explicit local-team evidence. See [Campaign workspace and Roster](campaign-workspace-roster.md)

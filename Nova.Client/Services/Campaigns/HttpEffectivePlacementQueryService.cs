@@ -1,4 +1,5 @@
-﻿using Nova.SharedKernel.Enums;
+﻿using System.Text;
+using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Seasons;
 using Nova.SharedKernel.Results;
@@ -23,6 +24,72 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
     public Task<ServiceResult<ClosedCampaignRosterResult>> GetClosedCampaignRosterAsync(
         GetClosedCampaignRosterInput input, CancellationToken cancellationToken = default)
         => ReadAsync<ClosedCampaignRosterResult>(input, () => CampaignEndpoints.ClosedRosterUrl(input), result => ValidClosed(result, input), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<ClosedCampaignRosterExport>> ExportClosedCampaignRosterAsync(
+        GetClosedCampaignRosterExportInput input, CancellationToken cancellationToken = default)
+    {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        using var response = await http.GetAsync(
+            new Uri(CampaignEndpoints.ClosedRosterExportUrl(input), UriKind.Relative), cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        var contentType = response.Content.Headers.ContentType;
+        var disposition = response.Content.Headers.ContentDisposition;
+        // FileNameStar is the RFC 5987 form; FileName carries the legacy quoted form. The server
+        // emits an ASCII-only sanitized name, so both agree and either is safe to validate.
+        var fileName = disposition?.FileNameStar ?? disposition?.FileName?.Trim('"');
+        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (!string.Equals(contentType?.MediaType, "text/csv", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(contentType?.CharSet, "utf-8", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(disposition?.DispositionType, "attachment", StringComparison.OrdinalIgnoreCase)
+            || !IsSafeExportFileName(fileName)
+            || !HasExpectedExportFraming(content))
+        {
+            return ServiceProblem.ServerError("The server returned an invalid campaign export.");
+        }
+
+        return new ClosedCampaignRosterExport(content, contentType!.ToString(), fileName!);
+    }
+
+    /// <summary>Accepts only the sanitized ASCII shape the producer can emit.</summary>
+    private static bool IsSafeExportFileName(string? fileName)
+        => fileName is not null
+            && fileName.Length > ClosedCampaignRosterExportConstraints.FileNamePrefix.Length
+                + ClosedCampaignRosterExportConstraints.FileNameSuffix.Length
+            && fileName.Length <= ClosedCampaignRosterExportConstraints.FileNamePrefix.Length
+                + ClosedCampaignRosterExportConstraints.MaxFileBaseNameCharacters
+                + ClosedCampaignRosterExportConstraints.FileNameSuffix.Length
+            && fileName.StartsWith(ClosedCampaignRosterExportConstraints.FileNamePrefix, StringComparison.Ordinal)
+            && fileName.EndsWith(ClosedCampaignRosterExportConstraints.FileNameSuffix, StringComparison.Ordinal)
+            && fileName.All(character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character)
+                || character is '-' or '.');
+
+    /// <summary>
+    /// Requires a BOM-prefixed UTF-8 file whose first record is exactly the shared header row. The
+    /// header constants contain no delimiter or quote, so the expected line is the unquoted join the
+    /// writer produces; a unit test pins that coupling.
+    /// </summary>
+    private static bool HasExpectedExportFraming(byte[] content)
+    {
+        var preamble = Encoding.UTF8.GetPreamble();
+        if (content.Length <= preamble.Length || !content.AsSpan(0, preamble.Length).SequenceEqual(preamble))
+        {
+            return false;
+        }
+
+        var expectedHeader = Encoding.UTF8.GetBytes(
+            string.Join(',', ClosedCampaignRosterExportConstraints.Headers) + "\r\n");
+        return content.AsSpan(preamble.Length).StartsWith(expectedHeader);
+    }
 
     private async Task<ServiceResult<T>> ReadAsync<T>(PlacementPageInput input, Func<string> url,
         Func<T, bool> validate, CancellationToken token)

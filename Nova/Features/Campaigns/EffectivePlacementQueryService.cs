@@ -33,8 +33,13 @@ internal sealed partial class EffectivePlacementQueryService(
         GetClosedCampaignRosterInput input, CancellationToken cancellationToken = default)
         => ReadAsync(input, (db, clubId, token) => ReadClosedAsync(db, clubId, input, token), cancellationToken);
 
+    /// <inheritdoc />
+    public Task<ServiceResult<ClosedCampaignRosterExport>> ExportClosedCampaignRosterAsync(
+        GetClosedCampaignRosterExportInput input, CancellationToken cancellationToken = default)
+        => ReadAsync(input, (db, clubId, token) => ReadClosedExportAsync(db, clubId, input, token), cancellationToken);
+
     /// <summary>Keeps response identity, lifecycle, counts, and rows in one snapshot per retry attempt.</summary>
-    private async Task<ServiceResult<T>> ReadAsync<T>(PlacementPageInput input,
+    private async Task<ServiceResult<T>> ReadAsync<T>(object input,
         Func<NovaReadDbContext, long, CancellationToken, Task<ServiceResult<T>>> read,
         CancellationToken cancellationToken)
     {
@@ -151,23 +156,12 @@ internal sealed partial class EffectivePlacementQueryService(
     private static async Task<ServiceResult<ClosedCampaignRosterResult>> ReadClosedAsync(
         NovaReadDbContext db, long clubId, GetClosedCampaignRosterInput input, CancellationToken token)
     {
-        var campaign = await ReadCampaignAsync(db, clubId, input.CampaignId, token);
-        if (campaign is null)
+        var closed = await ReadClosedRecordAsync(db, clubId, input.CampaignId, token);
+        if (closed.IsProblem)
         {
-            return ServiceProblem.NotFound();
+            return closed.Problem;
         }
-        if (campaign.Status != CampaignStatus.Closed)
-        {
-            return ServiceProblem.Conflict("The final roster is available only while the campaign is Closed.");
-        }
-        var query = db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId && a.CampaignId == input.CampaignId
-            && a.Player.ClubId == clubId);
-        if (await query.AnyAsync(a => a.PlacementOutcome == PlacementOutcome.Undecided || a.DecisionRecordedAt == null
-            || a.DecisionRecordedById == null || a.DecisionActorDisplayName == null
-            || a.PlacementOutcome == PlacementOutcome.Assigned && (a.Team == null || a.Team.ClubId != clubId), token))
-        {
-            return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.");
-        }
+        var query = ClosedParticipants(db, clubId, input.CampaignId);
         var participantCount = await query.CountAsync(token);
         if (!await DiscoveryIdentifiersExistAsync(db, clubId, input, token))
         {
@@ -181,11 +175,70 @@ internal sealed partial class EffectivePlacementQueryService(
             .Skip(Offset(input)).Take(Size(input)).Select(PlacementReadProjection.ClosedRow(clubId)).ToListAsync(token);
         var tags = await ReadTagsAsync(db, clubId, rows.Select(row => row.PlayerCampaignAssignmentId).ToArray(), token);
         rows = rows.Select(row => row with { AppliedTags = tags.GetValueOrDefault(row.PlayerCampaignAssignmentId, []) }).ToList();
-        return new ClosedCampaignRosterResult(campaign, new(rows.AsReadOnly(), input.Page ?? 1, Size(input), count))
+        return new ClosedCampaignRosterResult(closed.Value, new(rows.AsReadOnly(), input.Page ?? 1, Size(input), count))
         {
             ParticipantCount = participantCount,
         };
     }
+
+    /// <summary>
+    /// Exports every participant of one Closed campaign. The campaign identity, lifecycle guard,
+    /// record-integrity guard, and all rows are read inside the same snapshot, so a lifecycle change
+    /// or an edit during generation cannot produce a file that mixes two campaign states. Discovery
+    /// filters are deliberately absent: the export is always the whole immutable record.
+    /// </summary>
+    private static async Task<ServiceResult<ClosedCampaignRosterExport>> ReadClosedExportAsync(
+        NovaReadDbContext db, long clubId, GetClosedCampaignRosterExportInput input, CancellationToken token)
+    {
+        var closed = await ReadClosedRecordAsync(db, clubId, input.CampaignId, token);
+        if (closed.IsProblem)
+        {
+            return closed.Problem;
+        }
+        // One capped query proves the bound without materializing an unbounded result set.
+        var rows = await ClosedParticipants(db, clubId, input.CampaignId)
+            .OrderBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerId)
+            .Take(ClosedCampaignRosterExportConstraints.MaxRows + 1)
+            .Select(PlacementReadProjection.ClosedRow(clubId)).ToListAsync(token);
+        if (rows.Count > ClosedCampaignRosterExportConstraints.MaxRows)
+        {
+            return ServiceProblem.Conflict(
+                $"This campaign exceeds the {ClosedCampaignRosterExportConstraints.MaxRows}-participant export limit.");
+        }
+        return new ClosedCampaignRosterExport(ClosedCampaignRosterCsvWriter.Write(closed.Value, rows.AsReadOnly()),
+            ClosedCampaignRosterExportConstraints.CsvContentType,
+            ClosedCampaignRosterExportConstraints.CreateFileName(closed.Value.Name));
+    }
+
+    /// <summary>
+    /// Resolves the campaign identity and proves the record is Closed with complete decision evidence.
+    /// Shared by the paged read and the export so lifecycle and integrity guards cannot drift.
+    /// </summary>
+    private static async Task<ServiceResult<PlacementCampaignIdentity>> ReadClosedRecordAsync(
+        NovaReadDbContext db, long clubId, long campaignId, CancellationToken token)
+    {
+        var campaign = await ReadCampaignAsync(db, clubId, campaignId, token);
+        if (campaign is null)
+        {
+            return ServiceProblem.NotFound();
+        }
+        if (campaign.Status != CampaignStatus.Closed)
+        {
+            return ServiceProblem.Conflict("The final roster is available only while the campaign is Closed.");
+        }
+        if (await ClosedParticipants(db, clubId, campaignId).AnyAsync(a => a.PlacementOutcome == PlacementOutcome.Undecided
+            || a.DecisionRecordedAt == null || a.DecisionRecordedById == null || a.DecisionActorDisplayName == null
+            || a.PlacementOutcome == PlacementOutcome.Assigned && (a.Team == null || a.Team.ClubId != clubId), token))
+        {
+            return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.");
+        }
+        return campaign;
+    }
+
+    /// <summary>The campaign's tenant-scoped participants, including archived players and teams.</summary>
+    private static IQueryable<PlayerCampaignAssignmentEntity> ClosedParticipants(NovaReadDbContext db, long clubId, long campaignId)
+        => db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId && a.CampaignId == campaignId
+            && a.Player.ClubId == clubId);
 
     private static Task<PlacementCampaignIdentity?> ReadCampaignAsync(NovaReadDbContext db, long clubId, long campaignId, CancellationToken token)
         => db.Campaigns.Where(c => c.ClubId == clubId && c.CampaignId == campaignId && c.Season.ClubId == clubId)

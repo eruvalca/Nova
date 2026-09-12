@@ -25,5 +25,8 @@ contracts and regression evidence; [PRODUCT.md](../../PRODUCT.md) owns product i
 Effective roster and Needs-placement consumers share `EffectivePlacementQueries`; the roster read
 endpoints and WASM client use `IEffectivePlacementQueryService`. Keep campaign-local history and
 closeout outcome counts separate: zero Needs placement does not satisfy the explicit local outcomes
-required to close. Use the existing domain-persistence and testing skills; the foundation document
-records the contracts and remaining downstream ownership.
+required to close. A generated export of a campaign record must be produced inside one server-side
+snapshot read that repeats the record's own lifecycle and integrity guards; never assemble an export
+by joining independently paged responses or by re-deriving rows from the effective-season roster. Use
+the existing domain-persistence and testing skills; the foundation document records the contracts and
+remaining downstream ownership.

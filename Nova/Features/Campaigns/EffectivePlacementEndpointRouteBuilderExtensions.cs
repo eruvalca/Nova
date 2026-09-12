@@ -21,6 +21,13 @@ internal static class EffectivePlacementEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status409Conflict).WithName(CampaignEndpoints.EffectivePlacementsRouteName);
             Describe<ClosedCampaignRosterResult>(campaigns.MapGet(CampaignEndpoints.ClosedRosterRelative, ClosedHandlerAsync))
                 .ProducesProblem(StatusCodes.Status409Conflict).WithName(CampaignEndpoints.ClosedRosterRouteName);
+            campaigns.MapGet(CampaignEndpoints.ClosedRosterExportRelative, ClosedExportHandlerAsync)
+                .Produces(StatusCodes.Status200OK, contentType: ClosedCampaignRosterExportConstraints.CsvContentType)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .WithName(CampaignEndpoints.ClosedRosterExportRouteName);
             return endpoints;
         }
     }
@@ -41,4 +48,9 @@ internal static class EffectivePlacementEndpointRouteBuilderExtensions
     private static async Task<IResult> ClosedHandlerAsync([AsParameters] GetClosedCampaignRosterInput input,
         IEffectivePlacementQueryService service, CancellationToken cancellationToken)
         => (await service.GetClosedCampaignRosterAsync(input, cancellationToken)).ToHttpResult();
+
+    private static async Task<IResult> ClosedExportHandlerAsync([AsParameters] GetClosedCampaignRosterExportInput input,
+        IEffectivePlacementQueryService service, CancellationToken cancellationToken)
+        => (await service.ExportClosedCampaignRosterAsync(input, cancellationToken)).ToHttpResult(
+            export => TypedResults.File(export.Content, export.ContentType, export.FileName));
 }

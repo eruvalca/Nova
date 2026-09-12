@@ -3,6 +3,7 @@ using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Common;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Validation;
 using OneOf;
@@ -248,28 +249,12 @@ internal sealed class PlayerImportCsvParser
         PlayerImportField field,
         List<PlayerImportFieldError> errors)
     {
-        if (!IsFormulaLike(value))
+        if (!CsvCellSafety.IsFormulaLike(value))
         {
             return;
         }
 
         errors.Add(new(field, "The value must not begin with a spreadsheet formula character."));
-    }
-
-    private static bool IsFormulaLike(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return false;
-        }
-
-        if (value[0] is '\t' or '\r' or '\n')
-        {
-            return true;
-        }
-
-        var firstMeaningfulCharacter = value.FirstOrDefault(character => character != ' ');
-        return firstMeaningfulCharacter is '\t' or '\r' or '\n' or '=' or '+' or '-' or '@';
     }
 
     private static bool TryParseUnsignedInt(string value, out int result)

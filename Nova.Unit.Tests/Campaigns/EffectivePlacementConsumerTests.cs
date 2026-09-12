@@ -134,7 +134,7 @@ public sealed class EffectivePlacementConsumerTests : IDisposable
         await using var app = builder.Build();
         app.MapEffectivePlacementEndpoints();
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        endpoints.Length.ShouldBe(3);
+        endpoints.Length.ShouldBe(4);
         foreach (var endpoint in endpoints)
         {
             endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldContain(data => data.Policy == Policies.RequireClubMember);
@@ -152,6 +152,13 @@ public sealed class EffectivePlacementConsumerTests : IDisposable
                 statuses.ShouldContain(409);
             }
         }
+
+        var export = endpoints.Single(endpoint => string.Equals(
+            endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()!.EndpointName,
+            CampaignEndpoints.ClosedRosterExportRouteName, StringComparison.Ordinal));
+        export.RoutePattern.RawText.ShouldBe($"{CampaignEndpoints.GroupPrefix}/{CampaignEndpoints.ClosedRosterExportRelative}");
+        export.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Single(item => item.StatusCode == 200)
+            .ContentTypes.ShouldBe([ClosedCampaignRosterExportConstraints.CsvContentType]);
     }
 
     private TestDbContextFactory<NovaReadDbContext> Factory() => new(_harness.CreateReadContext);
