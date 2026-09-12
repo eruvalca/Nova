@@ -242,12 +242,9 @@ public partial class SeasonDirectory(
 
         _page = requestedPage;
         SyncPageToUrl();
-        if (!Initialized)
-        {
-            // OnInitializedAsync owns the first load, including this page.
-            return;
-        }
-
+        // Always replace the history region's request when the page actually changes, including while the
+        // initial load is still pending: that load's response describes the previous page, and the region
+        // token makes the replacement safe by cancelling the older request.
         await ReloadHistoryPageAsync();
         PersistState();
     }

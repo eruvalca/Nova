@@ -101,7 +101,7 @@ FORM: Two independent regions on one spine: the current stop always leads; paged
                     </ol>
                 }
 
-                @if (!_historyLoading && _historyError is null && TotalPages > 1)
+                @if (!_historyLoading && _historyError is null && TotalPages > 1 && !PageBeyondHistory)
                 {
                     <nav class="season-pager" aria-label="Season pages">
                         @if (_page > 1)

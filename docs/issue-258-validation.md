@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `3414aa452168dfeb170a9a9b08b3bc8ff31fa3fc2713a4d9be7456ee768e3695`. Documentation
+line) with SHA-256 `0bfce2ea7604377a64ff44b8dec67669445a1a73e161b9600664def41b7e9329`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -199,6 +199,23 @@ Three further findings, all about coverage and convention rather than behaviour,
   normalized-email lookup and direct club assignment; it now calls `SeedingHelpers.UpdateUserAsync`, so browser
   fixtures stay aligned if membership seeding changes.
 
+## Review round 7 — pull-request review
+
+Two further findings, both genuine defects in states the earlier tests could not reach.
+
+- **An out-of-range page rendered a contradictory pager.** The pager was suppressed only by
+  `TotalPages > 1`, so `?page=9` against a three-page total rendered "Page 9 of 3" with a Previous link to
+  another invalid page *alongside* the first-page recovery message. The pager is now suppressed whenever the
+  requested page is beyond the recorded history, and the beyond-history test uses a multi-page total and
+  asserts no pager renders; the previous two-season fixture could not reach that state.
+- **A page change during the initial load was dropped.** `OnParametersSetAsync` returned early while
+  `Initialized` was false, so a same-route `?page=` change arriving while the startup load was still pending
+  updated `_page` without replacing the in-flight history request — and that request then published its
+  previous-page rows under the new URL and caption. The history region is now replaced whenever the normalized
+  page actually changes, at any point in the lifecycle; the per-region token makes the replacement safe by
+  cancelling the older request. `RenderKeepsTheNewerPageWhenAStartupHistoryResponseArrivesLateAsync` covers the
+  delayed-startup interleaving and fails against the previous guard.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -240,7 +257,7 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,199/3,199, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,200/3,200, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 191 total; 183 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |

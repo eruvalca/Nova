@@ -152,7 +152,7 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
     [Fact]
     public void RenderOffersRecoveryToTheFirstPageWhenTheRequestedPageIsBeyondHistory()
     {
-        Register(history: HistoryPage(9, 2));
+        Register(history: HistoryPage(9, 45));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo($"{RoutePath}?page=9");
 
@@ -160,6 +160,8 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
 
         cut.Markup.ShouldContain("No seasons are recorded on page 9.");
         cut.Find(".season-history-recover").GetAttribute("href").ShouldBe(RoutePath);
+        // A "Page 9 of 3" pager must not accompany the recovery message.
+        cut.FindAll(".season-pager").Count.ShouldBe(0);
     }
 
     /// <summary>Verifies one failing region leaves the other region's loaded content intact.</summary>
@@ -503,6 +505,43 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
         // The season shown as current must not also appear as a past row.
         CountOccurrences(cut.Markup, "PRIOR CLUB SEASON").ShouldBe(1);
         cut.Markup.ShouldNotContain("NEXT CLUB SEASON");
+    }
+
+    [Fact]
+    public async Task RenderKeepsTheNewerPageWhenAStartupHistoryResponseArrivesLateAsync()
+    {
+        var startupHistory = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();
+        var historyReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize == 1)
+                {
+                    return Task.FromResult(CurrentSeasonRead());
+                }
+
+                return Interlocked.Increment(ref historyReads) switch
+                {
+                    1 => startupHistory.Task,
+                    _ => Task.FromResult(HistoryPage(2, 45, PastSeasonSummary(11, "PAGE TWO SEASON", 2016)))
+                };
+            });
+        Register(seasons: seasons);
+
+        var cut = Render<SeasonDirectory>();
+
+        // The requested page changes while the startup load's history read is still outstanding.
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=2");
+        cut.Render();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("PAGE TWO SEASON"));
+
+        // The superseded startup response must not publish page-one rows under the page-two URL.
+        startupHistory.SetResult(HistoryPage(1, 45, PastSeasonSummary(9, "STARTUP PAGE ONE SEASON", 2018)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Page 2 of 3"));
+        cut.Markup.ShouldContain("PAGE TWO SEASON");
+        cut.Markup.ShouldNotContain("STARTUP PAGE ONE SEASON");
     }
 
     private static int CountOccurrences(string text, string value)
