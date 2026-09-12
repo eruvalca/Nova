@@ -112,13 +112,13 @@ Resolved:
 - State evidence now exists for the member view, the first season, the recovery state, and a middle page of
   a long history.
 
-Reviewed and declined, with evidence: the reviewer's claim that club creation establishes the first season
-contradicts the shipped flow. `Nova.UI/Features/Clubs/Pages/ClubOnboarding.razor.cs` contains no season step,
-and `ClubEndpoints.Complete` is documented as the post-creation cookie-refresh hop; the only inline season
-creator is `CampaignCreationService`, matching
-`.github/instructions/season-lifecycle.instructions.md` ("inline season creation is allowed only in the
-no-current state"). A freshly created club therefore renders the first-season state, as the browser suite
-proves.
+Raised as a foundation divergence rather than declined: the club-setup brief explicitly requires that a
+creator establish "exactly one club and its first season" and that "club and first-season creation" commit
+atomically (`club-setup.md:17`, `:147`), and the shipped flow does not do that —
+`Nova.UI/Features/Clubs/Pages/ClubOnboarding.razor.cs` has no season step and `ClubEndpoints.Complete` is the
+post-creation cookie-refresh hop, with `CampaignCreationService` the only inline season creator. The directory
+states the first-season state accurately for what ships; the divergence belongs to the club-setup slice and is
+raised against #163 on issue #258.
 
 Open, disclosed: no comp exists, so the comp-fidelity promise is unmet for this surface rather than waived by
 a comp round.

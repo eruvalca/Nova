@@ -258,6 +258,78 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
     }
 
     [Fact]
+    public void RenderDoesNotRefetchARestoredHistoryFailure()
+    {
+        var seasons = Substitute.For<ISeasonQueryService>();
+        Register(seasons: seasons);
+
+        var cut = Render<PersistedHistoryFailureDirectory>(parameters => parameters
+            .Add(component => component.StartInitialized, true)
+            .Add(component => component.StartPage, 1)
+            .Add(component => component.StartHistoryError, "Season history is unavailable."));
+
+        cut.Markup.ShouldContain("Season history is unavailable.");
+        cut.Markup.ShouldContain("2026–27");
+        _ = seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RenderRemovesTheAdvancementEntryBeforeReplacementReadsCompleteAsync()
+    {
+        var replacementRead = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();
+        var currentReads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (call.Arg<GetSeasonListInput>().PageSize != 1)
+                {
+                    return Task.FromResult(HistoryPage(1, 1, CurrentSeasonSummary()));
+                }
+
+                return Interlocked.Increment(ref currentReads) == 1
+                    ? Task.FromResult(CurrentSeasonRead())
+                    : replacementRead.Task;
+            });
+        var auth = new TestAuthenticationStateProvider(AdministratorPrincipal());
+        Register(seasons: seasons, auth: auth);
+
+        var cut = RenderDirectory();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain($"href=\"{ClubRoutes.StartNextSeason}\""));
+
+        // Revoking authority must withdraw the entry point while the replacement reads are outstanding.
+        auth.Change(MemberPrincipal());
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain(ClubRoutes.StartNextSeason));
+        cut.Markup.ShouldContain("Seasons");
+
+        replacementRead.SetResult(CurrentSeasonRead());
+    }
+
+    [Fact]
+    public async Task RenderClearsThePreviousClubRowsAndRoutesWhenMembershipDisappearsAsync()
+    {
+        var reads = 0;
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Interlocked.Increment(ref reads) <= 2
+                ? Task.FromResult(HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025)))
+                : Task.FromResult(new ServiceResult<SeasonPageResult>(
+                    ServiceProblem.Forbidden("A current club membership is required."))));
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal(clubId: "1"));
+        Register(seasons: seasons, auth: auth);
+
+        var cut = RenderDirectory();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("2026–27"));
+
+        auth.Change(MemberPrincipal(clubId: null));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        await cut.WaitForAssertionAsync(() => navigationManager.Uri.ShouldEndWith("/Account/AccessDenied"));
+        cut.Markup.ShouldNotContain("2025–26");
+        cut.Markup.ShouldNotContain("2026–27");
+    }
+
+    [Fact]
     public void RenderRoutesForbiddenSeasonReadsToAccessDenied()
     {
         Register(current: new ServiceResult<SeasonPageResult>(
@@ -421,6 +493,40 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
             new(ClaimTypes.Role, Roles.ClubAdmin)
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
+    private sealed class PersistedHistoryFailureDirectory(
+#pragma warning restore CA1812
+        ISeasonQueryService seasonQueryService,
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+        : SeasonDirectory(seasonQueryService, authenticationStateProvider, navigationManager)
+    {
+        /// <summary>Gets or sets whether the restored snapshot represents a completed first load.</summary>
+        [Parameter] public bool StartInitialized { get; set; }
+
+        /// <summary>Gets or sets the season page the persisted snapshot describes.</summary>
+        [Parameter] public int StartPage { get; set; }
+
+        /// <summary>Gets or sets the persisted history error.</summary>
+        [Parameter] public string? StartHistoryError { get; set; }
+
+        /// <inheritdoc />
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                PersistedIdentityScope = "10:1:False";
+                PersistedPage = StartPage;
+                PersistedHistoryError = StartHistoryError;
+                PersistedCurrentSeason = CurrentSeasonSummary();
+                PersistedCurrentSeasonCount = 1;
+            }
+
+            return base.OnInitializedAsync();
+        }
     }
 
     private sealed class TestAuthenticationStateProvider(ClaimsPrincipal initialPrincipal)

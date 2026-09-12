@@ -95,6 +95,9 @@ public partial class SeasonDirectory(
     /// <summary>Loaded history page persisted across prerender/interactive hops.</summary>
     [PersistentState] public SeasonPageResult? PersistedHistoryPage { get; set; }
 
+    /// <summary>Season page the persisted history payload or error describes.</summary>
+    [PersistentState] public int PersistedPage { get; set; }
+
     /// <summary>Current-season error persisted across prerender/interactive hops.</summary>
     [PersistentState] public string? PersistedCurrentError { get; set; }
 
@@ -198,9 +201,13 @@ public partial class SeasonDirectory(
         if (Initialized && string.Equals(PersistedIdentityScope, _identityScope, StringComparison.Ordinal))
         {
             RestorePersistedState();
+            var restoredPage = _page;
             _page = requestedPage;
             SyncPageToUrl();
-            if (_historyPage is not null && _historyPage.Page == requestedPage)
+            // A persisted page or error for this page is already this pass's history state. Re-requesting
+            // either one is the duplicate startup fetch PersistentState exists to prevent, so a recorded
+            // failure for the requested page counts as initialized exactly like a successful payload.
+            if (restoredPage == requestedPage && (_historyPage is not null || _historyError is not null))
             {
                 return;
             }
@@ -423,6 +430,7 @@ public partial class SeasonDirectory(
         PersistedCurrentSeason = _currentSeason;
         PersistedCurrentSeasonCount = _currentSeasonCount;
         PersistedHistoryPage = _historyPage;
+        PersistedPage = _page;
         PersistedCurrentError = _currentError;
         PersistedHistoryError = _historyError;
         PersistedIdentityScope = _identityScope;
@@ -435,6 +443,7 @@ public partial class SeasonDirectory(
         _currentSeasonCount = PersistedCurrentSeasonCount;
         _currentError = PersistedCurrentError;
         _historyError = PersistedHistoryError;
+        _page = PersistedPage > 0 ? PersistedPage : GetSeasonListInput.DefaultPage;
         if (PersistedHistoryPage is { } page)
         {
             ApplyHistoryPage(page);

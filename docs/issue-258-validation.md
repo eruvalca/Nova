@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 21
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `39ddb4ac154c32804a02c6c2e66397aa63eda20e14a4a46d364d16e530aa1bdd`. Documentation
+line) with SHA-256 `a65d55927f475f8601d9a33b195785e6ea5c88da9760d1d3f95c9a606d84335f`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -44,12 +44,17 @@ rectangle was identified as the Club shell's own post-navigation heading focus (
 the hall's `h1`), so it was not suppressed; the evidence pass now captures unfocused and the ring measures 0
 pixels across all six captures (768 and 1314 before).
 
-Declined with evidence: the reviewer inferred from the club-setup surface brief that club creation
-establishes the first season. The shipped flow does not:
-`Nova.UI/Features/Clubs/Pages/ClubOnboarding.razor.cs` contains no season step and `ClubEndpoints.Complete`
-is the post-creation cookie-refresh hop; the only inline season creator is `CampaignCreationService`, matching
-`.github/instructions/season-lifecycle.instructions.md`. The browser suite proves a freshly created club
-renders the first-season state.
+Divergence raised, not declined. The finding is correct about the authoritative source: the club-setup surface
+brief states both "A creator establishes exactly one club and its first season" (`club-setup.md:17`) and
+"Commit club and first-season creation atomically from the creator's perspective" (`club-setup.md:147`). The
+shipped flow does not implement that: `Nova.UI/Features/Clubs/Pages/ClubOnboarding.razor.cs` contains no season
+step and `ClubEndpoints.Complete` is documented as the post-creation cookie-refresh hop, while the only inline
+season creator is `CampaignCreationService` — which satisfies
+`.github/instructions/season-lifecycle.instructions.md` ("inline season creation is allowed only in the
+no-current state") but not the brief. The directory therefore states the first-season state accurately for
+what ships, and the brief-versus-implementation divergence is recorded as an open foundation gap against #163
+owned by the club-setup slice rather than by this directory; it is also raised on issue #258. This slice must
+not resolve it by inventing a season.
 
 Open and disclosed: no approved comp exists for this surface (see the substitution note below), so the
 comp-fidelity promise is unmet rather than waived by a comp round.
@@ -78,6 +83,32 @@ duplicate, `start-next` not shadowed by the `:long` constraint, and every destin
 noted, as a non-defect with no reachable consumer, that the URL-driven history reload does not call
 `PersistState()`; the persisted snapshot is only read on fresh instantiation, which always re-primes it.
 
+## Review round 2 — pull-request review
+
+A pull-request review raised four threads; each was evaluated on its merits. Two were real defects in this
+change and are fixed:
+
+- **Persisted history state was not honored across prerender/attach.** The restore branch returned only when a
+  successful history payload existed, so after a server-side history failure the interactive attach pass
+  immediately re-issued the same request — the duplicate startup fetch `[PersistentState]` exists to prevent.
+  The requested page is now persisted independently of the payload, and a recorded failure for the requested
+  page counts as initialized exactly like a successful payload. Covered by
+  `RenderDoesNotRefetchARestoredHistoryFailure`, which asserts the season service is not called at all: the
+  test fails against the pre-fix guard and passes after it.
+- **The authentication reconciliation was only tested for a same-role club change.** Two controlled
+  delayed-response tests now cover the missing permission transitions:
+  `RenderRemovesTheAdvancementEntryBeforeReplacementReadsCompleteAsync` (administrator → member withdraws the
+  advancement entry while the replacement reads are still outstanding) and
+  `RenderClearsThePreviousClubRowsAndRoutesWhenMembershipDisappearsAsync` (a clubless notification clears the
+  previous club's rows before routing to access-denied).
+
+One thread corrected the record rather than the code: the club-setup brief **explicitly** requires atomic
+club-plus-first-season creation (`club-setup.md:17` and `:147`), so describing that finding as the reviewer's
+inference misstated its source. The record now states the divergence plainly and attributes it to the
+club-setup slice as an open foundation gap. The final thread's point — that the missing comp leaves an
+acceptance criterion unmet — is accepted, and is now stated explicitly together with the fact that this pull
+request carries no closing keyword for issue #258.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -96,6 +127,13 @@ recovery, and a middle page of a long history) in `.impeccable/review/issue-258/
 and the surface brief with the direction contract and finish-review record. The stale
 `.impeccable/build/state.json` in this tree belongs to issue #197's surface and is not this surface's record.
 
+**This leaves one acceptance criterion unmet.** Issue #258 requires a comp-led decision and approved comp
+evidence, and neither exists here. The disclosure above records the substitution; it does not discharge the
+criterion. This pull request therefore does not close issue #258 — its title and body carry no closing keyword
+— because closing requires either supplying the required comp and re-reviewing this surface against it, or
+formally amending the issue's acceptance criteria to accept a code-led build with wireframe-card evidence.
+That choice belongs to the repository owner, and the same statement is recorded on the issue.
+
 ## Guidance actually read
 
 - `AGENTS.md`; `.github/instructions/` — blazor architecture, ui design, csharp conventions, service layer,
@@ -110,26 +148,24 @@ and the surface brief with the direction contract and finish-review record. The 
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,190/3,190, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,193/3,193, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 189 total: 179 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), 2 failed. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 189 total; 181 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |
 | `node .agents/skills/impeccable/scripts/detect.mjs --json <seasons surface files>` | Zero findings. |
 | `npm run check:contrast` | Not applicable: `Nova/scss/**` and `Nova/package.json` are unchanged by this slice. |
 
-### The two browser failures are pre-existing
+### The only browser failures seen were pre-existing and flaky
 
-Both are `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync_002`
-and `_004` — the two `wasm: True` theory cases — failing in the WebAssembly attachment probe. They are not
+The final full browser run is green (189 total, zero failures). Two unrelated failures appeared in three
+earlier runs and not in two others: `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync_002`
+and `_004`, the two `wasm: True` theory cases, failing in the WebAssembly attachment probe. They are not
 caused by this change: a clean `git worktree` at the unmodified base commit `71fcd89b`, built and run with the
-same command, fails the identical two cases with the same probe failure. They also failed before the
-finish-review fixes were applied. The same two cases pass in some runs and fail in others on both revisions,
-which is the documented hydration/probe sensitivity of that class; they were not suppressed, skipped, or
-weakened.
+same command, fails the identical two cases with the same probe failure, and they passed in a full run made
+before the finish-review fixes. They were not suppressed, skipped, or weakened.
 
-One additional transient failure was observed once in a full run —
-`ClubOverviewBrowserTests.OverviewMobileSheetOpensCompleteDirectoryAndNoScriptShowsRoutesAsync` — and that
-class passes 5/5 in isolation on the unchanged build.
+One further transient failure was observed once — `ClubOverviewBrowserTests.OverviewMobileSheetOpensCompleteDirectoryAndNoScriptShowsRoutesAsync`
+— and that class passes 5/5 in isolation on the unchanged build and in the final full run.
 
 ### Limitations
 
