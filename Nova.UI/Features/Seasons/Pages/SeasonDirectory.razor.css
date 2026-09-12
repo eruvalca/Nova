@@ -93,12 +93,15 @@
     color: var(--bs-primary-text-emphasis);
 }
 
-/* The season name is the stop's touch target, so it keeps a full control height. */
+/* The season name is the stop's touch target, so it keeps a full control box in both dimensions:
+   a short name such as "A" would otherwise render a link far narrower than the 2.75rem minimum. */
 .season-stop-name a {
     display: inline-flex;
+    min-width: 2.75rem;
     min-height: 2.75rem;
     max-width: 100%;
     align-items: center;
+    justify-content: center;
     overflow-wrap: anywhere;
 }
 

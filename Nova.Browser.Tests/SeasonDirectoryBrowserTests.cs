@@ -165,6 +165,29 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
             .ToBeVisibleAsync();
     }
 
+    [Fact]
+    public async Task DirectoryPhoneSeasonLinkMeetsBothTargetDimensionsForAShortNameAsync()
+    {
+        var seed = await SeedDirectoryAsync(
+            pastSeasonCount: 1,
+            TestContext.Current.CancellationToken,
+            currentSeasonName: "A");
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.Email, Password, new ViewportSize { Width = 390, Height = 844 });
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Seasons", Exact = true })).ToBeVisibleAsync();
+
+        // A one-character season name must still present a full control box, not just a full height.
+        var link = page.Locator(".season-stop-current .season-stop-name a");
+        await Expect(link).ToBeVisibleAsync();
+        var size = await link.EvaluateAsync<double[]>(
+            "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
+        size[0].ShouldBeGreaterThanOrEqualTo(44, "phone season-link width for a short name");
+        size[1].ShouldBeGreaterThanOrEqualTo(44, "phone season-link height for a short name");
+    }
+
     /// <summary>
     /// Captures seasons-directory accessibility evidence when <c>NOVA_A11Y_SCREENSHOTS=1</c>;
     /// otherwise skips so a green run always means the assertions executed.
@@ -333,7 +356,8 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
     private async Task<DirectorySeed> SeedDirectoryAsync(
         int pastSeasonCount,
         CancellationToken cancellationToken,
-        bool includeCurrentSeason = true)
+        bool includeCurrentSeason = true,
+        string? currentSeasonName = null)
     {
         using var client = fixture.AppHost.CreateNovaHttpClient();
         var email = SeedingHelpers.UniqueEmail("seasons-directory-admin");
@@ -353,7 +377,7 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
             SeasonEntity? current = null;
             if (includeCurrentSeason)
             {
-                current = NewSeason($"Season {suffix}", 2026, club.ClubId, user.Id);
+                current = NewSeason(currentSeasonName ?? $"Season {suffix}", 2026, club.ClubId, user.Id);
                 context.Seasons.Add(current);
             }
 

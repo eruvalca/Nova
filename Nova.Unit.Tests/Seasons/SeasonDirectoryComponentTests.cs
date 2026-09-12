@@ -449,6 +449,30 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
         cut.Markup.ShouldNotContain("STALE PAGE ONE SEASON");
     }
 
+    [Fact]
+    public async Task RenderReconcilesMismatchedCurrentIdentityBetweenRegionsAsync()
+    {
+        var currentRead = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();
+        var seasons = Substitute.For<ISeasonQueryService>();
+        seasons.ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<GetSeasonListInput>().PageSize == 1
+                ? currentRead.Task
+                : Task.FromResult(HistoryPage(1, 2,
+                    SeasonFor(3, "NEXT CLUB SEASON", 2027, isCurrent: true),
+                    SeasonFor(2, "PRIOR CLUB SEASON", 2026, isCurrent: false))));
+        Register(seasons: seasons);
+
+        var cut = RenderDirectory();
+
+        // The current region observed an older snapshot than the history region.
+        currentRead.SetResult(Read([SeasonFor(2, "PRIOR CLUB SEASON", 2026, isCurrent: true)], 2));
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("PRIOR CLUB SEASON"));
+        // The season shown as current must not also appear as a past row.
+        CountOccurrences(cut.Markup, "PRIOR CLUB SEASON").ShouldBe(1);
+        cut.Markup.ShouldNotContain("NEXT CLUB SEASON");
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;
@@ -553,6 +577,16 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
         StartDate = new DateOnly(startYear, 9, 1),
         EndDate = new DateOnly(startYear + 1, 5, 31),
         IsCurrent = false,
+        ConcurrencyToken = Guid.NewGuid()
+    };
+
+    private static SeasonSummary SeasonFor(long seasonId, string name, int startYear, bool isCurrent) => new()
+    {
+        SeasonId = seasonId,
+        Name = name,
+        StartDate = new DateOnly(startYear, 9, 1),
+        EndDate = new DateOnly(startYear + 1, 5, 31),
+        IsCurrent = isCurrent,
         ConcurrencyToken = Guid.NewGuid()
     };
 

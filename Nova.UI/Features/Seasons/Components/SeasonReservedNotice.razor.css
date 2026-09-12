@@ -13,11 +13,13 @@
     overflow-wrap: anywhere;
 }
 
-/* The reserved destination's control keeps the documented control height on phones. */
+/* The reserved destination's control keeps the documented control box on phones. */
 .season-reserved-notice .btn {
     display: inline-flex;
+    min-width: 2.75rem;
     min-height: 2.75rem;
     align-items: center;
+    justify-content: center;
 }
 
 .season-reserved-notice p {

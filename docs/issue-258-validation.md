@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `fcac2bc0f6b5b09593aff2a735022abfd3fefed8361434e4ae8613e975c923b9`. Documentation
+line) with SHA-256 `3a013cff9623b0e311a60dec7033dc43265d4a3695c458567d3dc325166eba35`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -158,6 +158,29 @@ corrections it raised were applied to the pull request body.
 The same round flagged the pull-request description: it carried the host-appended `Fixes: #258` reference and
 test totals that no longer matched this record. Both were corrected in the description rather than argued.
 
+## Review round 5 — pull-request review
+
+Three further suppressed findings, all valid and fixed.
+
+- **Concurrent reads could render one season twice.** The current and history reads are independent and
+  eventually consistent, and the history list originally removed only whichever row *its own* snapshot marked
+  current. A club that advanced between the two reads could therefore mark a different season current in each,
+  and the season shown as the current stop reappeared as a past row while the newer season was omitted
+  entirely. The visible rows are now derived from the stored payload and rebuilt whenever either region
+  publishes, excluding both the snapshot's own current row and the identifier actually displayed in the
+  current band, so the reconciliation holds whichever response arrives last.
+  `RenderReconcilesMismatchedCurrentIdentityBetweenRegionsAsync` reproduces the mixed snapshot with a delayed
+  current read and fails against the previous derivation. Residual, deliberate: the current band keeps the
+  current read's identity until the next load rather than letting the history snapshot overrule it, so a
+  genuine advancement may need a refresh — but no season is ever misrepresented as past.
+- **The phone target contract was enforced only vertically.** Season names accept any non-whitespace value, so
+  a short name such as "A" produced a link far narrower than the documented `2.75rem`. The season link (and
+  the reserved destination's control) now carry a minimum width and width; the new
+  `DirectoryPhoneSeasonLinkMeetsBothTargetDimensionsForAShortNameAsync` seeds a one-character season name and
+  fails on the width when the rule is removed. The previous long generated fixture name could not catch this.
+- **The record and the pull-request description disagreed** on the unit count. Both now report the same
+  verified number.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -199,16 +222,16 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,197/3,197, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,198/3,198, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 189 total; 181 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 190 total; 182 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |
 | `node .agents/skills/impeccable/scripts/detect.mjs --json <seasons surface files>` | Zero findings. |
 | `npm run check:contrast` | Not applicable: `Nova/scss/**` and `Nova/package.json` are unchanged by this slice. |
 
 ### The only browser failures seen were pre-existing and flaky
 
-The final full browser run is green (189 total, zero failures). Two unrelated failures appeared in three
+The final full browser run is green (190 total, zero failures). Two unrelated failures appeared in three
 earlier runs and not in two others: `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync_002`
 and `_004`, the two `wasm: True` theory cases, failing in the WebAssembly attachment probe. They are not
 caused by this change: a clean `git worktree` at the unmodified base commit `71fcd89b`, built and run with the

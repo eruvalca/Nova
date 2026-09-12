@@ -39,8 +39,8 @@ public partial class SeasonDirectory(
     /// <summary>Past seasons on the loaded page, derived from the loaded history page.</summary>
     private IReadOnlyList<SeasonSummary> _pastSeasons = [];
 
-    /// <summary>Whether the loaded history page carried the current season, which the route shows separately.</summary>
-    private bool _historyExcludedCurrent;
+    /// <summary>Whether the loaded history page carried the season shown in the current-season band.</summary>
+    private bool _historyOmittedCurrent;
 
     /// <summary>One-based season page loaded into the history region.</summary>
     private int _page = GetSeasonListInput.DefaultPage;
@@ -128,7 +128,7 @@ public partial class SeasonDirectory(
     /// history caption must not point at a season that is not on screen.
     /// </summary>
     protected bool ShowsCurrentSeasonAbove
-        => _historyExcludedCurrent && _currentSeason is not null && _currentError is null && !_currentLoading;
+        => _historyOmittedCurrent && _currentSeason is not null && _currentError is null && !_currentLoading;
 
     /// <summary>
     /// Label for an absent current season, stating the first-season state separately from the
@@ -289,6 +289,8 @@ public partial class SeasonDirectory(
                 {
                     _currentSeasonCount = page.TotalCount;
                     _currentSeason = page.Items.FirstOrDefault(season => season.IsCurrent);
+                    // The history region may already have published from a different eventual snapshot.
+                    RebuildPastSeasons();
                 }, message => _currentError = message, "The current season is unavailable.");
             }
             if (IsCurrentBatch(version, requestToken))
@@ -354,16 +356,41 @@ public partial class SeasonDirectory(
     }
 
     /// <summary>
-    /// Stores the loaded history page and rebuilds the derived past-season rows, so the current
-    /// season appears once on the route and never twice.
+    /// Stores the loaded history page and rebuilds the derived past-season rows.
     /// </summary>
     /// <param name="page">The loaded history page.</param>
     private void ApplyHistoryPage(SeasonPageResult page)
     {
         ArgumentNullException.ThrowIfNull(page);
         _historyPage = page;
-        _historyExcludedCurrent = page.Items.Any(season => season.IsCurrent);
-        _pastSeasons = [.. page.Items.Where(season => !season.IsCurrent)];
+        RebuildPastSeasons();
+    }
+
+    /// <summary>
+    /// Rebuilds the visible past-season rows, omitting the season shown as current even when the two
+    /// regions observed different eventual snapshots. The current and history reads are independent and
+    /// eventually consistent, so a club that advanced between them can mark a different season current in
+    /// each; excluding the displayed current identifier keeps the route from listing one season as both the
+    /// current stop and a past row. Called after either region publishes, so the reconciliation holds
+    /// whichever response arrives last.
+    /// </summary>
+    private void RebuildPastSeasons()
+    {
+        if (_historyPage is null)
+        {
+            _pastSeasons = [];
+            _historyOmittedCurrent = false;
+            return;
+        }
+
+        var displayedCurrentId = _currentSeason?.SeasonId;
+        _historyOmittedCurrent = _historyPage.Items.Any(season => season.IsCurrent
+            || (displayedCurrentId is not null && season.SeasonId == displayedCurrentId));
+        _pastSeasons =
+        [
+            .. _historyPage.Items.Where(season => !season.IsCurrent
+                && (displayedCurrentId is null || season.SeasonId != displayedCurrentId))
+        ];
     }
 
     /// <summary>Re-runs only the current-season read with a fresh region token.</summary>
@@ -499,7 +526,7 @@ public partial class SeasonDirectory(
         _currentSeasonCount = 0;
         _historyPage = null;
         _pastSeasons = [];
-        _historyExcludedCurrent = false;
+        _historyOmittedCurrent = false;
         _currentError = null;
         _historyError = null;
         _page = GetSeasonListInput.DefaultPage;
