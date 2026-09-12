@@ -166,6 +166,23 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
+    public async Task DirectoryMemberReachesTheReservedSeasonDetailRouteAsync()
+    {
+        var seed = await SeedDirectoryAsync(pastSeasonCount: 1, TestContext.Current.CancellationToken);
+        seed.CurrentSeasonId.ShouldNotBeNull();
+        var member = await AttachMemberAsync(seed.ClubId, TestContext.Current.CancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(member, Password);
+        var page = context.Pages[0];
+
+        // The detail destination is member-readable, so a member reaches it instead of being denied.
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.SeasonDetail(seed.CurrentSeasonId.Value)).ToString());
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Season", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText("A full season record is reserved for issue #259 and is not available here yet."))
+            .ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task DirectoryMemberCannotReachTheAdvancementRouteDirectlyAsync()
     {
         var seed = await SeedDirectoryAsync(pastSeasonCount: 1, TestContext.Current.CancellationToken);
@@ -418,6 +435,7 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
             return new DirectorySeed(
                 club.ClubId,
                 email,
+                current?.SeasonId,
                 current?.Name ?? string.Empty,
                 [.. past.Select(season => season.Name)]);
         }
@@ -443,5 +461,10 @@ public sealed class SeasonDirectoryBrowserTests(BrowserSuiteFixture fixture)
         return email;
     }
 
-    private sealed record DirectorySeed(long ClubId, string Email, string CurrentSeasonName, IReadOnlyList<string> PastSeasonNames);
+    private sealed record DirectorySeed(
+        long ClubId,
+        string Email,
+        long? CurrentSeasonId,
+        string CurrentSeasonName,
+        IReadOnlyList<string> PastSeasonNames);
 }

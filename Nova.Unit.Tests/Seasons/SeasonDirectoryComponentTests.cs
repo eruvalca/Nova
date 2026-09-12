@@ -1,10 +1,12 @@
 ﻿using System.Globalization;
+using System.Reflection;
 using System.Security.Claims;
 using Bunit;
 using Bunit.Rendering;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Nova.SharedKernel.Features.Clubs;
@@ -40,11 +42,43 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
         var markup = File.ReadAllText(razorPath);
 
         markup.ShouldContain("@page \"/club/seasons\"");
-        markup.ShouldContain("@rendermode InteractiveAuto");
         markup.ShouldContain("@attribute [Authorize(Policy = Policies.RequireClubMember)]");
         markup.ShouldNotContain("@code");
         markup.ShouldNotContain("@inject");
         File.Exists($"{razorPath}.cs").ShouldBeTrue();
+        AssertInteractiveAutoRenderMode<SeasonDirectory>();
+    }
+
+    /// <summary>Verifies both reserved Seasons destinations keep the interactive shell boundary.</summary>
+    /// <param name="componentType">The reserved page component type.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(typeof(SeasonDetailReserved))]
+    [InlineData(typeof(StartNextSeasonReserved))]
+    public void ReservedSeasonPagesDeclareInteractiveAutoRenderMode(Type componentType)
+    {
+        ArgumentNullException.ThrowIfNull(componentType);
+        AssertInteractiveAutoRenderMode(componentType);
+    }
+
+    /// <summary>
+    /// Asserts the compiler-generated render-mode attribute, so a commented-out directive cannot satisfy
+    /// this required interaction boundary the way a source-text check could.
+    /// </summary>
+    /// <typeparam name="TComponent">The page component type.</typeparam>
+    private static void AssertInteractiveAutoRenderMode<TComponent>()
+        => AssertInteractiveAutoRenderMode(typeof(TComponent));
+
+    /// <summary>Asserts the compiler-generated render-mode attribute for a component type.</summary>
+    /// <param name="componentType">The component type to inspect.</param>
+    private static void AssertInteractiveAutoRenderMode(Type componentType)
+    {
+        var attribute = componentType
+            .GetCustomAttributes(inherit: false)
+            .OfType<RenderModeAttribute>()
+            .SingleOrDefault();
+
+        attribute.ShouldNotBeNull();
+        attribute.Mode.ShouldBeOfType<InteractiveAutoRenderMode>();
     }
 
     /// <summary>Verifies the current season leads with explicit identity and role-shaped advancement entry points.</summary>

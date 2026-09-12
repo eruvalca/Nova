@@ -10,7 +10,7 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `0bfce2ea7604377a64ff44b8dec67669445a1a73e161b9600664def41b7e9329`. Documentation
+line) with SHA-256 `28a12a346807feb6dfcbcdfdb26e318d7ef010eaa69aa2d89640aadd4e102f12`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -216,6 +216,25 @@ Two further findings, both genuine defects in states the earlier tests could not
   cancelling the older request. `RenderKeepsTheNewerPageWhenAStartupHistoryResponseArrivesLateAsync` covers the
   delayed-startup interleaving and fails against the previous guard.
 
+## Review round 8 — pull-request review
+
+Four findings; three strengthened required coverage and one corrected this record.
+
+- **The member-readable detail route was never exercised through authorization.** The member browser case
+  proved the detail links were visible but never that a member can reach `/club/seasons/{id}`, so making that
+  route administrator-only would have left the suite green while every member link redirected away.
+  `DirectoryMemberReachesTheReservedSeasonDetailRouteAsync` now navigates a member to the route and expects the
+  reserved page.
+- **The render-mode boundary was asserted from source text rather than from the compiler.** A
+  `ShouldContain("@rendermode InteractiveAuto")` check is satisfied by a commented-out directive. All three
+  Seasons pages now assert the compiler-generated `RenderModeAttribute`, matching the established pattern in
+  the dashboard and profile-photo tests. Verified: commenting the directive out on a reserved page fails that
+  component's case, where the source-text check would have passed.
+- **The reserved pages carried no render-mode assertion at all** beyond the generic code-behind check;
+  `ReservedSeasonPagesDeclareInteractiveAutoRenderMode` now covers both.
+- **This record's targeted browser line was stale.** It reported 6/6 for a class that has since grown, so the
+  documented command was re-run and its actual discovered/passed count recorded below.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -257,16 +276,16 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,200/3,200, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,202/3,202, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 191 total; 183 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 192 total; 184 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 9/9 discovered, including the contrast, touch-target and state-capture evidence pass. |
 | `node .agents/skills/impeccable/scripts/detect.mjs --json <seasons surface files>` | Zero findings. |
 | `npm run check:contrast` | Not applicable: `Nova/scss/**` and `Nova/package.json` are unchanged by this slice. |
 
 ### The only browser failures seen were pre-existing and flaky
 
-The final full browser run is green (191 total, zero failures). Two unrelated failures appeared in three
+The final full browser run is green (192 total, zero failures). Two unrelated failures appeared in three
 earlier runs and not in two others: `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync_002`
 and `_004`, the two `wasm: True` theory cases, failing in the WebAssembly attachment probe. They are not
 caused by this change: a clean `git worktree` at the unmodified base commit `71fcd89b`, built and run with the
