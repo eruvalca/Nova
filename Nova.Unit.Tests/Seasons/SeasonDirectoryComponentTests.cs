@@ -223,6 +223,45 @@ public sealed class SeasonDirectoryComponentTests : BunitContext
     }
 
     [Fact]
+    public void RenderKeepsNonInteractiveRetriesOnTheDirectory()
+    {
+        Register(current: Failed("Current season unavailable."));
+
+        var cut = RenderDirectory();
+
+        // With no interactive circuit the fallback would navigate away; it must re-enter the directory.
+        cut.Find(".season-stop-current .region-failure a").GetAttribute("href").ShouldBe(RoutePath);
+    }
+
+    [Fact]
+    public void RenderKeepsTheRequestedPageInTheHistoryRetryFallback()
+    {
+        Register(history: Failed("Season history unavailable."));
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"{RoutePath}?page=2");
+
+        var cut = RenderDirectory();
+
+        cut.Find(".season-history .region-failure a").GetAttribute("href").ShouldBe($"{RoutePath}?page=2");
+    }
+
+    [Fact]
+    public void RenderDoesNotClaimTheCurrentSeasonIsShownWhenItsRegionFailed()
+    {
+        // The history page still carries the current row, but the current region failed and shows its error.
+        Register(
+            current: Failed("Current season unavailable."),
+            history: HistoryPage(1, 2, CurrentSeasonSummary(), PastSeasonSummary(1, "2025–26", 2025)));
+
+        var cut = RenderDirectory();
+
+        cut.Markup.ShouldNotContain("The current season is shown above.");
+        cut.Markup.ShouldContain("Recorded seasons, newest first.");
+        cut.Markup.ShouldContain("Current season unavailable.");
+        cut.Markup.ShouldNotContain("2026–27");
+    }
+
+    [Fact]
     public async Task RenderDiscardsStaleResultsWhenTheClubChangesAsync()
     {
         var previousClubRead = new TaskCompletionSource<ServiceResult<SeasonPageResult>>();

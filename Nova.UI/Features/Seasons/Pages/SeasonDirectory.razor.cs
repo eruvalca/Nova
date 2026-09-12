@@ -123,6 +123,14 @@ public partial class SeasonDirectory(
     protected bool HasNoRecordedSeason => _currentSeasonCount == 0;
 
     /// <summary>
+    /// Whether the current season is actually rendered above the history list. A filtered-out current
+    /// row is not evidence: the current region may have failed and be showing its error instead, so the
+    /// history caption must not point at a season that is not on screen.
+    /// </summary>
+    protected bool ShowsCurrentSeasonAbove
+        => _historyExcludedCurrent && _currentSeason is not null && _currentError is null && !_currentLoading;
+
+    /// <summary>
     /// Label for an absent current season, stating the first-season state separately from the
     /// recovery state where recorded seasons exist without a current one.
     /// </summary>

@@ -7,10 +7,10 @@ use. It adds no entities, EF configuration, migrations, endpoints, service contr
 
 ## Tested revision
 
-Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 21
+Base commit: `71fcd89b`. Validation ran against the working-tree implementation on that base. The 23
 added/modified C#/Razor/CSS source and test files use the repository manifest format (UTF-8 without BOM,
 sorted by repository path, one `path lowercase-file-SHA256` line per file, LF terminators including the final
-line) with SHA-256 `2ec72774e7e4ac462153b56672647814911d699694d9efea1bc52e207d450eb5`. Documentation
+line) with SHA-256 `fcac2bc0f6b5b09593aff2a735022abfd3fefed8361434e4ae8613e975c923b9`. Documentation
 (`docs/`, `.impeccable/`), `.gitignore`, and the curated evidence captures are excluded from the fingerprint
 so this record can be completed after execution.
 
@@ -135,6 +135,29 @@ A second pull-request review raised three further threads; all were evaluated on
   from the directory. The incumbent `ClubReservedSection` styling is deliberately left untouched as
   pre-existing.
 
+## Review round 4 — pull-request review
+
+A further review raised three suppressed findings. All three were valid and are fixed; the description
+corrections it raised were applied to the pull request body.
+
+- **A non-interactive retry left the directory.** The shared `RegionFailure` hardcoded its no-circuit
+  fallback to the club overview. That is correct on the overview's own route but wrong here: during prerender
+  or with scripting disabled, "Retry this section" navigated away to `/club` instead of retrying the
+  directory, defeating this page's scripting-disabled recovery path. The component now exposes a
+  `FallbackRoute` parameter — defaulting to the overview, so its existing caller is unchanged — and this page
+  passes its own page URL, preserving `?page=` for the history region.
+  `RenderKeepsNonInteractiveRetriesOnTheDirectory` and `RenderKeepsTheRequestedPageInTheHistoryRetryFallback`
+  assert the rendered fallback, and both fail against the previous hardcoded route. The shared component's
+  other caller was re-verified through `ClubOverviewBrowserTests` (5/5).
+- **A partial failure could claim the current season was shown.** The history caption said "the current
+  season is shown above" whenever a current row had been filtered out of the history page — including when the
+  current region had failed and was showing its error instead. The caption is now gated on a successfully
+  loaded current season with no error, and `RenderDoesNotClaimTheCurrentSeasonIsShownWhenItsRegionFailed`
+  fails against the previous condition.
+
+The same round flagged the pull-request description: it carried the host-appended `Fixes: #258` reference and
+test totals that no longer matched this record. Both were corrected in the description rather than argued.
+
 ## Comp-round substitution (disclosed)
 
 The issue requires one comp-led surface decision, an approved comp, and a curated evidence packet containing
@@ -176,7 +199,7 @@ statement is recorded on the issue.
 | --- | --- |
 | `dotnet build Nova.slnx` | Passed; zero warnings, zero errors. |
 | `dotnet format Nova.slnx --no-restore --verify-no-changes` | Passed (exit 0, no output). |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,194/3,194, zero skips. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed: 3,197/3,197, zero skips. |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed: 608/608, zero skips. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed: 189 total; 181 succeeded, 8 skipped (existing `NOVA_A11Y_SCREENSHOTS` opt-in captures), zero failures. |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class "*SeasonDirectoryBrowserTests"` with `NOVA_A11Y_SCREENSHOTS=1` | Passed: 6/6, including the contrast, touch-target and state-capture evidence pass. |

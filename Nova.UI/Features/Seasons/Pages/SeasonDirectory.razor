@@ -34,7 +34,8 @@ FORM: Two independent regions on one spine: the current stop always leads; paged
                     }
                     else if (_currentError is not null)
                     {
-                        <RegionFailure Message="@_currentError" Retry="RetryCurrentAsync" />
+                        <RegionFailure Message="@_currentError" Retry="RetryCurrentAsync"
+                                       FallbackRoute="@PageUrl(_page)" />
                     }
                     else if (_currentSeason is not null)
                     {
@@ -62,7 +63,8 @@ FORM: Two independent regions on one spine: the current stop always leads; paged
                 }
                 else if (_historyError is not null)
                 {
-                    <RegionFailure Message="@_historyError" Retry="ReloadHistoryPageAsync" />
+                    <RegionFailure Message="@_historyError" Retry="ReloadHistoryPageAsync"
+                                   FallbackRoute="@PageUrl(_page)" />
                 }
                 else if (_pastSeasons.Count == 0)
                 {
@@ -79,7 +81,7 @@ FORM: Two independent regions on one spine: the current stop always leads; paged
                 else
                 {
                     <p class="season-history-note">
-                        @(_historyExcludedCurrent
+                        @(ShowsCurrentSeasonAbove
                             ? "Recorded seasons, newest first. The current season is shown above."
                             : "Recorded seasons, newest first.")
                     </p>
