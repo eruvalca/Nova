@@ -132,19 +132,19 @@ not the SHA's presence.
 
 Status: Complete
 
-- [ ] Walk the tree with `gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate` from #163
+- [x] Walk the tree with `gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate` from #163
       down; record number, title, state, parent, and order into one table.
-- [ ] Confirm the totals: **34 open** in scope, **27 closed** descendants. Correct this file if not.
-- [ ] Snapshot every in-scope body and comment set to the session workspace (enables the Phase 3
+- [x] Confirm the totals: **34 open** in scope, **27 closed** descendants. Correct this file if not.
+- [x] Snapshot every in-scope body and comment set to the session workspace (enables the Phase 3
       and Phase 5 diffs).
-- [ ] Re-baseline the three drifts in "Why this exists" plus the live #246 claim, recording the
+- [x] Re-baseline the three drifts in "Why this exists" plus the live #246 claim, recording the
       superseding comment or fix for each.
-- [ ] Define the checker's membership contract before coding: a *listed child* is a `#N` token inside
+- [x] Define the checker's membership contract before coding: a *listed child* is a `#N` token inside
       the marker block that GitHub returns as a sub-issue of that block's owner; PR references are
       excluded. Blocks mix prose and numbered lists, so parse tokens, not lines.
-- [ ] Build the read-only checker `.agents/skills/sync-epic-roadmap/scripts/check-roadmap.mjs`
+- [x] Build the read-only checker `.agents/skills/sync-epic-roadmap/scripts/check-roadmap.mjs`
       covering checks 1–7 only. Node + `gh api`, no writes, exit 0 clean / 1 with findings.
-- [ ] Run it and capture the initial report as the Phase 2 input.
+- [x] Run it and capture the initial report as the Phase 2 input.
 
 ### Verification Plan
 
@@ -160,10 +160,10 @@ Inventory matched the plan exactly (34 open, 27 closed; 61 nodes), and every ope
 
 Status: Complete
 
-- [ ] Run the checker (checks 1–7) and take its report as the mechanical findings.
-- [ ] Read for checks 8–14 against the inventory and the snapshots.
-- [ ] Write every finding as: issue · quoted text · what is wrong · evidence · proposed correction.
-- [ ] Classify each as **factual drift** (Phase 3 fixes it) or **judgment call** (report only), and
+- [x] Run the checker (checks 1–7) and take its report as the mechanical findings.
+- [x] Read for checks 8–14 against the inventory and the snapshots.
+- [x] Write every finding as: issue · quoted text · what is wrong · evidence · proposed correction.
+- [x] Classify each as **factual drift** (Phase 3 fixes it) or **judgment call** (report only), and
       record a zero-findings path: if a check finds nothing, say so with the evidence.
 
 ### Verification Plan
@@ -180,14 +180,14 @@ Mechanical checks 1–7 clean across 61 issues and 14 blocks. Judgment checks 8�
 
 Status: Complete
 
-- [ ] Fix all **factual drift**: counts, checkboxes, member lists, merged-PR claims, dead
+- [x] Fix all **factual drift**: counts, checkboxes, member lists, merged-PR claims, dead
       references, and stale-and-unsuperseded status language.
-- [ ] For every edit: re-fetch immediately before writing (other sessions are working these
+- [x] For every edit: re-fetch immediately before writing (other sessions are working these
       issues), assert the target string matches exactly once, then re-read and confirm.
-- [ ] If a body changed under you, do not force the edit: post a superseding comment instead.
-- [ ] Post short status comments where a stale comment would otherwise mislead (the #198 pattern).
-- [ ] Report **judgment calls** with options; edit only what is approved.
-- [ ] Re-run the checker until clean.
+- [x] If a body changed under you, do not force the edit: post a superseding comment instead.
+- [x] Post short status comments where a stale comment would otherwise mislead (the #198 pattern).
+- [x] Report **judgment calls** with options; edit only what is approved.
+- [x] Re-run the checker until clean.
 
 ### Verification Plan
 
@@ -207,13 +207,13 @@ Status: Complete
 Design rule from the instructions-hygiene guidance: keep the always-loaded file to the smallest set
 of high-signal facts, and put the procedure where it loads on demand.
 
-- [ ] Add **one row** to the routing table in `AGENTS.md` → `## Instruction and skill routing`:
+- [x] Add **one row** to the routing table in `AGENTS.md` → `## Instruction and skill routing`:
 
   | Concern | Rules in `.github/instructions/` | Recipe in `.agents/skills/` |
   |---|---|---|
   | Epic issue roadmaps (GitHub issues) | — (repo-wide rule above, in Repository decisions) | `sync-epic-roadmap` |
 
-- [ ] Add a short rule under `## Repository decisions` (≈5 lines, no generic advice):
+- [x] Add a short rule under `## Repository decisions` (≈5 lines, no generic advice):
 
   > **Issue roadmaps are hand-maintained.** A parent issue carries a
   > `<!-- native-child-roadmap:start -->…<!-- native-child-roadmap:end -->` block; nothing generates
@@ -222,19 +222,19 @@ of high-signal facts, and put the procedure where it loads on demand.
   > `gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate`. Mark a child complete only when
   > its closing PR is merged into `main`. Procedure: `sync-epic-roadmap`.
 
-- [ ] Create `.agents/skills/sync-epic-roadmap/` with `SKILL.md` (procedure, kept tight) and
+- [x] Create `.agents/skills/sync-epic-roadmap/` with `SKILL.md` (procedure, kept tight) and
       `references/roadmap-checks.md` (the 14 checks, exact commands, finding template, fix
       discipline).
-- [ ] Keep the checker in the skill's `scripts/`, **not** in CI: issue state is volatile and other
+- [x] Keep the checker in the skill's `scripts/`, **not** in CI: issue state is volatile and other
       sessions work concurrently, so a failing CI job would be noise. Record that reasoning.
-- [ ] Match repo skill conventions: directory name = `name:` front matter, folded `description:`
+- [x] Match repo skill conventions: directory name = `name:` front matter, folded `description:`
       with `USE FOR` / `DO NOT USE FOR` triggers and cross-skill routing.
-- [ ] Check for duplication first — `grep` `AGENTS.md`, `.github/instructions/`, and
+- [x] Check for duplication first — `grep` `AGENTS.md`, `.github/instructions/`, and
       `.agents/skills/` for roadmap/sub-issue guidance and move or remove rather than restate.
-- [ ] Ship `.agents/skills/` only. (AGENTS.md: a Copilot copy under `.github/skills/` must keep the
+- [x] Ship `.agents/skills/` only. (AGENTS.md: a Copilot copy under `.github/skills/` must keep the
       `.agents/skills/` copy "complete and in sync (same version, same behavior)" — nothing enforces
       parity, and one copy is sufficient.)
-- [ ] Validate every command the rule and skill quote by having actually run it in Phases 1–3.
+- [x] Validate every command the rule and skill quote by having actually run it in Phases 1–3.
 
 ### Verification Plan
 
@@ -255,10 +255,10 @@ of high-signal facts, and put the procedure where it loads on demand.
 
 Status: Complete
 
-- [ ] Add a dated section to #163: the verified tree, the work order, and what the guardrail enforces.
-- [ ] Comment on each materially changed parent so watchers see the outcome.
-- [ ] Fill this file's Final Recap and Handoff; update the session todos.
-- [ ] Confirm `git status` shows only the intended guardrail files.
+- [x] Add a dated section to #163: the verified tree, the work order, and what the guardrail enforces.
+- [x] Comment on each materially changed parent so watchers see the outcome.
+- [x] Fill this file's Final Recap and Handoff; update the session todos.
+- [x] Confirm `git status` shows only the intended guardrail files.
 
 ### Verification Plan
 
@@ -314,15 +314,30 @@ owns the documentation-convergence check.
 contract, the authoritative membership command, and that a child is complete only when its closing PR is
 merged. `.agents/skills/sync-epic-roadmap/` holds the procedure (`SKILL.md`), the 14 checks with commands
 and fix discipline (`references/roadmap-checks.md`), and a read-only checker
-(`scripts/check-roadmap.mjs`). Deliberately no writer, no generator, no CI job.
+(`scripts/check-roadmap.mjs`) with fixture tests in `scripts/check-roadmap.Tests.mjs`. Deliberately no
+writer and no generator: the checker stays read-only and runs on demand, and CI runs only its
+deterministic fixture tests.
 
-**Repo changes:** `AGENTS.md` (3 lines) plus the new skill directory. Nothing else. Not committed — this
-workspace commits only on explicit request.
+**Repo changes on `copilot/163-roadmap-audit-guardrail`:** `AGENTS.md` (routing row plus the rule),
+the new `.agents/skills/sync-epic-roadmap/` skill (procedure, reference, checker, fixture tests), a
+`Check roadmap checker` step in `.github/workflows/ci.yml`, and this audit record. Published as a pull
+request; the issue-body corrections are live tracker changes and are not part of the diff.
 
-**Issue changes:** bodies #163, #170, #200, #202, #206, #207, #215, #216; comments #170, #200.
+**Issue changes:** bodies #163, #170, #177, #200, #202, #206, #207, #215, #216; comments #170, #177, #200.
 
-**Verification:** checker clean on a live re-run; snapshot diff shows only the 8 intended bodies and 2
+**Verification:** checker clean on a live re-run; snapshot diff shows only the intended bodies and
 comment threads changed; `Test-AgentGuidance.ps1`, its `-SelfTest`, and `AgentHooks.Tests.mjs` pass.
+
+**Review response.** The automatic review of the pull request found four correctness gaps in the first
+checker, each of which could have produced a false clean: a PR merged into a non-default branch counted
+as delivery, a leaf issue keeping a stale block went unnoticed, checklist entries naming issues outside
+the tree were accepted, and a `CLOSED` child was treated as delivered without a merged closing PR. All
+four are fixed — the checker now resolves each checked child's closing PR and requires it to reach the
+default branch, applies the block invariant in both directions, rejects any checklist entry that is not
+a child, and applies the same delivery test to PRs cited as delivering a child. Fixture-driven tests
+(23 cases, covering every check plus the exit-code contract) and a CI step were added, and the
+`--fixture` mode lets any scenario replay offline. Re-verified live: still clean across 61 issues and
+14 blocks.
 
 ## Handoff
 

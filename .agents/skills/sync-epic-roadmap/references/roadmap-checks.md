@@ -7,10 +7,10 @@ The 14 checks an epic roadmap audit runs. The first seven are implemented by
 
 | # | Group | Check | Kind |
 |---|---|---|---|
-| 1 | Structure | Each roadmap block lists exactly the children GitHub returns — every child named, and no non-child presented as a child | Mechanical |
-| 2 | Structure | Every completion count and checkbox matches real child states | Mechanical |
-| 3 | Structure | No issue is parented twice or listed under a non-parent. Arrows denote **order, not ancestry** | Mechanical |
-| 4 | Evidence | Every "complete via #PR" / "merged in #PR" claim resolves to a **merged** PR | Mechanical |
+| 1 | Structure | A block exists if and only if the issue has native children, and it names every child GitHub returns | Mechanical |
+| 2 | Structure | Every completion count and checkbox matches real child states, and every checked child has a closing PR merged into the default branch | Mechanical |
+| 3 | Structure | No issue is parented twice, and no checklist entry names something that is not a child. Arrows denote **order, not ancestry** | Mechanical |
+| 4 | Evidence | Every "complete via #PR" / "merged in #PR" claim resolves to a PR merged **into the default branch** | Mechanical |
 | 5 | Evidence | Every cited revision is honest: delivered → reachable from `origin/main`; tested head → off-main is expected for a squash merge | Mechanical |
 | 6 | Evidence | Every `#N` referenced in a block exists and is the right kind (issue vs PR) | Mechanical |
 | 7 | Evidence | Every file/blob link resolves at the revision it names | Mechanical |
@@ -28,21 +28,34 @@ The 14 checks an epic roadmap audit runs. The first seven are implemented by
 or below the block are prose history: they legitimately cite tested revisions that are off-main and
 superseded handoffs. The read pass covers them, plus comments.
 
+Check 2 treats delivery as the repository rule defines it: a checked child must be closed **and** have
+a closing pull request merged into the default branch, so an issue closed as not-planned, or a PR
+merged into a feature branch, is reported rather than accepted. Check 4 applies the same test to PRs
+cited as delivering a child. Both consult GitHub's `closedByPullRequestsReferences`; the CLI verifies
+the merge commit is reachable from `origin/<default>` when a git checkout is available.
+
 ## Commands
 
 ```powershell
 # Verify membership and state for one parent (paginate: parents can exceed one page)
 gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate --jq '.[] | "\(.number) \(.state)"'
 
-# Confirm a PR merged, and when
-gh pr view <n> --repo eruvalca/Nova --json number,state,mergedAt --jq '{number,state,mergedAt}'
+# Confirm a PR merged into the DEFAULT branch — merged_at alone only proves some branch
+gh pr view <n> --repo eruvalca/Nova --json number,state,mergedAt,baseRefName,mergeCommit --jq '{number,state,mergedAt,baseRefName,mergeCommit:.mergeCommit.oid}'
+git fetch origin main --quiet; git merge-base --is-ancestor <merge-commit> origin/main; echo $LASTEXITCODE
 
 # Confirm a cited revision is on the default branch
-git fetch origin main --quiet; git merge-base --is-ancestor <sha> origin/main; echo $LASTEXITCODE
-git rev-parse <sha>^{tree} origin/main^{tree}   # compare a squash merge to its validated head
+git merge-base --is-ancestor <sha> origin/main; echo $LASTEXITCODE
+
+# Compare a squash merge to its validated head: use the PR's merge commit, never the moving tip
+git rev-parse <validated-sha>^{tree} <merge-commit>^{tree}
 
 # Run all mechanical checks (live, no HTTP cache; a 60-issue tree takes a few minutes)
 node .agents/skills/sync-epic-roadmap/scripts/check-roadmap.mjs
+
+# Run the checker's own tests, and replay a scenario offline
+node --test .agents/skills/sync-epic-roadmap/scripts/check-roadmap.Tests.mjs
+node .agents/skills/sync-epic-roadmap/scripts/check-roadmap.mjs --fixture <file.json> <owner/repo> <epic>
 ```
 
 ## False-positive traps

@@ -31,6 +31,9 @@ jobs:
       - name: Check agent hook adapters and installer
         run: node --test scripts/AgentHooks.Tests.mjs
 
+      - name: Check roadmap checker
+        run: node --test .agents/skills/sync-epic-roadmap/scripts/check-roadmap.Tests.mjs
+
       - name: Install npm dependencies
         # npm ci installs node_modules exactly per package-lock.json, then we touch
         # Nova/obj/npm-ci.stamp — the Outputs marker of RestoreNpmPackages in Nova/Nova.csproj.
