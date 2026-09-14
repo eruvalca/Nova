@@ -115,31 +115,107 @@ public sealed partial class CampaignPlacePanelTests
         var cut = RenderPanel(selectedParticipantId: 301);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
 
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        queries.GetCampaignEffectivePlacementsAsync(
-                Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.ParticipantId == null), Arg.Any<CancellationToken>())
-            .Returns(async call =>
-            {
-                entered.TrySetResult();
-                await release.Task;
-                return new ServiceResult<CampaignEffectivePlacementsResult>(CreateEffectiveResult([CreateRow(301)], 1));
-            });
+        var (entered, release) = HoldNextQueueRead(queries);
 
         await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
         SaveButton(cut).HasAttribute("disabled").ShouldBeFalse();
         var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
-        await cut.WaitForAssertionAsync(() => entered.Task.IsCompleted.ShouldBeTrue());
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
 
         // The mutation committed while the authoritative reconciliation is still in flight. The draft is still
         // the pre-save one carrying the replacement token, so an open gate would offer a second mutation.
         _ = _mutations.Received(1).UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
         SaveButton(cut).HasAttribute("disabled").ShouldBeTrue();
 
-        await cut.InvokeAsync(() => release.SetResult());
+        await cut.InvokeAsync(release);
         await save;
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Placement saved."));
         _ = _mutations.Received(1).UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ADiscoveryChangeRaisedDuringASaveReachesTheUrlOwnerAsync()
+    {
+        // The shared discovery controls stay enabled while a save is in flight, so a change they raise has to
+        // reach the URL and be deferred there. Dropping the callback would lose the member's choice while the
+        // control kept showing it as applied.
+        var queries = RegisterServices();
+        CampaignWorkspacePlacementState? raised = null;
+        var cut = RenderPanel(selectedParticipantId: 301, onStateChanged: state => raised = state);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+
+        await cut.Find("#roster-outcome").ChangeAsync(new ChangeEventArgs { Value = "assigned" });
+
+        raised.ShouldNotBeNull();
+        raised.Outcome.ShouldBe("assigned");
+
+        await cut.InvokeAsync(release);
+        await save;
+    }
+
+    [Fact]
+    public async Task AnUnconfirmedSaveStillAppliesTheDiscoveryChangeItDeferredAsync()
+    {
+        // A lost transport leaves the outcome unknown, but the discovery change deferred while the save was in
+        // flight still belongs to the URL. Skipping it would leave the controls describing a state the queue
+        // was never read for.
+        var queries = RegisterServices();
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+
+        _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<PlacementMutationSuccess>>>(_ => throw new HttpRequestException("lost"));
+
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+
+        ReRender(cut, new CampaignWorkspacePlacementState { Outcome = "assigned" }, selectedParticipantId: 301);
+
+        await cut.InvokeAsync(release);
+        await save;
+
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").GetAttribute("value").ShouldBe("assigned"));
+    }
+
+    [Fact]
+    public async Task ALifecycleSwapDropsTheEvidenceItReplacedBeforeTheNewReadAnswersAsync()
+    {
+        // Active and Closed are different endpoints with different shapes, so the posture being left must not
+        // keep rendering its rows and sheet while the replacement read is still in flight.
+        var queries = RegisterServices(rows: [CreateRow(301)]);
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery"));
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queries.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+                return new ServiceResult<ClosedCampaignRosterResult>(new ClosedCampaignRosterResult(
+                    new PlacementCampaignIdentity(10, "Summer Tryouts", CampaignStatus.Closed, new PlacementSeasonIdentity(5, "2026")),
+                    new PagedResult<ClosedCampaignRosterItem>([CreateClosedRow()], 1, 50, 1))
+                {
+                    ParticipantCount = 1
+                });
+            });
+
+        ReRender(cut, new CampaignWorkspacePlacementState(), selectedParticipantId: 301, status: CampaignStatus.Closed);
+
+        await cut.WaitForAssertionAsync(() => entered.Task.IsCompleted.ShouldBeTrue());
+        cut.Markup.ShouldNotContain("Avery");
+
+        await cut.InvokeAsync(() => release.SetResult());
     }
 
     [Fact]
@@ -268,8 +344,11 @@ public sealed partial class CampaignPlacePanelTests
     }
 
     [Fact]
-    public void CompatibleTeamChoicesAreBoundedToTheSelectedGraduationYear()
+    public void CompatibleTeamChoicesUseThePolicyCutoffRatherThanAnExactYear()
     {
+        // Placement policy refuses a player whose year precedes the team's, so a team is compatible when its
+        // cutoff is at or below the player's year. Querying the player's year exactly would hide every valid
+        // lower-cutoff team and mark a compatible saved team as no longer available.
         RegisterServices();
 
         var cut = RenderPanel(selectedParticipantId: 301);
@@ -277,7 +356,8 @@ public sealed partial class CampaignPlacePanelTests
 
         _ = _teams.Received().GetRosterAsync(
             Arg.Is<GetTeamRosterInput>(input => input.LifecycleStatus == "active"
-                && input.GraduationYear == 2032
+                && input.MaxGraduationYear == 2032
+                && input.GraduationYear == null
                 && input.Limit == 200),
             Arg.Any<CancellationToken>());
     }

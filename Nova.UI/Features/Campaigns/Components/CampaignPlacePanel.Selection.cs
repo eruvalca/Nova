@@ -179,7 +179,12 @@ public partial class CampaignPlacePanel
             new GetTeamRosterInput
             {
                 LifecycleStatus = "active",
-                GraduationYear = graduationYear,
+
+                // A team's graduation year is the earliest year it accepts, and the policy refuses a player
+                // whose year precedes the team's, so compatibility is every team at or below the player's
+                // year rather than the player's year alone. An exact filter here would hide valid teams and
+                // mark a compatible saved team as unavailable.
+                MaxGraduationYear = graduationYear,
                 Search = _teamChoicesSearch.Length > 0 ? _teamChoicesSearch : null,
                 Limit = TeamChoiceLimit
             },

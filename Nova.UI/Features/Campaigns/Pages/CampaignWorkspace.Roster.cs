@@ -19,7 +19,8 @@ public partial class CampaignWorkspace
     private bool _teamChoicesTruncated;
     private bool _nonTeamChoicesFailed;
     private bool _teamChoicesFailed;
-    private bool _replaceClosedEligibilityUrl;
+    private bool _dropClosedRosterEligibility;
+    private bool _dropClosedPlaceEligibility;
     private string StateOwner(CampaignStatus? status) => $"{_authorityScope}:{CampaignId}:{status}:{_appliedQueryString}";
     private IReadOnlyList<CampaignEffectivePlacementItem> _workingRows = [];
     private string? _rosterOwner;
@@ -36,7 +37,7 @@ public partial class CampaignWorkspace
         {
             return state;
         }
-        _replaceClosedEligibilityUrl = true;
+        _dropClosedRosterEligibility = true;
         return state with { Eligibility = null, Page = 1 };
     }
 
@@ -63,23 +64,44 @@ public partial class CampaignWorkspace
         return true;
     }
 
+    /// <summary>
+    /// Repairs the URL after a Closed campaign dropped an unsupported filter, resetting only the destination
+    /// whose filter was removed.
+    /// </summary>
+    /// <remarks>
+    /// The two destinations carry independent eligibility filters and independent pages, so one repair must
+    /// not reset the other's page: a Closed Roster link keeps whatever Place page it legitimately carried, and
+    /// a Closed Place link keeps the Roster page. Every other return parameter survives untouched.
+    /// </remarks>
     private void ReplaceClosedEligibilityUrl()
     {
-        if (!_replaceClosedEligibilityUrl)
+        var dropRoster = _dropClosedRosterEligibility;
+        var dropPlace = _dropClosedPlaceEligibility;
+        if (!dropRoster && !dropPlace)
         {
             return;
         }
-        _replaceClosedEligibilityUrl = false;
+
+        _dropClosedRosterEligibility = false;
+        _dropClosedPlaceEligibility = false;
+
         if (_detail?.Status == CampaignStatus.Closed && !ComponentCancellationToken.IsCancellationRequested)
         {
             // Preserve the pathname, participant, destination and placement return parameters.
-            navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
+            var removed = new Dictionary<string, object?>(StringComparer.Ordinal);
+            if (dropRoster)
             {
-                ["eligibility"] = null,
-                ["page"] = null,
-                ["placementEligibility"] = null,
-                ["placementPage"] = null,
-            }), replace: true);
+                removed["eligibility"] = null;
+                removed["page"] = null;
+            }
+
+            if (dropPlace)
+            {
+                removed["placementEligibility"] = null;
+                removed["placementPage"] = null;
+            }
+
+            navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(removed), replace: true);
         }
     }
 

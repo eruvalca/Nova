@@ -305,6 +305,26 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
         AppliedTags = []
     };
 
+    /// <summary>
+    /// Holds the next whole-campaign queue read open, so a test can observe the panel while a save settles.
+    /// </summary>
+    /// <param name="queries">The query service whose queue read is held.</param>
+    /// <returns>The signal set once the read has been entered, and the action that releases it.</returns>
+    private static (Task Entered, Action Release) HoldNextQueueRead(IEffectivePlacementQueryService queries)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queries.GetCampaignEffectivePlacementsAsync(
+                Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.ParticipantId == null), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+                return new ServiceResult<CampaignEffectivePlacementsResult>(CreateEffectiveResult([CreateRow(301)], 1));
+            });
+        return (entered.Task, () => release.TrySetResult());
+    }
+
     private IEffectivePlacementQueryService RegisterServices(
         IReadOnlyList<CampaignEffectivePlacementItem>? rows = null,
         bool queueProblem = false,

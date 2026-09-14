@@ -29,7 +29,7 @@ internal sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterServic
                 ? LifecycleStatus.Archived
                 : LifecycleStatus.Active;
         using var response = await http.GetAsync(
-new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear, input.Limit), UriKind.RelativeOrAbsolute),
+new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear, input.Limit, input.MaxGraduationYear), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -41,7 +41,8 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, in
             teams => teams.All(team => IsValidTeam(
                 team,
                 expectedLifecycleStatus,
-                input.GraduationYear)),
+                input.GraduationYear,
+                input.MaxGraduationYear)),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<TeamRosterItem>>>(
             teams => teams.AsReadOnly(),
@@ -54,11 +55,13 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, in
     /// <param name="team">The team row to validate.</param>
     /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
+    /// <param name="expectedMaxGraduationYear">The optional inclusive maximum graduation-year filter.</param>
     /// <returns><see langword="true"/> when the row is structurally valid.</returns>
     private static bool IsValidTeam(
         TeamRosterItem team,
         LifecycleStatus expectedLifecycleStatus,
-        int? expectedGraduationYear)
+        int? expectedGraduationYear,
+        int? expectedMaxGraduationYear)
         => team is not null
             && team.TeamId > 0
             && !string.IsNullOrWhiteSpace(team.Name)
@@ -66,6 +69,8 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, in
             && team.GraduationYear is >= 2000 and <= 2100
             && (expectedGraduationYear is null
                 || team.GraduationYear == expectedGraduationYear)
+            && (expectedMaxGraduationYear is null
+                || team.GraduationYear <= expectedMaxGraduationYear)
             && team.ActivePlacementCount >= 0
             && team.EffectiveCurrentSeasonPlacementCount >= 0
             && team.CurrentCampaignPlacementContribution >= 0

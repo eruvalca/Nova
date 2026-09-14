@@ -167,7 +167,7 @@ public partial class CampaignWorkspace
             return state;
         }
 
-        _replaceClosedEligibilityUrl = true;
+        _dropClosedPlaceEligibility = true;
         return state with { Eligibility = null, Page = 1 };
     }
 }

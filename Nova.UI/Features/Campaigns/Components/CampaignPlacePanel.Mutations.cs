@@ -117,6 +117,11 @@ public partial class CampaignPlacePanel
             {
                 await ReconcileAsync();
                 _saveError = "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.";
+
+                // A discovery change deferred while the save was in flight still belongs to the URL, so it is
+                // applied here exactly as the settled paths apply it. Skipping it would leave the controls
+                // describing a state the queue was never read for.
+                await ApplyPendingStateAsync();
                 return;
             }
 

@@ -6,6 +6,7 @@ using Nova.SharedKernel.Features.Teams;
 using Nova.SharedKernel.Results;
 using NSubstitute;
 using Shouldly;
+using CampaignWorkspacePlacementState = Nova.UI.Features.Campaigns.Services.CampaignWorkspacePlacementState;
 
 namespace Nova.Unit.Tests.Campaigns;
 
@@ -77,6 +78,43 @@ public sealed partial class CampaignPlacePanelTests
         cut.Markup.ShouldNotContain("Stale Earlier");
     }
 
+    [Fact]
+    public void AFailedReadForADifferentStateDoesNotKeepThePreviousRows()
+    {
+        // The controls show the new state, so rows read for the previous one cannot stand in for it: an
+        // exact-looking page beside a filter it was never read for is worse than the failure it hides.
+        var queries = RegisterServices(rows: [Row(301, "Kept", "Earlier")]);
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Kept Earlier"));
+
+        queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("boom")));
+
+        ReRender(cut, new CampaignWorkspacePlacementState { Outcome = "assigned" });
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("The placement queue could not be loaded."));
+        cut.Markup.ShouldNotContain("Kept Earlier");
+    }
+
+    [Fact]
+    public async Task ADiscoveryChangeDuringTheFirstReadIsReconciledBeforeTheSnapshotIsPublishedAsync()
+    {
+        // The initialization guard skips a parameter set that arrives while the first read is in flight, so the
+        // load reconciles the discovery state itself. Otherwise the URL would describe a filter the rows were
+        // never read for.
+        var queries = RegisterServices(rows: [Row(301, "Kept", "Earlier")]);
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        var cut = RenderPanel();
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+
+        ReRender(cut, new CampaignWorkspacePlacementState { Outcome = "assigned" });
+
+        await cut.InvokeAsync(release);
+
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").GetAttribute("value").ShouldBe("assigned"));
+    }
+
     /// <summary>Creates a distinguishable participant row.</summary>
     private static CampaignEffectivePlacementItem Row(long assignmentId, string first, string last)
         => CreateRow(assignmentId) with { FirstName = first, LastName = last };
@@ -95,13 +133,21 @@ public sealed partial class CampaignPlacePanelTests
 
     /// <summary>Re-renders the panel with every parameter supplied, as a parent navigation would.</summary>
     private static void ReRenderSelected(IRenderedComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel> cut, long? selectedParticipantId)
+        => ReRender(cut, new CampaignWorkspacePlacementState(), selectedParticipantId);
+
+    /// <summary>Re-renders the panel with a discovery state and lifecycle, as a parent navigation would.</summary>
+    private static void ReRender(
+        IRenderedComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel> cut,
+        CampaignWorkspacePlacementState state,
+        long? selectedParticipantId = null,
+        CampaignStatus status = CampaignStatus.Active)
         => cut.Render(parameters =>
         {
             parameters.Add(component => component.CampaignId, 10);
-            parameters.Add(component => component.CampaignStatus, CampaignStatus.Active);
+            parameters.Add(component => component.CampaignStatus, status);
             parameters.Add(component => component.SelectedParticipantId, selectedParticipantId);
             parameters.Add(component => component.CanEditPlacements, true);
-            parameters.Add(component => component.State, new Nova.UI.Features.Campaigns.Services.CampaignWorkspacePlacementState());
+            parameters.Add(component => component.State, state);
             parameters.Add(component => component.GraduationYearChoices, (IReadOnlyList<int>)[2032]);
             parameters.Add(component => component.TagChoices, (IReadOnlyList<TagDefinitionDto>)[]);
             parameters.Add(component => component.CampaignTeamChoices, (IReadOnlyList<TeamRosterItem>)[]);

@@ -120,23 +120,25 @@ public partial class CampaignPlacePanel
         if (loaded is null)
         {
             // A failed load keeps whatever was already on screen but marks it stale, so an
-            // exact-looking total is never presented beside a read that did not answer. The applied
-            // lifecycle marker still advances: the posture was decided, and repeating the same failing
-            // read on every parameter pass would not make it succeed. The comparison key advances with
+            // exact-looking total is never presented beside a read that did not answer. It may only keep
+            // rows that belong to the state the controls now show: otherwise the search would read "Chen"
+            // while the rows were still the previous unfiltered page, and the only warning would speak about
+            // totals. A read that failed for a different state drops the snapshot so the failure answers.
+            if (!string.Equals(QueryKey(state), _appliedQueryString, StringComparison.Ordinal))
+            {
+                _queue = null;
+            }
+
+            // The applied lifecycle marker still advances: the posture was decided, and repeating the same
+            // failing read on every parameter pass would not make it succeed. The comparison key advances with
             // it, so only the explicit Retry reissues the request.
-            _appliedState = state;
-            _appliedStatus = status;
-            _appliedQueryString = QueryKey(state);
-            _searchDraft = state.Search ?? string.Empty;
+            MarkAppliedState(state, status);
             _queueError = QueueFailureMessage;
             _queueStale = _queue is not null;
             return;
         }
 
-        _appliedState = state;
-        _appliedStatus = status;
-        _appliedQueryString = QueryKey(state);
-        _searchDraft = state.Search ?? string.Empty;
+        MarkAppliedState(state, status);
         _queue = loaded;
 
         // A Closed campaign whose campaign-local totals could not be read keeps its rows but must say the
@@ -146,9 +148,18 @@ public partial class CampaignPlacePanel
     }
 
     /// <summary>
-    /// Re-reads the queue, the unfiltered totals, and the selected participant after a committed decision.
+    /// Marks the discovery state and lifecycle a read was issued for as the applied state.
     /// </summary>
-    /// <returns>A task that completes when reconciliation finishes.</returns>
+    /// <param name="state">The discovery state the read asked for.</param>
+    /// <param name="status">The lifecycle the read asked for.</param>
+    private void MarkAppliedState(CampaignWorkspacePlacementState state, CampaignStatus status)
+    {
+        _appliedState = state;
+        _appliedStatus = status;
+        _appliedQueryString = QueryKey(state);
+        _searchDraft = state.Search ?? string.Empty;
+    }
+
     /// <summary>
     /// Re-reads the queue, the unfiltered totals, and the selected participant after a committed decision.
     /// </summary>

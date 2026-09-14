@@ -38,6 +38,12 @@ public partial class CampaignPlacePanel(
     private const int TeamChoiceLimit = 200;
 
     /// <summary>
+    /// The number of times the first authoritative load may repeat while the caller keeps changing the
+    /// lifecycle, authority scope, discovery state, or participant underneath it.
+    /// </summary>
+    private const int StartupReconciliationPasses = 4;
+
+    /// <summary>
     /// The fallback conflict warning shown when the server supplies no detail message.
     /// </summary>
     private const string ConflictFallbackMessage = "This placement was changed by someone else.";
@@ -372,6 +378,7 @@ public partial class CampaignPlacePanel(
         if (_appliedStatus != CampaignStatus
             || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal))
         {
+            ClearPostureEvidence();
             await LoadInitialAsync();
             return;
         }
@@ -459,22 +466,64 @@ public partial class CampaignPlacePanel(
         => CampaignWorkspaceUrlState.BuildPlacementQueryString(state);
 
     /// <summary>
+    /// Drops the evidence that belongs to the lifecycle or authority scope being left, and invalidates the
+    /// reads already in flight for it.
+    /// </summary>
+    /// <remarks>
+    /// The replacement read is asynchronous, so without this the posture being left keeps rendering its rows,
+    /// sheet, and team choices until the new requests answer - and a response already on the wire for the old
+    /// posture could still land and be adopted as current. Advancing the request sequences is what makes those
+    /// responses obsolete.
+    /// </remarks>
+    private void ClearPostureEvidence()
+    {
+        _queue = null;
+        _queueError = null;
+        _queueStale = false;
+        _queueLoading = true;
+        _selected = null;
+        _selectedError = null;
+        _compatibleTeams = [];
+        _teamChoicesError = null;
+        _teamChoicesLoading = false;
+
+        ++_queueRequestSequence;
+        ++_selectedRequestSequence;
+        ++_teamChoicesRequestSequence;
+    }
+
+    /// <summary>
     /// Runs the panel's first authoritative load for the current lifecycle.
     /// </summary>
     /// <returns>A task that completes when the startup load finishes.</returns>
+    /// <remarks>
+    /// A parameter set that arrives while a load is in flight is skipped by the initialization guard in
+    /// <see cref="OnParametersSetAsync"/>, so each pass re-reads every input the caller can change - lifecycle,
+    /// authority scope, discovery state, and participant - and repeats while any of them moved. The bound
+    /// keeps a caller that never settles from spinning the renderer; the next parameter set would still
+    /// reconcile it through the ordinary path.
+    /// </remarks>
     private async Task LoadInitialAsync()
     {
-        await LoadQueueAsync(State);
-        await RefreshSelectionAsync();
-        PersistedOwner = EffectiveOwner;
-        Initialized = true;
-
-        // A parameter set that arrived while the first load was in flight was skipped by the initialization
-        // guard. Reconcile the selection here so the working sheet and the URL cannot disagree about which
-        // participant the decision controls would submit against.
-        if (_appliedParticipantId != SelectedParticipantId)
+        for (var pass = 0; pass < StartupReconciliationPasses; pass++)
         {
+            var owner = EffectiveOwner;
+            var state = State;
+
+            await LoadQueueAsync(state);
             await RefreshSelectionAsync();
+            PersistedOwner = owner;
+            Initialized = true;
+
+            // The snapshot may only be published under the parameters the caller is supplying now: anything
+            // that moved while the reads were in flight is adopted by another pass.
+            if (_appliedStatus == CampaignStatus
+                && _appliedParticipantId == SelectedParticipantId
+                && string.Equals(owner, EffectiveOwner, StringComparison.Ordinal)
+                && string.Equals(QueryKey(state), QueryKey(State), StringComparison.Ordinal))
+            {
+                return;
+            }
         }
     }
 
@@ -599,13 +648,14 @@ public partial class CampaignPlacePanel(
     /// </summary>
     /// <param name="next">The Place state to apply.</param>
     /// <returns>A task that completes when the change is raised.</returns>
+    /// <remarks>
+    /// A change raised mid-save is handed to the URL rather than dropped: the workspace supplies the new
+    /// state, <see cref="OnParametersSetAsync"/> defers it while the save is in flight, and every settlement
+    /// path applies it. Discarding the callback instead would lose the member's choice while the controls
+    /// kept showing it.
+    /// </remarks>
     private Task ApplyStateAsync(CampaignWorkspacePlacementState next)
     {
-        if (_saving)
-        {
-            return Task.CompletedTask;
-        }
-
         _saveMessage = null;
         _saveError = null;
         return OnStateChanged.InvokeAsync(next);

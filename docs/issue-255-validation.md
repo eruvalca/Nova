@@ -19,13 +19,19 @@ survives beside the new surface.
   (search, section, multi-year, tags, campaign-local outcome, campaign-local team, sort, page)
   serialized under `placement*` keys, so Place filters stay independent of Roster's while both
   reuse the canonical builders from #251/#252. `BuildPlaceWorkspaceUrl` also carries the Place
-  selection and the Evaluate return affordance, and the closed-workspace normalization clears the
-  Place section with the roster eligibility filter.
+  selection and the Evaluate return affordance, and the closed-workspace normalization drops each
+  destination's unsupported filter and page independently, so one repair never resets the other's page.
 - **Surface** — new `CampaignPlacePanel` (queue / selection / mutations / display partials) over the
   delivered `GetCampaignEffectivePlacementsAsync` read and the existing `UpdatePlacementAsync`
   mutation. Active campaigns render the four unfiltered eligibility sections and the decision
   controls; Closed campaigns render the immutable `GetClosedCampaignRosterAsync` record plus the
   existing campaign-local outcome summary, read-only for every role.
+- **One additive shared filter** (the only change outside the UI): `GetTeamRosterInput.MaxGraduationYear`,
+  applied by `TeamRosterQueryService` as `team.GraduationYear <= year`, emitted by
+  `TeamRosterEndpoints.GetRosterUrl`, and validated by the WASM `HttpTeamRosterService`. The decisions
+  surface needs it because placement compatibility is a cutoff rule, not a single cohort; the exact
+  `GraduationYear` filter is unchanged and remains the default for team-management screens. No entities,
+  EF configuration, migrations, or new endpoints.
 
 ## Boundary decisions
 
@@ -63,9 +69,9 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3183 passed, 0 failed** |
-| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **608 passed, 0 failed** |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 169 succeeded, 8 env-gated a11y captures skipped, 2 failed** — both failures are `CampaignEvaluationCaptureBrowserTests` (WASM attachment probe) and are pre-existing and environmental; see the browser note below |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3195 passed, 0 failed** |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **609 passed, 0 failed** |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped) |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
 
 The Aspire-backed suites provision their own AppHost through
@@ -133,7 +139,7 @@ Both reviews' findings were fixed in this slice except where noted:
 
 | Check | Status |
 | --- | --- |
-| Browser suite | **179 total, 169 succeeded, 8 env-gated a11y captures skipped, 2 failed** — both failures are the pre-existing environmental `CampaignEvaluationCaptureBrowserTests` WASM-probe cases documented below; every Place-surface test passes, including the keystroke-driven search assertion and the decision-recording flows |
+| Browser suite | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped) at the final revision, including the keystroke-driven search assertion and the decision-recording flows. Two cases failed intermittently in earlier runs for environmental reasons only; see the note below |
 | The "selection cleared while a read is in flight" coverage gap | **closed.** Two ordering tests now cover the superseded-read invariant using distinguishable participant names and sheet-scoped assertions, after the original test was found to be passing vacuously (every row shared the name "Avery Chen", so the assertion matched the queue rather than the sheet). Chasing that produced a further real fix: the working sheet no longer keeps rendering the previous participant with active controls while a new selection resolves. |
 | The keystroke-to-applied-search coverage gap | **closed.** The browser test proves interactive attachment with observable actions, types once, and waits for the full encoded term to reach the URL. See the correction below. |
 | Place-content-scoped comp comparison | not done; the whole-frame measurement is not an approval. See the blocker below. |
@@ -164,25 +170,46 @@ so no production change was warranted. The lesson recorded for the next run: a d
 be driven with one action and a settle condition on the *final* value, never inside a retry loop that
 repeats the act.
 
-## Two browser failures that are environmental, not product
+## Two browser failures that were environmental, not product
 
-Every full browser run after the first reports the same two failures, and they are not this surface's:
+Every browser run between the first and the final one reported the same two failures, and they were not
+this surface's:
 
 `CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync`
-cases `_002(unavailable: False, wasm: True)` and `_004(unavailable: True, wasm: True)`. Both fail in
+cases `_002(unavailable: False, wasm: True)` and `_004(unavailable: True, wasm: True)`. Both failed in
 `WasmWarmupHelper.ReloadAsWebAssemblyAsync` with `WebAssembly attachment probe failed` →
 `PlaywrightException: Locator expected to be visible`: after the reload as WebAssembly the expected
-**Retry storage** affordance does not appear. The same run's AppHost log shows the storage health
-check unhealthy (`Azure.RequestFailedException: The specified container does not exist`) and Postgres
+**Retry storage** affordance did not appear. The same runs' AppHost log showed the storage health check
+unhealthy (`Azure.RequestFailedException: The specified container does not exist`) and Postgres
 health-check timeouts, so the environment was under provisioning pressure.
 
 **Exonerated by reproduction, not by argument.** With this branch's changes stashed at `f176b556`, the
 same class fails identically (2 of 14) with the same probe error, and one earlier full run of the
 identical Place markup was 179 total / 0 failed. The class covers the Evaluate capture surface, which
 the evaluate tab renders without the Place panel, so no Place change can reach it. Nothing in the
-suite was weakened, skipped, or loosened to accommodate these two.
+suite was weakened, skipped, or loosened to accommodate them.
+
+**They did not reproduce in the final run**, which was 179 total / 0 failed. The record keeps them
+because they explain why earlier counts in this document named two failures rather than none.
+
+## Suppressed review findings and their dispositions
+
+Later Copilot rounds posted no inline threads; their findings arrived as **suppressed comments inside the
+review bodies** (rounds at 15:39, 16:12 and 16:25). They were read on their merits and are recorded here
+because a suppressed finding that nobody answers is indistinguishable from one that was ignored.
+
+| Finding | Disposition |
+| --- | --- |
+| Compatible team choices queried the player's graduation year **exactly**, while the placement policy treats a team's year as the earliest it accepts (`CampaignPlacementPolicy` refuses only `playerYear < teamYear`). Valid lower-cutoff teams were unreachable and a compatible saved team rendered as "no longer available". | **Fixed.** `GetTeamRosterInput.MaxGraduationYear` applies `team.GraduationYear <= year` on the server; the panel asks for the player's year as an inclusive maximum; the shared URL builder emits the token; the WASM client's row validation accepts the range. The empty-state copy now says a team does not *accept* that year rather than that none *matches* it. The old panel test that pinned the exact filter was rewritten to pin the cutoff, a builder/validation contract test was added, and a PostgreSQL integration test proves the translation. |
+| The startup load reconciled only the participant. A discovery, lifecycle, or owner change arriving while the first read awaited was skipped by the initialization guard, so the old queue was published under the current owner. | **Fixed.** `LoadInitialAsync` now re-reads and rechecks lifecycle, authority, discovery state, and participant after every pass, and repeats while any of them moved (bounded, so a caller that never settles cannot spin the renderer). Writing the test caught a real defect in the first cut of this fix, which compared the captured values against themselves. |
+| A failed read for a *changed* filter kept the previous state's rows while the controls showed the new state, warning only about totals. | **Fixed.** Rows are retained only when the failed request asked for the same canonical state; otherwise the snapshot is dropped and the failure region answers. |
+| An unconfirmed transport result bypassed settlement, so a discovery change deferred in `_pendingState` was never applied. | **Fixed.** The unconfirmed path applies the pending state after reconciliation, exactly as the settled paths do. |
+| A lifecycle or authority swap started the replacement read without clearing the posture being left, so Active rows and sheet stayed on screen and an older read could still land. | **Fixed.** The swap clears the queue, selection, and compatible teams and advances the three request sequences synchronously before the new load starts. |
+| Discovery controls stay enabled during a save while the handler silently discarded their changes. | **Fixed.** The panel hands the change to the URL, where the existing mid-save deferral path owns it and every settlement path applies it. |
+| A single repair flag dropped both destinations' page keys, so one destination's eligibility repair reset the other's page. | **Fixed.** The two repairs are tracked separately and each resets only its own filter and page. |
 
 ## Blocker: the comp comparison cannot pass for this surface
+
 
 **Verified: the comparison is below threshold and arithmetically cannot reach it inside this slice.**
 
@@ -308,7 +335,8 @@ belongs to #254.
 
 ## Test coverage added
 
-`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs` and `.Mutations.cs` (31 tests) cover:
+`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs` and `.Mutations.cs` (34 tests), with the
+`.Ordering.cs` and `.Callbacks.cs` partials, cover:
 
 - unfiltered section totals independent of the loaded page, and foundation labels
 - the Needs-placement browsing default widening to every section once a search applies
@@ -341,3 +369,18 @@ belongs to #254.
   than on a callback a scripting-disabled member could never trigger
 - a Closed Place-only link having its unsupported section and stale page repaired, with every other
   return parameter preserved, across both destinations and both load paths
+- each Closed repair resetting only its own destination's filter and page, so a Place-only repair keeps
+  the Roster page and a Roster-only repair keeps the Place page
+- compatible team choices asking for the policy's cutoff rather than one exact year, and the shared
+  builder and input contract accepting the new inclusive maximum with the same year bounds as the exact
+  filter
+- a discovery change during the first read being reconciled before the snapshot is published, and a
+  failed read for a changed filter dropping the previous state's rows instead of standing in for them
+- a discovery change raised during a save reaching the URL owner, and an unconfirmed save still applying
+  the change it deferred
+- a lifecycle swap dropping the posture it replaced before the replacement read answers
+
+The shared contract change carries its own coverage: `Nova.Unit.Tests/Teams/TeamRosterContractTests.cs`
+asserts the builder emits the inclusive maximum and the input contract validates it with the same year
+bounds as the exact filter, and `Nova.Integration.Tests/Http/TeamRosterHttpTests.cs` proves the
+PostgreSQL translation returns every team at or below the year and excludes the cohorts above it.

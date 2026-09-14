@@ -29,14 +29,16 @@ public static class TeamRosterEndpoints
     /// </summary>
     /// <param name="search">The optional team-name search term.</param>
     /// <param name="lifecycleStatus">The optional lifecycle view.</param>
-    /// <param name="graduationYear">The optional graduation year.</param>
+    /// <param name="graduationYear">The optional exact graduation year.</param>
     /// <param name="limit">The optional maximum number of teams to return.</param>
+    /// <param name="maxGraduationYear">The optional inclusive maximum graduation year.</param>
     /// <returns>The team-roster URL.</returns>
     public static string GetRosterUrl(
         string? search = null,
         string? lifecycleStatus = null,
         int? graduationYear = null,
-        int? limit = null)
+        int? limit = null,
+        int? maxGraduationYear = null)
     {
         var url = new StringBuilder(GetRoster);
         var querySegments = new List<string>();
@@ -65,6 +67,11 @@ public static class TeamRosterEndpoints
         if (limit is >= 1 and <= 200)
         {
             querySegments.Add($"limit={limit.Value}");
+        }
+
+        if (maxGraduationYear is >= 2000 and <= 2100)
+        {
+            querySegments.Add($"maxGraduationYear={maxGraduationYear.Value}");
         }
 
         if (querySegments.Count > 0)

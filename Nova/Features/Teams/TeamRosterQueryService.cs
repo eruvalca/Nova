@@ -65,6 +65,13 @@ internal sealed partial class TeamRosterQueryService(
             query = query.Where(team => team.GraduationYear == graduationYear);
         }
 
+        // A team's year is the earliest it accepts, so the placement surface's compatible-team read asks for
+        // every team at or below the player's year rather than for one exact cohort.
+        if (input.MaxGraduationYear is int maxGraduationYear)
+        {
+            query = query.Where(team => team.GraduationYear <= maxGraduationYear);
+        }
+
         // Order first, then bound, so the limit never changes which rows are selected for
         // equivalent names; the deterministic (Name, TeamId) ordering is preserved.
         IQueryable<TeamEntity> ordered = query

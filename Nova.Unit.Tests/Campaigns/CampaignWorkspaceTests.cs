@@ -2242,6 +2242,52 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         cut.FindAll("#roster-eligibility").ShouldBeEmpty();
     }
 
+    [Fact]
+    public void ClosedPlaceRepairKeepsALegitimateRosterPage()
+    {
+        // The destinations own separate pages, so dropping the Place section must not reset the Roster page a
+        // Closed link legitimately carried. The evaluate destination loads no roster, so nothing else can
+        // rewrite that page while the repair runs.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?tab=evaluate&search=Avery&placementEligibility=Resolved&placementPage=2&page=3");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, detail)
+            .Add(component => component.InitialDetailScope, "101:42:False"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var query = QueryHelpers.ParseQuery(new Uri(navigation.Uri).Query);
+            query.ShouldNotContainKey("placementEligibility");
+            query.ShouldNotContainKey("placementPage");
+            query["page"].ToString().ShouldBe("3");
+        });
+    }
+
+    [Fact]
+    public void ClosedRosterRepairKeepsALegitimatePlacePage()
+    {
+        // The mirror of the above: dropping the Roster eligibility filter must not reset the Place page.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?tab=evaluate&search=Avery&eligibility=NeedsPlacement&page=3&placementPage=2");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, detail)
+            .Add(component => component.InitialDetailScope, "101:42:False"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var query = QueryHelpers.ParseQuery(new Uri(navigation.Uri).Query);
+            query.ShouldNotContainKey("eligibility");
+            query.ShouldNotContainKey("page");
+            query["placementPage"].ToString().ShouldBe("2");
+        });
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
