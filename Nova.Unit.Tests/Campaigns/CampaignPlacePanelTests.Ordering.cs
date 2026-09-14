@@ -1,4 +1,6 @@
 ﻿using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Tags;
@@ -40,9 +42,11 @@ public sealed partial class CampaignPlacePanelTests
         await cut.WaitForAssertionAsync(() => SheetName(cut).ShouldBe("Row Onepage"));
 
         // The obsolete read now resolves. It must be discarded rather than adopted, or "Save placement"
-        // would record a decision against a participant the sheet no longer shows.
-        gate.SetResult();
-        await Task.Delay(50, Xunit.TestContext.Current.CancellationToken);
+        // would record a decision against a participant the sheet no longer shows. Releasing through the
+        // renderer queues the read's continuation ahead of the drain that follows, so the assertions below
+        // cannot pass before the response was processed.
+        await cut.InvokeAsync(() => gate.SetResult());
+        await cut.InvokeAsync(DrainQueuedContinuations);
 
         SheetName(cut).ShouldBe("Row Onepage");
         cut.Markup.ShouldNotContain("Stale Earlier");
@@ -70,9 +74,10 @@ public sealed partial class CampaignPlacePanelTests
         ReRenderSelected(cut, 303L);
         await cut.WaitForAssertionAsync(() => SheetName(cut).ShouldBe("Newer Exact"));
 
-        // The superseded read now resolves and must not replace the participant the URL selects.
-        firstGate.SetResult();
-        await Task.Delay(50, Xunit.TestContext.Current.CancellationToken);
+        // The superseded read now resolves and must not replace the participant the URL selects. Releasing
+        // through the renderer queues the read's continuation ahead of the drain that follows.
+        await cut.InvokeAsync(() => firstGate.SetResult());
+        await cut.InvokeAsync(DrainQueuedContinuations);
 
         SheetName(cut).ShouldBe("Newer Exact");
         cut.Markup.ShouldNotContain("Stale Earlier");
@@ -113,6 +118,51 @@ public sealed partial class CampaignPlacePanelTests
         await cut.InvokeAsync(release);
 
         await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").GetAttribute("value").ShouldBe("assigned"));
+    }
+
+    /// <summary>A no-op dispatched after a released read, so its continuation is processed before assertions run.</summary>
+    private static void DrainQueuedContinuations()
+    {
+        // The renderer processes its queued work in order, so by the time this runs the released read's
+        // continuation - queued ahead of it - has already been discarded or adopted.
+    }
+
+    [Fact]
+    public async Task TheDiscoveryControlsAreUnavailableWhileTheQueueReadIsInFlightAsync()
+    {
+        // Every handler derives the next state from the applied one, which does not advance until the read
+        // returns, so two quick changes would let the second drop the first. The block is disabled like the
+        // section buttons and the pager it sits beside.
+        var queries = RegisterServices();
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        var cut = RenderPanel();
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+
+        cut.Find("#roster-outcome").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#roster-search").HasAttribute("disabled").ShouldBeTrue();
+
+        await cut.InvokeAsync(release);
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").HasAttribute("disabled").ShouldBeFalse());
+    }
+
+    [Fact]
+    public async Task AFailedReconciliationNamesTheParticipantsAsWellAsTheTotalsAsync()
+    {
+        // The retained rows came from the read that did not answer, so they are not authoritative for the state
+        // the controls show, and the notice may not imply that only the totals are in question.
+        var queries = RegisterServices(rows: [Row(301, "Kept", "Earlier")]);
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Kept Earlier"));
+
+        // The save commits, but the reconciliation that follows cannot answer.
+        queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("boom")));
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        await SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("These participants and totals may be out of date."));
     }
 
     /// <summary>Creates a distinguishable participant row.</summary>

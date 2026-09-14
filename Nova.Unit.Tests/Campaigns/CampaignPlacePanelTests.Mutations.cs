@@ -276,6 +276,31 @@ public sealed partial class CampaignPlacePanelTests
     }
 
     [Fact]
+    public async Task ASupersededReconciliationDoesNotClaimThePageWasCorrectedAsync()
+    {
+        // A superseded read and a corrected page both leave the settlement without a fresh snapshot, but only one
+        // of them is a page correction. Reporting the wrong one tells the member their page moved when it did not.
+        var queries = RegisterServices(rows: [CreateRow(301)]);
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery"));
+
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+
+        // The posture changes while the reconciliation is still in flight, which supersedes it.
+        ReRender(cut, new CampaignWorkspacePlacementState(), selectedParticipantId: 301, status: CampaignStatus.Closed);
+
+        await cut.InvokeAsync(release);
+        await save;
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("This view is reloading from the server"));
+        cut.Markup.ShouldNotContain("page was corrected");
+    }
+
+    [Fact]
     public void ThePersistedOwnerCarriesTheLifecycleEvenWhenTheHostOmitsIt()
     {
         // Active and Closed read different endpoints with different shapes, so a snapshot keyed without the

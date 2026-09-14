@@ -136,15 +136,23 @@ public partial class CampaignPlacePanel
 
             if (outcome == MutationOutcome.Unconfirmed)
             {
-                var reconciled = await ReconcileAsync();
-                _saveError = reconciled && AuthoritativeEvidenceFresh
-                    ? "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again."
-                    : "The save could not be confirmed, and this view could not be refreshed. Check the placement against the server before saving again.";
+                var reconciliation = await ReconcileAsync();
 
                 // A discovery change deferred while the save was in flight still belongs to the URL, so it is
-                // applied here exactly as the settled paths apply it. Skipping it would leave the controls
-                // describing a state the queue was never read for.
+                // applied here exactly as the settled paths apply it. It is applied before the message is
+                // chosen, so the words describe what the member is actually looking at.
                 await ApplyPendingStateAsync();
+
+                _saveError = reconciliation switch
+                {
+                    // A corrected page or a superseded read both mean a newer load is on its way, so the honest
+                    // words are that this view is reloading rather than that a refresh failed.
+                    ReconcileOutcome.PageCorrected or ReconcileOutcome.Obsolete =>
+                        "The save could not be confirmed. This view is reloading from the server; check the placement before saving again.",
+                    _ when AuthoritativeEvidenceFresh =>
+                        "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.",
+                    _ => "The save could not be confirmed, and this view could not be refreshed. Check the placement against the server before saving again."
+                };
                 return;
             }
 
@@ -261,14 +269,14 @@ public partial class CampaignPlacePanel
             return;
         }
 
-        var reconciled = await ReconcileAsync();
+        var reconciliation = await ReconcileAsync();
         if (_conflictActive)
         {
             await ApplyPendingStateAsync();
             return;
         }
 
-        if (!reconciled)
+        if (reconciliation == ReconcileOutcome.PageCorrected)
         {
             // The committed save moved the participant off the last page, so the corrected read is still in
             // flight. Do not announce totals taken from the page being replaced.
@@ -277,7 +285,12 @@ public partial class CampaignPlacePanel
             return;
         }
 
-        if (AuthoritativeEvidenceFresh)
+        if (reconciliation == ReconcileOutcome.Obsolete)
+        {
+            // A newer request owns the state, so this settlement cannot report on evidence it no longer holds.
+            _saveMessage = "Placement saved. This view is reloading from the server.";
+        }
+        else if (AuthoritativeEvidenceFresh)
         {
             _saveMessage = DescribeSave(recordedOutcome);
         }

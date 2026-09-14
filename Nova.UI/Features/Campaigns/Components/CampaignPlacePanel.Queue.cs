@@ -81,6 +81,21 @@ public sealed record CampaignPlacePersistedSnapshot
 /// </summary>
 public partial class CampaignPlacePanel
 {
+    /// <summary>Describes how an authoritative reconciliation finished.</summary>
+    private enum ReconcileOutcome
+    {
+        /// <summary>An authoritative snapshot was adopted.</summary>
+        Reconciled,
+
+        /// <summary>The read asked for a page the result set no longer has, so a corrected read is on its way.</summary>
+        PageCorrected,
+
+        /// <summary>A newer request superseded this one, so its result belongs to nobody.</summary>
+        Obsolete,
+
+        /// <summary>The read did not answer.</summary>
+        Failed
+    }
     /// <summary>
     /// Loads the queue page for the supplied discovery state and adopts it as the applied state.
     /// </summary>
@@ -135,6 +150,7 @@ public partial class CampaignPlacePanel
             MarkAppliedState(state, status);
             _queueError = QueueFailureMessage;
             _queueStale = _queue is not null;
+            _queueRowsStale = _queue is not null;
             return;
         }
 
@@ -144,6 +160,7 @@ public partial class CampaignPlacePanel
         // A Closed campaign whose campaign-local totals could not be read keeps its rows but must say the
         // totals are unavailable rather than presenting an empty section list as fact.
         _queueStale = loaded.TotalsUnavailable;
+        _queueRowsStale = false;
         PersistQueue();
     }
 
@@ -164,10 +181,10 @@ public partial class CampaignPlacePanel
     /// Re-reads the queue, the unfiltered totals, and the selected participant after a committed decision.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> when an authoritative snapshot was adopted; <see langword="false"/> when the
-    /// read failed or corrected the page, so settlement must wait for the corrected read.
+    /// How the reconciliation finished, so each caller can choose feedback that is true of its own case rather
+    /// than reading one Boolean as three different conditions.
     /// </returns>
-    private async Task<bool> ReconcileAsync()
+    private async Task<ReconcileOutcome> ReconcileAsync()
     {
         var request = ++_queueRequestSequence;
         var status = CampaignStatus;
@@ -179,7 +196,9 @@ public partial class CampaignPlacePanel
 
         if (request != _queueRequestSequence || ComponentCancellationToken.IsCancellationRequested)
         {
-            return false;
+            // A newer request owns the state now - a lifecycle swap or a discovery change - so this result must
+            // not be adopted and the caller must not report on it as if it had been.
+            return ReconcileOutcome.Obsolete;
         }
 
         if (loaded is not null)
@@ -191,22 +210,24 @@ public partial class CampaignPlacePanel
             if (state.Page > lastPage)
             {
                 await OnStateChanged.InvokeAsync(state with { Page = lastPage });
-                return false;
+                return ReconcileOutcome.PageCorrected;
             }
 
             _queue = loaded;
             _queueError = null;
             _queueStale = loaded.TotalsUnavailable;
+            _queueRowsStale = false;
         }
         else
         {
             _queueStale = _queue is not null;
+            _queueRowsStale = _queue is not null;
             _queueError = _queue is null ? QueueFailureMessage : null;
         }
 
         await RefreshSelectionAsync(force: true);
         PersistQueue();
-        return true;
+        return loaded is null ? ReconcileOutcome.Failed : ReconcileOutcome.Reconciled;
     }
 
     /// <summary>

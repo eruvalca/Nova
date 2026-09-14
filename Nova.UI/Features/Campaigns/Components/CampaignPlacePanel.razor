@@ -72,12 +72,13 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             @if (_queueStale)
             {
                 <p class="place-stale" role="status">
-                    @TotalsNotice
+                    @QueueStaleNotice
                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_queueLoading" @onclick="RetryQueueAsync">Retry</button>
                 </p>
             }
 
             <CampaignRosterFilters ShowEligibility="@(!IsClosed)"
+                                   Disabled="@_queueLoading"
                                    Eligibility="@SectionFilterValue"
                                    EligibilityCounts="@ActiveSectionCounts"
                                    SearchText="@_searchDraft"

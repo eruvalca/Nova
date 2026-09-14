@@ -2,8 +2,8 @@
     <div class="roster-search-line">
         <label class="visually-hidden" for="roster-search">Search name or tryout number</label>
         <svg class="roster-search-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg>
-        <input id="roster-search" type="search" class="form-control" value="@SearchText" @oninput="OnSearchInputAsync" maxlength="200" placeholder="Name or tryout number" />
-        <button type="button" class="btn btn-outline-primary" aria-expanded="@_expanded" aria-controls="roster-filter-shelf" @onclick="() => _expanded = !_expanded"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h18l-7 8v7l-4 2v-9z" /></svg> Filters</button>
+        <input id="roster-search" type="search" class="form-control" value="@SearchText" @oninput="OnSearchInputAsync" maxlength="200" placeholder="Name or tryout number" disabled="@Disabled" />
+        <button type="button" class="btn btn-outline-primary" aria-expanded="@_expanded" aria-controls="roster-filter-shelf" disabled="@Disabled" @onclick="() => _expanded = !_expanded"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h18l-7 8v7l-4 2v-9z" /></svg> Filters</button>
     </div>
     <div id="roster-filter-shelf" class="roster-filter-shelf" hidden="@(!_expanded)">
         <details class="filter-choice">
@@ -14,7 +14,7 @@
                 {
                     var selected = SelectedGraduationYears.Contains(year);
                     <label class="filter-check" for="@($"roster-year-{year}")">
-                        <input id="@($"roster-year-{year}")" type="checkbox" checked="@selected" @onchange="args => OnGraduationYearToggleAsync(year, args)" /> @year
+                        <input id="@($"roster-year-{year}")" type="checkbox" checked="@selected" disabled="@Disabled" @onchange="args => OnGraduationYearToggleAsync(year, args)" /> @year
                     </label>
                 }
             </div>
@@ -27,7 +27,7 @@
                 {
                     var selected = SelectedTagDefinitionIds.Contains(tag.PlayerTagId);
                     <label class="filter-check" for="@($"roster-tag-{tag.PlayerTagId}")">
-                        <input id="@($"roster-tag-{tag.PlayerTagId}")" type="checkbox" checked="@selected" @onchange="args => OnTagToggleAsync(tag.PlayerTagId, args)" />
+                        <input id="@($"roster-tag-{tag.PlayerTagId}")" type="checkbox" checked="@selected" disabled="@Disabled" @onchange="args => OnTagToggleAsync(tag.PlayerTagId, args)" />
                         <span class="roster-tag-swatch" aria-hidden="true" style="@BuildSwatchStyle(tag.Color)"></span>@tag.Name
                     </label>
                 }
@@ -37,7 +37,7 @@
         {
             <div class="filter-select">
                 <label class="filter-label" for="roster-eligibility">Placement eligibility</label>
-                <select id="roster-eligibility" class="form-select" value="@Eligibility" @onchange="args => OnEligibilityChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty)">
+                <select id="roster-eligibility" class="form-select" value="@Eligibility" disabled="@Disabled" @onchange="args => OnEligibilityChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty)">
                     <option value="">All eligibility</option><option value="NeedsPlacement">Needs placement@(CountSuffix(EligibilityCounts?.NeedsPlacement))</option>
                     <option value="OptionalReassignment">Optional reassignment@(CountSuffix(EligibilityCounts?.OptionalReassignment))</option>
                     <option value="Resolved">Resolved@(CountSuffix(EligibilityCounts?.Resolved))</option>
@@ -47,7 +47,7 @@
         }
         <div class="filter-select">
             <label class="filter-label" for="roster-outcome">Campaign outcome</label>
-            <select id="roster-outcome" class="form-select" value="@Outcome" @onchange="OnOutcomeChangeAsync">
+            <select id="roster-outcome" class="form-select" value="@Outcome" disabled="@Disabled" @onchange="OnOutcomeChangeAsync">
                 <option value="">All outcomes</option><option value="undecided">No campaign decision</option>
                 <option value="assigned">Assigned</option><option value="notselected">Not selected</option><option value="withdrawn">Withdrawn</option>
             </select>
@@ -56,10 +56,10 @@
             <summary><span class="filter-label">Campaign team</span>All teams @(TeamId is not null ? "(1)" : "")<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 9 6 6 6-6" /></svg></summary>
             <div class="filter-choice-panel">
                 <label class="form-label" for="roster-team-search">Find campaign teams</label>
-                <input id="roster-team-search" type="search" class="form-control mb-2" value="@TeamSearch" maxlength="200"
+                <input id="roster-team-search" type="search" class="form-control mb-2" value="@TeamSearch" maxlength="200" disabled="@Disabled"
                     @onchange="args => OnTeamSearchChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty)" placeholder="Search team names" />
                 <label class="form-label" for="roster-team">Campaign team</label>
-                <select id="roster-team" class="form-select" value="@TeamText" @onchange="OnTeamChangeAsync">
+                <select id="roster-team" class="form-select" value="@TeamText" disabled="@Disabled" @onchange="OnTeamChangeAsync">
                     <option value="">All teams</option>
                     @if (TeamId is not null && TeamChoices.All(team => team.TeamId != TeamId)) { <option value="@TeamText">Selected team @TeamText (outside search)</option> }
                     @foreach (var team in TeamChoices) { <option value="@team.TeamId.ToString()">@team.Name</option> }

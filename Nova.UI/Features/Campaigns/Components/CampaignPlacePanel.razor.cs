@@ -212,6 +212,12 @@ public partial class CampaignPlacePanel(
     /// <summary>Indicates the retained queue totals are no longer known to be current.</summary>
     private bool _queueStale;
 
+    /// <summary>
+    /// Whether the rendered participant rows came from a read that did not answer, so they are not
+    /// authoritative for the state the controls now show.
+    /// </summary>
+    private bool _queueRowsStale;
+
     /// <summary>The monotonic queue request identifier used to discard obsolete responses.</summary>
     private int _queueRequestSequence;
 
@@ -525,6 +531,7 @@ public partial class CampaignPlacePanel(
         _queue = null;
         _queueError = null;
         _queueStale = false;
+        _queueRowsStale = false;
         _queueLoading = true;
         _selected = null;
         _selectedError = null;
@@ -661,6 +668,13 @@ public partial class CampaignPlacePanel(
             return "No participants in this campaign yet.";
         }
     }
+
+    /// <summary>
+    /// Gets the written notice for a queue whose evidence is not authoritative, naming every region affected.
+    /// </summary>
+    private string QueueStaleNotice => _queueRowsStale
+        ? "These participants and totals may be out of date."
+        : TotalsNotice;
 
     /// <summary>
     /// Gets the written notice for totals that are stale, or that could not be read at all.
