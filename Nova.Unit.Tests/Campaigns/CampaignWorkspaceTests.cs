@@ -2187,7 +2187,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             .GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail() with { CampaignStatus = CampaignStatus.Closed }));
         var navigation = Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&graduationYears=2031,2032&tagIds=11,12&outcome=notselected&teamId=21&sortBy=tryoutNumber&sortDirection=desc&participant=301&placementGraduationYear=2032&unresolvedOnly=true&placementPage=2&eligibility=NeedsPlacement&page=3");
+        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&graduationYears=2031,2032&tagIds=11,12&outcome=notselected&teamId=21&sortBy=tryoutNumber&sortDirection=desc&participant=301&placementSearch=Avery&placementEligibility=Resolved&placementPage=2&eligibility=NeedsPlacement&page=3");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
             .Add(component => component.InitialDetail, initialDetail ? detail : null)
@@ -2337,9 +2337,11 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         query["sortBy"].ToString().ShouldBe("tryoutNumber");
         query["sortDirection"].ToString().ShouldBe("desc");
         query["participant"].ToString().ShouldBe("301");
-        query["placementGraduationYear"].ToString().ShouldBe("2032");
-        query["unresolvedOnly"].ToString().ShouldBe("true");
-        query["placementPage"].ToString().ShouldBe("2");
+        // A Closed campaign has no eligibility axis, so the Place section filter is cleared with the roster
+        // one, while the literal search and every other return parameter survive.
+        query.ShouldNotContainKey("placementEligibility");
+        query.ShouldNotContainKey("placementPage");
+        query["placementSearch"].ToString().ShouldBe("Avery");
         ((BunitNavigationManager)navigation).History.First().Options.ReplaceHistoryEntry.ShouldBeTrue();
     }
 
@@ -2470,14 +2472,14 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=place&evaluation=true&evalParticipant=301&placementParticipant=301&returnToEvaluation=true");
         var cut = Render<CampaignWorkspacePage>(p => p.Add(c => c.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
-        var placement = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacementsPanel>();
+        var placement = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel>();
         placement.Instance.CanEditPlacements.ShouldBeTrue();
-        placement.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        placement.Find("#place-outcome").Change("NotSelected");
         placement.Find("button.btn-primary").Click();
-        placement.WaitForAssertion(() => placement.Markup.ShouldContain("Saved"));
+        placement.WaitForAssertion(() => placement.Markup.ShouldContain("Placement saved."));
         _ = Services.GetRequiredService<ICampaignPlacementService>().Received(1).UpdatePlacementAsync(
             Arg.Is<UpdateCampaignPlacementInput>(i => i.PlayerCampaignAssignmentId == 301 && i.Outcome == PlacementOutcome.NotSelected), Arg.Any<CancellationToken>());
-        placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal))
+        placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Back to evaluation", StringComparison.Ordinal))
             .GetAttribute("href")!.ShouldContain("evalParticipant=301");
     }
 

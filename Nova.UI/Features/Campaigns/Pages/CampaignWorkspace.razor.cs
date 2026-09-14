@@ -195,24 +195,6 @@ public partial class CampaignWorkspace(
     private string? ParticipantQuery { get; set; }
 
     /// <summary>
-    /// Gets or sets the incoming placements graduation-year query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "placementGraduationYear")]
-    private int? PlacementGraduationYearQuery { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming placements unresolved-only query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "unresolvedOnly")]
-    private bool? UnresolvedOnlyQuery { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming placements page-number query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "placementPage")]
-    private int? PlacementPageQuery { get; set; }
-
-    /// <summary>
     /// Gets or sets the persisted campaign detail used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -310,11 +292,6 @@ public partial class CampaignWorkspace(
     /// Indicates whether the current user holds the club administrator role.
     /// </summary>
     private bool _isClubAdmin;
-
-    /// <summary>
-    /// The applied placement filter and paging state reflected in the workspace URL.
-    /// </summary>
-    private CampaignWorkspacePlacementState _placementState = new();
 
     /// <summary>
     /// The applied roster filter, sort, and paging state.
@@ -514,13 +491,9 @@ public partial class CampaignWorkspace(
         // The focused Roster route always owns the roster panel, regardless of workspace tab input.
         ApplyWorkspaceTab(previousTab);
 
-        // The placements state is independent of the roster state; parse it on every parameter
-        // set so the placements panel receives the URL-backed filters regardless of roster state.
-        var placement = CampaignWorkspaceUrlState.ParsePlacement(
-            PlacementGraduationYearQuery,
-            UnresolvedOnlyQuery,
-            PlacementPageQuery);
-        _placementState = placement;
+        // The Place discovery state is independent of the roster state; re-derive it on every parameter
+        // set so the Place surface receives the URL-backed discovery state regardless of roster state.
+        ApplyPlacementQueryState();
 
         // Participant selection lives outside the roster state so opening/closing the drawer
         // never triggers a roster reload.
@@ -1117,45 +1090,10 @@ public partial class CampaignWorkspace(
 
 
     /// <summary>
-    /// Navigates to the placements tab, optionally filtered to unresolved placements, in response to
-    /// a closeout blocker drill-down.
-    /// </summary>
-    /// <param name="unresolvedOnly">Whether the target placements URL should filter to unresolved placements.</param>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnReviewUnresolvedAsync(bool unresolvedOnly)
-    {
-        var url = unresolvedOnly
-            ? CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new() { UnresolvedOnly = true }, _filters, _selectedParticipantId)
-            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new(), _filters, _selectedParticipantId);
-        navigationManager.NavigateTo(url);
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
     /// Cancels the closeout view and returns to the roster route, preserving the current roster state.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
     private Task OnCancelCloseoutAsync() => SelectRosterTabAsync();
-
-    /// <summary>
-    /// Applies a placement filter or page change raised by the placements panel and pushes the
-    /// matching placements workspace URL.
-    /// </summary>
-    /// <param name="next">The placement state to apply.</param>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnPlacementStateChangedAsync(CampaignWorkspacePlacementState next)
-    {
-        _placementState = next;
-
-        var targetUrl = CampaignWorkspaceUrlState.WithEvaluationContext(CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, next, _filters, _selectedParticipantId), EvaluationState);
-        var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
-        if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
-        {
-            navigationManager.NavigateTo(targetUrl);
-        }
-
-        return Task.CompletedTask;
-    }
 
     /// <summary>
     /// Reloads the campaign detail after the placements panel requests a full recovery reload

@@ -65,6 +65,8 @@ public partial class CampaignWorkspace
             {
                 ["eligibility"] = null,
                 ["page"] = null,
+                ["placementEligibility"] = null,
+                ["placementPage"] = null,
             }), replace: true);
         }
     }

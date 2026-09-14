@@ -227,21 +227,53 @@ public sealed class CampaignWorkspaceUrlStateTests
     [Fact]
     public void ParsePlacementThenBuildRoundTripsEveryField()
     {
-        var state = CampaignWorkspaceUrlState.ParsePlacement(2032, true, 3);
-        state.GraduationYear.ShouldBe(2032);
-        state.UnresolvedOnly.ShouldBeTrue();
+        var state = CampaignWorkspaceUrlState.ParsePlacement(
+            "ave",
+            "OptionalReassignment",
+            "2032,2031",
+            "12,11",
+            "notselected",
+            21,
+            "tryoutNumber",
+            "desc",
+            3);
+        state.Search.ShouldBe("ave");
+        state.Eligibility.ShouldBe("OptionalReassignment");
+        state.GraduationYears.ShouldBe([2032, 2031]);
+        state.TagDefinitionIds.ShouldBe([12, 11]);
+        state.Outcome.ShouldBe("notselected");
+        state.TeamId.ShouldBe(21);
+        state.SortBy.ShouldBe("tryoutNumber");
+        state.SortDirection.ShouldBe("desc");
         state.Page.ShouldBe(3);
 
         CampaignWorkspaceUrlState.BuildPlacementQueryString(state)
-            .ShouldBe("placementGraduationYear=2032&unresolvedOnly=true&placementPage=3");
+            .ShouldBe("placementSearch=ave&placementEligibility=OptionalReassignment&placementYears=2031,2032"
+                + "&placementTags=11,12&placementOutcome=notselected&placementTeamId=21"
+                + "&placementSortBy=tryoutNumber&placementSortDirection=desc&placementPage=3");
     }
 
     [Fact]
     public void ParsePlacementFallsBackToDefaultsForInvalidValues()
     {
-        var state = CampaignWorkspaceUrlState.ParsePlacement(0, null, -3);
-        state.GraduationYear.ShouldBeNull();
-        state.UnresolvedOnly.ShouldBeFalse();
+        var state = CampaignWorkspaceUrlState.ParsePlacement(
+            "   ",
+            "not-a-section",
+            "0,-3",
+            "0",
+            "not-an-outcome",
+            0,
+            "not-a-field",
+            "sideways",
+            -3);
+        state.Search.ShouldBeNull();
+        state.Eligibility.ShouldBeNull();
+        state.GraduationYears.ShouldBeEmpty();
+        state.TagDefinitionIds.ShouldBeEmpty();
+        state.Outcome.ShouldBeNull();
+        state.TeamId.ShouldBeNull();
+        state.SortBy.ShouldBeNull();
+        state.SortDirection.ShouldBeNull();
         state.Page.ShouldBe(1);
     }
 
@@ -250,7 +282,49 @@ public sealed class CampaignWorkspaceUrlStateTests
     {
         CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState()).ShouldBeEmpty();
         CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState { Page = 1 }).ShouldBeEmpty();
-        CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState { UnresolvedOnly = false }).ShouldBeEmpty();
+        CampaignWorkspaceUrlState.BuildPlacementQueryString(
+            new CampaignWorkspacePlacementState { SortBy = "displayName", SortDirection = "asc" }).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null, null, "NeedsPlacement")]
+    [InlineData(null, "ave", null)]
+    [InlineData("OptionalReassignment", null, "OptionalReassignment")]
+    [InlineData("all", null, null)]
+    [InlineData("all", "ave", null)]
+    public void ResolvePlacementEligibilityAppliesTheSectionDefault(string? eligibility, string? search, string? expected)
+    {
+        var state = new CampaignWorkspacePlacementState { Eligibility = eligibility, Search = search };
+        CampaignWorkspaceUrlState.ResolvePlacementEligibility(state).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void HasActivePlaceFiltersIgnoresTheDefaultPosture()
+    {
+        CampaignWorkspaceUrlState.HasActivePlaceFilters(new CampaignWorkspacePlacementState()).ShouldBeFalse();
+        CampaignWorkspaceUrlState.HasActivePlaceFilters(new CampaignWorkspacePlacementState { Page = 4 }).ShouldBeFalse();
+        CampaignWorkspaceUrlState.HasActivePlaceFilters(new CampaignWorkspacePlacementState { Search = "ave" }).ShouldBeTrue();
+        CampaignWorkspaceUrlState.HasActivePlaceFilters(new CampaignWorkspacePlacementState { Eligibility = "all" }).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ClearPlaceFiltersRemovesEveryPlaceControlAndResetsPaging()
+    {
+        var cleared = CampaignWorkspaceUrlState.ClearPlaceFilters(new CampaignWorkspacePlacementState
+        {
+            Search = "ave",
+            Eligibility = "Resolved",
+            GraduationYears = [2032],
+            TagDefinitionIds = [11],
+            Outcome = "withdrawn",
+            TeamId = 21,
+            SortBy = "teamName",
+            SortDirection = "desc",
+            Page = 4
+        });
+
+        cleared.ShouldBe(new CampaignWorkspacePlacementState());
+        CampaignWorkspaceUrlState.HasActivePlaceFilters(cleared).ShouldBeFalse();
     }
 
     [Fact]
@@ -261,8 +335,20 @@ public sealed class CampaignWorkspaceUrlStateTests
 
         CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
                 10,
-                new CampaignWorkspacePlacementState { GraduationYear = 2032, UnresolvedOnly = true, Page = 2 })
-            .ShouldBe("/campaigns/10?placementGraduationYear=2032&unresolvedOnly=true&placementPage=2&tab=place");
+                new CampaignWorkspacePlacementState { Search = "ave", Eligibility = "Resolved", Page = 2 })
+            .ShouldBe("/campaigns/10?placementSearch=ave&placementEligibility=Resolved&placementPage=2&tab=place");
+    }
+
+    [Fact]
+    public void BuildPlaceWorkspaceUrlCarriesSelectionAndEvaluationReturnContext()
+    {
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
+                10, new CampaignWorkspacePlacementState(), placementParticipantId: 301, returnToEvaluation: true)
+            .ShouldBe("/campaigns/10?placementParticipant=301&returnToEvaluation=true&tab=place");
+
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
+                10, new CampaignWorkspacePlacementState(), placementParticipantId: null, returnToEvaluation: false)
+            .ShouldBe("/campaigns/10?tab=place");
     }
 
     [Fact]
@@ -289,10 +375,13 @@ public sealed class CampaignWorkspaceUrlStateTests
     }
 
     [Fact]
-    public void BuildReviewUnresolvedUrlEmitsUnresolvedOnlyAndPlacementsTab()
+    public void BuildReviewUnresolvedUrlTargetsTheLocalUndecidedOutcomeAcrossEverySection()
     {
+        // The closeout drill-down means "participants still missing an explicit campaign-local outcome",
+        // which is deliberately not the Needs-placement queue: Needs placement is the ordinary teamless work
+        // set, so a zero queue must never stand in for the outcomes a campaign needs before it can close.
         CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(10)
-            .ShouldBe("/campaigns/10?unresolvedOnly=true&tab=place");
+            .ShouldBe("/campaigns/10?placementEligibility=all&placementOutcome=undecided&tab=place");
     }
 
     [Fact]
@@ -357,8 +446,8 @@ public sealed class CampaignWorkspaceUrlStateTests
             .ShouldBe($"/campaigns/10?{query}&tab=evaluate&participant=301");
         CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(10, state, 301)
             .ShouldBe($"/campaigns/10?{query}&tab=close&participant=301");
-        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(10, new() { GraduationYear = 2032, Page = 2 }, state, 301)
-            .ShouldBe($"/campaigns/10?{query}&participant=301&placementGraduationYear=2032&placementPage=2&tab=place");
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(10, new() { Search = "ave", Page = 2 }, state, 301)
+            .ShouldBe($"/campaigns/10?{query}&participant=301&placementSearch=ave&placementPage=2&tab=place");
     }
 
     [Fact]

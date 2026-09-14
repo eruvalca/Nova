@@ -52,23 +52,46 @@ public sealed record CampaignWorkspaceRosterState
 }
 
 /// <summary>
-/// Represents the placement filter and paging state reflected in the campaign workspace URL.
+/// Represents the Place destination's discovery, section, and paging state reflected in the campaign workspace URL.
 /// </summary>
+/// <remarks>
+/// Place keeps its own namespaced query keys so its section, search, and filters stay independent of the
+/// Roster destination's discovery state while both destinations share the campaign workspace route.
+/// </remarks>
 public sealed record CampaignWorkspacePlacementState
 {
-    /// <summary>
-    /// Gets the exact graduation-year filter, or <see langword="null"/> when unfiltered.
-    /// </summary>
-    public int? GraduationYear { get; init; }
+    /// <summary>Gets the applied name-or-tryout-number search term, or <see langword="null"/> when unfiltered.</summary>
+    public string? Search { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether only unresolved (Undecided) placements are shown.
+    /// Gets the applied placement section token (<c>all</c>, <c>NeedsPlacement</c>,
+    /// <c>OptionalReassignment</c>, <c>Resolved</c>, or <c>Unavailable</c>), or <see langword="null"/>
+    /// when the section default applies. See <see cref="CampaignWorkspaceUrlState.ResolvePlacementEligibility"/>.
     /// </summary>
-    public bool UnresolvedOnly { get; init; }
+    public string? Eligibility { get; init; }
+
+    /// <summary>Gets the selected graduation years, or an empty list when unfiltered.</summary>
+    public IReadOnlyList<int> GraduationYears { get; init; } = [];
+
+    /// <summary>Gets the selected tag-definition identifiers, or an empty list when unfiltered.</summary>
+    public IReadOnlyList<long> TagDefinitionIds { get; init; } = [];
 
     /// <summary>
-    /// Gets the one-based placement roster page number.
+    /// Gets the applied campaign-local outcome token (<c>undecided</c>, <c>assigned</c>,
+    /// <c>notselected</c>, or <c>withdrawn</c>), or <see langword="null"/> when unfiltered.
     /// </summary>
+    public string? Outcome { get; init; }
+
+    /// <summary>Gets the applied campaign-local team identifier, or <see langword="null"/> when unfiltered.</summary>
+    public long? TeamId { get; init; }
+
+    /// <summary>Gets the applied sort field token, or <see langword="null"/> when the server default applies.</summary>
+    public string? SortBy { get; init; }
+
+    /// <summary>Gets the applied sort direction token (<c>asc</c> or <c>desc</c>).</summary>
+    public string? SortDirection { get; init; }
+
+    /// <summary>Gets the one-based queue page number.</summary>
     public int Page { get; init; } = 1;
 }
 
@@ -145,6 +168,13 @@ public static class CampaignWorkspaceUrlState
     public const string CloseTab = "close";
 
     /// <summary>
+    /// The explicit every-section Place token. An absent Place section is not the same value: it defers to
+    /// <see cref="ResolvePlacementEligibility"/>, which browses Needs placement or widens to every section
+    /// once a search is applied.
+    /// </summary>
+    public const string AllPlacementSections = "all";
+
+    /// <summary>
     /// The contract-supported workspace tab tokens, in canonical lowercase form.
     /// </summary>
     private static readonly string[] _validTabs = [RosterTab, EvaluateTab, PlaceTab, CloseTab];
@@ -165,6 +195,13 @@ public static class CampaignWorkspaceUrlState
     private static readonly string[] _validDirections = ["asc", "desc"];
 
     private static readonly string[] _validEligibility = ["NeedsPlacement", "OptionalReassignment", "Resolved", "Unavailable"];
+
+    /// <summary>
+    /// The contract-supported Place section tokens, which add the explicit every-section choice to the
+    /// eligibility values the effective-placement read accepts.
+    /// </summary>
+    private static readonly string[] _validPlacementSections =
+        [AllPlacementSections, "NeedsPlacement", "OptionalReassignment", "Resolved", "Unavailable"];
 
     /// <summary>
     /// Parses raw query-parameter values into a defensive roster state, falling back to defaults for invalid values.
@@ -306,37 +343,147 @@ public static class CampaignWorkspaceUrlState
         => NormalizeToken(raw?.Trim(), _validTabs) ?? RosterTab;
 
     /// <summary>
-    /// Parses raw placement query values into a defensive placement state, falling back to defaults for invalid values.
+    /// Parses raw Place query values into a defensive placement state, falling back to defaults for invalid values.
     /// </summary>
-    /// <param name="graduationYear">The raw placement graduation-year query value.</param>
-    /// <param name="unresolvedOnly">The raw unresolved-only query value.</param>
+    /// <param name="search">The raw placement search query value.</param>
+    /// <param name="eligibility">The raw placement section query value.</param>
+    /// <param name="graduationYears">The raw comma-separated placement graduation-years query value.</param>
+    /// <param name="tagDefinitionIds">The raw comma-separated placement tag-identifier query value.</param>
+    /// <param name="outcome">The raw placement campaign-local outcome query value.</param>
+    /// <param name="teamId">The raw placement campaign-local team-identifier query value.</param>
+    /// <param name="sortBy">The raw placement sort-field query value.</param>
+    /// <param name="sortDirection">The raw placement sort-direction query value.</param>
     /// <param name="page">The raw placement page-number query value.</param>
     /// <returns>A defensive placement state built from the supplied values.</returns>
-    public static CampaignWorkspacePlacementState ParsePlacement(int? graduationYear, bool? unresolvedOnly, int? page)
+    public static CampaignWorkspacePlacementState ParsePlacement(
+        string? search = null,
+        string? eligibility = null,
+        string? graduationYears = null,
+        string? tagDefinitionIds = null,
+        string? outcome = null,
+        long? teamId = null,
+        string? sortBy = null,
+        string? sortDirection = null,
+        int? page = null)
         => new()
         {
-            GraduationYear = graduationYear is > 0 ? graduationYear : null,
-            UnresolvedOnly = unresolvedOnly == true,
+            Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+            Eligibility = NormalizeToken(eligibility, _validPlacementSections),
+            GraduationYears = ParsePositiveInts(graduationYears),
+            TagDefinitionIds = ParsePositiveLongs(tagDefinitionIds),
+            Outcome = NormalizeToken(outcome, _validOutcomes),
+            TeamId = teamId is > 0 ? teamId : null,
+            SortBy = NormalizeToken(sortBy, _validSortFields),
+            SortDirection = NormalizeToken(sortDirection, _validDirections),
             Page = page is >= 1 ? page.Value : 1
         };
 
     /// <summary>
-    /// Builds the canonical placement query string for the supplied state, omitting default values.
+    /// Resolves the eligibility the effective-placement read should request for the supplied Place state.
+    /// </summary>
+    /// <remarks>
+    /// An explicit section is passed through, and the explicit every-section token resolves to no filter.
+    /// An absent section browses <c>NeedsPlacement</c>, because that is the section Place opens on. Once a
+    /// search is applied the scope widens to every section, because search spans the whole campaign rather
+    /// than the open section.
+    /// </remarks>
+    /// <param name="state">The placement state to resolve.</param>
+    /// <returns>The eligibility token for the request, or <see langword="null"/> for no eligibility filter.</returns>
+    public static string? ResolvePlacementEligibility(CampaignWorkspacePlacementState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.Equals(state.Eligibility, AllPlacementSections, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (state.Eligibility is not null)
+        {
+            return state.Eligibility;
+        }
+
+        return state.Search is null ? "NeedsPlacement" : null;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether any Place filter, search, section, or sort deviates from the defaults.
+    /// </summary>
+    /// <param name="state">The placement state to inspect.</param>
+    /// <returns><see langword="true"/> when at least one Place control is applied; otherwise <see langword="false"/>.</returns>
+    public static bool HasActivePlaceFilters(CampaignWorkspacePlacementState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state.Search is not null || state.Eligibility is not null || state.GraduationYears.Count > 0
+            || state.TagDefinitionIds.Count > 0 || state.Outcome is not null || state.TeamId is not null
+            || state.SortBy is not null || state.SortDirection is not null;
+    }
+
+    /// <summary>
+    /// Returns a copy of the supplied Place state with every filter, search, and sort cleared and the page reset.
+    /// </summary>
+    /// <param name="state">The placement state to clear.</param>
+    /// <returns>The cleared state.</returns>
+    public static CampaignWorkspacePlacementState ClearPlaceFilters(CampaignWorkspacePlacementState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state with
+        {
+            Search = null,
+            Eligibility = null,
+            GraduationYears = [],
+            TagDefinitionIds = [],
+            Outcome = null,
+            TeamId = null,
+            SortBy = null,
+            SortDirection = null,
+            Page = 1
+        };
+    }
+
+    /// <summary>
+    /// Builds the canonical Place query string for the supplied state, omitting default values.
     /// </summary>
     /// <param name="state">The placement state to serialize.</param>
     /// <returns>The canonical query string without a leading question mark.</returns>
     public static string BuildPlacementQueryString(CampaignWorkspacePlacementState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        var parts = new List<string>(3);
-        if (state.GraduationYear is not null)
+        var parts = new List<string>(9);
+        if (state.Search is not null)
         {
-            parts.Add($"placementGraduationYear={state.GraduationYear}");
+            parts.Add($"placementSearch={Uri.EscapeDataString(state.Search)}");
         }
 
-        if (state.UnresolvedOnly)
+        if (state.Eligibility is not null)
         {
-            parts.Add("unresolvedOnly=true");
+            parts.Add($"placementEligibility={Uri.EscapeDataString(state.Eligibility)}");
+        }
+
+        if (state.GraduationYears.Count > 0)
+        {
+            parts.Add($"placementYears={string.Join(",", state.GraduationYears.OrderBy(year => year))}");
+        }
+
+        if (state.TagDefinitionIds.Count > 0)
+        {
+            parts.Add($"placementTags={string.Join(",", state.TagDefinitionIds.OrderBy(id => id))}");
+        }
+
+        if (state.Outcome is not null)
+        {
+            parts.Add($"placementOutcome={state.Outcome}");
+        }
+
+        if (state.TeamId is not null)
+        {
+            parts.Add($"placementTeamId={state.TeamId}");
+        }
+
+        if (!string.Equals(state.SortBy ?? "displayName", "displayName", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(state.SortDirection ?? "asc", "asc", StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add($"placementSortBy={state.SortBy ?? "displayName"}");
+            parts.Add($"placementSortDirection={state.SortDirection ?? "asc"}");
         }
 
         if (state.Page > 1)
@@ -348,16 +495,21 @@ public static class CampaignWorkspaceUrlState
     }
 
     /// <summary>
-    /// Builds the full placements workspace URL for the supplied state, always carrying the
-    /// place route token and only the placement query parameters.
+    /// Builds the full Place workspace URL for the supplied state, always carrying the place route token and
+    /// only the Place query parameters.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
-    /// <param name="state">The placement state to serialize.</param>
-    /// <returns>The relative placements workspace URL.</returns>
+    /// <param name="state">The Place discovery state to serialize.</param>
+    /// <param name="roster">The Roster context carried across the destination switch, or <see langword="null"/>.</param>
+    /// <param name="participantId">The Roster drawer participant carried across the destination switch, or <see langword="null"/>.</param>
+    /// <param name="placementParticipantId">The participant Place has selected, or <see langword="null"/> when none is open.</param>
+    /// <param name="returnToEvaluation">Whether the Evaluate return affordance should survive this navigation.</param>
+    /// <returns>The relative Place workspace URL.</returns>
     public static string BuildPlaceWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state,
-        CampaignWorkspaceRosterState? roster = null, long? participantId = null)
+        CampaignWorkspaceRosterState? roster = null, long? participantId = null,
+        long? placementParticipantId = null, bool returnToEvaluation = false)
     {
-        var parts = new List<string>(4);
+        var parts = new List<string>(6);
         if (roster is not null && BuildQueryString(roster) is { Length: > 0 } rosterQuery)
         {
             parts.Add(rosterQuery);
@@ -365,6 +517,14 @@ public static class CampaignWorkspaceUrlState
         if (participantId is not null)
         {
             parts.Add($"participant={participantId}");
+        }
+        if (placementParticipantId is > 0)
+        {
+            parts.Add($"placementParticipant={placementParticipantId}");
+        }
+        if (returnToEvaluation)
+        {
+            parts.Add("returnToEvaluation=true");
         }
         var query = BuildPlacementQueryString(state);
         if (!string.IsNullOrEmpty(query))
@@ -394,13 +554,23 @@ public static class CampaignWorkspaceUrlState
         => BuildWorkspaceUrl(campaignId, roster ?? new(), CloseTab, participantId);
 
     /// <summary>
-    /// Builds the placements workspace URL filtered to unresolved (Undecided) placements, used by the
+    /// Builds the Place workspace URL filtered to participants without a campaign-local decision, used by the
     /// closeout blocker drill-down.
     /// </summary>
+    /// <remarks>
+    /// This deliberately targets the campaign-local <c>undecided</c> outcome across every section rather than
+    /// the Needs placement queue. Needs placement is the ordinary teamless work set; the explicit local outcome
+    /// every participant needs before a campaign can close is a different, larger set, and a zero
+    /// Needs-placement queue must never stand in for it.
+    /// </remarks>
     /// <param name="campaignId">The campaign identifier from the route.</param>
-    /// <returns>The relative unresolved-only placements workspace URL.</returns>
+    /// <returns>The relative undecided-placements workspace URL.</returns>
     public static string BuildReviewUnresolvedUrl(long campaignId)
-        => BuildPlaceWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState { UnresolvedOnly = true });
+        => BuildPlaceWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState
+        {
+            Eligibility = AllPlacementSections,
+            Outcome = "undecided"
+        });
 
     /// <summary>
     /// Determines whether any roster filter (search, years, tags, outcome, or team) is active.

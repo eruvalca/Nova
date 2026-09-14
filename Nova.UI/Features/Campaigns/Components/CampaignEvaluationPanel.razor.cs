@@ -87,8 +87,8 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private string LookupUrl(CampaignWorkspaceEvaluationState state) => CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId);
     private string PlayerUrl(long id) => LookupUrl(State with { ParticipantId = id });
     private string PlacePlayerUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
-        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new(), RosterState, RosterParticipantId), State)
-        + $"&placementParticipant={State.ParticipantId}&returnToEvaluation=true";
+        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
+            CampaignId, new(), RosterState, RosterParticipantId, State.ParticipantId, returnToEvaluation: true), State);
 
     private IEnumerable<KeyValuePair<string, string>> RosterQueryFields
     {

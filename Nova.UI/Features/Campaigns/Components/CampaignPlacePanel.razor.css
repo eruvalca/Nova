@@ -1,0 +1,335 @@
+/*
+Composition locked by .impeccable/surfaces/placement.md and the approved comp
+`.impeccable/mocks/decision/issue-255-place-queue-rail.png`: one flat board split by a single hairline
+into a bounded queue rail and a working sheet that holds position. All color comes from the
+semantic `--bs-*` tokens; no raw hex belongs in this file.
+*/
+
+.place-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.place-board {
+    display: grid;
+    grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
+    align-items: start;
+    background-color: var(--bs-white);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+}
+
+.place-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 1rem;
+    border-right: 1px solid var(--bs-border-color);
+}
+
+.place-sheet {
+    min-width: 0;
+    padding: 1.5rem;
+}
+
+/* Written sections: the unresolved count leads in Signal Amber, and every count keeps its words. */
+.place-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.place-section {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    color: var(--bs-body-color);
+    text-align: left;
+}
+
+.place-section:hover:not(:disabled) {
+    background-color: var(--bs-secondary-bg);
+}
+
+.place-section.active {
+    background-color: var(--bs-primary-bg-subtle);
+    border-color: var(--bs-primary);
+}
+
+.place-section-count {
+    font-size: 1.25rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.place-section-label {
+    font-size: 0.875rem;
+    font-weight: 650;
+}
+
+.place-section.leads .place-section-count {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.place-stale,
+.place-readonly {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.place-readonly {
+    background-color: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+}
+
+.place-filter-warning,
+.place-clear-filters {
+    margin: 0;
+}
+
+.place-clear-filters {
+    align-self: flex-start;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--bs-link-color);
+    font-size: 0.875rem;
+    text-decoration: underline;
+}
+
+.place-queue-state,
+.place-sheet-state {
+    margin: 0;
+    padding: 1rem 0;
+    font-size: 0.875rem;
+}
+
+/* Queue rows: one flat list, the selected row carries Sea Glass and a teal edge rail. */
+.place-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.place-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-left: 0.25rem solid transparent;
+    border-radius: 0.25rem;
+    color: var(--bs-body-color);
+    text-align: left;
+}
+
+.place-row:hover:not(:disabled) {
+    background-color: var(--bs-secondary-bg);
+}
+
+.place-row.selected {
+    background-color: var(--bs-primary-bg-subtle);
+    border-left-color: var(--bs-primary);
+}
+
+.place-row-identity {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+}
+
+.place-row-tryout {
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+    color: var(--bs-secondary-color);
+}
+
+.place-row-name {
+    font-weight: 650;
+}
+
+.place-row-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.place-row-correction {
+    font-size: 0.75rem;
+    color: var(--bs-warning-text-emphasis);
+}
+
+/* Working sheet. */
+.place-identity {
+    margin-bottom: 1rem;
+}
+
+.place-eyebrow {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.place-name {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 650;
+    line-height: 1.2;
+}
+
+.place-identity-meta {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.place-return {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.place-evidence {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+    margin: 0 0 1rem;
+}
+
+.place-evidence dt {
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.place-evidence dd {
+    display: flex;
+    flex-direction: column;
+    margin: 0.25rem 0 0;
+}
+
+.place-evidence dd span {
+    font-weight: 650;
+}
+
+.place-evidence dd small {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.place-correction {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    background-color: var(--bs-warning-bg-subtle);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+}
+
+.place-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.place-tags li {
+    padding: 0.125rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 650;
+    border-radius: 0.25rem;
+}
+
+.place-decision {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.place-decision-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.place-decision-note {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.place-conflict {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.place-conflict-copy {
+    display: flex;
+    flex-direction: column;
+}
+
+.place-status {
+    margin: 0;
+}
+
+.place-player-link {
+    margin: 1rem 0 0;
+    font-size: 0.875rem;
+}
+
+/* Narrow screens become successive focused stages rather than two squeezed columns. */
+@media (max-width: 991.98px) {
+    .place-board {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .place-queue {
+        border-right: 0;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .place-board.has-selection .place-queue {
+        display: none;
+    }
+
+    .place-sheet {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .place-decision-actions .btn {
+        width: 100%;
+    }
+}

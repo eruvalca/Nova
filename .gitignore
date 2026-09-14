@@ -405,6 +405,9 @@ Nova/wwwroot/css/
 !.impeccable/mocks/decision/issue-198-shared-notebook.png
 !.impeccable/mocks/decision/issue-198-shared-notebook.json
 !.impeccable/mocks/decision/issue-198-shared-notebook.prompt.txt
+!.impeccable/mocks/decision/issue-255-place-queue-rail.png
+!.impeccable/mocks/decision/issue-255-place-queue-rail.json
+!.impeccable/mocks/decision/issue-255-place-queue-rail.prompt.txt
 .impeccable/review/**
 !.impeccable/review/**/
 !.impeccable/review/**/*.md
