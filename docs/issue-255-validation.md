@@ -128,26 +128,35 @@ Both reviews' findings were fixed in this slice except where noted:
 
 | Check | Status |
 | --- | --- |
-| Browser suite | **179 total, 0 failed, 172 succeeded** (7 env-gated a11y captures skipped) |
+| Browser suite | **179 total, 0 failed, 172 succeeded** (7 env-gated a11y captures skipped), including the keystroke-driven search assertion |
 | The "selection cleared while a read is in flight" coverage gap | **closed.** Two ordering tests now cover the superseded-read invariant using distinguishable participant names and sheet-scoped assertions, after the original test was found to be passing vacuously (every row shared the name "Avery Chen", so the assertion matched the queue rather than the sheet). Chasing that produced a further real fix: the working sheet no longer keeps rendering the previous participant with active controls while a new selection resolves. |
+| The keystroke-to-applied-search coverage gap | **closed.** The browser test proves interactive attachment with observable actions, types once, and waits for the full encoded term to reach the URL. See the correction below. |
 | Place-content-scoped comp comparison | not done; the whole-frame measurement is not an approval. See the blocker below. |
 
-### Open defect: typing in the Place search field does not apply the search
+### The Place search field: a test-harness finding, not a product defect
 
-Reproduced deterministically. Typing into the shared search field on the Place destination never
-applies the search: after 23 seconds of retrying with `FillAsync` and then with real key events
-(`ClickAsync` + `Keyboard.TypeAsync`), the URL was still `/campaigns/{id}?tab=place` with no
-`placementSearch`. Every other Place control is interactive in the same session — rows, the outcome
-and team selects, Save, the section buttons, and the pager — so this is not a hydration-window
-artifact and not a general interactivity failure. The `Clear filters` control also works, so the
-applied-search path itself is sound; it is the keystroke-to-applied path through the shared
-`CampaignRosterFilters` field that does not fire.
+Initially recorded here as an open defect. That was **wrong**, and the correction matters because the
+first conclusion was reached from a symptom without finding the cause.
 
-The browser test therefore drives the applied search through the URL (which proves the
-section-widening, filter truth, and unfiltered-total behavior) and names this defect inline. This is
-recorded as an **open defect in a control this slice renders**, not as an untested path. The likely
-area is the panel-owned `_searchDraft` draft and 350 ms debounce added in response to the code
-review; the pre-existing `CampaignRosterFilters` wiring was reused unchanged.
+What was observed: after 23 seconds of retrying, typing into the shared search field on the Place
+destination left the URL at `/campaigns/{id}?tab=place` with no `placementSearch`, while every other
+Place control stayed interactive.
+
+What was actually happening: the field debounces at 350 ms, and the retry helper re-ran the typing
+act on every attempt. Each re-typed character is a new input event, and each one cancelled the
+pending debounce and started a fresh 350 ms timer — so the timer could never fire and the search was
+never applied. The helper's retry window was shorter than the debounce it kept resetting.
+
+The product behaves correctly: a debounce resets on each keystroke by design. The browser test now
+proves interactive attachment with observable actions (select a row, then step back), types **once**,
+and waits for the **full encoded term** (`placementSearch=Player%2001`) to reach the URL. That last
+detail matters: waiting only for a non-empty search returned on the first keystroke pause, then raced
+the later navigation and read the queue mid-update. It runs green at 179 total, 0 failed.
+
+That is the same field and the same shared `CampaignRosterFilters` wiring the Roster destination uses,
+so no production change was warranted. The lesson recorded for the next run: a debounced control must
+be driven with one action and a settle condition on the *final* value, never inside a retry loop that
+repeats the act.
 
 ## Blocker: the comp comparison cannot pass for this surface
 

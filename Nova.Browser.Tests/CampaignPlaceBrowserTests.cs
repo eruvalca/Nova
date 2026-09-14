@@ -57,16 +57,28 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
+
+        // Prove interactive attachment with observable actions before relying on key events: a visible
+        // prerendered control does not prove it can handle an event.
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("button.place-row").First,
+            () => Task.FromResult(Selected(page)));
+        await InteractionHelpers.ClickUntilAsync(page,
+            page.GetByRole(AriaRole.Button, new() { Name = "Back to placements", Exact = true }),
+            () => Task.FromResult(!Selected(page)));
+
+        // Type once and wait for the *full* term to be applied. The field debounces at 350 ms, so a retry
+        // loop that re-types would keep resetting the timer before it could fire; and waiting only for a
+        // non-empty search would return on the first partial keystroke pause and race the later navigation.
+        await page.Locator("#roster-search").ClickAsync();
+        await page.Keyboard.TypeAsync("Player 01");
+        await page.WaitForURLAsync(
+            url => url.Contains("placementSearch=Player%2001", StringComparison.Ordinal),
+            new() { Timeout = 20000 });
 
         // A search spans every section rather than the Needs-placement browsing default, so the applied
         // state carries a search and no section filter at all.
-        //
-        // NOTE: this drives the applied search through the URL. Typing into the shared search field does not
-        // apply the search on this surface — see the keystroke defect recorded in the validation record —
-        // and asserting it here would fail for that reason rather than for the behavior under test.
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place&placementSearch=Placement%20Player%2001").ToString());
-        await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
-        page.Url.ShouldContain("placementSearch=");
+        page.Url.ShouldContain("placementSearch=Player%2001");
         page.Url.ShouldNotContain("placementEligibility=");
         await Expect(page.Locator("button.place-row")).ToHaveCountAsync(1);
 
