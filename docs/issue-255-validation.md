@@ -63,9 +63,9 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3172 passed, 0 failed** |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3183 passed, 0 failed** |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **608 passed, 0 failed** |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 172 succeeded** (7 env-gated a11y captures skipped) |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 169 succeeded, 8 env-gated a11y captures skipped, 2 failed** — both failures are `CampaignEvaluationCaptureBrowserTests` (WASM attachment probe) and are pre-existing and environmental; see the browser note below |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
 
 The Aspire-backed suites provision their own AppHost through
@@ -128,7 +128,7 @@ Both reviews' findings were fixed in this slice except where noted:
 
 | Check | Status |
 | --- | --- |
-| Browser suite | **179 total, 0 failed, 172 succeeded** (7 env-gated a11y captures skipped), including the keystroke-driven search assertion |
+| Browser suite | **179 total, 169 succeeded, 8 env-gated a11y captures skipped, 2 failed** — both failures are the pre-existing environmental `CampaignEvaluationCaptureBrowserTests` WASM-probe cases documented below; every Place-surface test passes, including the keystroke-driven search assertion and the decision-recording flows |
 | The "selection cleared while a read is in flight" coverage gap | **closed.** Two ordering tests now cover the superseded-read invariant using distinguishable participant names and sheet-scoped assertions, after the original test was found to be passing vacuously (every row shared the name "Avery Chen", so the assertion matched the queue rather than the sheet). Chasing that produced a further real fix: the working sheet no longer keeps rendering the previous participant with active controls while a new selection resolves. |
 | The keystroke-to-applied-search coverage gap | **closed.** The browser test proves interactive attachment with observable actions, types once, and waits for the full encoded term to reach the URL. See the correction below. |
 | Place-content-scoped comp comparison | not done; the whole-frame measurement is not an approval. See the blocker below. |
@@ -151,12 +151,31 @@ The product behaves correctly: a debounce resets on each keystroke by design. Th
 proves interactive attachment with observable actions (select a row, then step back), types **once**,
 and waits for the **full encoded term** (`placementSearch=Player%2001`) to reach the URL. That last
 detail matters: waiting only for a non-empty search returned on the first keystroke pause, then raced
-the later navigation and read the queue mid-update. It runs green at 179 total, 0 failed.
+the later navigation and read the queue mid-update. It runs green, as does every other Place-surface
+test (see the browser note below for the two unrelated environmental failures in the same run).
 
 That is the same field and the same shared `CampaignRosterFilters` wiring the Roster destination uses,
 so no production change was warranted. The lesson recorded for the next run: a debounced control must
 be driven with one action and a settle condition on the *final* value, never inside a retry loop that
 repeats the act.
+
+## Two browser failures that are environmental, not product
+
+Every full browser run after the first reports the same two failures, and they are not this surface's:
+
+`CampaignEvaluationCaptureBrowserTests.UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync`
+cases `_002(unavailable: False, wasm: True)` and `_004(unavailable: True, wasm: True)`. Both fail in
+`WasmWarmupHelper.ReloadAsWebAssemblyAsync` with `WebAssembly attachment probe failed` →
+`PlaywrightException: Locator expected to be visible`: after the reload as WebAssembly the expected
+**Retry storage** affordance does not appear. The same run's AppHost log shows the storage health
+check unhealthy (`Azure.RequestFailedException: The specified container does not exist`) and Postgres
+health-check timeouts, so the environment was under provisioning pressure.
+
+**Exonerated by reproduction, not by argument.** With this branch's changes stashed at `f176b556`, the
+same class fails identically (2 of 14) with the same probe error, and one earlier full run of the
+identical Place markup was 179 total / 0 failed. The class covers the Evaluate capture surface, which
+the evaluate tab renders without the Place panel, so no Place change can reach it. Nothing in the
+suite was weakened, skipped, or loosened to accommodate these two.
 
 ## Blocker: the comp comparison cannot pass for this surface
 
@@ -284,7 +303,7 @@ belongs to #254.
 
 ## Test coverage added
 
-`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs` and `.Mutations.cs` (28 tests) cover:
+`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs` and `.Mutations.cs` (31 tests) cover:
 
 - unfiltered section totals independent of the loaded page, and foundation labels
 - the Needs-placement browsing default widening to every section once a search applies
@@ -301,6 +320,8 @@ belongs to #254.
 - `Assigned` without a team blocking the submit with a written reason and no mutation call
 - leaving `Assigned` dropping the team from the submission
 - the local token being presented and the replacement token adopted
+- the save gate staying closed until the authoritative reconciliation completes, asserted while the
+  queue read is held open (verified to fail when the gate is released before settlement)
 - a committed save re-reading queue, totals and selection authoritatively rather than patching
 - replacing an existing local decision remaining available
 - the conflict blocking editing until a confirmed reload, then recovering with discovery preserved
@@ -308,3 +329,10 @@ belongs to #254.
 - a committed save that cannot be refreshed not being announced as success
 - an unavailable saved team rendering disabled rather than substituted
 - compatible team choices bounded to the selected graduation year, and their failure staying regional
+- the shared discovery team search reaching the workspace owner that owns the bounded campaign-team
+  read, because a field rendered without that callback swallows keystrokes while the surface tells the
+  user to refine a capped list
+- the read-only sheet offering a real link back to the queue, asserted on the anchor's `href` rather
+  than on a callback a scripting-disabled member could never trigger
+- a Closed Place-only link having its unsupported section and stale page repaired, with every other
+  return parameter preserved, across both destinations and both load paths

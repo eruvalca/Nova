@@ -1,4 +1,6 @@
 ﻿using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Teams;
@@ -100,6 +102,44 @@ public sealed partial class CampaignPlacePanelTests
             Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.ParticipantId == null), Arg.Any<CancellationToken>());
         _ = queries.Received().GetCampaignEffectivePlacementsAsync(
             Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.ParticipantId == 301), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TheSaveGateStaysClosedUntilTheAuthoritativeReconciliationCompletesAsync()
+    {
+        // A committed save still has to replace the dirty draft with the authoritative row. Releasing the gate
+        // before that happens re-enables Save against the pre-save row while it carries the replacement token,
+        // so a second click - or the browser's retry loop - could dispatch a duplicate mutation.
+        var queries = RegisterServices();
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queries.GetCampaignEffectivePlacementsAsync(
+                Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.ParticipantId == null), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+                return new ServiceResult<CampaignEffectivePlacementsResult>(CreateEffectiveResult([CreateRow(301)], 1));
+            });
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        SaveButton(cut).HasAttribute("disabled").ShouldBeFalse();
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => entered.Task.IsCompleted.ShouldBeTrue());
+
+        // The mutation committed while the authoritative reconciliation is still in flight. The draft is still
+        // the pre-save one carrying the replacement token, so an open gate would offer a second mutation.
+        _ = _mutations.Received(1).UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+        SaveButton(cut).HasAttribute("disabled").ShouldBeTrue();
+
+        await cut.InvokeAsync(() => release.SetResult());
+        await save;
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Placement saved."));
+        _ = _mutations.Received(1).UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

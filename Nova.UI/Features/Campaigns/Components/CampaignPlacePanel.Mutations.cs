@@ -103,7 +103,6 @@ public partial class CampaignPlacePanel
         _saveError = null;
         _saveMessage = null;
 
-        var outcome = MutationOutcome.Refused;
         try
         {
             var input = new UpdateCampaignPlacementInput(
@@ -112,27 +111,26 @@ public partial class CampaignPlacePanel
                 _draftOutcome == PlacementOutcome.Assigned ? _draftTeamId : null,
                 token);
 
-            outcome = await SendMutationAsync(input);
+            var outcome = await SendMutationAsync(input);
 
             if (outcome == MutationOutcome.Unconfirmed)
             {
                 await ReconcileAsync();
                 _saveError = "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.";
+                return;
             }
+
+            // Settlement owns the authoritative reconciliation. The gate stays closed across it because the
+            // draft is still the pre-save one with the replacement token until reconciliation replaces it,
+            // so releasing early would re-enable Save against a row the server has already moved past.
+            await SettleAsync(outcome == MutationOutcome.Committed, _draftOutcome);
         }
         finally
         {
-            // Always release the save gate so the controls never stay stuck in the saving state. On the
-            // unconfirmed path this runs after reconciliation, so a resubmit cannot race it.
+            // Always release the save gate so the controls never stay stuck in the saving state, but only
+            // once every step that reads authoritative state has finished.
             _saving = false;
         }
-
-        if (outcome == MutationOutcome.Unconfirmed)
-        {
-            return;
-        }
-
-        await SettleAsync(outcome == MutationOutcome.Committed, _draftOutcome);
     }
 
     /// <summary>
