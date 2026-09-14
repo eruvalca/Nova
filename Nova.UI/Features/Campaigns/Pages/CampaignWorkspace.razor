@@ -233,9 +233,18 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         }
         else if (_activeTab == PlaceTabName)
                         {
-                            <CampaignPlacementsPanel SelectedParticipantId="PlacementParticipantQuery" EvaluationReturnPath="@(ReturnToEvaluationQuery == true ? EvaluationUrl : null)" CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
-                                                     CanEditPlacements="@_canEditPlacements" State="@_placementState" OnStateChanged="OnPlacementStateChangedAsync"
-                                                     OnReloadRequested="OnCampaignReloadRequestedAsync" />
+                            <CampaignPlacePanel CampaignId="@CampaignId" CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
+                                                SelectedParticipantId="PlacementParticipantQuery"
+                                                EvaluationReturnPath="@(ReturnToEvaluationQuery == true ? EvaluationUrl : null)"
+                                                CanEditPlacements="@_canEditPlacements" State="@_placementState"
+                                                GraduationYearChoices="_availableGraduationYears" TagChoices="_availableTags"
+                                                CampaignTeamChoices="_availableTeams" CampaignTeamChoicesTruncated="_teamChoicesTruncated"
+                                                CampaignTeamSearch="_teamSearch" OnCampaignTeamSearchChanged="OnTeamSearchChangedAsync"
+                                                ChoicesLoadFailed="_choicesLoadFailed" OnRetryChoices="RetryChoicesAsync"
+                                                Owner="@($"{_authorityScope}:{CampaignId}")"
+                                                ComposePlaceUrl="BuildPlaceReturnUrl"
+                                                OnStateChanged="OnPlacementStateChangedAsync"
+                                                OnReloadRequested="OnCampaignReloadRequestedAsync" />
                         }
                         else if (_activeTab == EvaluateTabName)
                         {

@@ -2187,7 +2187,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             .GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail() with { CampaignStatus = CampaignStatus.Closed }));
         var navigation = Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&graduationYears=2031,2032&tagIds=11,12&outcome=notselected&teamId=21&sortBy=tryoutNumber&sortDirection=desc&participant=301&placementGraduationYear=2032&unresolvedOnly=true&placementPage=2&eligibility=NeedsPlacement&page=3");
+        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&graduationYears=2031,2032&tagIds=11,12&outcome=notselected&teamId=21&sortBy=tryoutNumber&sortDirection=desc&participant=301&placementSearch=Avery&placementEligibility=Resolved&placementPage=2&eligibility=NeedsPlacement&page=3");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
             .Add(component => component.InitialDetail, initialDetail ? detail : null)
@@ -2204,6 +2204,112 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             && input.TagDefinitionIds != null && input.TagDefinitionIds.Length == 2), Arg.Any<CancellationToken>());
         _ = reads.DidNotReceive().GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(input => (input.Page ?? 1) != 1), Arg.Any<CancellationToken>());
         _ = reads.DidNotReceive().GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("/campaigns/10", "place", false)]
+    [InlineData("/campaigns/10", "place", true)]
+    [InlineData("/campaigns/10/roster", "evaluate", false)]
+    [InlineData("/campaigns/10/roster", "evaluate", true)]
+    public void ClosedWorkspaceClearsAPlaceSectionThatNoRosterFilterFlagged(string path, string tab, bool initialDetail)
+    {
+        // A Closed campaign has no placement-eligibility axis and its Place read ignores the section. The
+        // replacement is normally flagged by the roster eligibility filter, which this URL does not carry, so
+        // the Place section and its stale page must be repaired on their own.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&placementSearch=Avery&placementEligibility=Resolved&placementPage=2&placementTeamId=21");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, initialDetail ? detail : null)
+            .Add(component => component.InitialDetailScope, initialDetail ? "101:42:False" : null));
+
+        cut.WaitForAssertion(() =>
+        {
+            var uri = new Uri(navigation.Uri);
+            uri.AbsolutePath.ShouldBe(path);
+            var query = QueryHelpers.ParseQuery(uri.Query);
+            query.ShouldNotContainKey("placementEligibility");
+            query.ShouldNotContainKey("placementPage");
+            query["tab"].ToString().ShouldBe(tab);
+            query["search"].ToString().ShouldBe("Avery");
+            // Every other return parameter survives the repair.
+            query["placementSearch"].ToString().ShouldBe("Avery");
+            query["placementTeamId"].ToString().ShouldBe("21");
+            ((BunitNavigationManager)navigation).History.First().Options.ReplaceHistoryEntry.ShouldBeTrue();
+        });
+        cut.FindAll("#roster-eligibility").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void RepeatingTheSamePlaceSelectionDoesNotPushASecondHistoryEntry()
+    {
+        // Every Place target carries the evaluation context, so comparing the bare target against the current
+        // location makes even an unchanged action look like a change and stacks duplicate history entries.
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(CreateDetail()));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?tab=place");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        var place = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel>();
+        cut.WaitForAssertion(() => place.FindAll("button.place-section").Count.ShouldBe(4));
+
+        // The first selection is a real change, and it is what writes the evaluation context into the URL.
+        place.FindAll("button.place-section")[1].Click();
+        var afterFirstSelection = ((BunitNavigationManager)navigation).History.Count;
+        afterFirstSelection.ShouldBeGreaterThan(1);
+
+        // The same selection again asks for the location the member is already on, so it must not navigate.
+        place.FindAll("button.place-section")[1].Click();
+
+        ((BunitNavigationManager)navigation).History.Count.ShouldBe(afterFirstSelection);
+    }
+
+    [Fact]
+    public void ClosedPlaceRepairKeepsALegitimateRosterPage()
+    {
+        // The destinations own separate pages, so dropping the Place section must not reset the Roster page a
+        // Closed link legitimately carried. The evaluate destination loads no roster, so nothing else can
+        // rewrite that page while the repair runs.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?tab=evaluate&search=Avery&placementEligibility=Resolved&placementPage=2&page=3");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, detail)
+            .Add(component => component.InitialDetailScope, "101:42:False"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var query = QueryHelpers.ParseQuery(new Uri(navigation.Uri).Query);
+            query.ShouldNotContainKey("placementEligibility");
+            query.ShouldNotContainKey("placementPage");
+            query["page"].ToString().ShouldBe("3");
+        });
+    }
+
+    [Fact]
+    public void ClosedRosterRepairKeepsALegitimatePlacePage()
+    {
+        // The mirror of the above: dropping the Roster eligibility filter must not reset the Place page.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10/roster?tab=evaluate&search=Avery&eligibility=NeedsPlacement&page=3&placementPage=2");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, detail)
+            .Add(component => component.InitialDetailScope, "101:42:False"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var query = QueryHelpers.ParseQuery(new Uri(navigation.Uri).Query);
+            query.ShouldNotContainKey("eligibility");
+            query.ShouldNotContainKey("page");
+            query["placementPage"].ToString().ShouldBe("2");
+        });
     }
 
     [Theory(IncludeTestCaseIndex = true)]
@@ -2337,9 +2443,11 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         query["sortBy"].ToString().ShouldBe("tryoutNumber");
         query["sortDirection"].ToString().ShouldBe("desc");
         query["participant"].ToString().ShouldBe("301");
-        query["placementGraduationYear"].ToString().ShouldBe("2032");
-        query["unresolvedOnly"].ToString().ShouldBe("true");
-        query["placementPage"].ToString().ShouldBe("2");
+        // A Closed campaign has no eligibility axis, so the Place section filter is cleared with the roster
+        // one, while the literal search and every other return parameter survive.
+        query.ShouldNotContainKey("placementEligibility");
+        query.ShouldNotContainKey("placementPage");
+        query["placementSearch"].ToString().ShouldBe("Avery");
         ((BunitNavigationManager)navigation).History.First().Options.ReplaceHistoryEntry.ShouldBeTrue();
     }
 
@@ -2470,11 +2578,11 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=place&evaluation=true&evalParticipant=301&placementParticipant=301&returnToEvaluation=true");
         var cut = Render<CampaignWorkspacePage>(p => p.Add(c => c.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
-        var placement = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacementsPanel>();
+        var placement = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel>();
         placement.Instance.CanEditPlacements.ShouldBeTrue();
-        placement.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        placement.Find("#place-outcome").Change("NotSelected");
         placement.Find("button.btn-primary").Click();
-        placement.WaitForAssertion(() => placement.Markup.ShouldContain("Saved"));
+        placement.WaitForAssertion(() => placement.Markup.ShouldContain("Placement saved."));
         _ = Services.GetRequiredService<ICampaignPlacementService>().Received(1).UpdatePlacementAsync(
             Arg.Is<UpdateCampaignPlacementInput>(i => i.PlayerCampaignAssignmentId == 301 && i.Outcome == PlacementOutcome.NotSelected), Arg.Any<CancellationToken>());
         placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal))

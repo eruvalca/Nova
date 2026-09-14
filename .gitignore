@@ -405,12 +405,22 @@ Nova/wwwroot/css/
 !.impeccable/mocks/decision/issue-198-shared-notebook.png
 !.impeccable/mocks/decision/issue-198-shared-notebook.json
 !.impeccable/mocks/decision/issue-198-shared-notebook.prompt.txt
+!.impeccable/mocks/decision/issue-255-place-queue-rail.png
+!.impeccable/mocks/decision/issue-255-place-queue-rail.json
+!.impeccable/mocks/decision/issue-255-place-queue-rail.prompt.txt
 .impeccable/review/**
 !.impeccable/review/**/
 !.impeccable/review/**/*.md
 !.impeccable/review/issue-198/capture-manifest.json
 !.impeccable/review/issue-198/captures/*.png
 !.impeccable/review/issue-198/captures/*.json
+# Issue #255 Place: the settled desktop/mobile captures and the measured comp-diff report are the
+# curated evidence. The side-by-side, heatmap, and region crops stay local comparison artifacts.
+!.impeccable/review/issue-255/captures/*.png
+!.impeccable/review/issue-255/captures/*.json
+!.impeccable/review/issue-255/diff/final/report.json
+!.impeccable/review/issue-255/review-watch/desktop.png
+!.impeccable/review/issue-255/review-watch/mobile.png
 # Historical records remain available through evidence-archive.md's pinned commit.
 .impeccable/review/issue-198/local-code-review.md
 .impeccable/review/issue-198/review-round-[1-9].md

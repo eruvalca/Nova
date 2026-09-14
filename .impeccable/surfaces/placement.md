@@ -2,6 +2,28 @@
 
 Status: Confirmed
 
+## Direction contract
+
+THESIS: A dispatch desk for teamless players — the waiting list stays beside the sheet you are writing, so one decision never costs you the queue.
+
+OWN-WORLD: Fieldhouse Wayfinding: wayfinding teal for the active route marker, the selected rail row and the primary action; sea glass for quiet tinted fields; ink text on paper-white flat boards; foam mist page field; hairline separations; signal amber reserved strictly for the unresolved count.
+
+STORY: Confirm campaign authority, read the written section counts, scan the queue rail, select the next player, verify their effective season placement against this campaign's own decision, then commit `Assigned`, `Not selected`, or `Withdrawn` and watch the authoritative count move.
+
+FIRST VIEWPORT: Campaign chrome precedes a single flat working field split by one hairline. The bounded left rail leads with the large amber **Needs placement** count and its three quieter written totals, then a search field and the scrollable participant rows; the wider right column is the selected player's working sheet, holding identity, written eligibility, effective season placement with its source campaign and team, this campaign's own decision, applied tags, observed team counts, and the decision controls with the compatible team choice and **Save placement**.
+
+FORM: One board, two columns — a bounded scrollable queue rail beside a working sheet that holds position. Composition locked as **Queue rail beside a fixed working sheet**, seed `5e4c34e3`, surface scope; the user approved `.impeccable/mocks/decision/issue-255-place-queue-rail.png` from the three dealt comps (Programme strip, Waypoint stepper, Queue rail). The rails and board language are the shared campaign shell; this comp governs Place content and its column split.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+
+### Comp frame and measurement boundary
+
+- **CSS viewport intent:** 1440×900 landscape desktop, device pixel ratio 1. The comp raster is 1536×1024; the page adapts and the comparison is configured to the comp's own pixel dimensions.
+- **Required shell content at that breakpoint:** the authenticated left rail with the Nova lockup and full route labels, the campaign identity sign (name, season, status, dates, participant count, campaign menu), the close-readiness region, and all four connected route markers — Roster, Evaluate, Place, Close — with full labels and Place carrying `aria-current="page"`.
+- **Measurement boundary:** the whole frame, including the campaign shell, compared against a capture at the same shell. Place content is not measured in isolation; the shell stays incumbent.
+- **Comp as decision record, not measurement target (2026-09-14):** a comp-diff run against this comp measured 57% whole-frame and 59% after aligning frames to the campaign content (the build capture had included the shell's left navigation rail, which the comp omits). Investigation showed the comp **does not depict the locked composition faithfully**: its column ink profile is a narrow left cluster plus one broad near-uniform smear, not the bimodal rail-beside-sheet structure a real board produces and that this build shows. The composition this brief commits to was built and audited region by region in the finish review; the comp remains the locked decision, and its measurement is retained as a non-gating record. See `docs/issue-255-validation.md` for the full evidence and for the repository-wide `buildPath: "comp"` question raised for the owner.
+- **Slice scope:** this contract governs the #255 queue/evidence/decision composition. Reassignment, the prior-team fast path, supersession confirmation copy, and the stale-winner presentation land with the sibling slice #254 and may not be pre-built here.
+
 Issues: [#167](https://github.com/eruvalca/Nova/issues/167), child of [#163](https://github.com/eruvalca/Nova/issues/163)
 
 Visitor mode: Operate

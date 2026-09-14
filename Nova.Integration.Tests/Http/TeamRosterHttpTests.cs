@@ -128,6 +128,52 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(search: "a", graduationYear: 2030), Uri
     }
 
     /// <summary>
+    /// Verifies the cutoff filter returns every team at or below the supplied year and excludes the cohorts
+    /// above it. This is the compatibility rule the placement surface depends on: a team's graduation year is
+    /// the earliest it accepts, so an exact-year filter would hide valid choices.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterReturnsEveryTeamAtOrBelowTheMaximumGraduationYearAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var (club, email) = await SeedRosterClubAsync(client, cancellationToken);
+        var suffix = Guid.CreateVersion7().ToString("N");
+        var belowName = $"Max cutoff below {suffix}";
+        var exactName = $"Max cutoff exact {suffix}";
+        var aboveName = $"Max cutoff above {suffix}";
+
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
+        await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
+        {
+            var userId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+                .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
+                .Select(user => user.Id)
+                .SingleAsync(cancellationToken);
+
+            var below = NewTeam(belowName, club.ClubId, userId);
+            var exact = NewTeam(exactName, club.ClubId, userId);
+            exact.GraduationYear = 2032;
+            var above = NewTeam(aboveName, club.ClubId, userId);
+            above.GraduationYear = 2033;
+            context.AddRange(below, exact, above);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        using var response = await client.GetAsync(
+new Uri(TeamRosterEndpoints.GetRosterUrl(maxGraduationYear: 2032), UriKind.RelativeOrAbsolute),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        rows.ShouldNotBeNull();
+        rows.Select(row => row.Name).ShouldBe([belowName, exactName]);
+    }
+
+    /// <summary>
     /// Verifies a non-administrator club member can read the team roster, covering the
     /// <c>RequireClubMember</c> policy the roster endpoint is authorized with.
     /// </summary>
@@ -288,6 +334,35 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(search: @"Path\T"), UriKind.RelativeOrA
         var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
         rows.ShouldNotBeNull();
         rows.Select(row => row.Name).ShouldBe(["Alpha", "Bravo", "Charlie"]);
+    }
+
+    /// <summary>
+    /// Verifies an out-of-range maximum graduation year is rejected by automatic validation at the endpoint.
+    /// Unit validation of the shared input cannot prove binding or the middleware's ProblemDetails shape, so
+    /// this is the authoritative check for the new optional query property.
+    /// </summary>
+    /// <param name="maxGraduationYear">The out-of-range maximum graduation year.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1999)]
+    [InlineData(2101)]
+    public async Task GetRosterInvalidMaximumGraduationYearReturnsValidationProblemAsync(int maxGraduationYear)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await SeedRosterClubAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            new Uri($"/api/teams?maxGraduationYear={maxGraduationYear}", UriKind.RelativeOrAbsolute), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("errors")
+            .TryGetProperty(nameof(GetTeamRosterInput.MaxGraduationYear), out _)
+            .ShouldBeTrue();
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 
     /// <summary>

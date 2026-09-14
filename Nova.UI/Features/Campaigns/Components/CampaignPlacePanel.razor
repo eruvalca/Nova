@@ -1,0 +1,425 @@
+﻿@using System.Globalization
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
+@using Nova.UI.Features.Campaigns.Services
+
+<!--
+THESIS: A dispatch desk for teamless players — the waiting list stays beside the sheet you are writing, so one
+decision never costs you the queue.
+OWN-WORLD: Fieldhouse Wayfinding: wayfinding teal for the active route, the selected rail row and the primary
+action; sea glass tinted fields; ink text on paper-white flat boards; hairline separations; signal amber reserved
+strictly for the unresolved count.
+STORY: Confirm campaign authority, read the written section totals, scan the queue rail, select the next player,
+verify their effective season placement against this campaign's own decision, then commit an outcome and watch
+the authoritative count move.
+FIRST VIEWPORT: A bounded queue rail leads with the large amber Needs placement count and its three quieter
+totals, then the search field and participant rows; the wider working sheet beside it holds identity, written
+eligibility, effective season placement with its source campaign and team, this campaign's own decision, applied
+tags, and the decision controls.
+FORM: One flat board, two columns split by a single hairline. Composition locked with the approved comp
+`.impeccable/mocks/decision/issue-255-place-queue-rail.png`; see `.impeccable/surfaces/placement.md`.
+-->
+<div class="place-field" data-place-owner="@EffectiveOwner">
+    @if (_conflictMessage is not null)
+    {
+        <div class="alert alert-warning place-conflict" role="alert" tabindex="-1" @ref="_conflictBanner">
+            <div class="place-conflict-copy">
+                <strong>The placement changed before this save was applied.</strong>
+                <span>@_conflictMessage Nobody was overwritten. Reload to see the current placement.</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_reconciling" @onclick="ReloadAfterConflictAsync">
+                Close and reload
+            </button>
+        </div>
+    }
+
+    @if (_saveMessage is not null)
+    {
+        <p class="alert alert-success place-status" role="status">@_saveMessage</p>
+    }
+
+    @if (_saveError is not null)
+    {
+        <p class="alert alert-danger place-status" role="alert">@_saveError</p>
+    }
+
+    @if (IsClosed)
+    {
+        <p class="place-readonly" role="status">@ClosedReadOnlyMessage</p>
+    }
+
+    <div class="place-board @(SelectedParticipantId is not null ? "has-selection" : null)">
+        <section class="place-queue" aria-labelledby="placements-region-heading">
+            <h2 class="visually-hidden" id="placements-region-heading" tabindex="-1" @ref="_queueHeading">Placement queue</h2>
+
+            @if (_queue is not null && _queue.Sections.Count > 0)
+            {
+                <div class="place-sections" role="group" aria-label="Placement sections">
+                    @foreach (var section in _queue.Sections)
+                    {
+                        <button type="button"
+                                class="place-section @(section.Leads ? "leads" : null) @(IsSectionSelected(section) ? "active" : null)"
+                                aria-pressed="@(IsSectionSelected(section) ? "true" : "false")"
+                                disabled="@(_saving || _queueLoading)"
+                                @onclick="() => OnSectionSelectedAsync(section)">
+                            <span class="place-section-count">@section.Count</span>
+                            <span class="place-section-label">@section.Label</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (_queueStale)
+            {
+                <p class="place-stale" role="status">
+                    @QueueStaleNotice
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_queueLoading" @onclick="RetryQueueAsync">Retry</button>
+                </p>
+            }
+
+            <CampaignRosterFilters ShowEligibility="@(!IsClosed)"
+                                   Disabled="@(_saving || _queueLoading)"
+                                   Eligibility="@SectionFilterValue"
+                                   EligibilityCounts="@ActiveSectionCounts"
+                                   SearchText="@_searchDraft"
+                                   GraduationYearChoices="GraduationYearChoices"
+                                   SelectedGraduationYears="@_appliedState.GraduationYears"
+                                   TagChoices="TagChoices"
+                                   SelectedTagDefinitionIds="@_appliedState.TagDefinitionIds"
+                                   Outcome="@_appliedState.Outcome"
+                                   TeamChoices="CampaignTeamChoices"
+                                   TeamId="@_appliedState.TeamId"
+                                   TeamChoicesTruncated="CampaignTeamChoicesTruncated"
+                                   TeamSearch="CampaignTeamSearch"
+                                   OnTeamSearchChanged="OnCampaignTeamSearchChanged"
+                                   OnSearchTextChanged="OnSearchInputAsync"
+                                   OnEligibilityChanged="OnSectionChangedAsync"
+                                   OnGraduationYearToggled="OnGraduationYearToggledAsync"
+                                   OnTagToggled="OnTagToggledAsync"
+                                   OnOutcomeChanged="OnOutcomeChangedAsync"
+                                   OnTeamChanged="OnCampaignTeamChangedAsync" />
+
+            @if (ChoicesLoadFailed)
+            {
+                <div class="alert alert-warning place-filter-warning" role="alert">
+                    <span>Couldn't load filter options.</span>
+                    <button type="button" class="btn btn-sm btn-outline-warning" @onclick="OnRetryChoices">Retry</button>
+                </div>
+            }
+
+            @if (HasActiveFilters)
+            {
+                <button type="button" class="place-clear-filters" disabled="@(_saving || _queueLoading)" @onclick="OnClearFiltersAsync">
+                    Clear filters
+                </button>
+            }
+
+            @if (_queueLoading && _queue is null)
+            {
+                <p class="place-queue-state" role="status">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    Loading the placement queue...
+                </p>
+            }
+            else if (_queue is null)
+            {
+                <div class="alert alert-danger place-queue-state" role="alert">
+                    <span>@(_queueError ?? QueueFailureMessage)</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" disabled="@_queueLoading" @onclick="RetryQueueAsync">Retry</button>
+                </div>
+            }
+            else if (_queue.Rows.Count == 0)
+            {
+                <div class="place-queue-state">
+                    @if (HasActiveFilters)
+                    {
+                        <p class="text-muted mb-2">No participants match the current filters.</p>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="OnClearFiltersAsync">Clear filters</button>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">@EmptyQueueMessage</p>
+                    }
+                </div>
+            }
+            else
+            {
+                <ul class="place-rows" aria-label="Participants">
+                    @foreach (var row in _queue.Rows)
+                    {
+                        <li>
+                            @* A real destination, so a direct link, a refresh, and scripting-disabled
+                               navigation all open the same sheet the event handler would. *@
+                            <a id="@($"placement-row-{row.PlayerCampaignAssignmentId}")"
+                               class="place-row @(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "selected" : null)"
+                               href="@SelectUrl(row.PlayerCampaignAssignmentId)"
+                               aria-current="@(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "page" : null)">
+                                <span class="place-row-identity">
+                                    @if (row.TryoutNumber is { } tryout)
+                                    {
+                                        <span class="place-row-tryout">@tryout</span>
+                                    }
+                                    <span class="place-row-name">@row.DisplayName</span>
+                                </span>
+                                <span class="place-row-meta">
+                                    <span>@row.GraduationYear</span>
+                                    <span class="place-row-outcome">@CampaignPlaceDisplay.OutcomeLabel(row.LocalOutcome)</span>
+                                </span>
+                                @if (row.CorrectionReason != PlacementCorrectionReason.None)
+                                {
+                                    <span class="place-row-correction">@CampaignPlaceDisplay.CorrectionLabel(row.CorrectionReason)</span>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+
+                <CampaignRosterPager Page="_queue.Page" PageSize="_queue.PageSize" TotalCount="_queue.TotalCount"
+                                     Disabled="@(_saving || _queueLoading)" OnPageChanged="OnPageChangedAsync" />
+            }
+        </section>
+
+        <section class="place-sheet" aria-labelledby="place-sheet-heading">
+            <h2 class="visually-hidden" id="place-sheet-heading" tabindex="-1" @ref="_sheetHeading">Selected participant</h2>
+
+            @if (_selectedLoading && _selected is null)
+            {
+                <p class="place-sheet-state" role="status">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    Loading placement evidence...
+                </p>
+            }
+            else if (_selectedError is not null && _selected is null)
+            {
+                <div class="alert alert-danger place-sheet-state" role="alert">
+                    <span>@_selectedError</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" disabled="@_selectedLoading" @onclick="RetrySelectionAsync">Retry</button>
+                </div>
+            }
+            else if (_selected is null)
+            {
+                <p class="place-sheet-state text-muted">Select a participant from the queue to review their placement evidence.</p>
+            }
+            else
+            {
+                @if (_selectedError is not null)
+                {
+                    <div class="alert alert-warning place-sheet-state" role="alert">
+                        <span>@_selectedError Showing the last known evidence.</span>
+                        <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_selectedLoading" @onclick="RetrySelectionAsync">Retry</button>
+                    </div>
+                }
+
+                <header class="place-identity">
+                    <p class="place-name">@_selected.DisplayName</p>
+                    <p class="place-identity-meta">
+                        @if (_selected.TryoutNumber is { } tryout)
+                        {
+                            <span>Tryout @tryout</span>
+                            <span aria-hidden="true"> · </span>
+                        }
+                        <span>Graduation @_selected.GraduationYear</span>
+                        @if (_selected.Eligibility is { } eligibility)
+                        {
+                            <span aria-hidden="true"> · </span>
+                            <span>@CampaignPlaceDisplay.EligibilityLabel(eligibility)</span>
+                        }
+                    </p>
+                    @if (EvaluationReturnPath is not null)
+                    {
+                        <a class="place-return" href="@EvaluationReturnPath">Return to evaluation</a>
+                    }
+                </header>
+
+                <dl class="place-evidence">
+                    @if (!IsClosed)
+                    {
+                        <div>
+                            <dt>Effective season placement</dt>
+                            <dd>
+                                @if (_selected.EffectiveTeam is { } effectiveTeam)
+                                {
+                                    <span>@effectiveTeam.TeamName</span>
+                                    @if (_selected.EffectiveOutcome is { } effectiveOutcome)
+                                    {
+                                        <small>@CampaignPlaceDisplay.OutcomeLabel(effectiveOutcome) · @_selected.EffectiveSourceCampaignName</small>
+                                    }
+                                }
+                                else if (_selected.EffectiveOutcome is { } inheritedOutcome)
+                                {
+                                    <span>No effective team</span>
+                                    <small>@CampaignPlaceDisplay.OutcomeLabel(inheritedOutcome) · @_selected.EffectiveSourceCampaignName</small>
+                                }
+                                else
+                                {
+                                    <span>No effective season placement</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                    <div>
+                        <dt>This campaign's decision</dt>
+                        <dd>
+                            @if (_selected.LocalDecision is { } local)
+                            {
+                                <span>@CampaignPlaceDisplay.OutcomeLabel(local.Outcome)@(local.TeamId is null ? null : $" · {_selected.LocalTeam?.TeamName}")</span>
+                                <small>@CampaignPlaceDisplay.AttributionLabel(local)</small>
+                            }
+                            else
+                            {
+                                <span>No campaign decision</span>
+                                <small>This participant has no saved decision in this campaign.</small>
+                            }
+                        </dd>
+                    </div>
+                </dl>
+
+                @if (_selected.CorrectionReason != PlacementCorrectionReason.None)
+                {
+                    <p class="place-correction" role="note">
+                        <strong>Needs correction:</strong> @CampaignPlaceDisplay.CorrectionLabel(_selected.CorrectionReason)
+                    </p>
+                }
+
+                @if (_selected.AppliedTags.Count > 0)
+                {
+                    <ul class="place-tags" aria-label="Applied tags">
+                        @foreach (var tag in _selected.AppliedTags)
+                        {
+                            <li style="@CampaignRosterDisplay.BuildTagStyle(tag.TagColor)">
+                                @tag.TagName@(tag.IsArchived ? " (archived)" : null)
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (CanRecordDecision)
+                {
+                    <div class="place-decision">
+                        <div class="place-decision-control">
+                            <label class="form-label" for="place-outcome">Outcome</label>
+                            <select id="place-outcome" class="form-select" value="@_draftOutcome.ToString()"
+                                    disabled="@_saving" @onchange="OnDraftOutcomeChangedAsync">
+                                @if (_draftOutcome == PlacementOutcome.Undecided)
+                                {
+                                    <option value="Undecided" selected disabled>No campaign decision yet</option>
+                                }
+                                <option value="Assigned">Assigned</option>
+                                <option value="NotSelected">Not selected</option>
+                                <option value="Withdrawn">Withdrawn</option>
+                            </select>
+                        </div>
+
+                        <div class="place-decision-control">
+                            @* A heading, not a label: the select carries its own label where it renders, so a
+                               second `for="place-team"` would give the control two accessible names. *@
+                            <span class="form-label d-block">Team</span>
+                            @if (_draftOutcome != PlacementOutcome.Assigned)
+                            {
+                                <p class="place-decision-note text-muted">Choose Assigned to select a team.</p>
+                            }
+                            else if (_teamChoicesLoading && _compatibleTeams.Count == 0)
+                            {
+                                <p class="place-decision-note" role="status">
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                    Loading compatible teams...
+                                </p>
+                            }
+                            else if (_teamChoicesError is not null && _compatibleTeams.Count == 0)
+                            {
+                                <div class="place-decision-note" role="alert">
+                                    <span>@_teamChoicesError</span>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_teamChoicesLoading" @onclick="RetryCompatibleTeamsAsync">Retry</button>
+                                </div>
+                            }
+                            else if (_compatibleTeams.Count == 0)
+                            {
+                                @if (_teamChoicesSearch.Length > 0)
+                                {
+                                    <label class="form-label" for="place-team-search">Find a compatible team</label>
+                                    <input id="place-team-search" type="search" class="form-control mb-2" value="@_teamChoicesSearch"
+                                           maxlength="200" @onchange="OnTeamSearchChangedAsync" placeholder="Search team names" />
+                                    <p class="place-decision-note text-muted">No compatible team matches that search.</p>
+                                }
+                                else
+                                {
+                                    <p class="place-decision-note text-muted">
+                                        No active team accepts graduation year @_selected.GraduationYear. Not selected and
+                                        Withdrawn are still available.
+                                    </p>
+                                }
+                            }
+                            else
+                            {
+                                <label class="form-label" for="place-team-search">Find a compatible team</label>
+                                <input id="place-team-search" type="search" class="form-control mb-2" value="@_teamChoicesSearch"
+                                       maxlength="200" @onchange="OnTeamSearchChangedAsync" placeholder="Search team names" />
+                                <label class="form-label" for="place-team">Team</label>
+                                <select id="place-team" class="form-select" value="@TeamValue(_draftTeamId)"
+                                        disabled="@_saving" @onchange="OnDraftTeamChangedAsync">
+                                    <option value="">Choose a team</option>
+                                    @foreach (var team in VisibleTeamChoices)
+                                    {
+                                        <option value="@team.TeamId.ToString(CultureInfo.InvariantCulture)" disabled="@team.Unavailable">
+                                            @team.Name@(TeamChoiceSuffix(team))
+                                            @if (team.SeasonPlacementCount is { } seasonCount && team.CampaignContribution is { } campaignCount)
+                                            {
+                                                <text> · @seasonCount this season · @campaignCount from this campaign</text>
+                                            }
+                                        </option>
+                                    }
+                                </select>
+                                @if (SelectedTeamChoice is { SeasonPlacementCount: { } chosenSeasonCount, CampaignContribution: { } chosenCampaignCount })
+                                {
+                                    <p id="place-team-counts" class="place-decision-note text-muted">
+                                        Observed placements: @chosenSeasonCount this season · @chosenCampaignCount from this campaign.
+                                    </p>
+                                }
+                                @if (_teamChoicesTruncated)
+                                {
+                                    @* The choice list is capped, so a valid team beyond the cap must stay reachable
+                                       through the search rather than silently disappearing. *@
+                                    <p class="place-decision-note text-muted">
+                                        Showing the first @TeamChoiceLimit matching teams. Search to narrow the list.
+                                    </p>
+                                }
+                                @if (IsMissingTeamForAssignment)
+                                {
+                                    <p class="place-decision-note text-danger" role="alert">Choose a team for an assigned participant.</p>
+                                }
+                            }
+                        </div>
+
+                        <div class="place-decision-actions">
+                            <button type="button" class="btn btn-primary" disabled="@(!CanSave)" @onclick="SaveAsync">
+                                @if (_saving)
+                                {
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                }
+                                Save placement
+                            </button>
+                        </div>
+                    </div>
+                }
+                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed)
+                {
+                    @* Terminal here, so the controls are absent rather than offered and refused. *@
+                    <p class="place-readonly" role="status">@DecisionUnavailableReason</p>
+                }
+
+                @* Every selected participant must have an in-surface way back to the queue. On narrow
+                   viewports the queue is hidden while a sheet is open, so a read-only member or a Closed
+                   campaign would otherwise be stranded on the sheet. *@
+                <div class="place-sheet-actions">
+                    @* A real link, so a scripting-disabled member who followed a queue row's link into the
+                       sheet is not trapped there by a handler that cannot run. *@
+                    <a class="btn btn-outline-secondary" href="@ClearSelectionUrl">Back to placements</a>
+                </div>
+
+                <p class="place-player-link">
+                    <a href="@BuildPlayerLink(_selected)">Open player record</a>
+                </p>
+            }
+        </section>
+    </div>
+</div>

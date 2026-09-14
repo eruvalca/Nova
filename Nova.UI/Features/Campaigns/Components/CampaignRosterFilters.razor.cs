@@ -15,6 +15,17 @@ namespace Nova.UI.Features.Campaigns.Components;
 public partial class CampaignRosterFilters
 {
     private bool _expanded = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether every discovery control is unavailable.
+    /// </summary>
+    /// <remarks>
+    /// Callers that raise a navigation from these controls disable them while a read is in flight: their
+    /// handlers derive the next state from the applied one, which does not advance until that read returns, so
+    /// two quick changes would let the second drop the first.
+    /// </remarks>
+    [Parameter] public bool Disabled { get; set; }
+
     /// <summary>Whether Active eligibility discovery is available.</summary>
     [Parameter] public bool ShowEligibility { get; set; }
     /// <summary>The selected Active work eligibility.</summary>

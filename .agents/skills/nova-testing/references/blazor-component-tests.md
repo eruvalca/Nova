@@ -25,6 +25,19 @@ cut.Markup.ShouldContain("Persisted Member");
 Do not pass `null!` for a required dependency — supply a `Substitute.For<T>()` or a lightweight real
 implementation.
 
+## Driving a parameter change on a rendered component
+
+`cut.Render(parameters => ...)` applies a new parameter set to the existing instance, but
+`ComponentBase` calls `OnParametersSet(Async)` only after the first `OnInitializedAsync` completes. A
+test that gates a read with a `TaskCompletionSource` inside `OnInitializedAsync` therefore cannot
+change a parameter mid-flight: bUnit reports `Total render count across all components: 0` and the
+change is silently dropped. Let the component finish initializing (settle on a value only the finished
+state renders), then change the parameter.
+
+The same shape is a product defect worth fixing when you find it: a component that returns early on an
+initialization flag drops a parameter change that arrives while the first load is still in flight,
+leaving what it renders and the URL disagreeing about what the next mutation would act on.
+
 ## Asserting an `EventCallback` fired
 
 Create the callback with `EventCallback.Factory` and assert the flag after triggering the DOM event:
@@ -203,7 +216,11 @@ scoped example. Browser focus and DOM replacement behavior belongs in the
 
 - Name tests `SubjectOutcomeCondition` (append `Async` for async methods).
 - Assert on rendered markup (`cut.Markup`, `cut.Find(...)`) and on substituted-service interactions —
-  not on private component fields.
+  not on private component fields. Prefer a scoped locator over a whole-markup `ShouldContain`
+  whenever the same value also renders elsewhere in the tree: a list beside a detail pane renders the
+  same names twice, so a whole-markup assertion matches the list and passes even when the pane never
+  resolves. Give each fixture row a distinct name so only the region under test can satisfy the
+  assertion.
 - Build culture-sensitive expected strings (dates, numbers) with the same culture the component uses;
   do not hard-code an English rendering unless the product contract fixes that culture.
 - Keep component tests in `Nova.Unit.Tests`; they need no database harness.

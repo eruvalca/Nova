@@ -44,7 +44,4 @@ public partial class CampaignWorkspace
 
     private string CloseUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
         CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId), EvaluationState);
-
-    private string PlaceUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
-        CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState, _filters, _selectedParticipantId), EvaluationState);
 }

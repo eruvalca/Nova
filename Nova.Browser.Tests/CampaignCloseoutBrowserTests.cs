@@ -84,10 +84,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Nothing is frozen: an administrator placement save still succeeds.
         await OpenPlacementsAsync(page, seed.BlockedCampaignId);
-        var firstRow = page.Locator("tbody tr[id^='placement-row-']").First;
-        await Expect(firstRow).ToBeVisibleAsync();
-        await SavePlacementOutcomeAsync(page, firstRow, PlacementOutcome.NotSelected);
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
+        await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
+        await SaveFirstPlacementOutcomeAsync(page, PlacementOutcome.NotSelected);
+        await Expect(page.Locator(".alert-success")).ToContainTextAsync("Placement saved.");
     }
 
     /// <summary>Verifies automatic enrollment invalidates stale readiness without freezing campaign editing.</summary>
@@ -131,7 +130,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             created.IsSuccess.ShouldBeTrue();
         }
         await OpenPlacementsAsync(secondPage, seed.ReadyCampaignId);
-        await Expect(secondPage.Locator("div.placement-summary[role=status]")).ToContainTextAsync("1 undecided");
+        // The late arrival joins the Needs-placement queue, which carries the written whole-campaign total.
+        await Expect(secondPage.Locator("button.place-section.leads")).ToContainTextAsync("Needs placement");
+        await Expect(secondPage.Locator("button.place-section.leads")).ToContainTextAsync("1");
 
         // Admin A's stale close is rejected with an actionable conflict and refetches the blockers.
         var conflictAlert = adminPage.Locator("div.alert-warning[role=alert]");
@@ -141,8 +142,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(adminPage.Locator("li.list-group-item.list-group-item-warning")).ToContainTextAsync("Undecided");
 
         // The campaign is still active and editable for Admin B.
-        await Expect(secondPage.Locator("select[aria-label^='Outcome for']").First).ToBeVisibleAsync();
-        await Expect(secondPage.Locator("select[aria-label^='Outcome for']").First).ToBeEnabledAsync();
+        await InteractionHelpers.ClickUntilAsync(
+            secondPage,
+            secondPage.Locator("a.place-row").First,
+            () => OutcomeEnabledAsync(secondPage));
+        await Expect(secondPage.Locator("#place-outcome")).ToBeEnabledAsync();
     }
 
     [Fact]
@@ -180,10 +184,21 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Editing is restored and previously decided outcomes are unchanged.
         await OpenPlacementsAsync(page, seed.ClosedCampaignId);
-        var firstRow = page.Locator("tbody tr[id^='placement-row-']").First;
-        await SavePlacementOutcomeAsync(page, firstRow, PlacementOutcome.Assigned, seed.EligibleTeamId);
-        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("1 assigned");
-        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("2 not selected");
+        // The three participants were decided Not selected in the closed campaign, so Place opens on an
+        // empty Needs-placement queue; the admin reviews the resolved section to restore editing on one.
+        await InteractionHelpers.ClickUntilAsync(
+            page,
+            page.Locator("button.place-section").Nth(2),
+            () => Task.FromResult(page.Url.Contains("placementEligibility=Resolved", StringComparison.Ordinal)));
+        // No seeded team is compatible with this participant's graduation year, so editing is proven with an
+        // outcome that needs no team rather than by forcing an ineligible assignment.
+        await SaveFirstPlacementOutcomeAsync(page, PlacementOutcome.Withdrawn);
+        // Editing is restored, and the campaign's previously decided outcomes are unchanged: one participant
+        // is now withdrawn while the two remaining Not-selected decisions still resolve their campaign.
+        await Expect(page.Locator(".place-evidence")).ToContainTextAsync("Withdrawn");
+        var sections = page.Locator("button.place-section");
+        await Expect(sections.Nth(2)).ToContainTextAsync("2");
+        await Expect(sections.Nth(3)).ToContainTextAsync("1");
     }
 
     [Fact]
@@ -245,9 +260,13 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(
             page,
             outcomesRow.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
-            () => Task.FromResult(page.Url.Contains("unresolvedOnly=true", StringComparison.Ordinal)));
+            () => Task.FromResult(page.Url.Contains("placementOutcome=undecided", StringComparison.Ordinal)));
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
-        page.Url.ShouldContain("unresolvedOnly=true");
+        // The drill-down targets participants still missing a campaign-local outcome across every section,
+        // which is deliberately not the Needs-placement queue: a zero queue never stands in for close
+        // readiness.
+        page.Url.ShouldContain("placementOutcome=undecided");
+        page.Url.ShouldContain("placementEligibility=all");
 
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
@@ -742,7 +761,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=place").ToString());
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
-        await Expect(page.Locator("div.placement-summary[role=status]")).ToBeVisibleAsync();
+        // The queue region leads with the written whole-campaign section totals.
+        await Expect(page.Locator(".place-sections")).ToBeVisibleAsync();
     }
 
     /// <summary>Follows the shared "Review readiness" link, retrying through SSR hydration.</summary>
@@ -755,8 +775,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Resolves a closeout blocker by following its "Review unresolved" drill-down, changing the
-    /// target assignment to <see cref="PlacementOutcome.NotSelected"/>, and returning to the closeout tab.
+    /// Resolves a closeout blocker by following its "Review unresolved" drill-down, recording
+    /// <see cref="PlacementOutcome.NotSelected"/> against the named assignment, and returning to the
+    /// closeout tab.
     /// </summary>
     private static async Task ResolveBlockerAsync(IPage page, string rowLabel, long assignmentId)
     {
@@ -766,62 +787,85 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             row.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
             () => page.Locator("#placements-region-heading").IsVisibleAsync());
 
-        var placementRow = page.Locator($"tbody tr[id='placement-row-{assignmentId}']");
-        await Expect(placementRow).ToBeVisibleAsync();
-        await SavePlacementOutcomeAsync(page, placementRow, PlacementOutcome.NotSelected);
+        await SavePlacementOutcomeAsync(page, assignmentId, PlacementOutcome.NotSelected);
 
         await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
     }
 
-    /// <summary>Saves a placement outcome on a specific row, retrying through SSR hydration.</summary>
+    /// <summary>Records an outcome for one assignment by selecting its queue row first.</summary>
+    /// <param name="page">The page to drive.</param>
+    /// <param name="assignmentId">The participant-assignment identifier of the queue row to select.</param>
+    /// <param name="outcome">The outcome to record.</param>
+    /// <param name="teamId">The team to assign, required for <see cref="PlacementOutcome.Assigned"/>.</param>
+    /// <returns>A task that completes once the save is announced.</returns>
     private static async Task SavePlacementOutcomeAsync(
         IPage page,
-        ILocator row,
+        long assignmentId,
         PlacementOutcome outcome,
         long? teamId = null)
     {
-        await Expect(row).ToBeVisibleAsync();
-        var outcomeSelect = row.Locator("select[aria-label^='Outcome for']");
-        var outcomeValue = ((int)outcome).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var alternateValue = ((int)(outcome == PlacementOutcome.NotSelected ? PlacementOutcome.Assigned : PlacementOutcome.NotSelected)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var teamSelect = row.Locator("select[aria-label^='Team for']");
-        var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
+        await InteractionHelpers.ClickUntilAsync(
+            page,
+            page.Locator($"a[id='placement-row-{assignmentId}']"),
+            () => OutcomeEnabledAsync(page));
+        await SaveSelectedPlacementOutcomeAsync(page, outcome, teamId);
+    }
 
-        // The Save button only renders once the change reaches the Blazor draft state (draft.IsDirty).
-        // Prerendered selects swallow change events until the circuit attaches, so retry the select
-        // change and wait for the Save button as the hydration signal.
-        for (var attempt = 0; attempt < 25; attempt++)
-        {
-            try
+    /// <summary>Records an outcome for whichever queue row is currently selected.</summary>
+    /// <param name="page">The page to drive.</param>
+    /// <param name="outcome">The outcome to record.</param>
+    /// <param name="teamId">The team to assign, required for <see cref="PlacementOutcome.Assigned"/>.</param>
+    /// <returns>A task that completes once the save is announced.</returns>
+    private static async Task SaveFirstPlacementOutcomeAsync(IPage page, PlacementOutcome outcome, long? teamId = null)
+    {
+        await InteractionHelpers.ClickUntilAsync(
+            page,
+            page.Locator("a.place-row").First,
+            () => OutcomeEnabledAsync(page));
+        await SaveSelectedPlacementOutcomeAsync(page, outcome, teamId);
+    }
+
+    /// <summary>
+    /// Reports whether the Place decision control exists and is enabled. The presence check must come first
+    /// and must not wait: Playwright's <c>IsEnabledAsync</c> waits for a missing element and then throws,
+    /// which would abort the settle loop before the first click ever lands.
+    /// </summary>
+    /// <param name="page">The page to inspect.</param>
+    /// <returns><see langword="true"/> when the decision control is present and enabled.</returns>
+    private static async Task<bool> OutcomeEnabledAsync(IPage page)
+    {
+        var outcomeControl = page.Locator("#place-outcome");
+        return await outcomeControl.CountAsync() > 0 && await outcomeControl.IsEnabledAsync();
+    }
+
+    /// <summary>
+    /// Applies an outcome to the selected participant and submits it. The select swallows change events
+    /// until the circuit attaches, so the choice is re-applied until the submit becomes enabled.
+    /// </summary>
+    /// <param name="page">The page to drive.</param>
+    /// <param name="outcome">The outcome to record.</param>
+    /// <param name="teamId">The team to assign, required for <see cref="PlacementOutcome.Assigned"/>.</param>
+    /// <returns>A task that completes once the save is announced.</returns>
+    private static async Task SaveSelectedPlacementOutcomeAsync(IPage page, PlacementOutcome outcome, long? teamId = null)
+    {
+        await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
+        var save = page.GetByRole(AriaRole.Button, new() { Name = "Save placement", Exact = true });
+
+        await InteractionHelpers.ActUntilAsync(
+            page,
+            async () =>
             {
-                await outcomeSelect.SelectOptionAsync(alternateValue);
-                await outcomeSelect.SelectOptionAsync(outcomeValue);
-
-                if (outcome == PlacementOutcome.Assigned)
+                await page.Locator("#place-outcome").SelectOptionAsync(outcome.ToString());
+                if (outcome == PlacementOutcome.Assigned && teamId is { } selectedTeam)
                 {
-                    await Expect(teamSelect).ToBeEnabledAsync(new() { Timeout = 1500 });
-                    await teamSelect.SelectOptionAsync(teamId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    await Expect(page.Locator("#place-team")).ToBeEnabledAsync(new() { Timeout = 1500 });
+                    await page.Locator("#place-team").SelectOptionAsync(
+                        selectedTeam.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
-            }
-            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
-            {
-                // The select was replaced mid-interaction or the team select is not yet enabled.
-                // Playwright actionability timeouts surface as System.TimeoutException.
-            }
+            },
+            async () => await save.CountAsync() > 0 && await save.IsEnabledAsync());
 
-            try
-            {
-                await Expect(save).ToBeVisibleAsync(new() { Timeout = 1500 });
-                break;
-            }
-            catch (PlaywrightException)
-            {
-                await page.WaitForTimeoutAsync(250);
-            }
-        }
-
-        await Expect(save).ToBeVisibleAsync();
         await InteractionHelpers.ActUntilAsync(
             page,
             () => save.ClickAsync(new() { Timeout = 3000 }),

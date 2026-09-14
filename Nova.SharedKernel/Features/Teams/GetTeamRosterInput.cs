@@ -27,6 +27,19 @@ public sealed record GetTeamRosterInput
     public int? GraduationYear { get; init; }
 
     /// <summary>
+    /// Gets the optional inclusive maximum graduation year, for callers whose rule is a cutoff rather than a
+    /// single cohort.
+    /// </summary>
+    /// <remarks>
+    /// A team's graduation year is the earliest year it accepts: placement policy refuses a player whose year
+    /// precedes the team's, so a player may be placed with any team at or below their own year. This is the
+    /// range companion to the exact <see cref="GraduationYear"/> filter, which stays the default for
+    /// team-management screens that ask for one cohort. Both filters combine when both are supplied.
+    /// </remarks>
+    [Range(2000, 2100)]
+    public int? MaxGraduationYear { get; init; }
+
+    /// <summary>
     /// Gets the optional maximum number of teams to return.
     /// </summary>
     /// <remarks>
