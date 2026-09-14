@@ -20,7 +20,14 @@ public sealed record CampaignPlaceQueueData(
     int Page,
     int PageSize,
     int TotalCount,
-    IReadOnlyList<CampaignPlaceSection> Sections);
+    IReadOnlyList<CampaignPlaceSection> Sections)
+{
+    /// <summary>
+    /// Indicates the whole-campaign totals could not be read, so the section list is unknown rather than
+    /// empty. The rows in this page are still authoritative.
+    /// </summary>
+    public bool TotalsUnavailable { get; init; }
+}
 
 /// <summary>
 /// One written queue section: its filter token, its label, its whole-campaign total, and whether it leads.
@@ -125,9 +132,13 @@ public partial class CampaignPlacePanel
 
         _appliedState = state;
         _appliedStatus = status;
+        _appliedQueryString = QueryKey(state);
         _searchDraft = state.Search ?? string.Empty;
         _queue = loaded;
-        _queueStale = false;
+
+        // A Closed campaign whose campaign-local totals could not be read keeps its rows but must say the
+        // totals are unavailable rather than presenting an empty section list as fact.
+        _queueStale = loaded.TotalsUnavailable;
         PersistQueue();
     }
 
@@ -135,7 +146,14 @@ public partial class CampaignPlacePanel
     /// Re-reads the queue, the unfiltered totals, and the selected participant after a committed decision.
     /// </summary>
     /// <returns>A task that completes when reconciliation finishes.</returns>
-    private async Task ReconcileAsync()
+    /// <summary>
+    /// Re-reads the queue, the unfiltered totals, and the selected participant after a committed decision.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when an authoritative snapshot was adopted; <see langword="false"/> when the
+    /// read failed or corrected the page, so settlement must wait for the corrected read.
+    /// </returns>
+    private async Task<bool> ReconcileAsync()
     {
         var request = ++_queueRequestSequence;
         var status = CampaignStatus;
@@ -147,14 +165,24 @@ public partial class CampaignPlacePanel
 
         if (request != _queueRequestSequence || ComponentCancellationToken.IsCancellationRequested)
         {
-            return;
+            return false;
         }
 
         if (loaded is not null)
         {
+            // The same last-page correction a normal load applies. Committing the final row on the last page
+            // can shrink the result set, and adopting that empty page would hide the pager and claim the
+            // campaign has no participants.
+            var lastPage = Math.Max(1, (int)Math.Ceiling(loaded.TotalCount / (double)Math.Max(1, loaded.PageSize)));
+            if (state.Page > lastPage)
+            {
+                await OnStateChanged.InvokeAsync(state with { Page = lastPage });
+                return false;
+            }
+
             _queue = loaded;
             _queueError = null;
-            _queueStale = false;
+            _queueStale = loaded.TotalsUnavailable;
         }
         else
         {
@@ -164,6 +192,7 @@ public partial class CampaignPlacePanel
 
         await RefreshSelectionAsync(force: true);
         PersistQueue();
+        return true;
     }
 
     /// <summary>
@@ -261,7 +290,11 @@ public partial class CampaignPlacePanel
             closed.Participants.Page,
             closed.Participants.PageSize,
             closed.Participants.TotalCount,
-            BuildClosedSections(summary));
+            BuildClosedSections(summary))
+        {
+            // The rows are authoritative; only the campaign-local totals are unknown.
+            TotalsUnavailable = !summary.IsSuccess
+        };
     }
 
     /// <summary>

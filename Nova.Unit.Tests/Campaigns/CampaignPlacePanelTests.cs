@@ -121,15 +121,15 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
     }
 
     [Fact]
-    public void QueueRowsRemainKeyboardOperableButtonsCarryingWrittenState()
+    public void QueueRowsAreLinksCarryingWrittenState()
     {
         RegisterServices();
 
         var cut = RenderPanel();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Chen"));
 
-        var row = cut.Find("button.place-row");
-        row.GetAttribute("type").ShouldBe("button");
+        var row = cut.Find("a.place-row");
+        row.GetAttribute("href").ShouldNotBeNullOrWhiteSpace();
         Collapse(row).ShouldContain("Undecided");
         Collapse(row).ShouldContain("2032");
         Collapse(row).ShouldContain("114");

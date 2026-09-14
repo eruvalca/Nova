@@ -102,8 +102,8 @@ public partial class CampaignPlacePanel
         _saving = true;
         _saveError = null;
         _saveMessage = null;
-        var saved = false;
 
+        var outcome = MutationOutcome.Refused;
         try
         {
             var input = new UpdateCampaignPlacementInput(
@@ -112,17 +112,66 @@ public partial class CampaignPlacePanel
                 _draftOutcome == PlacementOutcome.Assigned ? _draftTeamId : null,
                 token);
 
-            var result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken);
-            saved = ApplyMutationResult(result);
+            outcome = await SendMutationAsync(input);
+
+            if (outcome == MutationOutcome.Unconfirmed)
+            {
+                await ReconcileAsync();
+                _saveError = "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.";
+            }
         }
         finally
         {
-            // Always release the save gate so the controls never stay stuck in the saving state, even if
-            // the mutation or its reconciliation throws.
+            // Always release the save gate so the controls never stay stuck in the saving state. On the
+            // unconfirmed path this runs after reconciliation, so a resubmit cannot race it.
             _saving = false;
         }
 
-        await SettleAsync(saved, _draftOutcome);
+        if (outcome == MutationOutcome.Unconfirmed)
+        {
+            return;
+        }
+
+        await SettleAsync(outcome == MutationOutcome.Committed, _draftOutcome);
+    }
+
+    /// <summary>
+    /// Represents the outcome of sending one placement mutation.
+    /// </summary>
+    private enum MutationOutcome
+    {
+        /// <summary>The server accepted the mutation.</summary>
+        Committed,
+
+        /// <summary>The server refused the mutation with a specific problem.</summary>
+        Refused,
+
+        /// <summary>The transport failed before a response arrived, so the result is unknown.</summary>
+        Unconfirmed
+    }
+
+    /// <summary>
+    /// Sends the mutation, telling a committed result apart from a refusal and from an unconfirmed transport
+    /// failure. A lost response can still mean the mutation committed, so that case is never reported as a
+    /// refusal.
+    /// </summary>
+    /// <param name="input">The mutation input.</param>
+    /// <returns>The outcome of the send.</returns>
+    private async Task<MutationOutcome> SendMutationAsync(UpdateCampaignPlacementInput input)
+    {
+        try
+        {
+            var result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken);
+            return ApplyMutationResult(result) ? MutationOutcome.Committed : MutationOutcome.Refused;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            return MutationOutcome.Unconfirmed;
+        }
     }
 
     /// <summary>
@@ -186,9 +235,18 @@ public partial class CampaignPlacePanel
             return;
         }
 
-        await ReconcileAsync();
+        var reconciled = await ReconcileAsync();
         if (_conflictActive)
         {
+            await ApplyPendingStateAsync();
+            return;
+        }
+
+        if (!reconciled)
+        {
+            // The committed save moved the participant off the last page, so the corrected read is still in
+            // flight. Do not announce totals taken from the page being replaced.
+            _saveMessage = "Placement saved. The queue page was corrected and is reloading.";
             await ApplyPendingStateAsync();
             return;
         }

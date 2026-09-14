@@ -152,6 +152,7 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     border-radius: 0.25rem;
     color: var(--bs-body-color);
     text-align: left;
+    text-decoration: none;
 }
 
 .place-row:hover:not(:disabled) {

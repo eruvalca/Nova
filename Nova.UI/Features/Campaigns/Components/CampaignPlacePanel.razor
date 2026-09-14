@@ -72,7 +72,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             @if (_queueStale)
             {
                 <p class="place-stale" role="status">
-                    These totals may be out of date.
+                    @TotalsNotice
                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_queueLoading" @onclick="RetryQueueAsync">Retry</button>
                 </p>
             }
@@ -135,7 +135,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     }
                     else
                     {
-                        <p class="text-muted mb-0">No participants in this campaign yet.</p>
+                        <p class="text-muted mb-0">@EmptyQueueMessage</p>
                     }
                 </div>
             }
@@ -145,12 +145,12 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     @foreach (var row in _queue.Rows)
                     {
                         <li>
-                            <button type="button"
-                                    id="@($"placement-row-{row.PlayerCampaignAssignmentId}")"
-                                    class="place-row @(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "selected" : null)"
-                                    aria-current="@(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "true" : null)"
-                                    disabled="@_saving"
-                                    @onclick="() => OnSelectAsync(row.PlayerCampaignAssignmentId)">
+                            @* A real destination, so a direct link, a refresh, and scripting-disabled
+                               navigation all open the same sheet the event handler would. *@
+                            <a id="@($"placement-row-{row.PlayerCampaignAssignmentId}")"
+                               class="place-row @(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "selected" : null)"
+                               href="@SelectUrl(row.PlayerCampaignAssignmentId)"
+                               aria-current="@(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "page" : null)">
                                 <span class="place-row-identity">
                                     @if (row.TryoutNumber is { } tryout)
                                     {
@@ -166,7 +166,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                 {
                                     <span class="place-row-correction">@CampaignPlaceDisplay.CorrectionLabel(row.CorrectionReason)</span>
                                 }
-                            </button>
+                            </a>
                         </li>
                     }
                 </ul>
@@ -329,13 +329,27 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                             }
                             else if (_compatibleTeams.Count == 0)
                             {
-                                <p class="place-decision-note text-muted">
-                                    No active team matches graduation year @_selected.GraduationYear. Not selected and
-                                    Withdrawn are still available.
-                                </p>
+                                @if (_teamChoicesSearch.Length > 0)
+                                {
+                                    <label class="form-label" for="place-team-search">Find a compatible team</label>
+                                    <input id="place-team-search" type="search" class="form-control mb-2" value="@_teamChoicesSearch"
+                                           maxlength="200" @onchange="OnTeamSearchChangedAsync" placeholder="Search team names" />
+                                    <p class="place-decision-note text-muted">No compatible team matches that search.</p>
+                                }
+                                else
+                                {
+                                    <p class="place-decision-note text-muted">
+                                        No active team matches graduation year @_selected.GraduationYear. Not selected and
+                                        Withdrawn are still available.
+                                    </p>
+                                }
                             }
                             else
                             {
+                                <label class="form-label" for="place-team-search">Find a compatible team</label>
+                                <input id="place-team-search" type="search" class="form-control mb-2" value="@_teamChoicesSearch"
+                                       maxlength="200" @onchange="OnTeamSearchChangedAsync" placeholder="Search team names" />
+                                <label class="form-label" for="place-team">Team</label>
                                 <select id="place-team" class="form-select" value="@TeamValue(_draftTeamId)"
                                         disabled="@_saving" @onchange="OnDraftTeamChangedAsync">
                                     <option value="">Choose a team</option>
@@ -346,6 +360,14 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                         </option>
                                     }
                                 </select>
+                                @if (_teamChoicesTruncated)
+                                {
+                                    @* The choice list is capped, so a valid team beyond the cap must stay reachable
+                                       through the search rather than silently disappearing. *@
+                                    <p class="place-decision-note text-muted">
+                                        Showing the first @TeamChoiceLimit matching teams. Search to narrow the list.
+                                    </p>
+                                }
                                 @if (IsMissingTeamForAssignment)
                                 {
                                     <p class="place-decision-note text-danger" role="alert">Choose a team for an assigned participant.</p>

@@ -29,10 +29,10 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#placements-region-heading")).ToBeAttachedAsync();
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync("Needs placement");
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync(TotalText());
-        await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
+        await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
 
         // Selecting a player opens their evidence sheet and keeps the selection in the URL.
-        var firstRow = page.Locator("button.place-row").First;
+        var firstRow = page.Locator("a.place-row").First;
         var playerName = (await firstRow.Locator(".place-row-name").InnerTextAsync()).Trim();
         await InteractionHelpers.ClickUntilAsync(page, firstRow, () => Task.FromResult(Selected(page)));
         await Expect(page.Locator(".place-name")).ToHaveTextAsync(playerName);
@@ -47,7 +47,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         // Nothing was patched client-side: the reloaded evidence is the server's, the participant has left
         // the Needs-placement queue, and the whole-campaign total has moved.
-        await Expect(page.Locator("button.place-row").Filter(new() { HasText = playerName })).ToHaveCountAsync(0);
+        await Expect(page.Locator("a.place-row").Filter(new() { HasText = playerName })).ToHaveCountAsync(0);
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync(TotalText(-1));
     }
 
@@ -61,7 +61,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         // Prove interactive attachment with observable actions before relying on key events: a visible
         // prerendered control does not prove it can handle an event.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("button.place-row").First,
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => Task.FromResult(Selected(page)));
         await InteractionHelpers.ClickUntilAsync(page,
             page.GetByRole(AriaRole.Button, new() { Name = "Back to placements", Exact = true }),
@@ -80,7 +80,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         // state carries a search and no section filter at all.
         page.Url.ShouldContain("placementSearch=Player%2001");
         page.Url.ShouldNotContain("placementEligibility=");
-        await Expect(page.Locator("button.place-row")).ToHaveCountAsync(1);
+        await Expect(page.Locator("a.place-row")).ToHaveCountAsync(1);
 
         // No section reads as the applied one while the browsed scope is wider than the browsing default.
         await Expect(page.Locator("button.place-section[aria-pressed='true']")).ToHaveCountAsync(0);
@@ -94,7 +94,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
             page.GetByRole(AriaRole.Button, new() { Name = "Clear filters", Exact = true }),
             () => Task.FromResult(!page.Url.Contains("placementSearch=", StringComparison.Ordinal)));
         await Expect(page.Locator("button.place-section.leads")).ToHaveAttributeAsync("aria-pressed", "true");
-        await Expect(page.Locator("button.place-row")).ToHaveCountAsync(50);
+        await Expect(page.Locator("a.place-row")).ToHaveCountAsync(50);
     }
 
     [Fact]
@@ -107,13 +107,13 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         // 60 participants exceed the bounded 50-row page, so the queue pages rather than truncating silently.
         var pager = page.Locator("nav[aria-label='Roster pagination']");
-        await Expect(page.Locator("button.place-row")).ToHaveCountAsync(50);
+        await Expect(page.Locator("a.place-row")).ToHaveCountAsync(50);
         await Expect(pager).ToContainTextAsync("Page 1 of 2");
 
         await InteractionHelpers.ClickUntilAsync(page, NextButton(page),
             () => Task.FromResult(page.Url.Contains("placementPage=2", StringComparison.Ordinal)));
 
-        await Expect(page.Locator("button.place-row")).ToHaveCountAsync(PlacementSeed.ParticipantCount - 50);
+        await Expect(page.Locator("a.place-row")).ToHaveCountAsync(PlacementSeed.ParticipantCount - 50);
         await Expect(pager).ToContainTextAsync("Page 2 of 2");
 
         // The written totals describe the whole campaign, not the loaded page.
@@ -134,7 +134,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await Expect(SaveButton(page)).ToHaveCountAsync(0);
         // The campaign-local outcomes are still presented as read-only evidence.
         await Expect(page.Locator("button.place-section")).ToContainTextAsync(["No campaign decision", "Not selected"]);
-        await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
+        await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
     }
 
     [Fact]
@@ -146,13 +146,13 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
-        var row = page.Locator("button.place-row").First;
+        var row = page.Locator("a.place-row").First;
         await Expect(row).ToBeVisibleAsync();
         (await row.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
 
         // Selecting a player promotes the sheet to the focused stage with an explicit way back. The rail is
         // hidden rather than removed, so assert visibility rather than a DOM count.
-        await InteractionHelpers.ClickUntilAsync(page, row, () => IsHiddenAsync(page.Locator("button.place-row").First));
+        await InteractionHelpers.ClickUntilAsync(page, row, () => IsHiddenAsync(page.Locator("a.place-row").First));
         await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
 
         var back = page.GetByRole(AriaRole.Button, new() { Name = "Back to placements", Exact = true });
@@ -164,8 +164,8 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#place-outcome").FocusAsync();
         await Expect(page.Locator("#place-outcome")).ToBeFocusedAsync();
 
-        await InteractionHelpers.ClickUntilAsync(page, back, () => IsVisibleAsync(page.Locator("button.place-row").First));
-        await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
+        await InteractionHelpers.ClickUntilAsync(page, back, () => IsVisibleAsync(page.Locator("a.place-row").First));
+        await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
     }
 
     [Fact]
@@ -180,12 +180,12 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await firstPage.GotoAsync(url);
         await secondPage.GotoAsync(url);
 
-        await InteractionHelpers.ClickUntilAsync(firstPage, firstPage.Locator("button.place-row").First,
+        await InteractionHelpers.ClickUntilAsync(firstPage, firstPage.Locator("a.place-row").First,
             () => Task.FromResult(Selected(firstPage)));
         var name = (await firstPage.Locator(".place-name").InnerTextAsync()).Trim();
 
         await InteractionHelpers.ClickUntilAsync(secondPage,
-            secondPage.Locator("button.place-row").Filter(new() { HasText = name }),
+            secondPage.Locator("a.place-row").Filter(new() { HasText = name }),
             () => Task.FromResult(Selected(secondPage)));
         (await secondPage.Locator(".place-name").InnerTextAsync()).Trim().ShouldBe(name);
 
@@ -216,7 +216,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("button.place-row").First,
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => IsEnabledAsync(page.Locator("#place-outcome")));
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
@@ -235,7 +235,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("button.place-row").First,
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => IsEnabledAsync(page.Locator("#place-outcome")));
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
@@ -265,7 +265,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         // Select a participant so the working sheet carries evidence, which is the composition the approved
         // comp governs, and prove attachment before capturing.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("button.place-row").First,
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => IsEnabledAsync(page.Locator("#place-outcome")));
         await Expect(page.Locator(".place-evidence")).ToContainTextAsync("Effective season placement");
         await CaptureAsync(page, "desktop", directory, fullPage: true, seed.CampaignId);

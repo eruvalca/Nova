@@ -84,7 +84,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Nothing is frozen: an administrator placement save still succeeds.
         await OpenPlacementsAsync(page, seed.BlockedCampaignId);
-        await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
+        await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
         await SaveFirstPlacementOutcomeAsync(page, PlacementOutcome.NotSelected);
         await Expect(page.Locator(".alert-success")).ToContainTextAsync("Placement saved.");
     }
@@ -144,7 +144,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         // The campaign is still active and editable for Admin B.
         await InteractionHelpers.ClickUntilAsync(
             secondPage,
-            secondPage.Locator("button.place-row").First,
+            secondPage.Locator("a.place-row").First,
             () => OutcomeEnabledAsync(secondPage));
         await Expect(secondPage.Locator("#place-outcome")).ToBeEnabledAsync();
     }
@@ -807,7 +807,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.Locator($"button[id='placement-row-{assignmentId}']"),
+            page.Locator($"a[id='placement-row-{assignmentId}']"),
             () => OutcomeEnabledAsync(page));
         await SaveSelectedPlacementOutcomeAsync(page, outcome, teamId);
     }
@@ -821,7 +821,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         await InteractionHelpers.ClickUntilAsync(
             page,
-            page.Locator("button.place-row").First,
+            page.Locator("a.place-row").First,
             () => OutcomeEnabledAsync(page));
         await SaveSelectedPlacementOutcomeAsync(page, outcome, teamId);
     }

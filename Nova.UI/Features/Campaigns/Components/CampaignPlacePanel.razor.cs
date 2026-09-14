@@ -136,11 +136,11 @@ public partial class CampaignPlacePanel(
     public EventCallback<CampaignWorkspacePlacementState> OnStateChanged { get; set; }
 
     /// <summary>
-    /// Gets or sets the workspace-composed Place return URL for a selected participant, so a player-detail
-    /// round trip preserves the Roster and evaluation context the panel does not own.
+    /// Gets or sets the workspace-composed Place URL for a selected participant, so queue rows are real
+    /// destinations and a player-detail round trip preserves the Roster and evaluation context.
     /// </summary>
     [Parameter]
-    public Func<long, string>? ComposePlaceReturnUrl { get; set; }
+    public Func<long, string>? ComposePlaceUrl { get; set; }
 
     /// <summary>
     /// Gets or sets the callback invoked when the selected participant changes.
@@ -214,6 +214,13 @@ public partial class CampaignPlacePanel(
     /// <summary>The monotonic selected-participant request identifier used to discard obsolete responses.</summary>
     private int _selectedRequestSequence;
 
+    /// <summary>
+    /// The canonical query string of the applied discovery state. The state record holds interface-typed
+    /// collections, which compare by reference, so record equality cannot tell an unchanged filter from a
+    /// re-parsed one; the serialized form can.
+    /// </summary>
+    private string _appliedQueryString = string.Empty;
+
     /// <summary>The bounded active teams compatible with the selected participant's graduation year.</summary>
     private IReadOnlyList<TeamRosterItem> _compatibleTeams = [];
 
@@ -225,6 +232,12 @@ public partial class CampaignPlacePanel(
 
     /// <summary>The monotonic team-choices request identifier used to discard obsolete responses.</summary>
     private int _teamChoicesRequestSequence;
+
+    /// <summary>The applied compatible-team search, or an empty string when unfiltered.</summary>
+    private string _teamChoicesSearch = string.Empty;
+
+    /// <summary>Indicates the compatible-team choices hit the documented cap and need a narrower search.</summary>
+    private bool _teamChoicesTruncated;
 
     /// <summary>The drafted outcome.</summary>
     private PlacementOutcome _draftOutcome = PlacementOutcome.Undecided;
@@ -294,7 +307,7 @@ public partial class CampaignPlacePanel(
         // A pending search debounce is owned by the URL. If the canonical state changes for any other
         // reason - Back/Forward, a section or filter change, a lifecycle switch - the draft must not fire
         // afterwards and overwrite the newer state with a stale search.
-        if (!Equals(_appliedState, State))
+        if (IsDiscoveryChanged)
         {
             _searchDebounce?.Cancel();
             _searchDebounce = null;
@@ -305,7 +318,7 @@ public partial class CampaignPlacePanel(
         {
             // A discovery change that arrives mid-save is deferred rather than dropped, so browser
             // back/forward during a save cannot orphan the in-flight mutation or lose the new state.
-            if (!Equals(_appliedState, State))
+            if (IsDiscoveryChanged)
             {
                 _pendingState = State;
             }
@@ -328,7 +341,7 @@ public partial class CampaignPlacePanel(
             return;
         }
 
-        if (!Equals(_appliedState, State))
+        if (IsDiscoveryChanged)
         {
             _saveMessage = null;
             _saveError = null;
@@ -376,6 +389,20 @@ public partial class CampaignPlacePanel(
     /// Gets the owner scope used to reject persisted state belonging to another campaign, lifecycle, or authority.
     /// </summary>
     private string EffectiveOwner => Owner ?? $"{CampaignId}:{CampaignStatus}";
+
+    /// <summary>
+    /// Gets a value indicating whether the incoming discovery state differs from the applied one.
+    /// </summary>
+    private bool IsDiscoveryChanged
+        => !string.Equals(_appliedQueryString, QueryKey(State), StringComparison.Ordinal);
+
+    /// <summary>
+    /// Produces the canonical comparison key for a Place discovery state.
+    /// </summary>
+    /// <param name="state">The state to key.</param>
+    /// <returns>The canonical query string.</returns>
+    private static string QueryKey(CampaignWorkspacePlacementState state)
+        => CampaignWorkspaceUrlState.BuildPlacementQueryString(state);
 
     /// <summary>
     /// Runs the panel's first authoritative load for the current lifecycle.
@@ -458,6 +485,50 @@ public partial class CampaignPlacePanel(
     /// Gets a value indicating whether a draft filter, search, section, or sort deviates from the defaults.
     /// </summary>
     private bool HasActiveFilters => CampaignWorkspaceUrlState.HasActivePlaceFilters(_appliedState);
+
+    /// <summary>
+    /// Gets the written message for an empty queue page. The default section asks only for Needs placement,
+    /// so an empty page does not mean the campaign has no participants.
+    /// </summary>
+    private string EmptyQueueMessage
+    {
+        get
+        {
+            if (HasActiveFilters)
+            {
+                return "No participants match the current filters.";
+            }
+
+            if (!IsClosedContext(CampaignStatus)
+                && string.Equals(
+                    CampaignWorkspaceUrlState.ResolvePlacementEligibility(_appliedState),
+                    "NeedsPlacement",
+                    StringComparison.Ordinal))
+            {
+                return "No participant needs placement in this campaign.";
+            }
+
+            return "No participants in this campaign yet.";
+        }
+    }
+
+    /// <summary>
+    /// Gets the written notice for totals that are stale, or that could not be read at all.
+    /// </summary>
+    private string TotalsNotice => _queue is { Sections.Count: 0 }
+        ? "The campaign-wide totals could not be loaded."
+        : "These totals may be out of date.";
+
+    /// <summary>
+    /// Builds the canonical Place URL that selects a participant, so a queue row is a normal local link
+    /// rather than only an event handler.
+    /// </summary>
+    /// <param name="assignmentId">The participant assignment to select.</param>
+    /// <returns>The relative Place workspace URL for that selection.</returns>
+    private string SelectUrl(long assignmentId)
+        => ComposePlaceUrl is { } compose
+            ? compose(assignmentId)
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _appliedState, placementParticipantId: assignmentId);
 
     /// <summary>
     /// Applies the requested Place discovery state through the workspace URL owner.
@@ -596,13 +667,6 @@ public partial class CampaignPlacePanel(
     }
 
     /// <summary>
-    /// Selects a queue row, preserving the current discovery state and page in the URL.
-    /// </summary>
-    /// <param name="assignmentId">The participant assignment to select.</param>
-    /// <returns>A task that completes when the selection is raised.</returns>
-    private Task OnSelectAsync(long assignmentId) => SelectParticipantAsync(assignmentId);
-
-    /// <summary>
     /// Clears the current selection, returning the queue to its browsing posture.
     /// </summary>
     /// <returns>A task that completes when the selection is cleared.</returns>
@@ -617,7 +681,7 @@ public partial class CampaignPlacePanel(
     {
         // The workspace owns the surrounding URL context, so it composes the return URL when it can; the
         // local fallback still carries the Place state and selection for a standalone render.
-        var returnUrl = ComposePlaceReturnUrl is { } compose
+        var returnUrl = ComposePlaceUrl is { } compose
             ? compose(row.PlayerCampaignAssignmentId)
             : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
                 CampaignId, _appliedState, placementParticipantId: row.PlayerCampaignAssignmentId, returnToEvaluation: EvaluationReturnPath is not null);

@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Components;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Teams;
 using Nova.SharedKernel.Results;
@@ -129,6 +130,10 @@ public partial class CampaignPlacePanel
 
         _selected = row;
         _selectedError = null;
+
+        // A search belongs to the participant it was typed for, not to whoever is selected next.
+        _teamChoicesSearch = string.Empty;
+        _teamChoicesTruncated = false;
         ApplyDraftFromSelection();
         PersistQueue();
 
@@ -164,6 +169,7 @@ public partial class CampaignPlacePanel
             {
                 LifecycleStatus = "active",
                 GraduationYear = graduationYear,
+                Search = _teamChoicesSearch.Length > 0 ? _teamChoicesSearch : null,
                 Limit = TeamChoiceLimit
             },
             ComponentCancellationToken));
@@ -183,6 +189,24 @@ public partial class CampaignPlacePanel
         }
 
         _compatibleTeams = choices;
+
+        // The read is capped, so the caller must say so when the cap was reached; a valid team beyond it is
+        // reachable only through a narrower search.
+        _teamChoicesTruncated = choices.Count >= TeamChoiceLimit;
+    }
+
+    /// <summary>
+    /// Applies a narrower compatible-team search so a team beyond the documented cap stays reachable.
+    /// </summary>
+    /// <param name="args">The change event carrying the search text.</param>
+    /// <returns>A task that completes when the narrowed choices are loaded.</returns>
+    private async Task OnTeamSearchChangedAsync(ChangeEventArgs args)
+    {
+        _teamChoicesSearch = args.Value?.ToString()?.Trim() ?? string.Empty;
+        if (_selected is { } selected && selected.ConcurrencyToken is not null)
+        {
+            await LoadCompatibleTeamsAsync(selected.GraduationYear);
+        }
     }
 
     /// <summary>

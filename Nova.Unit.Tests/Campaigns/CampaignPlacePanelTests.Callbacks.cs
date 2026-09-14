@@ -19,7 +19,7 @@ public sealed partial class CampaignPlacePanelTests
 
         CampaignWorkspacePlacementState? raised = null;
         var cut = RenderPanel(onStateChanged: state => raised = state);
-        cut.WaitForAssertion(() => cut.FindAll("button.place-row").Count.ShouldBe(50));
+        cut.WaitForAssertion(() => cut.FindAll("a.place-row").Count.ShouldBe(50));
 
         cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Next", StringComparison.Ordinal)).Click();
 
@@ -79,16 +79,35 @@ public sealed partial class CampaignPlacePanelTests
     }
 
     [Fact]
-    public void SelectingARowRaisesTheParticipant()
+    public void QueueRowsLinkToTheCanonicalSelectionUrl()
     {
+        // Selection is URL-backed, so a row is a real local link rather than only an event handler: a direct
+        // link, a refresh, and scripting-disabled navigation all reach the same sheet.
         RegisterServices(rows: [CreateRow(301), CreateRow(302)]);
 
-        long? raised = null;
-        var cut = RenderPanel(onSelectionChanged: id => raised = id);
-        cut.WaitForAssertion(() => cut.FindAll("button.place-row").Count.ShouldBe(2));
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.FindAll("a.place-row").Count.ShouldBe(2));
 
-        cut.FindAll("button.place-row")[1].Click();
+        var second = cut.Find("#placement-row-302");
+        second.LocalName.ShouldBe("a");
+        second.GetAttribute("href").ShouldBe("/campaigns/10?placementParticipant=302&tab=place");
+        cut.Find("#placement-row-301").GetAttribute("aria-current").ShouldBeNull();
+    }
 
-        raised.ShouldBe(302);
+    [Fact]
+    public void AReadOnlySheetStillOffersAWayBackToTheQueue()
+    {
+        // The queue is hidden on narrow viewports while a sheet is open, so this affordance must exist for
+        // every selected participant, not only when the decision controls render.
+        RegisterServices(rows: [CreateRow(301)]);
+
+        long? raised = -1;
+        var cut = RenderPanel(selectedParticipantId: 301, canEdit: false, onSelectionChanged: id => raised = id);
+        cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
+        cut.FindAll("#place-outcome").ShouldBeEmpty();
+
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Back to placements", StringComparison.Ordinal)).Click();
+
+        raised.ShouldBeNull();
     }
 }
