@@ -361,12 +361,18 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                 }
                                 Save placement
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" disabled="@(_saving)" @onclick="OnCloseSelectionAsync">
-                                Back to placements
-                            </button>
                         </div>
                     </div>
                 }
+
+                @* Every selected participant must have an in-surface way back to the queue. On narrow
+                   viewports the queue is hidden while a sheet is open, so a read-only member or a Closed
+                   campaign would otherwise be stranded on the sheet. *@
+                <div class="place-sheet-actions">
+                    <button type="button" class="btn btn-outline-secondary" disabled="@(_saving)" @onclick="OnCloseSelectionAsync">
+                        Back to placements
+                    </button>
+                </div>
 
                 <p class="place-player-link">
                     <a href="@BuildPlayerLink(_selected)">Open player record</a>

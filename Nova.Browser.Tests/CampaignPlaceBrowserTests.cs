@@ -337,9 +337,18 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var box = await board.BoundingBoxAsync();
         await board.ScreenshotAsync(new() { Path = Path.Combine(directory, name + "-board.png") });
 
+        var boardBounds = box is null
+            ? null
+            : new Dictionary<string, double>(StringComparer.Ordinal)
+            {
+                ["x"] = box.X,
+                ["y"] = box.Y,
+                ["width"] = box.Width,
+                ["height"] = box.Height
+            };
         var geometry = await page.EvaluateAsync<string>(
             "args => JSON.stringify({cssWidth:innerWidth,cssHeight:innerHeight,devicePixelRatio,documentHeight:document.documentElement.scrollHeight,campaignId:args.campaignId,board:args.board})",
-            new { campaignId, board = box is null ? null : new { x = box.X, y = box.Y, width = box.Width, height = box.Height } });
+            new { campaignId, board = boardBounds });
         await File.WriteAllTextAsync(Path.Combine(directory, name + ".json"), geometry, TestContext.Current.CancellationToken);
     }
 }

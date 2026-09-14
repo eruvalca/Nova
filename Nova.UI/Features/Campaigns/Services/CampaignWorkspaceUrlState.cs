@@ -566,11 +566,30 @@ public static class CampaignWorkspaceUrlState
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <returns>The relative undecided-placements workspace URL.</returns>
     public static string BuildReviewUnresolvedUrl(long campaignId)
-        => BuildPlaceWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState
-        {
-            Eligibility = AllPlacementSections,
-            Outcome = "undecided"
-        });
+        => BuildReviewUnresolvedUrl(campaignId, roster: null, participantId: null);
+
+    /// <summary>
+    /// Builds the Place workspace URL filtered to participants without a campaign-local decision, carrying the
+    /// supplied Roster context so a drill-down preserves the filter and selection state it was opened from.
+    /// </summary>
+    /// <remarks>
+    /// Same target as the context-free overload: the campaign-local <c>undecided</c> outcome across every
+    /// section, which is deliberately not the Needs-placement queue.
+    /// </remarks>
+    /// <param name="campaignId">The campaign identifier from the route.</param>
+    /// <param name="roster">The Roster context carried into Place, or <see langword="null"/>.</param>
+    /// <param name="participantId">The Roster drawer participant carried into Place, or <see langword="null"/>.</param>
+    /// <returns>The relative undecided-placements workspace URL.</returns>
+    public static string BuildReviewUnresolvedUrl(long campaignId, CampaignWorkspaceRosterState? roster, long? participantId)
+        => BuildPlaceWorkspaceUrl(
+            campaignId,
+            new CampaignWorkspacePlacementState
+            {
+                Eligibility = AllPlacementSections,
+                Outcome = "undecided"
+            },
+            roster,
+            participantId);
 
     /// <summary>
     /// Determines whether any roster filter (search, years, tags, outcome, or team) is active.

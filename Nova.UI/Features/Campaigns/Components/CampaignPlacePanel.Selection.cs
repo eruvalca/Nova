@@ -151,6 +151,11 @@ public partial class CampaignPlacePanel
     private async Task LoadCompatibleTeamsAsync(int graduationYear)
     {
         var request = ++_teamChoicesRequestSequence;
+
+        // Clear the previous participant's choices before awaiting the new ones. The select renders
+        // whenever the list is non-empty and the submit does not block on the loading flag, so a stale
+        // list would offer teams filtered for a different graduation year.
+        _compatibleTeams = [];
         _teamChoicesLoading = true;
         _teamChoicesError = null;
 

@@ -46,7 +46,9 @@ public sealed partial class CampaignPlacePanelTests
     [Fact]
     public void ClearingFiltersRaisesTheDefaultState()
     {
-        RegisterServices();
+        // Page 3 is a real page for this fixture, so clearing is what the assertion observes rather than the
+        // out-of-range clamp.
+        RegisterServices(rows: [CreateRow(301)], totalCount: 150);
 
         CampaignWorkspacePlacementState? raised = null;
         var cut = RenderPanel(
@@ -58,6 +60,22 @@ public sealed partial class CampaignPlacePanelTests
 
         raised.ShouldNotBeNull();
         raised.ShouldBe(new CampaignWorkspacePlacementState());
+    }
+
+    [Fact]
+    public async Task AReadPastTheLastPageCorrectsThePageRatherThanClaimingAnEmptyCampaignAsync()
+    {
+        // One row on a 50-row page: page 9 does not exist, and publishing that snapshot would render an
+        // empty queue with no pager and claim the campaign has no participants.
+        RegisterServices(rows: [CreateRow(301)], totalCount: 1);
+
+        CampaignWorkspacePlacementState? raised = null;
+        var cut = RenderPanel(state: new CampaignWorkspacePlacementState { Page = 9 }, onStateChanged: state => raised = state);
+
+        await cut.WaitForAssertionAsync(() => raised.ShouldNotBeNull());
+        raised.ShouldNotBeNull();
+        raised.Page.ShouldBe(1);
+        cut.Markup.ShouldNotContain("No participants in this campaign yet");
     }
 
     [Fact]

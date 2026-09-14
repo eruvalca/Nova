@@ -146,9 +146,19 @@ public partial class CampaignWorkspace
     private Task OnReviewUnresolvedAsync(bool unresolvedOnly)
     {
         var url = unresolvedOnly
-            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId)
+            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId, _filters, _selectedParticipantId)
             : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new(), _filters, _selectedParticipantId);
         navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Composes the Place return URL a player-detail round trip should come back to, including the Roster
+    /// context and evaluation lookup the panel does not own.
+    /// </summary>
+    /// <param name="placementParticipantId">The participant Place has selected.</param>
+    /// <returns>The relative Place workspace URL with Roster and evaluation context applied.</returns>
+    private string BuildPlaceReturnUrl(long placementParticipantId)
+        => CampaignWorkspaceUrlState.WithEvaluationContext(
+            BuildPlaceUrl(_placementState, placementParticipantId), EvaluationState);
 }

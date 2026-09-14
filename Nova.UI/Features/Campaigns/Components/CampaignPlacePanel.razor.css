@@ -285,6 +285,17 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     align-items: flex-end;
 }
 
+/* Present for every selected participant, not only editable ones: on narrow viewports the queue is
+   hidden while a sheet is open, so this is the only way back. */
+.place-sheet-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
 /* Working controls keep the design system's 2.75rem minimum at every width, not only on phones. */
 .place-decision .btn,
 .place-decision .form-select {

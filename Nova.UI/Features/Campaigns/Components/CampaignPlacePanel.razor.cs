@@ -136,6 +136,13 @@ public partial class CampaignPlacePanel(
     public EventCallback<CampaignWorkspacePlacementState> OnStateChanged { get; set; }
 
     /// <summary>
+    /// Gets or sets the workspace-composed Place return URL for a selected participant, so a player-detail
+    /// round trip preserves the Roster and evaluation context the panel does not own.
+    /// </summary>
+    [Parameter]
+    public Func<long, string>? ComposePlaceReturnUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the callback invoked when the selected participant changes.
     /// </summary>
     [Parameter]
@@ -284,6 +291,16 @@ public partial class CampaignPlacePanel(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        // A pending search debounce is owned by the URL. If the canonical state changes for any other
+        // reason - Back/Forward, a section or filter change, a lifecycle switch - the draft must not fire
+        // afterwards and overwrite the newer state with a stale search.
+        if (!Equals(_appliedState, State))
+        {
+            _searchDebounce?.Cancel();
+            _searchDebounce = null;
+            _searchDraft = _appliedState.Search ?? string.Empty;
+        }
+
         if (_saving)
         {
             // A discovery change that arrives mid-save is deferred rather than dropped, so browser
@@ -387,7 +404,10 @@ public partial class CampaignPlacePanel(
     private void RestorePersistedQueue(CampaignPlacePersistedSnapshot persisted)
     {
         _appliedState = State;
-        _appliedParticipantId = SelectedParticipantId;
+
+        // The applied participant is deliberately left unset. The snapshot carries rows but not compatible
+        // team choices, and an off-page selection is not in those rows at all, so marking the selection as
+        // already applied would make the parameter pass skip the reconciliation that rebuilds it.
         _appliedStatus = CampaignStatus;
         _queue = new CampaignPlaceQueueData(persisted.Rows, persisted.Page, persisted.PageSize, persisted.TotalCount, persisted.Sections);
         _queueStale = persisted.Stale;
@@ -595,8 +615,12 @@ public partial class CampaignPlacePanel(
     /// <returns>The player-detail URL with an encoded return URL.</returns>
     private string BuildPlayerLink(CampaignPlaceQueueRow row)
     {
-        var returnUrl = CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
-            CampaignId, _appliedState, placementParticipantId: row.PlayerCampaignAssignmentId, returnToEvaluation: EvaluationReturnPath is not null);
+        // The workspace owns the surrounding URL context, so it composes the return URL when it can; the
+        // local fallback still carries the Place state and selection for a standalone render.
+        var returnUrl = ComposePlaceReturnUrl is { } compose
+            ? compose(row.PlayerCampaignAssignmentId)
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
+                CampaignId, _appliedState, placementParticipantId: row.PlayerCampaignAssignmentId, returnToEvaluation: EvaluationReturnPath is not null);
         return $"/players/{row.PlayerId}?returnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 }

@@ -95,6 +95,20 @@ public partial class CampaignPlacePanel
             return;
         }
 
+        // A read that lands past the end of the result set would render an empty queue, hide the pager, and
+        // claim the campaign has no participants. Clamp to the last real page and correct the URL instead of
+        // publishing a snapshot that misrepresents the campaign. The loading posture is kept until the
+        // corrected state arrives.
+        if (loaded is not null)
+        {
+            var lastPage = Math.Max(1, (int)Math.Ceiling(loaded.TotalCount / (double)Math.Max(1, loaded.PageSize)));
+            if (state.Page > lastPage)
+            {
+                await OnStateChanged.InvokeAsync(state with { Page = lastPage });
+                return;
+            }
+        }
+
         _queueLoading = false;
         if (loaded is null)
         {
