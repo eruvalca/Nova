@@ -122,9 +122,12 @@ public partial class CampaignPlacePanel
             // A failed load keeps whatever was already on screen but marks it stale, so an
             // exact-looking total is never presented beside a read that did not answer. The applied
             // lifecycle marker still advances: the posture was decided, and repeating the same failing
-            // read on every parameter pass would not make it succeed.
+            // read on every parameter pass would not make it succeed. The comparison key advances with
+            // it, so only the explicit Retry reissues the request.
             _appliedState = state;
             _appliedStatus = status;
+            _appliedQueryString = QueryKey(state);
+            _searchDraft = state.Search ?? string.Empty;
             _queueError = QueueFailureMessage;
             _queueStale = _queue is not null;
             return;

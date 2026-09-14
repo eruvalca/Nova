@@ -258,6 +258,36 @@ public sealed partial class CampaignPlacePanelTests
         cut.FindAll("#place-outcome option").Count.ShouldBeGreaterThan(1);
     }
 
+    [Fact]
+    public void AnArchivedPlayerOffersNoDecisionControls()
+    {
+        // The server refuses a decision for an archived player, so the surface must not offer one.
+        RegisterServices(rows: [CreateRow(301) with { PlayerLifecycleStatus = LifecycleStatus.Archived }]);
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
+
+        cut.FindAll("#place-outcome").ShouldBeEmpty();
+        cut.FindAll("button.btn-primary").ShouldBeEmpty();
+        cut.Markup.ShouldContain("This player is archived");
+    }
+
+    [Fact]
+    public void ALocallyWithdrawnDecisionOffersNoDecisionControls()
+    {
+        // Withdrawn is terminal in its owning campaign, so the only recovery belongs to a later campaign.
+        RegisterServices(rows:
+        [
+            CreateRow(301) with { LocalDecision = CreateDecision(301, PlacementOutcome.Withdrawn, null) }
+        ]);
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
+
+        cut.FindAll("#place-outcome").ShouldBeEmpty();
+        cut.Markup.ShouldContain("withdrawn for the season");
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static AngleSharp.Dom.IElement SaveButton(IRenderedComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel> cut)

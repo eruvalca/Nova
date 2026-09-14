@@ -22,7 +22,18 @@ public partial class CampaignPlacePanel
     private async Task RefreshSelectionAsync(bool force = false)
     {
         var participantId = SelectedParticipantId;
+        var previousParticipantId = _appliedParticipantId;
         _appliedParticipantId = participantId;
+
+        // Focus follows the stage that replaced the one the member was in.
+        if (previousParticipantId is null && participantId is not null)
+        {
+            _stageFocusTarget = true;
+        }
+        else if (previousParticipantId is not null && participantId is null)
+        {
+            _stageFocusTarget = false;
+        }
 
         // Every entry invalidates any in-flight selection read, including the branches that resolve without
         // a server round trip. Otherwise a read started for a previous participant can land after the user

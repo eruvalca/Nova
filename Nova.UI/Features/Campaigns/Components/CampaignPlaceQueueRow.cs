@@ -55,6 +55,12 @@ public sealed record CampaignPlaceQueueRow
     /// <summary>The local mutation token, or <see langword="null"/> for a Closed immutable record.</summary>
     public Guid? ConcurrencyToken { get; init; }
 
+    /// <summary>
+    /// The player's lifecycle, or <see langword="null"/> for a Closed record whose read does not carry it.
+    /// An archived player cannot receive a decision.
+    /// </summary>
+    public LifecycleStatus? PlayerLifecycleStatus { get; init; }
+
     /// <summary>Campaign-applied tags enriched by the read.</summary>
     public IReadOnlyList<CampaignParticipantTagSummaryDto> AppliedTags { get; init; } = [];
 
@@ -91,6 +97,7 @@ public sealed record CampaignPlaceQueueRow
             Eligibility = item.Eligibility,
             CorrectionReason = item.CorrectionReason,
             ConcurrencyToken = item.ConcurrencyToken,
+            PlayerLifecycleStatus = item.PlayerLifecycleStatus,
             AppliedTags = item.AppliedTags
         };
     }

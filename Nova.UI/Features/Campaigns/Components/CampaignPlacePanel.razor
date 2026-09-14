@@ -50,7 +50,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
 
     <div class="place-board @(SelectedParticipantId is not null ? "has-selection" : null)">
         <section class="place-queue" aria-labelledby="placements-region-heading">
-            <h2 class="visually-hidden" id="placements-region-heading" tabindex="-1">Placement queue</h2>
+            <h2 class="visually-hidden" id="placements-region-heading" tabindex="-1" @ref="_queueHeading">Placement queue</h2>
 
             @if (_queue is not null && _queue.Sections.Count > 0)
             {
@@ -177,7 +177,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
         </section>
 
         <section class="place-sheet" aria-labelledby="place-sheet-heading">
-            <h2 class="visually-hidden" id="place-sheet-heading">Selected participant</h2>
+            <h2 class="visually-hidden" id="place-sheet-heading" tabindex="-1" @ref="_sheetHeading">Selected participant</h2>
 
             @if (_selectedLoading && _selected is null)
             {
@@ -385,6 +385,11 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                             </button>
                         </div>
                     </div>
+                }
+                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed)
+                {
+                    @* Terminal here, so the controls are absent rather than offered and refused. *@
+                    <p class="place-readonly" role="status">@DecisionUnavailableReason</p>
                 }
 
                 @* Every selected participant must have an in-surface way back to the queue. On narrow

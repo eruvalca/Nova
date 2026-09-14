@@ -275,6 +275,18 @@ public partial class CampaignPlacePanel(
     /// <summary>The conflict statement element that receives focus when a save is refused.</summary>
     private ElementReference _conflictBanner;
 
+    /// <summary>The queue region heading, focused when a selection returns to the queue.</summary>
+    private ElementReference _queueHeading;
+
+    /// <summary>The sheet region heading, focused when a participant is selected.</summary>
+    private ElementReference _sheetHeading;
+
+    /// <summary>
+    /// The focus destination requested by the most recent selection transition: <see langword="true"/> for the
+    /// sheet, <see langword="false"/> for the queue, <see langword="null"/> when none is pending.
+    /// </summary>
+    private bool? _stageFocusTarget;
+
     /// <summary>Indicates a reconcile reload triggered by the conflict recovery is in flight.</summary>
     private bool _reconciling;
 
@@ -284,9 +296,25 @@ public partial class CampaignPlacePanel(
     private bool IsClosed => CampaignStatus != CampaignStatus.Active;
 
     /// <summary>
+    /// Gets a value indicating whether the selected participant can still receive a decision in this
+    /// campaign. An archived player and a locally withdrawn decision are both terminal here, and the server
+    /// would refuse either, so the controls must not be offered at all.
+    /// </summary>
+    private bool IsDecisionAllowed => _selected is { } selected
+        && selected.PlayerLifecycleStatus is null or LifecycleStatus.Active
+        && selected.LocalOutcome != PlacementOutcome.Withdrawn;
+
+    /// <summary>
     /// Gets a value indicating whether the decision controls are editable.
     /// </summary>
-    private bool CanRecordDecision => CanEditPlacements && !IsClosed && !_conflictActive;
+    private bool CanRecordDecision => CanEditPlacements && !IsClosed && !_conflictActive && IsDecisionAllowed;
+
+    /// <summary>
+    /// Gets the written reason a selected participant cannot receive a decision here.
+    /// </summary>
+    private string DecisionUnavailableReason => _selected?.PlayerLifecycleStatus is not null and not LifecycleStatus.Active
+        ? "This player is archived, so no placement decision can be recorded."
+        : "This player is withdrawn for the season. Only a superseding decision in a later active campaign can change it.";
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -359,6 +387,25 @@ public partial class CampaignPlacePanel(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // On viewports where the queue and the sheet are staged, a selection transition hides the stage the
+        // member was focused in, so focus has to move to the stage that replaced it.
+        if (!firstRender && _stageFocusTarget is { } focusSheet)
+        {
+            _stageFocusTarget = null;
+            var target = focusSheet ? _sheetHeading : _queueHeading;
+            if (target.Context is not null)
+            {
+                try
+                {
+                    await target.FocusAsync();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The region left the DOM between render and focus; its heading is still announced.
+                }
+            }
+        }
+
         if (_shouldFocusConflict && _conflictBanner.Context is not null)
         {
             _shouldFocusConflict = false;
@@ -431,6 +478,8 @@ public partial class CampaignPlacePanel(
     private void RestorePersistedQueue(CampaignPlacePersistedSnapshot persisted)
     {
         _appliedState = State;
+        _appliedQueryString = QueryKey(State);
+        _searchDraft = State.Search ?? string.Empty;
 
         // The applied participant is deliberately left unset. The snapshot carries rows but not compatible
         // team choices, and an off-page selection is not in those rows at all, so marking the selection as

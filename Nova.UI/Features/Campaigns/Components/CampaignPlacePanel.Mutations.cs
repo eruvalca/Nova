@@ -342,14 +342,20 @@ public partial class CampaignPlacePanel
     /// <returns>A task that completes when the pending state has been applied.</returns>
     private async Task ApplyPendingStateAsync()
     {
-        if (_pendingState is not { } pending)
+        if (_pendingState is { } pending)
         {
+            _pendingState = null;
+            await LoadQueueAsync(pending);
+            await RefreshSelectionAsync();
             return;
         }
 
-        _pendingState = null;
-        await LoadQueueAsync(pending);
-        await RefreshSelectionAsync();
+        // A participant-only change deferred during the save has to be reconciled even when the outcome was
+        // refused, or the sheet and the next save would keep targeting the participant the URL moved past.
+        if (_appliedParticipantId != SelectedParticipantId)
+        {
+            await RefreshSelectionAsync();
+        }
     }
 
     /// <summary>

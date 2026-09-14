@@ -254,7 +254,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var directory = Environment.GetEnvironmentVariable("NOVA_PLACE_EVIDENCE");
         if (string.IsNullOrWhiteSpace(directory))
         {
-            return;
+            Assert.Skip("Set NOVA_PLACE_EVIDENCE to a directory to capture the Place surface evidence.");
         }
 
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
