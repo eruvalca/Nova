@@ -255,12 +255,17 @@ detection returning an untrustworthy 328-pixel band was a symptom of the same fa
 - Fidelity for this surface rests on the direction-contract audit, the finish review, the
   `DESIGN.md` token and touch-target rules, the passing contrast check, and the curated captures.
 
-**Raised for the repository owner, not decided here:** the recorded default in
+**Raised and now written into repository guidance.** The recorded default in
 `.impeccable/config.json` is `buildPath: "comp"`. For dense operational surfaces inside an established
-shell, a raster comp generated without a native image tool cannot carry the design system's type and
-cannot depict the shell, so a comp-led gate may be the wrong instrument — either ref future comps on
-the surface's own shell, or record code-led for these surfaces. That is a repo-wide workflow decision
-and is left to the owner rather than changed unilaterally in a UI slice.
+shell a generated raster comp cannot carry the design system's type and cannot depict the shell, so a
+comp-led gate may be the wrong instrument. Following this slice, the guidance now carries three
+layers: `AGENTS.md` states that generated comps are indicative rather than measurable, that a new comp
+is referenced on the surface's own shell at the target breakpoint, and that a below-threshold comp-diff
+against a comp which does not depict the composition is a **comp defect to raise, not a build defect to
+iterate against**; the `impeccable` comp round requires confirming a comp depicts the composition
+before it is locked and recording that check in the surface brief; and `AGENTS.md`'s completion rules
+require a comp to be committed with provenance *and* that recorded check. Whether to record code-led
+for these surfaces repo-wide remains the owner's call.
 
 The measured numbers are retained as measured rather than re-derived to look better.
 
