@@ -89,6 +89,8 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                    TeamChoices="CampaignTeamChoices"
                                    TeamId="@_appliedState.TeamId"
                                    TeamChoicesTruncated="CampaignTeamChoicesTruncated"
+                                   TeamSearch="CampaignTeamSearch"
+                                   OnTeamSearchChanged="OnCampaignTeamSearchChanged"
                                    OnSearchTextChanged="OnSearchInputAsync"
                                    OnEligibilityChanged="OnSectionChangedAsync"
                                    OnGraduationYearToggled="OnGraduationYearToggledAsync"
@@ -308,7 +310,9 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                         </div>
 
                         <div class="place-decision-control">
-                            <label class="form-label" for="place-team">Team</label>
+                            @* A heading, not a label: the select carries its own label where it renders, so a
+                               second `for="place-team"` would give the control two accessible names. *@
+                            <span class="form-label d-block">Team</span>
                             @if (_draftOutcome != PlacementOutcome.Assigned)
                             {
                                 <p class="place-decision-note text-muted">Choose Assigned to select a team.</p>
@@ -396,9 +400,9 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                    viewports the queue is hidden while a sheet is open, so a read-only member or a Closed
                    campaign would otherwise be stranded on the sheet. *@
                 <div class="place-sheet-actions">
-                    <button type="button" class="btn btn-outline-secondary" disabled="@(_saving)" @onclick="OnCloseSelectionAsync">
-                        Back to placements
-                    </button>
+                    @* A real link, so a scripting-disabled member who followed a queue row's link into the
+                       sheet is not trapped there by a handler that cannot run. *@
+                    <a class="btn btn-outline-secondary" href="@ClearSelectionUrl">Back to placements</a>
                 </div>
 
                 <p class="place-player-link">

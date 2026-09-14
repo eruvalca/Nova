@@ -221,23 +221,6 @@ public partial class CampaignPlacePanel
     }
 
     /// <summary>
-    /// Selects or clears the Place destination's participant, preserving the current discovery state and page.
-    /// </summary>
-    /// <param name="assignmentId">The participant to select, or <see langword="null"/> to clear the selection.</param>
-    /// <returns>A task that completes when the selection change is raised.</returns>
-    private async Task SelectParticipantAsync(long? assignmentId)
-    {
-        if (_saving || assignmentId == SelectedParticipantId)
-        {
-            return;
-        }
-
-        _saveMessage = null;
-        _saveError = null;
-        await OnSelectionChanged.InvokeAsync(assignmentId);
-    }
-
-    /// <summary>
     /// Reloads the selected participant's evidence on demand after a regional read failure.
     /// </summary>
     /// <returns>A task that completes when the reload finishes.</returns>

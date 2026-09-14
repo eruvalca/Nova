@@ -426,7 +426,7 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
         string? evaluationReturnPath = null,
         bool choicesLoadFailed = false,
         Action<CampaignWorkspacePlacementState>? onStateChanged = null,
-        Action<long?>? onSelectionChanged = null)
+        Action<string>? onCampaignTeamSearchChanged = null)
         => Render<CampaignPlacePanel>(parameters =>
         {
             parameters.Add(component => component.CampaignId, 10);
@@ -444,9 +444,9 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
                 parameters.Add(component => component.OnStateChanged, (CampaignWorkspacePlacementState next) => onStateChanged(next));
             }
 
-            if (onSelectionChanged is not null)
+            if (onCampaignTeamSearchChanged is not null)
             {
-                parameters.Add(component => component.OnSelectionChanged, (long? id) => onSelectionChanged(id));
+                parameters.Add(component => component.OnCampaignTeamSearchChanged, (string search) => onCampaignTeamSearchChanged(search));
             }
         });
 }

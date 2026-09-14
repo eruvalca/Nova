@@ -2207,6 +2207,42 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("/campaigns/10", "place", false)]
+    [InlineData("/campaigns/10", "place", true)]
+    [InlineData("/campaigns/10/roster", "evaluate", false)]
+    [InlineData("/campaigns/10/roster", "evaluate", true)]
+    public void ClosedWorkspaceClearsAPlaceSectionThatNoRosterFilterFlagged(string path, string tab, bool initialDetail)
+    {
+        // A Closed campaign has no placement-eligibility axis and its Place read ignores the section. The
+        // replacement is normally flagged by the roster eligibility filter, which this URL does not carry, so
+        // the Place section and its stale page must be repaired on their own.
+        var detail = CreateDetail(status: CampaignStatus.Closed);
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(detail));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo($"{path}?tab={tab}&search=Avery&placementSearch=Avery&placementEligibility=Resolved&placementPage=2&placementTeamId=21");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, initialDetail ? detail : null)
+            .Add(component => component.InitialDetailScope, initialDetail ? "101:42:False" : null));
+
+        cut.WaitForAssertion(() =>
+        {
+            var uri = new Uri(navigation.Uri);
+            uri.AbsolutePath.ShouldBe(path);
+            var query = QueryHelpers.ParseQuery(uri.Query);
+            query.ShouldNotContainKey("placementEligibility");
+            query.ShouldNotContainKey("placementPage");
+            query["tab"].ToString().ShouldBe(tab);
+            query["search"].ToString().ShouldBe("Avery");
+            // Every other return parameter survives the repair.
+            query["placementSearch"].ToString().ShouldBe("Avery");
+            query["placementTeamId"].ToString().ShouldBe("21");
+            ((BunitNavigationManager)navigation).History.First().Options.ReplaceHistoryEntry.ShouldBeTrue();
+        });
+        cut.FindAll("#roster-eligibility").ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ClosedWorkspaceRenormalizesEligibilityReintroducedByHistoryOrParameterRefreshAsync(bool refresh)

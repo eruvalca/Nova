@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Enums;
 using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Campaigns.Pages;
@@ -113,15 +114,6 @@ public partial class CampaignWorkspace
     }
 
     /// <summary>
-    /// Applies a participant selection raised by the Place surface, preserving the discovery state, page,
-    /// Roster context, and Evaluate return affordance.
-    /// </summary>
-    /// <param name="assignmentId">The selected participant assignment, or <see langword="null"/> to clear it.</param>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnPlaceSelectionChangedAsync(long? assignmentId)
-        => NavigateToPlaceAsync(BuildPlaceUrl(_placementState, assignmentId));
-
-    /// <summary>
     /// Pushes a canonical Place URL when it differs from the current location.
     /// </summary>
     /// <param name="targetUrl">The relative Place URL to navigate to.</param>
@@ -156,9 +148,26 @@ public partial class CampaignWorkspace
     /// Composes the Place return URL a player-detail round trip should come back to, including the Roster
     /// context and evaluation lookup the panel does not own.
     /// </summary>
-    /// <param name="placementParticipantId">The participant Place has selected.</param>
+    /// <param name="placementParticipantId">The participant Place has selected, or <see langword="null"/> to clear it.</param>
     /// <returns>The relative Place workspace URL with Roster and evaluation context applied.</returns>
-    private string BuildPlaceReturnUrl(long placementParticipantId)
+    private string BuildPlaceReturnUrl(long? placementParticipantId)
         => CampaignWorkspaceUrlState.WithEvaluationContext(
             BuildPlaceUrl(_placementState, placementParticipantId), EvaluationState);
+
+    /// <summary>
+    /// Drops the Place section and page for a Closed campaign, which has no placement-eligibility axis and
+    /// whose Place read ignores the section, and flags the URL so a link carrying either is repaired.
+    /// </summary>
+    /// <param name="state">The applied Place discovery state.</param>
+    /// <returns>The normalized state, or the supplied state when nothing applies.</returns>
+    private CampaignWorkspacePlacementState NormalizePlacementFilters(CampaignWorkspacePlacementState state)
+    {
+        if (_detail?.Status != CampaignStatus.Closed || state.Eligibility is null)
+        {
+            return state;
+        }
+
+        _replaceClosedEligibilityUrl = true;
+        return state with { Eligibility = null, Page = 1 };
+    }
 }

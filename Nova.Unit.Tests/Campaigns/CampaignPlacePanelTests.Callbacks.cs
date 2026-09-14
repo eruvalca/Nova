@@ -98,16 +98,34 @@ public sealed partial class CampaignPlacePanelTests
     public void AReadOnlySheetStillOffersAWayBackToTheQueue()
     {
         // The queue is hidden on narrow viewports while a sheet is open, so this affordance must exist for
-        // every selected participant, not only when the decision controls render.
+        // every selected participant, not only when the decision controls render. It is a real link rather
+        // than only a handler, so a scripting-disabled member who followed a row's link into the sheet is
+        // not trapped there by a handler that cannot run.
         RegisterServices(rows: [CreateRow(301)]);
 
-        long? raised = -1;
-        var cut = RenderPanel(selectedParticipantId: 301, canEdit: false, onSelectionChanged: id => raised = id);
+        var cut = RenderPanel(selectedParticipantId: 301, canEdit: false);
         cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
         cut.FindAll("#place-outcome").ShouldBeEmpty();
 
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Back to placements", StringComparison.Ordinal)).Click();
+        var back = cut.FindAll("a").Single(link => string.Equals(link.TextContent.Trim(), "Back to placements", StringComparison.Ordinal));
 
-        raised.ShouldBeNull();
+        back.GetAttribute("href").ShouldBe("/campaigns/10?tab=place");
+    }
+
+    [Fact]
+    public void TheSharedFilterTeamSearchReachesTheUrlOwnerThatOwnsTheBoundedTeamChoices()
+    {
+        // The shared filter's team search only narrows the campaign team choices through the workspace, which
+        // owns the capped team read and the "refine the team search" message. A field rendered without this
+        // callback would swallow every keystroke while telling the user to refine a bounded list.
+        RegisterServices();
+
+        string? raised = null;
+        var cut = RenderPanel(onCampaignTeamSearchChanged: search => raised = search);
+        cut.WaitForAssertion(() => cut.FindAll("#roster-team-search").Count.ShouldBe(1));
+
+        cut.Find("#roster-team-search").Change("Falcons");
+
+        raised.ShouldBe("Falcons");
     }
 }

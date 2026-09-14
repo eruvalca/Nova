@@ -124,6 +124,19 @@ public partial class CampaignPlacePanel(
     public bool ChoicesLoadFailed { get; set; }
 
     /// <summary>
+    /// Gets or sets the workspace-owned campaign-local team search, so the shared filter's team search
+    /// actually narrows the bounded choice list it promises to narrow.
+    /// </summary>
+    [Parameter]
+    public string? CampaignTeamSearch { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the campaign-local team search changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnCampaignTeamSearchChanged { get; set; }
+
+    /// <summary>
     /// Gets or sets the owner scope used to reject persisted state from another campaign, lifecycle, or authority.
     /// </summary>
     [Parameter]
@@ -140,13 +153,7 @@ public partial class CampaignPlacePanel(
     /// destinations and a player-detail round trip preserves the Roster and evaluation context.
     /// </summary>
     [Parameter]
-    public Func<long, string>? ComposePlaceUrl { get; set; }
-
-    /// <summary>
-    /// Gets or sets the callback invoked when the selected participant changes.
-    /// </summary>
-    [Parameter]
-    public EventCallback<long?> OnSelectionChanged { get; set; }
+    public Func<long?, string>? ComposePlaceUrl { get; set; }
 
     /// <summary>
     /// Gets or sets the callback invoked when the panel needs an authoritative reload of the campaign itself.
@@ -580,6 +587,14 @@ public partial class CampaignPlacePanel(
             : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _appliedState, placementParticipantId: assignmentId);
 
     /// <summary>
+    /// Builds the canonical Place URL with nothing selected, so the way back to the queue is a real link.
+    /// </summary>
+    private string ClearSelectionUrl
+        => ComposePlaceUrl is { } compose
+            ? compose(null)
+            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _appliedState);
+
+    /// <summary>
     /// Applies the requested Place discovery state through the workspace URL owner.
     /// </summary>
     /// <param name="next">The Place state to apply.</param>
@@ -714,12 +729,6 @@ public partial class CampaignPlacePanel(
         var target = Math.Max(1, page);
         return target == _appliedState.Page ? Task.CompletedTask : ApplyStateAsync(_appliedState with { Page = target });
     }
-
-    /// <summary>
-    /// Clears the current selection, returning the queue to its browsing posture.
-    /// </summary>
-    /// <returns>A task that completes when the selection is cleared.</returns>
-    private Task OnCloseSelectionAsync() => SelectParticipantAsync(null);
 
     /// <summary>
     /// Builds the participant link that preserves the current Place context as a return URL.

@@ -495,6 +495,9 @@ public partial class CampaignWorkspace(
         // set so the Place surface receives the URL-backed discovery state regardless of roster state.
         ApplyPlacementQueryState();
 
+        // A Closed campaign's Place read ignores the section, so a direct link's section and page are dropped.
+        _placementState = NormalizePlacementFilters(_placementState);
+
         // Participant selection lives outside the roster state so opening/closing the drawer
         // never triggers a roster reload.
         var participant = CampaignWorkspaceUrlState.ParseParticipant(ParticipantQuery);
@@ -583,7 +586,7 @@ public partial class CampaignWorkspace(
             _availableTags = PersistedTags ?? [];
             _availableTeams = PersistedTeams ?? [];
             _isLoading = false;
-            if (NormalizeCurrentRosterFilters())
+            if (NormalizeCurrentClosedFilters())
             {
                 await LoadRosterAsync();
                 PersistStartupState();
@@ -695,7 +698,7 @@ public partial class CampaignWorkspace(
             detail =>
             {
                 _detail = detail;
-                NormalizeCurrentRosterFilters();
+                NormalizeCurrentClosedFilters();
                 DiscardUnownedRoster(StateOwner(detail.Status));
                 detailLoaded = true;
             },

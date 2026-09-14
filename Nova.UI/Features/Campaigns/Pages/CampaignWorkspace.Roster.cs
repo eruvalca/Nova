@@ -24,6 +24,12 @@ public partial class CampaignWorkspace
     private IReadOnlyList<CampaignEffectivePlacementItem> _workingRows = [];
     private string? _rosterOwner;
 
+    /// <summary>
+    /// Drops the Roster eligibility filter and page for a Closed campaign, whose reads ignore eligibility, and
+    /// flags the URL so a link that still carries them is repaired.
+    /// </summary>
+    /// <param name="state">The applied Roster filter state.</param>
+    /// <returns>The normalized state, or the supplied state when nothing applies.</returns>
     private CampaignWorkspaceRosterState NormalizeRosterFilters(CampaignWorkspaceRosterState state)
     {
         if (_detail?.Status != CampaignStatus.Closed || state.Eligibility is null)
@@ -34,8 +40,14 @@ public partial class CampaignWorkspace
         return state with { Eligibility = null, Page = 1 };
     }
 
-    private bool NormalizeCurrentRosterFilters()
+    /// <summary>
+    /// Normalizes the applied filter state of both destinations for a Closed campaign, which supports neither
+    /// the Roster eligibility filter nor a Place section.
+    /// </summary>
+    /// <returns><see langword="true"/> when the applied Roster filters changed and the roster must reload.</returns>
+    private bool NormalizeCurrentClosedFilters()
     {
+        _placementState = NormalizePlacementFilters(_placementState);
         var normalized = NormalizeRosterFilters(_filters);
         if (ReferenceEquals(normalized, _filters))
         {
@@ -73,7 +85,7 @@ public partial class CampaignWorkspace
 
     private void PrepareRosterLoad()
     {
-        NormalizeCurrentRosterFilters();
+        NormalizeCurrentClosedFilters();
         _reloadRosterPending = false;
         ReplaceClosedEligibilityUrl();
     }

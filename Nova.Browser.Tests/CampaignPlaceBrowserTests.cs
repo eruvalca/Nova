@@ -64,7 +64,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => Task.FromResult(Selected(page)));
         await InteractionHelpers.ClickUntilAsync(page,
-            page.GetByRole(AriaRole.Button, new() { Name = "Back to placements", Exact = true }),
+            page.GetByRole(AriaRole.Link, new() { Name = "Back to placements", Exact = true }),
             () => Task.FromResult(!Selected(page)));
 
         // Type once and wait for the *full* term to be applied. The field debounces at 350 ms, so a retry
@@ -155,8 +155,10 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(page, row, () => IsHiddenAsync(page.Locator("a.place-row").First));
         await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
 
-        var back = page.GetByRole(AriaRole.Button, new() { Name = "Back to placements", Exact = true });
+        var back = page.GetByRole(AriaRole.Link, new() { Name = "Back to placements", Exact = true });
         await Expect(back).ToBeVisibleAsync();
+        // A real link, so the way back exists even before scripting attaches.
+        (await back.GetAttributeAsync("href")).ShouldNotBeNullOrEmpty();
         (await back.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
 
         // Keyboard users reach the decision controls directly.
