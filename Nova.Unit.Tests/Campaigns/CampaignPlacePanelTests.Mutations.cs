@@ -276,6 +276,64 @@ public sealed partial class CampaignPlacePanelTests
     }
 
     [Fact]
+    public void ThePersistedOwnerCarriesTheLifecycleEvenWhenTheHostOmitsIt()
+    {
+        // Active and Closed read different endpoints with different shapes, so a snapshot keyed without the
+        // lifecycle could restore one posture's rows as the other's and stamp them as current without refetching.
+        RegisterServices();
+        var cut = RenderPanel(owner: "101:42:10");
+
+        cut.WaitForAssertion(() => cut.Instance.PersistedOwner.ShouldNotBeNull());
+        cut.Instance.PersistedOwner.ShouldEndWith(":Active");
+    }
+
+    [Fact]
+    public void ASavedTeamOutsideTheNarrowedChoicesStaysSelectableWhenNoCorrectionApplies()
+    {
+        // Absence from the choices can mean the current search or the 200-row cap excluded the team, so only the
+        // authoritative correction reason may disable it or call it unavailable.
+        RegisterServices(rows:
+        [
+            CreateRow(301) with
+            {
+                LocalDecision = CreateDecision(301, PlacementOutcome.Assigned, 99),
+                LocalTeam = new CampaignParticipantTeamSummaryDto(99, "Elite Silver"),
+                CorrectionReason = PlacementCorrectionReason.None
+            }
+        ]);
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+        cut.Find("#place-outcome").Change(nameof(PlacementOutcome.Assigned));
+
+        cut.WaitForAssertion(() => cut.FindAll("#place-team option").Count.ShouldBe(3));
+        var saved = cut.FindAll("#place-team option")
+            .Single(option => string.Equals(option.GetAttribute("value"), "99", StringComparison.Ordinal));
+
+        saved.HasAttribute("disabled").ShouldBeFalse();
+        saved.TextContent.ShouldNotContain("no longer available");
+    }
+
+    [Fact]
+    public async Task NarrowingTheTeamSearchDropsADraftedTeamTheControlNoLongerOffersAsync()
+    {
+        // The read replaces the select while it runs, so a drafted team that is not the persisted one must not
+        // stay submittable behind a control the member cannot see.
+        RegisterServices();
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.Assigned) });
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-team option").Count.ShouldBe(2));
+        await cut.Find("#place-team").ChangeAsync(new ChangeEventArgs { Value = "21" });
+        SaveButton(cut).HasAttribute("disabled").ShouldBeFalse();
+
+        await cut.Find("#place-team-search").ChangeAsync(new ChangeEventArgs { Value = "No such team" });
+
+        await cut.WaitForAssertionAsync(() => SaveButton(cut).HasAttribute("disabled").ShouldBeTrue());
+    }
+
+    [Fact]
     public void ReplacingAnExistingLocalDecisionStaysAvailable()
     {
         RegisterServices(rows:

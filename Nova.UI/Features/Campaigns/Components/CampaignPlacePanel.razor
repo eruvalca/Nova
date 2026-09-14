@@ -360,7 +360,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                     @foreach (var team in VisibleTeamChoices)
                                     {
                                         <option value="@team.TeamId.ToString(CultureInfo.InvariantCulture)" disabled="@team.Unavailable">
-                                            @team.Name@(team.Unavailable ? " (no longer available)" : null)
+                                            @team.Name@(TeamChoiceSuffix(team))
                                         </option>
                                     }
                                 </select>

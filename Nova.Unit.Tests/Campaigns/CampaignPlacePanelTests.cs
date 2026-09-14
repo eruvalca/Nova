@@ -446,7 +446,8 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
         string? evaluationReturnPath = null,
         bool choicesLoadFailed = false,
         Action<CampaignWorkspacePlacementState>? onStateChanged = null,
-        Action<string>? onCampaignTeamSearchChanged = null)
+        Action<string>? onCampaignTeamSearchChanged = null,
+        string? owner = null)
         => Render<CampaignPlacePanel>(parameters =>
         {
             parameters.Add(component => component.CampaignId, 10);
@@ -459,6 +460,10 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
             parameters.Add(component => component.GraduationYearChoices, (IReadOnlyList<int>)[2032]);
             parameters.Add(component => component.TagChoices, (IReadOnlyList<TagDefinitionDto>)[]);
             parameters.Add(component => component.CampaignTeamChoices, (IReadOnlyList<TeamRosterItem>)[]);
+            if (owner is not null)
+            {
+                parameters.Add(component => component.Owner, owner);
+            }
             if (onStateChanged is not null)
             {
                 parameters.Add(component => component.OnStateChanged, (CampaignWorkspacePlacementState next) => onStateChanged(next));

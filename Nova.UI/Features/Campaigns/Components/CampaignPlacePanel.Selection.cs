@@ -173,6 +173,13 @@ public partial class CampaignPlacePanel
         // whenever the list is non-empty and the submit does not block on the loading flag, so a stale
         // list would offer teams filtered for a different cutoff.
         _compatibleTeams = [];
+
+        // The read replaces the select with a loading note and then with the narrowed list, so a drafted team
+        // that is not the persisted one must not stay submittable behind a control the member cannot see.
+        if (_draftTeamId is { } drafted && drafted != _selected?.LocalTeam?.TeamId)
+        {
+            _draftTeamId = null;
+        }
         _teamChoicesLoading = true;
         _teamChoicesError = null;
 
@@ -262,9 +269,13 @@ public partial class CampaignPlacePanel
 
             if (_selected is not null && IsSavedTeamMissingFromChoices(_selected) && _selected.LocalTeam is { } current)
             {
-                // The saved team is shown so the current decision stays legible, but it is disabled: an
-                // archived or incompatible team can never receive a new decision, and no substitute appears.
-                choices.Insert(0, new CampaignPlaceTeamChoice(current.TeamId, current.TeamName, Unavailable: true));
+                // The saved team is shown so the current decision stays legible. Only the authoritative
+                // correction reason makes it unavailable: a team can also be absent here because the current
+                // search or the choice cap excluded it, which says nothing about the team itself.
+                choices.Insert(0, new CampaignPlaceTeamChoice(
+                    current.TeamId,
+                    current.TeamName,
+                    Unavailable: _selected.CorrectionReason is not PlacementCorrectionReason.None));
             }
 
             return choices;

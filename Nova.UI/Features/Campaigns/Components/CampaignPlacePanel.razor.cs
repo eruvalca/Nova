@@ -446,7 +446,33 @@ public partial class CampaignPlacePanel(
     /// <summary>
     /// Gets the owner scope used to reject persisted state belonging to another campaign, lifecycle, or authority.
     /// </summary>
-    private string EffectiveOwner => Owner ?? $"{CampaignId}:{CampaignStatus}";
+    /// <remarks>
+    /// The lifecycle is appended here rather than left to the host. Active and Closed read different endpoints
+    /// with different shapes, so a snapshot the host keyed without the lifecycle could restore one posture's
+    /// rows as the other's and then stamp them as current without refetching.
+    /// </remarks>
+    private string EffectiveOwner => string.IsNullOrWhiteSpace(Owner)
+        ? $"{CampaignId}:{CampaignStatus}"
+        : $"{Owner}:{CampaignStatus}";
+
+    /// <summary>
+    /// Appends the written state of a saved-team entry the narrowed choices did not offer.
+    /// </summary>
+    /// <param name="team">The rendered choice.</param>
+    /// <returns>The suffix, or <see langword="null"/> when the choice needs none.</returns>
+    /// <remarks>
+    /// The words come from the authoritative correction reason, so a disabled entry never claims a state the
+    /// read did not report.
+    /// </remarks>
+    private string? TeamChoiceSuffix(CampaignPlaceTeamChoice team) => team.Unavailable
+        ? _selected?.CorrectionReason switch
+        {
+            PlacementCorrectionReason.TeamArchived => " (archived)",
+            PlacementCorrectionReason.TeamIncompatible => " (not compatible with this year)",
+            PlacementCorrectionReason.TeamUnavailable => " (not in this club)",
+            _ => " (no longer available)"
+        }
+        : null;
 
     /// <summary>
     /// Gets a value indicating whether the incoming discovery state differs from the applied one.
