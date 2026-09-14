@@ -69,8 +69,8 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3195 passed, 0 failed** |
-| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **609 passed, 0 failed** |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3197 passed, 0 failed** |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **611 passed, 0 failed** |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped) |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
 
@@ -383,5 +383,9 @@ belongs to #254.
 
 The shared contract change carries its own coverage: `Nova.Unit.Tests/Teams/TeamRosterContractTests.cs`
 asserts the builder emits the inclusive maximum and the input contract validates it with the same year
-bounds as the exact filter, and `Nova.Integration.Tests/Http/TeamRosterHttpTests.cs` proves the
-PostgreSQL translation returns every team at or below the year and excludes the cohorts above it.
+bounds as the exact filter; `Nova.Unit.Tests/Teams/HttpTeamRosterServiceTests.cs` asserts the maximum
+reaches the request URL and that an otherwise-valid 2xx row above the requested cutoff is rejected as a
+server error, so a server that ignored the range cannot pass unnoticed; and
+`Nova.Integration.Tests/Http/TeamRosterHttpTests.cs` proves the PostgreSQL translation returns every team
+at or below the year, excludes the cohorts above it, and that an out-of-range value is rejected by
+automatic endpoint validation with trace correlation.

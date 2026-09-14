@@ -75,6 +75,71 @@ public sealed class HttpTeamRosterServiceTests
     }
 
     /// <summary>
+    /// Verifies the inclusive maximum graduation year reaches the team roster route, because the placement
+    /// surface asks for a cutoff rather than one cohort.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterSendsMaximumGraduationYearToTeamRouteAsync()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new[]
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 7,
+                    Name = "U16",
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 0
+                }
+            })
+        };
+        using var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamRosterService(http).GetRosterAsync(
+            new GetTeamRosterInput { LifecycleStatus = "active", MaxGraduationYear = 2032, Limit = 200 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        handler.LastRequest!.RequestUri!.PathAndQuery
+            .ShouldBe("/api/teams?lifecycleStatus=active&limit=200&maxGraduationYear=2032");
+    }
+
+    /// <summary>
+    /// Verifies a row above the requested cutoff is rejected, so a server that ignored the range cannot be
+    /// mistaken for one that applied it.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsyncReturnsServerErrorWhenRowIsAboveTheMaximumGraduationYearAsync()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new[]
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 7,
+                    Name = "U16",
+                    GraduationYear = 2033,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 0
+                }
+            })
+        };
+        using var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamRosterService(http).GetRosterAsync(
+            new GetTeamRosterInput { MaxGraduationYear = 2032 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies a valid empty roster remains a successful response.
     /// </summary>
     [Fact]

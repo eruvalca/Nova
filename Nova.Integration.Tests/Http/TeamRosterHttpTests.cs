@@ -337,6 +337,35 @@ new Uri(TeamRosterEndpoints.GetRosterUrl(search: @"Path\T"), UriKind.RelativeOrA
     }
 
     /// <summary>
+    /// Verifies an out-of-range maximum graduation year is rejected by automatic validation at the endpoint.
+    /// Unit validation of the shared input cannot prove binding or the middleware's ProblemDetails shape, so
+    /// this is the authoritative check for the new optional query property.
+    /// </summary>
+    /// <param name="maxGraduationYear">The out-of-range maximum graduation year.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1999)]
+    [InlineData(2101)]
+    public async Task GetRosterInvalidMaximumGraduationYearReturnsValidationProblemAsync(int maxGraduationYear)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await SeedRosterClubAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            new Uri($"/api/teams?maxGraduationYear={maxGraduationYear}", UriKind.RelativeOrAbsolute), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("errors")
+            .TryGetProperty(nameof(GetTeamRosterInput.MaxGraduationYear), out _)
+            .ShouldBeTrue();
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
     /// Verifies explicit limit values outside the documented 1..200 cap are rejected with
     /// validation ProblemDetails before the handler runs.
     /// </summary>
