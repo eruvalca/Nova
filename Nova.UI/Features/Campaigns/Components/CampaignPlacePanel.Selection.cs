@@ -47,6 +47,11 @@ public partial class CampaignPlacePanel
             return;
         }
 
+        // The sheet must never keep showing, and drafting against, the previous participant while a new one
+        // is resolving: the decision controls submit against what the sheet shows, so a stale sheet here
+        // would let a save land on the participant the member has already moved past.
+        _selected = null;
+        ApplyDraftFromSelection();
         _selectedLoading = true;
         _selectedError = null;
         var row = await ReadSelectionAsync(participantId.Value, request);

@@ -60,6 +60,10 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         // A search spans every section rather than the Needs-placement browsing default, so the applied
         // state carries a search and no section filter at all.
+        //
+        // NOTE: this drives the applied search through the URL. Typing into the shared search field does not
+        // apply the search on this surface — see the keystroke defect recorded in the validation record —
+        // and asserting it here would fail for that reason rather than for the behavior under test.
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place&placementSearch=Placement%20Player%2001").ToString());
         await Expect(page.Locator("button.place-row").First).ToBeVisibleAsync();
         page.Url.ShouldContain("placementSearch=");
@@ -314,9 +318,16 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await page.Mouse.MoveAsync(0, 0);
         await page.EvaluateAsync("window.scrollTo(0, 0)");
         await page.ScreenshotAsync(new() { Path = Path.Combine(directory, name + ".png"), FullPage = fullPage });
+
+        // The surface's own content region is captured as an element so the scoped comp measurement needs
+        // no estimation, and its box is recorded for the manifest.
+        var board = page.Locator(".place-board");
+        var box = await board.BoundingBoxAsync();
+        await board.ScreenshotAsync(new() { Path = Path.Combine(directory, name + "-board.png") });
+
         var geometry = await page.EvaluateAsync<string>(
-            "args => JSON.stringify({cssWidth:innerWidth,cssHeight:innerHeight,devicePixelRatio,documentHeight:document.documentElement.scrollHeight,campaignId:args.campaignId})",
-            new { campaignId });
+            "args => JSON.stringify({cssWidth:innerWidth,cssHeight:innerHeight,devicePixelRatio,documentHeight:document.documentElement.scrollHeight,campaignId:args.campaignId,board:args.board})",
+            new { campaignId, board = box is null ? null : new { x = box.X, y = box.Y, width = box.Width, height = box.Height } });
         await File.WriteAllTextAsync(Path.Combine(directory, name + ".json"), geometry, TestContext.Current.CancellationToken);
     }
 }

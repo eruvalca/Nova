@@ -370,6 +370,14 @@ public partial class CampaignPlacePanel(
         await RefreshSelectionAsync();
         PersistedOwner = EffectiveOwner;
         Initialized = true;
+
+        // A parameter set that arrived while the first load was in flight was skipped by the initialization
+        // guard. Reconcile the selection here so the working sheet and the URL cannot disagree about which
+        // participant the decision controls would submit against.
+        if (_appliedParticipantId != SelectedParticipantId)
+        {
+            await RefreshSelectionAsync();
+        }
     }
 
     /// <summary>

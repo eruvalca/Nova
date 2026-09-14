@@ -129,9 +129,65 @@ Both reviews' findings were fixed in this slice except where noted:
 | Check | Status |
 | --- | --- |
 | Browser suite | **179 total, 0 failed, 172 succeeded** (7 env-gated a11y captures skipped) |
-| Place-content-scoped comp comparison | not done; the whole-frame measurement above is not an approval |
-| A separately covered "selection cleared while a read is in flight" case | not done. The branch is guarded by the same invalidation as the covered case, but a dedicated test was attempted and withdrawn: driving a nullable parameter back to `null` through bUnit's re-render did not produce the expected branch, and the cause was not resolved within budget. Recorded as a known coverage gap rather than left as a failing test. |
-| A browser-level keystroke-to-URL assertion for the Place search field | not done. Filling the shared search input did not change the URL in the browser harness even before the debounce was added, and the cause was not resolved within budget; the browser test instead drives the applied search through the URL, which proves the section-widening and filter-truth behavior. The keystroke path itself is the same shared `CampaignRosterFilters` wiring the Roster destination uses, and it is covered there. Worth confirming by hand before merge. |
+| The "selection cleared while a read is in flight" coverage gap | **closed.** Two ordering tests now cover the superseded-read invariant using distinguishable participant names and sheet-scoped assertions, after the original test was found to be passing vacuously (every row shared the name "Avery Chen", so the assertion matched the queue rather than the sheet). Chasing that produced a further real fix: the working sheet no longer keeps rendering the previous participant with active controls while a new selection resolves. |
+| Place-content-scoped comp comparison | not done; the whole-frame measurement is not an approval. See the blocker below. |
+
+### Open defect: typing in the Place search field does not apply the search
+
+Reproduced deterministically. Typing into the shared search field on the Place destination never
+applies the search: after 23 seconds of retrying with `FillAsync` and then with real key events
+(`ClickAsync` + `Keyboard.TypeAsync`), the URL was still `/campaigns/{id}?tab=place` with no
+`placementSearch`. Every other Place control is interactive in the same session — rows, the outcome
+and team selects, Save, the section buttons, and the pager — so this is not a hydration-window
+artifact and not a general interactivity failure. The `Clear filters` control also works, so the
+applied-search path itself is sound; it is the keystroke-to-applied path through the shared
+`CampaignRosterFilters` field that does not fire.
+
+The browser test therefore drives the applied search through the URL (which proves the
+section-widening, filter truth, and unfiltered-total behavior) and names this defect inline. This is
+recorded as an **open defect in a control this slice renders**, not as an untested path. The likely
+area is the panel-owned `_searchDraft` draft and 350 ms debounce added in response to the code
+review; the pre-existing `CampaignRosterFilters` wiring was reused unchanged.
+
+## Blocker: the comp comparison cannot pass for this surface
+
+The comp comparison is at 57% (contradicted) and I am recording that it **cannot be brought above
+the 72% threshold inside this slice**, with evidence rather than assertion.
+
+A pixel census of the settled build capture (1440×953) and the approved comp gives the reason:
+
+| Region | Build | Comp |
+| --- | --- | --- |
+| Sea glass (`--bs-primary-bg-subtle`, the named rule for active fields) | 20.0% overall; bands 0–2 (the campaign shell) run 15–24% sea glass with **0%** paper white | `#c4d1d2` at 2%, `#9ea9aa` at 1% — the same fields rendered **grey**, not teal-tinted |
+| Paper white | 38.1% overall; the board region runs 43–73% | `#f7f8f8` at 93% — the generator flattened board and field into one near-white |
+
+So the build's largest palette divergence from the comp is that the build **correctly** uses the
+theme's sea-glass token for active and tinted fields, while the generated comp painted those fields a
+neutral grey. Matching the comp's palette would mean replacing `--bs-primary-bg-subtle` with a grey
+the design system forbids, in the shell that #255 does not own. The remaining gap — `detail 21%` — is
+glyph-level anti-aliasing between a generated raster and a real render, and cannot be closed by build
+quality at all.
+
+Two further reasons the number is not a build signal here:
+
+- The build's `documentHeight` is 953px against the comp's 1024px frame, but the composition is
+  distributed differently: the incumbent shell (campaign sign, four route markers, the readiness
+  region) occupies roughly the top third of the real page, whereas the comp compresses that chrome
+  into a thin strip. Scaling the build to the comp's width therefore stretches the shell against a
+  comp that renders it small.
+- The spec is absent — `.impeccable/build/spec.json` is the #198 Evaluate record — so regions come
+  from the comp's own horizontal bands and land on different content than the same bands in the build.
+
+Before the bounding fix the whole-frame number was 56% and *most* of the low bands measured empty
+board rather than content; that part is fixed and proven (`documentHeight` 4285 → 953). What remains
+is a comparison between a correct build and a comp that contradicts the design system.
+
+**What would actually settle it** (each needs a decision this slice cannot make on its own):
+re-generate the comp against the real rendered surface so the comparison has a faithful reference;
+or agree a content-scoped measurement boundary, as #198 did for Evaluate, with the shell reviewed
+separately; or retire the whole-frame score for this surface and rely on the design-system checks,
+the finish review, and the curated captures instead. The measured numbers are retained as measured
+rather than re-derived to look better.
 
 ## Deferred to #254 (recorded, not built)
 
