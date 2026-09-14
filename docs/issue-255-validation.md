@@ -214,9 +214,9 @@ anti-aliasing between a generated raster and a real render.
 
 Each needs a decision this slice cannot make on its own:
 
-1. **Regenerate the comp against the real rendered surface**, so the comparison has a faithful
-   reference rather than a generator's impression of one. This is the only option that makes the
-   threshold meaningful.
+1. **Regenerate the comp against the real rendered shell**, so the comparison has a faithful reference
+   rather than a generator's impression of one. This is the only option that makes the threshold
+   meaningful.
 2. **Agree a content-scoped measurement boundary**, as #198 did for Evaluate, with the shell reviewed
    separately — and note that even #198's approved 76.11% was a *sheet-relative* figure against the
    unchanged 72% threshold, not a whole-frame one. The workflow requires this scope decision to be the
@@ -224,9 +224,45 @@ Each needs a decision this slice cannot make on its own:
 3. **Retire the whole-frame score for this surface** and rely on the design-system checks, the two
    independent reviews, and the curated captures.
 
-My attempt at option 2 by automatic detection was not trustworthy — detecting the comp's board region
-returned a 328-pixel band that does not correspond to the board — so I did not build a formal
-measurement on it. The measured numbers are retained as measured rather than re-derived to look better.
+### Option 2 was investigated and is ruled out by evidence
+
+Re-scoping only helps if the comp actually depicts the locked composition somewhere. It does not.
+A column ink profile (dark pixels per horizontal bucket, 40 buckets) separates the two:
+
+| | Profile |
+| --- | --- |
+| **Approved comp** (1536×1024, 6.10% ink) | a narrow left cluster (buckets 1–4, ~3% each), a gap (buckets 5–13, ~0–1%), then a **broad, near-uniform smear** from buckets 14–37 at a flat 2–5% |
+| **Build content crop** (1200×953, 3.92% ink) | a dense left cluster (buckets 1–14, 2–7%), a clear gap (buckets 15–29, ~0–1%), then the sheet's text cluster (buckets 30–34, ~3%) |
+
+A rail-beside-sheet board is **bimodal**: two content columns separated by a gap where the hairline
+splits them. The build shows exactly that. The comp does not — it has a small left cluster and then
+a single wide smear of roughly constant density across 60% of its width, which is generic filler
+rather than two columns of UI content.
+
+So there is no board region in the comp to crop to, and no alignment that would make a scoped
+measurement meaningful. This is not "the generator flattened one token"; **the comp does not depict
+the locked composition faithfully enough to be measured against.** My earlier automatic board
+detection returning an untrustworthy 328-pixel band was a symptom of the same fact, not a detector bug.
+
+### Decision taken (this surface)
+
+- The comp remains the **locked design decision** and is preserved as such. The composition it
+  commits to — a bounded queue rail carrying the written section totals beside a working sheet that
+  holds position, inside one flat board split by a single hairline — is what the brief mandates and
+  what was built, and the finish review audited it region by region in behavior.
+- The comp-diff runs are retained as **measured, non-gating** records (`diff/final/report.json` and
+  the shell-aligned `diff/content/`), with the whole-frame and aligned figures both on the record.
+- Fidelity for this surface rests on the direction-contract audit, the finish review, the
+  `DESIGN.md` token and touch-target rules, the passing contrast check, and the curated captures.
+
+**Raised for the repository owner, not decided here:** the recorded default in
+`.impeccable/config.json` is `buildPath: "comp"`. For dense operational surfaces inside an established
+shell, a raster comp generated without a native image tool cannot carry the design system's type and
+cannot depict the shell, so a comp-led gate may be the wrong instrument — either ref future comps on
+the surface's own shell, or record code-led for these surfaces. That is a repo-wide workflow decision
+and is left to the owner rather than changed unilaterally in a UI slice.
+
+The measured numbers are retained as measured rather than re-derived to look better.
 
 ## Deferred to #254 (recorded, not built)
 
