@@ -351,6 +351,7 @@ public partial class CampaignPlacePanel(
         if (IsDiscoveryChanged)
         {
             _searchDebounce?.Cancel();
+            _searchDebounce?.Dispose();
             _searchDebounce = null;
             _searchDraft = _appliedState.Search ?? string.Empty;
         }

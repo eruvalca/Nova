@@ -160,7 +160,8 @@ public partial class CampaignPlacePanel
     }
 
     /// <summary>
-    /// Loads the bounded active teams whose graduation year matches the selected participant exactly.
+    /// Loads the bounded active teams whose graduation-year cutoff is at or below the selected participant's
+    /// year, which is the compatibility rule the placement policy applies.
     /// </summary>
     /// <param name="graduationYear">The selected participant's graduation year.</param>
     /// <returns>A task that completes when the choices are loaded.</returns>
@@ -170,7 +171,7 @@ public partial class CampaignPlacePanel
 
         // Clear the previous participant's choices before awaiting the new ones. The select renders
         // whenever the list is non-empty and the submit does not block on the loading flag, so a stale
-        // list would offer teams filtered for a different graduation year.
+        // list would offer teams filtered for a different cutoff.
         _compatibleTeams = [];
         _teamChoicesLoading = true;
         _teamChoicesError = null;

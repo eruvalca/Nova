@@ -2243,6 +2243,30 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Fact]
+    public void RepeatingTheSamePlaceSelectionDoesNotPushASecondHistoryEntry()
+    {
+        // Every Place target carries the evaluation context, so comparing the bare target against the current
+        // location makes even an unchanged action look like a change and stacks duplicate history entries.
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(CreateDetail()));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?tab=place");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        var place = cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignPlacePanel>();
+        cut.WaitForAssertion(() => place.FindAll("button.place-section").Count.ShouldBe(4));
+
+        // The first selection is a real change, and it is what writes the evaluation context into the URL.
+        place.FindAll("button.place-section")[1].Click();
+        var afterFirstSelection = ((BunitNavigationManager)navigation).History.Count;
+        afterFirstSelection.ShouldBeGreaterThan(1);
+
+        // The same selection again asks for the location the member is already on, so it must not navigate.
+        place.FindAll("button.place-section")[1].Click();
+
+        ((BunitNavigationManager)navigation).History.Count.ShouldBe(afterFirstSelection);
+    }
+
+    [Fact]
     public void ClosedPlaceRepairKeepsALegitimateRosterPage()
     {
         // The destinations own separate pages, so dropping the Place section must not reset the Roster page a

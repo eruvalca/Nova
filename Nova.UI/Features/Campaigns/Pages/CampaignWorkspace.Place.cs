@@ -120,10 +120,14 @@ public partial class CampaignWorkspace
     /// <returns>A task that completes when navigation is initiated.</returns>
     private Task NavigateToPlaceAsync(string targetUrl)
     {
+        // Compare the URL that will actually be navigated to: the evaluation context is appended on the way
+        // out, so comparing the bare target against the current location would make every action look like a
+        // change and push a duplicate history entry once the context is present.
+        var composed = CampaignWorkspaceUrlState.WithEvaluationContext(targetUrl, EvaluationState);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
-        if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
+        if (!string.Equals(composed, currentPathAndQuery, StringComparison.Ordinal))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.WithEvaluationContext(targetUrl, EvaluationState));
+            navigationManager.NavigateTo(composed);
         }
 
         return Task.CompletedTask;

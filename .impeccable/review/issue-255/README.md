@@ -41,7 +41,7 @@ stay out of source control.
 
 The finish review returned **disposition: fix** with six material findings, and an independent code
 review returned one HIGH defect and four lower findings. Both sets are fixed in this slice except
-where the validation record notes a deliberate deferral. The measured comp-diff score (56%,
+where the validation record notes a deliberate deferral. The measured comp-diff score (57%,
 contradicted) is recorded as measured and is **not** treated as an approval.
 
 `.impeccable/build/state.json` and `.impeccable/build/spec.json` are the earlier #198 Evaluate build

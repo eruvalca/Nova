@@ -230,7 +230,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         await Expect(page.Locator("#place-team")).ToBeVisibleAsync();
         var options = await page.Locator("#place-team option").AllTextContentsAsync();
-        // Only active teams whose cutoff matches the selected graduation year are offered.
+        // Only active teams whose cutoff is at or below the selected graduation year are offered.
         options.ShouldContain(option => option.Contains(seed.EligibleTeamName, StringComparison.Ordinal));
         options.ShouldNotContain(option => option.Contains(seed.IneligibleTeamName, StringComparison.Ordinal));
     }
