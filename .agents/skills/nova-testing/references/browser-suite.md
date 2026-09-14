@@ -72,6 +72,21 @@ Use these patterns when the scenario crosses prerender, interactive attachment, 
    alone is not attachment proof. Keep the verified document, and observe the intercepted request
    before asserting an injected error. Photo islands may have no startup API read, so a generic
    “any API request” probe is not a substitute for their actual upload/crop interaction.
+8. **A retry loop cannot drive a debounced control.** `CampaignRosterFilters` raises its search from
+   `@oninput`, and the destinations debounce it (`SearchDebounceMilliseconds`, 350 ms).
+   `ActUntilAsync` re-runs the act on every attempt with a 250 ms default delay, so each retry is a
+   fresh input event that cancels the pending debounce and restarts it — the timer never fires and
+   the search never applies. A loop that retries the typing therefore looks exactly like a broken
+   search field. Drive a debounced control with one act, after proving attachment with a different
+   interaction, and settle on the **final** value (`WaitForURLAsync(url =>
+   url.Contains("search=Player%2001"))`): settling on “any search applied” returns during the first
+   keystroke pause and then races the later navigation.
+9. **A settle predicate must not wait.** Playwright state queries such as `IsEnabledAsync()` wait for
+   a matching element and then throw, so a predicate like `() => page.Locator("#place-outcome")
+   .IsEnabledAsync()` aborts the retry loop with a 30 s timeout before the first click lands, instead
+   of reporting “not yet”. Guard every waiting state query with a non-waiting existence check first:
+   `await locator.CountAsync() > 0 && await locator.IsEnabledAsync()`. `IsVisibleAsync()` is the
+   exception — it does not wait.
 
 ## Parallelization
 
@@ -105,7 +120,7 @@ Environment knobs:
 - `NOVA_BROWSER_RETRY_DELAY_MS` — delay in milliseconds between attempts (default `250`).
 
 The same policy also drives the break-on-visible/break-on-URL loops (`OpenDrawerAsync`,
-`CloseDrawerAsync`, `WaitForMutationSettlementAsync`, and `CheckUnresolvedOnlyAsync`), so those
+`CloseDrawerAsync`, and `WaitForMutationSettlementAsync`), so those
 windows grow with the knobs while keeping their distinct per-interaction timeouts and break-on-state
 structure. Use `CloseDrawerAsync` (Escape-until-hidden) rather than a single `Escape` + `ToBeHiddenAsync`
 when closing the participant drawer after opening it as a hydration proof.

@@ -86,6 +86,10 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
 - Prefer the content-driven breakpoints already in use: 575.98 / 767.98 / 991.98px.
 - Grids collapse to one column below the grid's comfortable width; CTA buttons go full-width at
   ≤575.98px; table changes stay inside `.table-responsive` scroll containers.
+- Bound long collections that share a board with another column. A scrollable list in one column
+  (`max-height` + `overflow-y: auto`, as `.roster-scroll-region` does) keeps the board one screen; an
+  unbounded list stretches the board to the list's height and strands the neighbouring column in empty
+  board-white — a 50-row queue produced a 4,285px page before it was bounded.
 
 ## Comment-block convention
 

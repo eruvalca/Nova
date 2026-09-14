@@ -60,8 +60,13 @@ semantics, or SQL-translation limits.
 
 - `dotnet run --project Nova.AppHost` is the supported manual developer entry point. The
   `AspireUseCliBundle` setting delegates it to `aspire run` through `dnx`; the first run on a
-  machine may acquire the CLI bundle before the dashboard opens. Agents and automation still use
-  `aspire start --isolated --non-interactive`.
+  machine may acquire the CLI bundle before the dashboard opens. Agents and automation use
+  `aspire start --isolated --non-interactive` for a **manual** Aspire session.
+- **The Aspire-backed test suites are not that session.** `NovaAppHostFixture` starts its own AppHost
+  through `DistributedApplicationTestingBuilder` and waits for the `nova` resource to report healthy,
+  so run `dotnet test` directly and do not start an AppHost first. A separately running one competes
+  for the shared Docker capacity the suites are already sensitive to, and a suite stopped mid-run
+  leaves a `Nova` process holding `Nova/bin`, which fails the next build with MSB3027/MSB3021.
 - The dashboard exposes **Reset nova database** on the `postgres` resource and **Clear profile
   photos** on the `storage` resource. Both require selecting `yes` in the confirmation dialog.
   The CLI equivalents are:
