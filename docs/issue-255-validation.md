@@ -69,7 +69,7 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3199 passed, 0 failed** |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3200 passed, 0 failed** |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **611 passed, 0 failed** (last run at `262d995e`; the later round changed no provider or HTTP boundary code, so it was not re-run) |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped), including the narrow-viewport touch-target measurement of the compatible-team search |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
@@ -78,14 +78,15 @@ The Aspire-backed suites provision their own AppHost through
 `DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>`, so no separately running
 AppHost is required; the suites were run serially.
 
-Every result above was produced at revision `9841b0ff`, after the five Copilot inline rounds, the
-suppressed findings that followed them, the contract-coverage round, and the round that answered the
-lifecycle-deferral, recovery-message, and touch-target findings. Those rounds changed `Nova.UI`, one
-shared contract, and test code, so the earlier "changes after the tested revision are documentation only"
-statement no longer held and the affected suites were re-run rather than carried forward. The integration
-suite was last run at `262d995e` and was not re-run because the later round touched no provider or HTTP
-boundary code; every other number above is from the tested revision. This record and the pull request body
-state the same numbers.
+Every result above was produced at revision `f31693d1`, after the Copilot inline rounds, the two
+suppressed-findings rounds, the contract-coverage round, and the round that answered the lifecycle
+deferral, recovery-message, touch-target, document-drift, token-disposal, and duplicate-history findings.
+Those rounds changed `Nova.UI`, one shared contract, and test code, so the earlier "changes after the
+tested revision are documentation only" statement no longer held and the affected suites were re-run
+rather than carried forward. The integration suite was last run at `262d995e` and was not re-run because
+the later rounds touched no provider or HTTP boundary code; every other number above is from the tested
+revision. This record and the pull request body are updated together at each push and state the same
+numbers and revision.
 
 ## Comp fidelity — measured, and not a pass
 
@@ -215,6 +216,10 @@ because a suppressed finding that nobody answers is indistinguishable from one t
 | The compatible-team search is a `.form-control` inside the decision area, but the 2.75rem minimum covered only buttons and selects, leaving Bootstrap's input default below the 44px phone target. | **Fixed.** `.place-decision .form-control` is included in the rule, and the narrow-viewport browser test now measures the rendered height. |
 | A lifecycle or authority change arriving while a save was in flight was dropped rather than deferred, so the previous posture's queue could stay rendered indefinitely after settlement. | **Fixed.** It is deferred with the discovery state, its evidence and in-flight reads are invalidated immediately, and every settlement path reconciles the boundary before applying a discovery state on top. A test holds a save open, closes the campaign, and asserts the previous rows are gone and the Closed evidence arrives. |
 | #255's boundary excludes service-contract and WASM-client changes, so the additive `MaxGraduationYear` filter needs either a foundation issue or a recorded scope amendment. | **Scope amendment recorded below**, rather than a foundation issue: the change is additive and its rejection alternative is worse, and the record carries what the amendment does and does not touch. |
+| The compatible-team XML summary and a browser-scenario comment still described the exact-year read this slice replaced. | **Fixed.** Both now state that the cutoff is at or below the player's year, which is the compatibility contract in force. |
+| The curated comp report called the score 56% while its own diff report records `overall: 0.5652` and the surface brief and validation record say 57%. | **Fixed.** The report says 57%, so the evidence packet is internally consistent. |
+| The debounce cancellation on a URL-driven discovery change dropped its linked token source without disposing it. | **Fixed.** It is disposed on that path too, matching the keystroke and disposal paths that already did, so a pending debounce cannot retain registrations against the component token for the component's lifetime. |
+| `NavigateToPlaceAsync` compared the bare target URL against the current location while navigating to the composed one, so once the evaluation context was present every action looked like a change and pushed a duplicate history entry. | **Fixed.** It compares the URL it will actually navigate to. The new test is discriminating: restoring the old comparison makes it fail. |
 
 ## Recorded scope amendment for #255
 
@@ -413,6 +418,8 @@ belongs to #254.
 - an unconfirmed save whose reconciliation failed not claiming that the view was refreshed
 - a lifecycle change arriving while a save is in flight being deferred and reconciled once the save
   settles, with the previous posture's evidence dropped immediately
+- repeating an already-applied Place selection not pushing a second history entry, asserted against the
+  navigation history so the evaluation context carried by every target cannot be mistaken for a change
 
 The shared contract change carries its own coverage: `Nova.Unit.Tests/Teams/TeamRosterContractTests.cs`
 asserts the builder emits the inclusive maximum and the input contract validates it with the same year
