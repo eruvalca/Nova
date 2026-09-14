@@ -233,6 +233,8 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         // Only active teams whose cutoff is at or below the selected graduation year are offered.
         options.ShouldContain(option => option.Contains(seed.EligibleTeamName, StringComparison.Ordinal));
         options.ShouldNotContain(option => option.Contains(seed.IneligibleTeamName, StringComparison.Ordinal));
+        await Expect(page.Locator($"#place-team option[value='{seed.EligibleTeamId}']"))
+            .ToContainTextAsync("0 this season · 0 from this campaign");
     }
 
     [Fact]
@@ -276,10 +278,15 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => IsEnabledAsync(page.Locator("#place-outcome")));
         await Expect(page.Locator(".place-evidence")).ToContainTextAsync("Effective season placement");
+        await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
+        await Expect(page.Locator("#place-team")).ToBeVisibleAsync();
+        await page.Locator("#place-team").SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "desktop", directory, fullPage: true, seed.CampaignId);
 
         await page.SetViewportSizeAsync(390, 844);
         await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
+        await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "mobile", directory, fullPage: true, seed.CampaignId);
     }
 

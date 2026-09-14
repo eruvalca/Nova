@@ -47,7 +47,14 @@ public sealed record CampaignPlaceSection(string Token, string Label, int Count,
 /// Whether the team is the participant's saved team that is no longer active or compatible. An unavailable
 /// choice is rendered disabled so the current decision stays legible and can never be re-selected.
 /// </param>
-public sealed record CampaignPlaceTeamChoice(long TeamId, string Name, bool Unavailable);
+public sealed record CampaignPlaceTeamChoice(long TeamId, string Name, bool Unavailable)
+{
+    /// <summary>Gets the observed effective season count, or null when this team was not in the roster read.</summary>
+    public int? SeasonPlacementCount { get; init; }
+
+    /// <summary>Gets the observed Active-campaign contribution, or null when this team was not in the roster read.</summary>
+    public int? CampaignContribution { get; init; }
+}
 
 /// <summary>
 /// The persisted Place queue snapshot carried across prerender and interactive attach.

@@ -316,11 +316,12 @@ public partial class CampaignPlacePanel(
 
     /// <summary>
     /// Gets a value indicating whether the selected participant can still receive a decision in this
-    /// campaign. An archived player and a locally withdrawn decision are both terminal here, and the server
-    /// would refuse either, so the controls must not be offered at all.
+    /// campaign. Archived players and local withdrawals cannot be edited; unavailable prior withdrawals
+    /// require the separate administrator supersession workflow, which this slice does not expose.
     /// </summary>
     private bool IsDecisionAllowed => _selected is { } selected
         && selected.PlayerLifecycleStatus is null or LifecycleStatus.Active
+        && selected.Eligibility != EffectivePlacementEligibility.Unavailable
         && selected.LocalOutcome != PlacementOutcome.Withdrawn;
 
     /// <summary>
@@ -331,9 +332,14 @@ public partial class CampaignPlacePanel(
     /// <summary>
     /// Gets the written reason a selected participant cannot receive a decision here.
     /// </summary>
-    private string DecisionUnavailableReason => _selected?.PlayerLifecycleStatus is not null and not LifecycleStatus.Active
-        ? "This player is archived, so no placement decision can be recorded."
-        : "This player is withdrawn for the season. Only a superseding decision in a later active campaign can change it.";
+    private string DecisionUnavailableReason => _selected switch
+    {
+        { PlayerLifecycleStatus: not null and not LifecycleStatus.Active } =>
+            "This player is archived, so no placement decision can be recorded.",
+        { LocalOutcome: PlacementOutcome.Withdrawn } =>
+            "This player is withdrawn for the season. Only a superseding decision in a later active campaign can change it.",
+        _ => "This player is withdrawn for the season. Administrator recovery of a prior-campaign withdrawal is not available here."
+    };
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()

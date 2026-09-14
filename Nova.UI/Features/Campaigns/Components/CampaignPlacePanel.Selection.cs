@@ -264,7 +264,11 @@ public partial class CampaignPlacePanel
         get
         {
             var choices = _compatibleTeams
-                .Select(team => new CampaignPlaceTeamChoice(team.TeamId, team.Name, Unavailable: false))
+                .Select(team => new CampaignPlaceTeamChoice(team.TeamId, team.Name, Unavailable: false)
+                {
+                    SeasonPlacementCount = team.EffectiveCurrentSeasonPlacementCount,
+                    CampaignContribution = team.CurrentCampaignPlacementContribution
+                })
                 .ToList();
 
             if (_selected is not null && IsSavedTeamMissingFromChoices(_selected) && _selected.LocalTeam is { } current)
@@ -281,5 +285,8 @@ public partial class CampaignPlacePanel
             return choices;
         }
     }
+
+    // Keep observed counts legible outside the native select when a long team name clips its option text.
+    private CampaignPlaceTeamChoice? SelectedTeamChoice => VisibleTeamChoices.FirstOrDefault(team => team.TeamId == _draftTeamId);
 }
 

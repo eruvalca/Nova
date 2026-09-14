@@ -17,7 +17,7 @@ This is the first of the two Place slices. It replaces the row-per-participant
 loop over the delivered eligibility/supersession and effective-read foundations, leaving no second
 mutation path beside the surface it replaced.
 
-Reassignment, prior-season history the `Keep on {Team}` fast path, supersession confirmation copy,
+Reassignment, prior-season history, the `Keep on {Team}` fast path, supersession confirmation copy,
 and the stale/ambiguous recovery matrix belong to sibling slice
 [#254](https://github.com/eruvalca/Nova/issues/254) and are not pre-built here.
 

@@ -63,7 +63,10 @@ survives beside the new surface.
 `.agents/skills/impeccable/reference/new-work.md`; `docs/placement-decision-foundation.md`;
 `docs/campaign-workspace-roster.md`.
 
-## Commands run and results
+## Earlier validation at `ffad6837`
+
+These historical results are retained for the previous rounds. The review-watch round at the end of this
+record supersedes them for the current code; integration remains explicitly identified by its tested revision.
 
 | Command | Result |
 | --- | --- |
@@ -86,8 +89,8 @@ findings. Those rounds changed `Nova.UI`, the shared filter component, one share
 so the earlier "changes after the tested revision are documentation only" statement no longer held and the
 affected suites were re-run rather than carried forward. The integration suite was last run at `262d995e`
 and was not re-run because the later rounds touched no provider or HTTP boundary code; every other number
-above is from the tested revision. This record and the pull request body are updated together at each push
-and state the same numbers and revision.
+above is from that earlier tested revision. The review-watch round below records subsequent changes and
+their own verification.
 
 ## Comp fidelity — measured, and not a pass
 
@@ -379,8 +382,8 @@ belongs to #254.
 
 ## Test coverage added
 
-`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs` and `.Mutations.cs` (34 tests), with the
-`.Ordering.cs` and `.Callbacks.cs` partials, cover:
+`Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.cs`, `.Mutations.cs`, `.Ordering.cs`, and `.Callbacks.cs`
+cover:
 
 - unfiltered section totals independent of the loaded page, and foundation labels
 - the Needs-placement browsing default widening to every section once a search applies
@@ -445,3 +448,57 @@ server error, so a server that ignored the range cannot pass unnoticed; and
 `Nova.Integration.Tests/Http/TeamRosterHttpTests.cs` proves the PostgreSQL translation returns every team
 at or below the year, excludes the cohorts above it, and that an out-of-range value is rejected by
 automatic endpoint validation with trace correlation.
+
+## Review-watch round: outstanding findings through 2026-09-14 18:38 UTC
+
+This round audits all 34 review threads (including every reply), all review bodies, and all five PR
+conversation comments present at `33cdfd42`. All inline threads already had explicit dispositions and were
+resolved. Suppression was not treated as resolution: the 18:30 review's three findings were still
+outstanding as well as the latest review's two. All work for those findings is collected in this one
+review-round commit, whose parent is `33cdfd42`.
+
+| Finding | Disposition |
+| --- | --- |
+| Two discovery edits during save can each start from the old applied state and lose the first edit. | Fixed. The shared discovery controls now use the same save/loading gate as sections, clear filters, and paging. A controlled mutation followed by a separately gated reconciliation proves controls are disabled in both phases and enabled after settlement. Already-dispatched callbacks and incoming history state still use the existing deferral path. |
+| Compatible-team options omit observed season and current-campaign counts. | Fixed. The UI projection retains `EffectiveCurrentSeasonPlacementCount` and `CurrentCampaignPlacementContribution`, and each observed option renders both with explicit labels. The selected team also has a wrapping count line so a long name cannot clip the evidence inside the native select. Counts absent from the roster read remain null for an inserted saved team; they are never fabricated as zero. Coverage distinguishes 16/3 from legacy active count 8, genuine 0/0, and absent counts. The browser scenario checks the seeded 0/0 option. |
+| Prior-campaign withdrawn participants receive ordinary decision controls although administrator supersession is deferred to #254. | Fixed. Authoritative `Unavailable` eligibility suppresses the ordinary decision controls, with written recovery-unavailable copy. Archived and locally withdrawn cases keep their distinct explanations. The regression supplies a prior-campaign withdrawal with no local decision and verifies no controls or mutation. |
+| The curated evidence README omits a comma between prior-season history and Keep on Team. | Fixed in the README. |
+| Validation evidence and the PR description identify different tested revisions/results. | Earlier evidence is now explicitly historical. This round records its own source revision and actual results, and the PR body is updated to the same final commit and results after the single commit is created. |
+| The older scope finding requested the contract amendment on #255 itself. | Completed. The existing bounded `MaxGraduationYear` amendment is now also in issue #255, including rationale and tests; its completion remains dependent on merge into main. |
+
+The tested application and regression source is the review-round commit containing this section (parent
+`33cdfd42`). The final visual correction adds a wrapping selected-team count line, extends the unit assertion,
+and selects Assigned and a compatible team for desktop/mobile captures. Build, unit, format, and browser
+checks are rerun after that source change. Source is held fixed during
+the browser suite. The earlier integration result (611 passed at `262d995e`) is historical: this round changes
+UI and test code, without provider, endpoint, shared-service, or WASM-client contract changes. All three suites
+must still be rerun before merge under the repository gate.
+
+Final validation for the code in this review-round commit:
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Passed, zero warnings/errors. |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed. |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,209 passed, zero failed/skipped. |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` with `NOVA_PLACE_EVIDENCE` enabled | 179 total: 172 passed, zero failed, 7 existing optional a11y evidence tests skipped. The Place capture ran. |
+
+Before the wrapping-label correction, the focused Place class also passed all 56 tests and the first full
+browser run passed 172/179 with the same seven optional skips. The final full unit and browser runs above
+include the corrected label and its assertions. No test, retry bound, or diagnostic was weakened.
+The [curated visual confirmation](../.impeccable/review/issue-255/review-watch.md) retains final desktop and
+mobile screenshots with source provenance and checksums; previous comp/failure evidence remains intact.
+
+Separate local review: a fresh reviewer inspected the complete round diff against `33cdfd42`, then the
+expanded withdrawal fix and wrapping count line, with no actionable code findings. It checked shared filter controls, save/settlement
+and history paths, the effective-eligibility producer and placement policy, nullable count provenance, and
+the InteractiveAuto workspace host. The review did not claim the pending browser run had passed.
+
+Sources actually read for this round: `AGENTS.md`; the Blazor architecture, C# conventions, UI design,
+testing, validation, placement-decisions, and season-lifecycle instructions; `add-blazor-ui` and its
+lifecycle/state, parameter/event/binding, and render-mode references; `nova-testing` and its Blazor-component
+and browser-suite references; Impeccable's skill, harden and craft-floor references; `PRODUCT.md`,
+`DESIGN.md`, the placement surface brief, and the existing curated evidence/validation record. The legacy
+surface resolver could not map its target, so the committed placement brief was read directly. The
+pre-existing open comp runtime gate and stale design sidecar were not reinterpreted as a request to redesign
+this already-reviewed surface; these are bounded fixes to existing behavior and labels.

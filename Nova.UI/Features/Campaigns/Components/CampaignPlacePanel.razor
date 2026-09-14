@@ -78,7 +78,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             }
 
             <CampaignRosterFilters ShowEligibility="@(!IsClosed)"
-                                   Disabled="@_queueLoading"
+                                   Disabled="@(_saving || _queueLoading)"
                                    Eligibility="@SectionFilterValue"
                                    EligibilityCounts="@ActiveSectionCounts"
                                    SearchText="@_searchDraft"
@@ -362,9 +362,19 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                     {
                                         <option value="@team.TeamId.ToString(CultureInfo.InvariantCulture)" disabled="@team.Unavailable">
                                             @team.Name@(TeamChoiceSuffix(team))
+                                            @if (team.SeasonPlacementCount is { } seasonCount && team.CampaignContribution is { } campaignCount)
+                                            {
+                                                <text> · @seasonCount this season · @campaignCount from this campaign</text>
+                                            }
                                         </option>
                                     }
                                 </select>
+                                @if (SelectedTeamChoice is { SeasonPlacementCount: { } chosenSeasonCount, CampaignContribution: { } chosenCampaignCount })
+                                {
+                                    <p id="place-team-counts" class="place-decision-note text-muted">
+                                        Observed placements: @chosenSeasonCount this season · @chosenCampaignCount from this campaign.
+                                    </p>
+                                }
                                 @if (_teamChoicesTruncated)
                                 {
                                     @* The choice list is capped, so a valid team beyond the cap must stay reachable

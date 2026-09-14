@@ -136,9 +136,9 @@ public sealed partial class CampaignPlacePanelTests
     [Fact]
     public async Task ADiscoveryChangeRaisedDuringASaveReachesTheUrlOwnerAsync()
     {
-        // The shared discovery controls stay enabled while a save is in flight, so a change they raise has to
-        // reach the URL and be deferred there. Dropping the callback would lose the member's choice while the
-        // control kept showing it as applied.
+        // A callback already dispatched before the controls became disabled must still reach the URL owner.
+        // Browser history can likewise supply a new state during settlement; disabling the controls does not
+        // replace that existing deferral contract.
         var queries = RegisterServices();
         CampaignWorkspacePlacementState? raised = null;
         var cut = RenderPanel(selectedParticipantId: 301, onStateChanged: state => raised = state);
@@ -157,6 +157,77 @@ public sealed partial class CampaignPlacePanelTests
 
         await cut.InvokeAsync(release);
         await save;
+    }
+
+    [Fact]
+    public async Task DiscoveryControlsStayDisabledDuringMutationAndSettlementAsync()
+    {
+        var queries = RegisterServices();
+        var mutation = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(mutation.Task);
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+        var (entered, release) = HoldNextQueueRead(queries);
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+        try
+        {
+            await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").HasAttribute("disabled").ShouldBeTrue());
+            cut.FindAll(".place-queue input, .place-queue select").ShouldAllBe(control => control.HasAttribute("disabled"));
+
+            await cut.InvokeAsync(() => mutation.SetResult(new PlacementMutationSuccess(_replacementToken)));
+            await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+            cut.FindAll(".place-queue input, .place-queue select").ShouldAllBe(control => control.HasAttribute("disabled"));
+        }
+        finally
+        {
+            await cut.InvokeAsync(() => mutation.TrySetResult(new PlacementMutationSuccess(_replacementToken)));
+            await cut.InvokeAsync(release);
+            await save;
+        }
+
+        await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#roster-search").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CompatibleTeamChoicesShowObservedCountsWithoutInventingMissingTeamCounts()
+    {
+        RegisterServices(rows:
+        [
+            CreateRow(301) with
+            {
+                LocalDecision = CreateDecision(301, PlacementOutcome.Assigned, 99),
+                LocalTeam = new CampaignParticipantTeamSummaryDto(99, "Outside search")
+            }
+        ]);
+        _teams.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<IReadOnlyList<TeamRosterItem>>(new List<TeamRosterItem>
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 21, Name = "Elite Silver", GraduationYear = 2032,
+                    LifecycleStatus = LifecycleStatus.Active, ActivePlacementCount = 8,
+                    EffectiveCurrentSeasonPlacementCount = 16, CurrentCampaignPlacementContribution = 3
+                },
+                new TeamRosterItem
+                {
+                    TeamId = 22, Name = "Empty team", GraduationYear = 2032,
+                    LifecycleStatus = LifecycleStatus.Active, ActivePlacementCount = 0,
+                    EffectiveCurrentSeasonPlacementCount = 0, CurrentCampaignPlacementContribution = 0
+                }
+            }));
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll("#place-team").Count.ShouldBe(1));
+        Collapse(cut.Find("#place-team option[value='21']")).ShouldBe("Elite Silver · 16 this season · 3 from this campaign");
+        Collapse(cut.Find("#place-team option[value='22']")).ShouldBe("Empty team · 0 this season · 0 from this campaign");
+        Collapse(cut.Find("#place-team option[value='99']")).ShouldBe("Outside search");
+        cut.FindAll("#place-team-counts").ShouldBeEmpty();
+        cut.Find("#place-team").Change("21");
+        Collapse(cut.Find("#place-team-counts")).ShouldBe("Observed placements: 16 this season · 3 from this campaign.");
     }
 
     [Fact]
@@ -546,6 +617,28 @@ public sealed partial class CampaignPlacePanelTests
 
         cut.FindAll("#place-outcome").ShouldBeEmpty();
         cut.Markup.ShouldContain("withdrawn for the season");
+    }
+
+    [Fact]
+    public void APriorCampaignWithdrawalOffersNoOrdinaryDecisionControls()
+    {
+        RegisterServices(rows:
+        [
+            CreateRow(301) with
+            {
+                Eligibility = EffectivePlacementEligibility.Unavailable,
+                EffectiveDecision = new PlacementDecisionSource(
+                    CreateDecision(205, PlacementOutcome.Withdrawn, null) with { CampaignId = 9 },
+                    "Earlier campaign", null)
+            }
+        ]);
+
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
+        cut.FindAll("#place-outcome, #place-team, .place-decision-actions").ShouldBeEmpty();
+        cut.Find(".place-sheet").TextContent.ShouldContain("Administrator recovery of a prior-campaign withdrawal is not available here.");
+        _ = _mutations.DidNotReceive().UpdatePlacementAsync(
+            Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
