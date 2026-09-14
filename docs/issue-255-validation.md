@@ -69,7 +69,7 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3203 passed, 0 failed** |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3206 passed, 0 failed** |
 | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **611 passed, 0 failed** (last run at `262d995e`; the later round changed no provider or HTTP boundary code, so it was not re-run) |
 | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped), including the narrow-viewport touch-target measurement of the compatible-team search |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
@@ -78,15 +78,16 @@ The Aspire-backed suites provision their own AppHost through
 `DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>`, so no separately running
 AppHost is required; the suites were run serially.
 
-Every result above was produced at revision `1b5fd16c`, after the Copilot inline rounds, the two
+Every result above was produced at revision `ffad6837`, after the Copilot inline rounds, the three
 suppressed-findings rounds, the contract-coverage round, and the rounds that answered the lifecycle
 deferral, recovery-message, touch-target, document-drift, token-disposal, duplicate-history, snapshot-scope,
-and team-choice findings. Those rounds changed `Nova.UI`, one shared contract, and test code, so the earlier
-"changes after the tested revision are documentation only" statement no longer held and the affected suites
-were re-run rather than carried forward. The integration suite was last run at `262d995e` and was not
-re-run because the later rounds touched no provider or HTTP boundary code; every other number above is from
-the tested revision. This record and the pull request body are updated together at each push and state the
-same numbers and revision.
+team-choice, reconciliation-outcome, discovery-availability, stale-notice, and test-synchronization
+findings. Those rounds changed `Nova.UI`, the shared filter component, one shared contract, and test code,
+so the earlier "changes after the tested revision are documentation only" statement no longer held and the
+affected suites were re-run rather than carried forward. The integration suite was last run at `262d995e`
+and was not re-run because the later rounds touched no provider or HTTP boundary code; every other number
+above is from the tested revision. This record and the pull request body are updated together at each push
+and state the same numbers and revision.
 
 ## Comp fidelity — measured, and not a pass
 
@@ -223,6 +224,10 @@ because a suppressed finding that nobody answers is indistinguishable from one t
 | The persisted-owner key omitted the lifecycle even though `EffectiveOwner` claimed to protect it, so a snapshot could restore one posture's rows as the other's and stamp them as current without refetching. | **Fixed.** The panel appends the lifecycle itself, so no host can omit it; a test asserts the stamped key ends with the lifecycle. |
 | A narrowed team search replaced the select with a loading note but left a drafted team alive, so Save could submit a team the form no longer showed. | **Fixed.** A drafted team that is not the persisted one is dropped when the narrowing read starts, which restores the existing written "choose a team" guidance instead of an invisible value. |
 | Absence from the compatible choices was treated as "no longer available" and rendered disabled, though the search or the 200-row cap can exclude a valid team. | **Fixed.** Only the authoritative correction reason makes the entry unavailable, and the written suffix names that reason rather than a state the read never reported. |
+| `ReconcileAsync`'s Boolean conflated a superseded read, a corrected page, and a failed read, so settlement could claim a page correction that never happened or a failed refresh while a corrected load was on its way. | **Fixed.** It returns reconciled, page-corrected, obsolete, or failed; each caller picks words true of its own case, and the unconfirmed message is chosen after the deferred load is applied. |
+| The discovery controls stayed active during a queue read, and their handlers derive the next state from the applied one, so two quick changes dropped the first. | **Fixed.** The shared filter takes a `Disabled` parameter and the Place panel disables it while a queue read is running, matching the section buttons and pager beside it. The Roster caller is unchanged. |
+| A failed reconciliation retained rows but the notice only warned about totals, leaving the participant list looking authoritative. | **Fixed.** The notice names the participants as well as the totals; the totals-only wording still covers the totals-only failure. |
+| Two ordering tests used a fixed 50 ms delay to establish that a released obsolete read had been processed, which can pass before a broken implementation adopts the stale row. | **Fixed.** They release the gate through the renderer and drain the queue behind it, so the read's continuation is provably processed before the assertions run. |
 
 ## Recorded scope amendment for #255
 
@@ -428,6 +433,9 @@ belongs to #254.
 - a saved team the narrowed search excludes staying selectable and unlabelled when no correction applies,
   while an archived one stays disabled and names the authoritative reason
 - narrowing the team search disabling Save for a draft the control no longer offers
+- the discovery controls being unavailable while a queue read is in flight, then available again afterwards
+- a failed reconciliation naming the participants as well as the totals in its notice
+- a superseded reconciliation saying the view is reloading rather than claiming the page was corrected
 
 The shared contract change carries its own coverage: `Nova.Unit.Tests/Teams/TeamRosterContractTests.cs`
 asserts the builder emits the inclusive maximum and the input contract validates it with the same year
