@@ -69,21 +69,23 @@ survives beside the new surface.
 | --- | --- |
 | `dotnet build Nova.slnx` | succeeded, 0 errors |
 | `dotnet format Nova.slnx --verify-no-changes` | clean |
-| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3197 passed, 0 failed** |
-| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **611 passed, 0 failed** |
-| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped) |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3199 passed, 0 failed** |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **611 passed, 0 failed** (last run at `262d995e`; the later round changed no provider or HTTP boundary code, so it was not re-run) |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **179 total, 0 failed, 171 succeeded** (8 env-gated a11y captures skipped), including the narrow-viewport touch-target measurement of the compatible-team search |
 | `npm run check:contrast` (from `Nova/`) | **PASS** — every documented pair met its threshold (minimum 4.67:1 against 4.5) and no Bootstrap-blue literal was found |
 
 The Aspire-backed suites provision their own AppHost through
 `DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>`, so no separately running
 AppHost is required; the suites were run serially.
 
-Every result above was produced at revision `262d995e`, after the five Copilot review rounds, the
-suppressed findings that followed them, and the contract-coverage round that closed the last two threads.
-Those rounds changed `Nova.UI`, one shared contract, and test code, so the earlier "changes after the
-tested revision are documentation only" statement no longer held and all three suites were re-run rather
-than carried forward. This record and the pull request body state the same numbers, and the only commit
-after `262d995e` is this note.
+Every result above was produced at revision `9841b0ff`, after the five Copilot inline rounds, the
+suppressed findings that followed them, the contract-coverage round, and the round that answered the
+lifecycle-deferral, recovery-message, and touch-target findings. Those rounds changed `Nova.UI`, one
+shared contract, and test code, so the earlier "changes after the tested revision are documentation only"
+statement no longer held and the affected suites were re-run rather than carried forward. The integration
+suite was last run at `262d995e` and was not re-run because the later round touched no provider or HTTP
+boundary code; every other number above is from the tested revision. This record and the pull request body
+state the same numbers.
 
 ## Comp fidelity — measured, and not a pass
 
@@ -209,6 +211,33 @@ because a suppressed finding that nobody answers is indistinguishable from one t
 | A lifecycle or authority swap started the replacement read without clearing the posture being left, so Active rows and sheet stayed on screen and an older read could still land. | **Fixed.** The swap clears the queue, selection, and compatible teams and advances the three request sequences synchronously before the new load starts. |
 | Discovery controls stay enabled during a save while the handler silently discarded their changes. | **Fixed.** The panel hands the change to the URL, where the existing mid-save deferral path owns it and every settlement path applies it. |
 | A single repair flag dropped both destinations' page keys, so one destination's eligibility repair reset the other's page. | **Fixed.** The two repairs are tracked separately and each resets only its own filter and page. |
+| The unconfirmed-save message claimed the view "was refreshed from the server" even when reconciliation failed to establish a fresh snapshot. | **Fixed.** The message is chosen from the reconciliation result and the region states, sharing one `AuthoritativeEvidenceFresh` condition with the settled path that already refused to announce success beside unconfirmed evidence. A test drives both a lost mutation and a failed reconciliation and asserts the honest copy. |
+| The compatible-team search is a `.form-control` inside the decision area, but the 2.75rem minimum covered only buttons and selects, leaving Bootstrap's input default below the 44px phone target. | **Fixed.** `.place-decision .form-control` is included in the rule, and the narrow-viewport browser test now measures the rendered height. |
+| A lifecycle or authority change arriving while a save was in flight was dropped rather than deferred, so the previous posture's queue could stay rendered indefinitely after settlement. | **Fixed.** It is deferred with the discovery state, its evidence and in-flight reads are invalidated immediately, and every settlement path reconciles the boundary before applying a discovery state on top. A test holds a save open, closes the campaign, and asserts the previous rows are gone and the Closed evidence arrives. |
+| #255's boundary excludes service-contract and WASM-client changes, so the additive `MaxGraduationYear` filter needs either a foundation issue or a recorded scope amendment. | **Scope amendment recorded below**, rather than a foundation issue: the change is additive and its rejection alternative is worse, and the record carries what the amendment does and does not touch. |
+
+## Recorded scope amendment for #255
+
+#255's boundary said no service contracts or WASM clients, and a missing contract should become a
+foundation issue. This slice adds exactly one thing outside the UI, so the amendment is recorded here
+rather than left implicit in the diff:
+
+- **What and why.** `GetTeamRosterInput.MaxGraduationYear`, applied by `TeamRosterQueryService` as
+  `team.GraduationYear <= year`, emitted by `TeamRosterEndpoints.GetRosterUrl`, and validated by
+  `HttpTeamRosterService`. The surface needs it because the authoritative policy
+  (`CampaignPlacementPolicy`) treats a team's graduation year as the earliest year it accepts, so an
+  exact-year read hides valid teams and contradicts the policy the surface must not override.
+- **Why not a UI-only workaround.** Asking for every team and filtering in the component would consume the
+  documented cap with incompatible teams, so a valid team beyond the cap would become unreachable - the
+  exact defect the cap-and-search design exists to avoid. Omitting the year filter entirely has the same
+  failure. Neither is an honest fix.
+- **What it does not touch.** No entity, EF configuration, migration, route, endpoint, or existing caller
+  changes: the new property is optional and omitted by every existing caller, and the exact `GraduationYear`
+  filter keeps its meaning for team-management screens.
+- **What covers it.** `TeamRosterContractTests` (builder and validation), `HttpTeamRosterServiceTests`
+  (request URL, plus a 2xx row above the cutoff rejected as a server error), and `TeamRosterHttpTests`
+  (PostgreSQL cutoff semantics, and endpoint validation of an out-of-range value with trace correlation).
+
 
 ## Blocker: the comp comparison cannot pass for this surface
 
@@ -381,6 +410,9 @@ belongs to #254.
 - a discovery change raised during a save reaching the URL owner, and an unconfirmed save still applying
   the change it deferred
 - a lifecycle swap dropping the posture it replaced before the replacement read answers
+- an unconfirmed save whose reconciliation failed not claiming that the view was refreshed
+- a lifecycle change arriving while a save is in flight being deferred and reconciled once the save
+  settles, with the previous posture's evidence dropped immediately
 
 The shared contract change carries its own coverage: `Nova.Unit.Tests/Teams/TeamRosterContractTests.cs`
 asserts the builder emits the inclusive maximum and the input contract validates it with the same year
