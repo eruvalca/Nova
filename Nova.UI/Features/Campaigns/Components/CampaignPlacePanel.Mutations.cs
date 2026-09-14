@@ -122,7 +122,7 @@ public partial class CampaignPlacePanel
             _saving = false;
         }
 
-        await SettleAsync(saved);
+        await SettleAsync(saved, _draftOutcome);
     }
 
     /// <summary>
@@ -178,7 +178,7 @@ public partial class CampaignPlacePanel
     /// </summary>
     /// <param name="saved">Whether the mutation committed.</param>
     /// <returns>A task that completes when reconciliation finishes.</returns>
-    private async Task SettleAsync(bool saved)
+    private async Task SettleAsync(bool saved, PlacementOutcome recordedOutcome)
     {
         if (!saved)
         {
@@ -195,7 +195,7 @@ public partial class CampaignPlacePanel
 
         if (_queueError is null && !_queueStale && _selectedError is null)
         {
-            _saveMessage = "Placement saved.";
+            _saveMessage = DescribeSave(recordedOutcome);
         }
         else
         {
@@ -206,6 +206,14 @@ public partial class CampaignPlacePanel
 
         await ApplyPendingStateAsync();
     }
+
+    /// <summary>
+    /// Names what the save changed, because the destination's story is that the authoritative count moves.
+    /// </summary>
+    /// <param name="outcome">The outcome that was recorded, captured before reconciliation rebuilds the draft.</param>
+    /// <returns>The written success statement.</returns>
+    private string DescribeSave(PlacementOutcome outcome)
+        => $"Placement saved. {CampaignPlaceDisplay.OutcomeLabel(outcome)} · {SectionCount("NeedsPlacement")} need placement.";
 
     /// <summary>
     /// Enters the conflict posture: editing is blocked until an authoritative reload establishes the winner.

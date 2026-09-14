@@ -2479,7 +2479,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         placement.WaitForAssertion(() => placement.Markup.ShouldContain("Placement saved."));
         _ = Services.GetRequiredService<ICampaignPlacementService>().Received(1).UpdatePlacementAsync(
             Arg.Is<UpdateCampaignPlacementInput>(i => i.PlayerCampaignAssignmentId == 301 && i.Outcome == PlacementOutcome.NotSelected), Arg.Any<CancellationToken>());
-        placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Back to evaluation", StringComparison.Ordinal))
+        placement.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal))
             .GetAttribute("href")!.ShouldContain("evalParticipant=301");
     }
 

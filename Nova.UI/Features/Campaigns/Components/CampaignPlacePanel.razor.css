@@ -27,6 +27,11 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     min-width: 0;
     padding: 1rem;
     border-right: 1px solid var(--bs-border-color);
+    /* A bounded, scrollable rail: the queue must never stretch the board and push the working sheet out
+       of its company. Matches the shell's roster scroll region. */
+    max-height: min(60vh, 37.5rem);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
 }
 
 .place-sheet {
@@ -76,8 +81,16 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     font-weight: 650;
 }
 
+/* The lead count is the destination's headline; every other total is a quieter written line, so the
+   hierarchy is a scale difference rather than a color difference alone. */
 .place-section.leads .place-section-count {
     color: var(--bs-warning-text-emphasis);
+}
+
+.place-section:not(.leads) .place-section-count {
+    font-size: 0.875rem;
+    font-weight: 650;
+    color: var(--bs-secondary-color);
 }
 
 .place-stale,
@@ -183,15 +196,6 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     margin-bottom: 1rem;
 }
 
-.place-eyebrow {
-    margin: 0;
-    font-size: 0.75rem;
-    font-weight: 750;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bs-secondary-color);
-}
-
 .place-name {
     margin: 0;
     font-size: 1.25rem;
@@ -281,6 +285,12 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     align-items: flex-end;
 }
 
+/* Working controls keep the design system's 2.75rem minimum at every width, not only on phones. */
+.place-decision .btn,
+.place-decision .form-select {
+    min-height: 2.75rem;
+}
+
 .place-decision-note {
     margin: 0;
     font-size: 0.875rem;
@@ -325,6 +335,19 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
 
     .place-sheet {
         padding: 1rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    /* The phone field case: every control this panel owns keeps the design system's 2.75rem target. */
+    .place-field .btn,
+    .place-clear-filters {
+        min-height: 2.75rem;
+    }
+
+    .place-clear-filters {
+        padding: 0.5rem 0;
+        text-align: left;
     }
 }
 

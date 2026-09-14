@@ -23,6 +23,13 @@ public partial class CampaignPlacePanel
         var participantId = SelectedParticipantId;
         _appliedParticipantId = participantId;
 
+        // Every entry invalidates any in-flight selection read, including the branches that resolve without
+        // a server round trip. Otherwise a read started for a previous participant can land after the user
+        // selected someone else and quietly adopt the wrong row, which would record a decision against the
+        // participant the sheet no longer shows.
+        var request = ++_selectedRequestSequence;
+        _selectedLoading = false;
+
         if (participantId is null)
         {
             _selected = null;
@@ -36,11 +43,10 @@ public partial class CampaignPlacePanel
         if (!force && _queueError is null && !_queueStale
             && _queue?.Rows.FirstOrDefault(row => row.PlayerCampaignAssignmentId == participantId.Value) is { } onPage)
         {
-            await AdoptSelectionAsync(onPage);
+            await AdoptSelectionAsync(onPage, request);
             return;
         }
 
-        var request = ++_selectedRequestSequence;
         _selectedLoading = true;
         _selectedError = null;
         var row = await ReadSelectionAsync(participantId.Value, request);
@@ -56,7 +62,7 @@ public partial class CampaignPlacePanel
             return;
         }
 
-        await AdoptSelectionAsync(row);
+        await AdoptSelectionAsync(row, request);
     }
 
     /// <summary>
@@ -103,9 +109,19 @@ public partial class CampaignPlacePanel
     /// Adopts a resolved participant as the selection and loads the teams compatible with them.
     /// </summary>
     /// <param name="row">The resolved participant row.</param>
+    /// <param name="request">The selection request identifier that resolved the row.</param>
     /// <returns>A task that completes when the compatible team choices are loaded.</returns>
-    private async Task AdoptSelectionAsync(CampaignPlaceQueueRow row)
+    private async Task AdoptSelectionAsync(CampaignPlaceQueueRow row, int request)
     {
+        // Adopt only a row that still owns the selection: an obsolete read, a superseded request, or a row
+        // for a different participant must never replace what the sheet and the URL agree on.
+        if (request != _selectedRequestSequence
+            || ComponentCancellationToken.IsCancellationRequested
+            || row.PlayerCampaignAssignmentId != SelectedParticipantId)
+        {
+            return;
+        }
+
         _selected = row;
         _selectedError = null;
         ApplyDraftFromSelection();

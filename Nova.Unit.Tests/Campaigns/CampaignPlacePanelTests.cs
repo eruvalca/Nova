@@ -207,7 +207,7 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Applied tags"));
 
         cut.Markup.ShouldContain("Fast");
-        cut.FindAll("a").Single(a => string.Equals(a.TextContent, "Back to evaluation", StringComparison.Ordinal))
+        cut.FindAll("a").Single(a => string.Equals(a.TextContent, "Return to evaluation", StringComparison.Ordinal))
             .GetAttribute("href").ShouldBe("/campaigns/10?tab=evaluate&evalParticipant=301");
     }
 
@@ -307,11 +307,12 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
 
     private IEffectivePlacementQueryService RegisterServices(
         IReadOnlyList<CampaignEffectivePlacementItem>? rows = null,
-        bool queueProblem = false)
+        bool queueProblem = false,
+        int? totalCount = null)
     {
         _mutations = CreateMutationService();
         _teams = CreateTeamService();
-        var queries = CreateQueryService(rows ?? [CreateRow(301)], queueProblem);
+        var queries = CreateQueryService(rows ?? [CreateRow(301)], queueProblem, totalCount);
 
         Services.AddSingleton(queries);
         Services.AddSingleton(_mutations);
@@ -349,13 +350,14 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
 
     private IEffectivePlacementQueryService CreateQueryService(
         IReadOnlyList<CampaignEffectivePlacementItem> effectiveRows,
-        bool queueProblem)
+        bool queueProblem,
+        int? totalCount)
     {
         _effectiveRows = effectiveRows;
         var queries = Substitute.For<IEffectivePlacementQueryService>();
         var effectiveResult = queueProblem
             ? new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("boom"))
-            : new ServiceResult<CampaignEffectivePlacementsResult>(CreateEffectiveResult(effectiveRows, effectiveRows.Count));
+            : new ServiceResult<CampaignEffectivePlacementsResult>(CreateEffectiveResult(effectiveRows, totalCount ?? effectiveRows.Count));
 
         queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
             .Returns(call =>
@@ -422,7 +424,9 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
         bool canEdit = true,
         CampaignWorkspacePlacementState? state = null,
         string? evaluationReturnPath = null,
-        bool choicesLoadFailed = false)
+        bool choicesLoadFailed = false,
+        Action<CampaignWorkspacePlacementState>? onStateChanged = null,
+        Action<long?>? onSelectionChanged = null)
         => Render<CampaignPlacePanel>(parameters =>
         {
             parameters.Add(component => component.CampaignId, 10);
@@ -435,5 +439,14 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
             parameters.Add(component => component.GraduationYearChoices, (IReadOnlyList<int>)[2032]);
             parameters.Add(component => component.TagChoices, (IReadOnlyList<TagDefinitionDto>)[]);
             parameters.Add(component => component.CampaignTeamChoices, (IReadOnlyList<TeamRosterItem>)[]);
+            if (onStateChanged is not null)
+            {
+                parameters.Add(component => component.OnStateChanged, (CampaignWorkspacePlacementState next) => onStateChanged(next));
+            }
+
+            if (onSelectionChanged is not null)
+            {
+                parameters.Add(component => component.OnSelectionChanged, (long? id) => onSelectionChanged(id));
+            }
         });
 }

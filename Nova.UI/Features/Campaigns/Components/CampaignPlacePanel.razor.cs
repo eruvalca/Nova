@@ -1,4 +1,5 @@
 ﻿
+#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
 using Microsoft.AspNetCore.Components;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
@@ -45,6 +46,11 @@ public partial class CampaignPlacePanel(
     /// The fallback save-failure message shown when the server supplies no detail message.
     /// </summary>
     private const string SaveFailureFallbackMessage = "Failed to save this placement. Please retry.";
+
+    /// <summary>
+    /// The pause after the last keystroke before the search is applied, matching the Roster destination.
+    /// </summary>
+    private const int SearchDebounceMilliseconds = 350;
 
     /// <summary>
     /// The written read-only statement a Closed campaign shows in place of every mutation control.
@@ -240,6 +246,12 @@ public partial class CampaignPlacePanel(
     /// <summary>Indicates the conflict statement should take focus after the next render.</summary>
     private bool _shouldFocusConflict;
 
+    /// <summary>The search text the member is currently typing, owned here so a round trip cannot rewrite it.</summary>
+    private string _searchDraft = string.Empty;
+
+    /// <summary>The in-flight search debounce, cancelled by the next keystroke and on disposal.</summary>
+    private CancellationTokenSource? _searchDebounce;
+
     /// <summary>The conflict statement element that receives focus when a save is refused.</summary>
     private ElementReference _conflictBanner;
 
@@ -332,6 +344,15 @@ public partial class CampaignPlacePanel(
                 // The element left the DOM between render and focus; the statement is still announced.
             }
         }
+    }
+
+    /// <inheritdoc />
+    protected override ValueTask DisposeAsyncCore()
+    {
+        _searchDebounce?.Cancel();
+        _searchDebounce?.Dispose();
+        _searchDebounce = null;
+        return base.DisposeAsyncCore();
     }
 
     /// <summary>
@@ -436,12 +457,47 @@ public partial class CampaignPlacePanel(
     /// <summary>
     /// Applies a name-or-tryout-number search term.
     /// </summary>
-    /// <param name="search">The applied search term.</param>
+    /// <param name="search">The search term currently typed by the member.</param>
     /// <returns>A task that completes when the change is raised.</returns>
     private Task OnSearchChangedAsync(string search)
     {
         var trimmed = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         return ApplyStateAsync(_appliedState with { Search = trimmed, Page = 1 });
+    }
+
+    /// <summary>
+    /// Accepts a keystroke from the shared search field and raises the applied search once typing settles.
+    /// </summary>
+    /// <remarks>
+    /// The field is bound to this panel's own draft rather than to the applied value, because binding it to
+    /// the applied value lets a completed round trip rewrite the input mid-word. Debouncing keeps every
+    /// keystroke from costing a navigation, an authoritative read, and a browser history entry.
+    /// </remarks>
+    /// <param name="search">The search text currently typed by the member.</param>
+    /// <returns>A task that completes when the debounce settles.</returns>
+    private async Task OnSearchInputAsync(string search)
+    {
+        _searchDraft = search;
+        _searchDebounce?.Cancel();
+        _searchDebounce?.Dispose();
+        _searchDebounce = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        var source = _searchDebounce;
+        try
+        {
+            await Task.Delay(SearchDebounceMilliseconds, source.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keystroke, or the component departing, superseded this debounce.
+            return;
+        }
+
+        if (source.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await OnSearchChangedAsync(search);
     }
 
     /// <summary>

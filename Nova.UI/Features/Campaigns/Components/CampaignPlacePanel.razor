@@ -80,7 +80,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             <CampaignRosterFilters ShowEligibility="@(!IsClosed)"
                                    Eligibility="@SectionFilterValue"
                                    EligibilityCounts="@ActiveSectionCounts"
-                                   SearchText="@_appliedState.Search"
+                                   SearchText="@_searchDraft"
                                    GraduationYearChoices="GraduationYearChoices"
                                    SelectedGraduationYears="@_appliedState.GraduationYears"
                                    TagChoices="TagChoices"
@@ -89,7 +89,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                    TeamChoices="CampaignTeamChoices"
                                    TeamId="@_appliedState.TeamId"
                                    TeamChoicesTruncated="CampaignTeamChoicesTruncated"
-                                   OnSearchTextChanged="OnSearchChangedAsync"
+                                   OnSearchTextChanged="OnSearchInputAsync"
                                    OnEligibilityChanged="OnSectionChangedAsync"
                                    OnGraduationYearToggled="OnGraduationYearToggledAsync"
                                    OnTagToggled="OnTagToggledAsync"
@@ -146,6 +146,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     {
                         <li>
                             <button type="button"
+                                    id="@($"placement-row-{row.PlayerCampaignAssignmentId}")"
                                     class="place-row @(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "selected" : null)"
                                     aria-current="@(row.PlayerCampaignAssignmentId == SelectedParticipantId ? "true" : null)"
                                     disabled="@_saving"
@@ -207,13 +208,14 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                 }
 
                 <header class="place-identity">
-                    @if (_selected.TryoutNumber is { } tryout)
-                    {
-                        <p class="place-eyebrow">Tryout @tryout</p>
-                    }
                     <p class="place-name">@_selected.DisplayName</p>
                     <p class="place-identity-meta">
-                        Graduation @_selected.GraduationYear
+                        @if (_selected.TryoutNumber is { } tryout)
+                        {
+                            <span>Tryout @tryout</span>
+                            <span aria-hidden="true"> · </span>
+                        }
+                        <span>Graduation @_selected.GraduationYear</span>
                         @if (_selected.Eligibility is { } eligibility)
                         {
                             <span aria-hidden="true"> · </span>
@@ -222,33 +224,36 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     </p>
                     @if (EvaluationReturnPath is not null)
                     {
-                        <a class="place-return" href="@EvaluationReturnPath">Back to evaluation</a>
+                        <a class="place-return" href="@EvaluationReturnPath">Return to evaluation</a>
                     }
                 </header>
 
                 <dl class="place-evidence">
-                    <div>
-                        <dt>Effective season placement</dt>
-                        <dd>
-                            @if (_selected.EffectiveTeam is { } effectiveTeam)
-                            {
-                                <span>@effectiveTeam.TeamName</span>
-                                @if (_selected.EffectiveOutcome is { } effectiveOutcome)
+                    @if (!IsClosed)
+                    {
+                        <div>
+                            <dt>Effective season placement</dt>
+                            <dd>
+                                @if (_selected.EffectiveTeam is { } effectiveTeam)
                                 {
-                                    <small>@CampaignPlaceDisplay.OutcomeLabel(effectiveOutcome) · @_selected.EffectiveSourceCampaignName</small>
+                                    <span>@effectiveTeam.TeamName</span>
+                                    @if (_selected.EffectiveOutcome is { } effectiveOutcome)
+                                    {
+                                        <small>@CampaignPlaceDisplay.OutcomeLabel(effectiveOutcome) · @_selected.EffectiveSourceCampaignName</small>
+                                    }
                                 }
-                            }
-                            else if (_selected.EffectiveOutcome is { } inheritedOutcome)
-                            {
-                                <span>No effective team</span>
-                                <small>@CampaignPlaceDisplay.OutcomeLabel(inheritedOutcome) · @_selected.EffectiveSourceCampaignName</small>
-                            }
-                            else
-                            {
-                                <span>No effective season placement</span>
-                            }
-                        </dd>
-                    </div>
+                                else if (_selected.EffectiveOutcome is { } inheritedOutcome)
+                                {
+                                    <span>No effective team</span>
+                                    <small>@CampaignPlaceDisplay.OutcomeLabel(inheritedOutcome) · @_selected.EffectiveSourceCampaignName</small>
+                                }
+                                else
+                                {
+                                    <span>No effective season placement</span>
+                                }
+                            </dd>
+                        </div>
+                    }
                     <div>
                         <dt>This campaign's decision</dt>
                         <dd>

@@ -99,7 +99,11 @@ public partial class CampaignPlacePanel
         if (loaded is null)
         {
             // A failed load keeps whatever was already on screen but marks it stale, so an
-            // exact-looking total is never presented beside a read that did not answer.
+            // exact-looking total is never presented beside a read that did not answer. The applied
+            // lifecycle marker still advances: the posture was decided, and repeating the same failing
+            // read on every parameter pass would not make it succeed.
+            _appliedState = state;
+            _appliedStatus = status;
             _queueError = QueueFailureMessage;
             _queueStale = _queue is not null;
             return;
@@ -107,6 +111,7 @@ public partial class CampaignPlacePanel
 
         _appliedState = state;
         _appliedStatus = status;
+        _searchDraft = state.Search ?? string.Empty;
         _queue = loaded;
         _queueStale = false;
         PersistQueue();
@@ -230,8 +235,8 @@ public partial class CampaignPlacePanel
 
         var closed = result.Value;
 
-        var summary = await campaignPlacementQueries.GetPlacementSummaryAsync(
-            new GetCampaignPlacementSummaryInput { CampaignId = CampaignId }, ComponentCancellationToken);
+        var summary = await ReadSafelyAsync(() => campaignPlacementQueries.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = CampaignId }, ComponentCancellationToken));
         if (request != _queueRequestSequence || ComponentCancellationToken.IsCancellationRequested)
         {
             return null;
@@ -250,9 +255,9 @@ public partial class CampaignPlacePanel
     /// </summary>
     /// <param name="summary">The campaign-local outcome summary read, or <see langword="null"/> when it failed.</param>
     /// <returns>The written sections; unknown totals are omitted rather than shown as zero.</returns>
-    private static IReadOnlyList<CampaignPlaceSection> BuildClosedSections(ServiceResult<CampaignPlacementSummaryDto>? summary)
+    private static IReadOnlyList<CampaignPlaceSection> BuildClosedSections(ServiceResult<CampaignPlacementSummaryDto> summary)
     {
-        if (summary?.IsSuccess != true)
+        if (!summary.IsSuccess)
         {
             return [];
         }
