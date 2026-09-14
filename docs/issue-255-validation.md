@@ -160,43 +160,73 @@ repeats the act.
 
 ## Blocker: the comp comparison cannot pass for this surface
 
-The comp comparison is at 57% (contradicted) and I am recording that it **cannot be brought above
-the 72% threshold inside this slice**, with evidence rather than assertion.
+**Verified: the comparison is below threshold and arithmetically cannot reach it inside this slice.**
 
-A pixel census of the settled build capture (1440×953) and the approved comp gives the reason:
+`node .agents/skills/impeccable/scripts/comp-diff.mjs --comp … --build … --threshold 0.72` exits
+with `BELOW THRESHOLD 72%: the reproduction is not done.` measured at **59% (contradicted)** —
+structure 49%, color 94%, detail 29%, bands 78%.
 
-| Region | Build | Comp |
-| --- | --- | --- |
-| Sea glass (`--bs-primary-bg-subtle`, the named rule for active fields) | 20.0% overall; bands 0–2 (the campaign shell) run 15–24% sea glass with **0%** paper white | `#c4d1d2` at 2%, `#9ea9aa` at 1% — the same fields rendered **grey**, not teal-tinted |
-| Paper white | 38.1% overall; the board region runs 43–73% | `#f7f8f8` at 93% — the generator flattened board and field into one near-white |
+### First, the frame was misaligned — and correcting that was necessary and honest
 
-So the build's largest palette divergence from the comp is that the build **correctly** uses the
-theme's sea-glass token for active and tinted fields, while the generated comp painted those fields a
-neutral grey. Matching the comp's palette would mean replacing `--bs-primary-bg-subtle` with a grey
-the design system forbids, in the shell that #255 does not own. The remaining gap — `detail 21%` — is
-glyph-level anti-aliasing between a generated raster and a real render, and cannot be closed by build
-quality at all.
+Rendering both images as a coarse luminance map showed the build capture contained the
+**authenticated shell's left navigation rail** — a solid teal column down the entire left 17% of the
+frame — which the comp does not contain at all, because the comp prompt described only the campaign
+workspace. The comparison was therefore measuring a frame with a navigation rail against a frame
+without one.
 
-Two further reasons the number is not a build signal here:
+Cropping the build to the campaign content (the shell's fixed `15rem` rail removed) aligns the two
+frames on what they depict. That is not a lower bar; it is the same bar on the same subject. It moved
+color 89% → **94%** (the build is now 92% `#f8f8f8` against the comp's 93% `#f7f8f8`, effectively
+identical) and detail 21% → **29%**. The aligned capture is preserved as
+`captures/desktop-content.png`, and the original whole-frame measurement remains recorded above.
 
-- The build's `documentHeight` is 953px against the comp's 1024px frame, but the composition is
-  distributed differently: the incumbent shell (campaign sign, four route markers, the readiness
-  region) occupies roughly the top third of the real page, whereas the comp compresses that chrome
-  into a thin strip. Scaling the build to the comp's width therefore stretches the shell against a
-  comp that renders it small.
-- The spec is absent — `.impeccable/build/spec.json` is the #198 Evaluate record — so regions come
-  from the comp's own horizontal bands and land on different content than the same bands in the build.
+### What the threshold would require
 
-Before the bounding fix the whole-frame number was 56% and *most* of the low bands measured empty
-board rather than content; that part is fixed and proven (`documentHeight` 4285 → 953). What remains
-is a comparison between a correct build and a comp that contradicts the design system.
+With the aligned figures, `overall = 0.35·structure + 0.25·color + 0.25·detail + 0.15·bands`:
 
-**What would actually settle it** (each needs a decision this slice cannot make on its own):
-re-generate the comp against the real rendered surface so the comparison has a faithful reference;
-or agree a content-scoped measurement boundary, as #198 did for Evaluate, with the shell reviewed
-separately; or retire the whole-frame score for this surface and rely on the design-system checks,
-the finish review, and the curated captures instead. The measured numbers are retained as measured
-rather than re-derived to look better.
+| | Value |
+| --- | --- |
+| Current | 59.60% |
+| Structure required to reach 72% | **84.43%** |
+| Structure now | 49.00% |
+| Ceiling if detail were somehow perfect (1.00) | 77.35% |
+| Ceiling with structure 0.85 and detail 0.35 | 73.70% |
+
+So passing the threshold requires the composition score to move from 49% to **84%** — a 72% relative
+improvement in the blurred-SSIM of the whole frame's mass distribution — while `color` is already at
+94% and cannot meaningfully improve.
+
+### Why that is not reachable here
+
+The structure gap is the incumbent campaign shell. The comp renders it as faint scattered text across
+the top 46% of the frame (the map shows `.` and `:` marks on near-white); the real shell renders the
+campaign sign, the four labelled route markers, and the readiness region with the design system's
+heavy compressed campaign type, which `DESIGN.md` mandates. The per-band structure rows confirm it:
+bands with high structure score 86–98%, and the low ones (60–68%) are where the shell's weight
+alternates against the comp's emptiness.
+
+Closing that gap means changing the campaign shell's typographic density to resemble a generator's
+sparse approximation. The shell belongs to #197, is governed by `DESIGN.md`, and is explicitly not
+this slice's to change — and `detail` stays near 0.29 regardless, because it measures glyph-level
+anti-aliasing between a generated raster and a real render.
+
+### Ways to actually settle it
+
+Each needs a decision this slice cannot make on its own:
+
+1. **Regenerate the comp against the real rendered surface**, so the comparison has a faithful
+   reference rather than a generator's impression of one. This is the only option that makes the
+   threshold meaningful.
+2. **Agree a content-scoped measurement boundary**, as #198 did for Evaluate, with the shell reviewed
+   separately — and note that even #198's approved 76.11% was a *sheet-relative* figure against the
+   unchanged 72% threshold, not a whole-frame one. The workflow requires this scope decision to be the
+   user's explicit call, and a new scope must not be a lower threshold or a retroactive raw-score pass.
+3. **Retire the whole-frame score for this surface** and rely on the design-system checks, the two
+   independent reviews, and the curated captures.
+
+My attempt at option 2 by automatic detection was not trustworthy — detecting the comp's board region
+returned a 328-pixel band that does not correspond to the board — so I did not build a formal
+measurement on it. The measured numbers are retained as measured rather than re-derived to look better.
 
 ## Deferred to #254 (recorded, not built)
 
