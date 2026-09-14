@@ -72,6 +72,11 @@ The Aspire-backed suites provision their own AppHost through
 `DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>`, so no separately running
 AppHost is required; the suites were run serially.
 
+Every result above was produced at revision `a31c6d0f`, the current head, after the five Copilot review
+rounds. Those rounds changed `Nova.UI` and test code, so the earlier "changes after the tested revision
+are documentation only" statement no longer held and all three suites were re-run rather than carried
+forward. This record and the pull request body state the same numbers.
+
 ## Comp fidelity — measured, and not a pass
 
 `comp-diff` against the approved comp, run without a spec so regions come from the comp's own
