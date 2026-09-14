@@ -166,6 +166,12 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#place-outcome").FocusAsync();
         await Expect(page.Locator("#place-outcome")).ToBeFocusedAsync();
 
+        // The compatible-team search is a working control too, so the same minimum applies to it.
+        await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
+        var teamSearch = page.Locator("#place-team-search");
+        await Expect(teamSearch).ToBeVisibleAsync();
+        (await teamSearch.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
+
         await InteractionHelpers.ClickUntilAsync(page, back, () => IsVisibleAsync(page.Locator("a.place-row").First));
         await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
     }

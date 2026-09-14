@@ -23,6 +23,18 @@ public partial class CampaignPlacePanel
     private CampaignWorkspacePlacementState? _pendingState;
 
     /// <summary>
+    /// Whether a lifecycle or authority boundary arrived while a save was in flight and still needs its own
+    /// reconciliation.
+    /// </summary>
+    private bool _pendingPosture;
+
+    /// <summary>
+    /// Gets a value indicating whether the current lifecycle or authority scope differs from the applied one.
+    /// </summary>
+    private bool IsPostureChanged => _appliedStatus != CampaignStatus
+        || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal);
+
+    /// <summary>
     /// Gets a value indicating whether the drafted decision may be submitted.
     /// </summary>
     /// <remarks>
@@ -31,6 +43,15 @@ public partial class CampaignPlacePanel
     /// </remarks>
     private bool CanSave => CanRecordDecision && !_saving && _selected is not null && IsDraftDirty
         && (_draftOutcome != PlacementOutcome.Assigned || _draftTeamId is not null);
+
+    /// <summary>
+    /// Gets a value indicating whether the regions a decision is judged against hold freshly read evidence.
+    /// </summary>
+    /// <remarks>
+    /// Reconciliation can fail regionally, so a message may only claim the view was refreshed when the queue
+    /// and the selected participant's evidence were both re-read without a failure or a stale totals marker.
+    /// </remarks>
+    private bool AuthoritativeEvidenceFresh => _queueError is null && !_queueStale && _selectedError is null;
 
     /// <summary>
     /// Gets a value indicating whether the drafted decision is blocked by a missing team.
@@ -115,8 +136,10 @@ public partial class CampaignPlacePanel
 
             if (outcome == MutationOutcome.Unconfirmed)
             {
-                await ReconcileAsync();
-                _saveError = "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.";
+                var reconciled = await ReconcileAsync();
+                _saveError = reconciled && AuthoritativeEvidenceFresh
+                    ? "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again."
+                    : "The save could not be confirmed, and this view could not be refreshed. Check the placement against the server before saving again.";
 
                 // A discovery change deferred while the save was in flight still belongs to the URL, so it is
                 // applied here exactly as the settled paths apply it. Skipping it would leave the controls
@@ -254,7 +277,7 @@ public partial class CampaignPlacePanel
             return;
         }
 
-        if (_queueError is null && !_queueStale && _selectedError is null)
+        if (AuthoritativeEvidenceFresh)
         {
             _saveMessage = DescribeSave(recordedOutcome);
         }
@@ -345,6 +368,16 @@ public partial class CampaignPlacePanel
     /// <returns>A task that completes when the pending state has been applied.</returns>
     private async Task ApplyPendingStateAsync()
     {
+        // A lifecycle or authority boundary deferred during a save is reconciled first: it replaces every
+        // region, so applying a discovery state on top of it would read the new posture with the old scope.
+        if (_pendingPosture)
+        {
+            _pendingPosture = false;
+            ClearPostureEvidence();
+            await LoadInitialAsync();
+            return;
+        }
+
         if (_pendingState is { } pending)
         {
             _pendingState = null;

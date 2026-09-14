@@ -219,6 +219,63 @@ public sealed partial class CampaignPlacePanelTests
     }
 
     [Fact]
+    public async Task AnUnconfirmedSaveThatCouldNotBeRefreshedDoesNotClaimItWasAsync()
+    {
+        // The message is the only thing standing between an unknown outcome and the next decision, so it may
+        // only claim a refresh when the authoritative regions were actually re-read.
+        var queries = RegisterServices();
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
+
+        _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<PlacementMutationSuccess>>>(_ => throw new HttpRequestException("lost"));
+        queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("offline")));
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        await SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("could not be refreshed"));
+        cut.Markup.ShouldNotContain("This view was refreshed from the server");
+    }
+
+    [Fact]
+    public async Task ALifecycleChangeDuringASaveIsReconciledOnceTheSaveSettlesAsync()
+    {
+        // Closure and authority changes are deferred with the discovery state rather than dropped with it: the
+        // posture being left must not stay rendered behind a save that is still in flight.
+        var queries = RegisterServices(rows: [CreateRow(301)]);
+        var cut = RenderPanel(selectedParticipantId: 301);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery"));
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queries.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+                return new ServiceResult<ClosedCampaignRosterResult>(new ClosedCampaignRosterResult(
+                    new PlacementCampaignIdentity(10, "Summer Tryouts", CampaignStatus.Closed, new PlacementSeasonIdentity(5, "2026")),
+                    new PagedResult<ClosedCampaignRosterItem>([CreateClosedRow() with { FirstName = "Closed", LastName = "Evidence" }], 1, 50, 1))
+                {
+                    ParticipantCount = 1
+                });
+            });
+
+        await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
+        var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
+
+        ReRender(cut, new CampaignWorkspacePlacementState(), selectedParticipantId: 301, status: CampaignStatus.Closed);
+        cut.Markup.ShouldNotContain("Avery");
+
+        await cut.InvokeAsync(() => release.SetResult());
+        await save;
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Closed Evidence"));
+    }
+
+    [Fact]
     public void ReplacingAnExistingLocalDecisionStaysAvailable()
     {
         RegisterServices(rows:

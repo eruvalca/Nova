@@ -297,9 +297,11 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
     border-top: 1px solid var(--bs-border-color);
 }
 
-/* Working controls keep the design system's 2.75rem minimum at every width, not only on phones. */
+/* Working controls keep the design system's 2.75rem minimum at every width, not only on phones. The
+   compatible-team search is a working control too, and Bootstrap's input default sits below it. */
 .place-decision .btn,
-.place-decision .form-select {
+.place-decision .form-select,
+.place-decision .form-control {
     min-height: 2.75rem;
 }
 

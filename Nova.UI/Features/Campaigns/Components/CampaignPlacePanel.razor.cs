@@ -357,13 +357,10 @@ public partial class CampaignPlacePanel(
 
         if (_saving)
         {
-            // A discovery change that arrives mid-save is deferred rather than dropped, so browser
-            // back/forward during a save cannot orphan the in-flight mutation or lose the new state.
-            if (IsDiscoveryChanged)
-            {
-                _pendingState = State;
-            }
-
+            // A change that arrives mid-save is deferred rather than dropped, so browser back/forward during a
+            // save cannot orphan the in-flight mutation, lose the new state, or leave the previous posture's
+            // evidence rendered behind a save that is still settling.
+            DeferWhileSaving();
             return;
         }
 
@@ -375,8 +372,7 @@ public partial class CampaignPlacePanel(
         // A lifecycle or authority change swaps the authoritative read entirely: Active and Closed are
         // different endpoints with different shapes, so neither posture's retained evidence may stand in
         // for the other, and prior authority's evidence must not survive a re-authorization.
-        if (_appliedStatus != CampaignStatus
-            || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal))
+        if (IsPostureChanged)
         {
             ClearPostureEvidence();
             await LoadInitialAsync();
@@ -464,6 +460,28 @@ public partial class CampaignPlacePanel(
     /// <returns>The canonical query string.</returns>
     private static string QueryKey(CampaignWorkspacePlacementState state)
         => CampaignWorkspaceUrlState.BuildPlacementQueryString(state);
+
+    /// <summary>
+    /// Defers the parameter changes that arrived while a save holds the panel, dropping the evidence a
+    /// lifecycle or authority change replaces.
+    /// </summary>
+    /// <remarks>
+    /// Deferring is what keeps the URL, the rows, and the in-flight mutation consistent: the discovery state is
+    /// applied by every settlement path, and a posture boundary is reconciled in full once the save settles.
+    /// </remarks>
+    private void DeferWhileSaving()
+    {
+        if (IsDiscoveryChanged)
+        {
+            _pendingState = State;
+        }
+
+        if (IsPostureChanged)
+        {
+            _pendingPosture = true;
+            ClearPostureEvidence();
+        }
+    }
 
     /// <summary>
     /// Drops the evidence that belongs to the lifecycle or authority scope being left, and invalidates the
