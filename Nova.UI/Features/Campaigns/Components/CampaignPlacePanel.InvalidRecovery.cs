@@ -40,7 +40,8 @@ public partial class CampaignPlacePanel
             await RetryStorageAsync();
             if (OwnsOperation(owner, scope, generation) && _phase == PlacementPhase.Editing) { _stageFocusTarget = SelectedParticipantId is not null; }
         }
-        catch (JSException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is JSException or InvalidOperationException)
         {
             if (OwnsOperation(owner, scope, generation)) { _saveError = "Recovery data could not be discarded. Retry storage before continuing."; }
         }

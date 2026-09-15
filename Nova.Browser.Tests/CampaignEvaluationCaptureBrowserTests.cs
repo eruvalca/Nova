@@ -9,7 +9,7 @@ namespace Nova.Browser.Tests;
 /// <summary>Real Evaluate capture, independent navigation, authorship, and durable receipt recovery.</summary>
 /// <param name="fixture">The shared Aspire and Chromium fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
-public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fixture)
+public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fixture)
 {
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false)]

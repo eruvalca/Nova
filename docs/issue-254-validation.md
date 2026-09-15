@@ -632,3 +632,120 @@ command passed all seven checks after the update. All 1,169 source hashes remain
 `git diff --check` passed. No required checks were disabled or weakened. Earlier visual/comp
 limitations and optional browser skips remain recorded above. All three suites must run again
 before merge. Local round-6 logs remain under `.git/pr270-round6-*`.
+
+## PR review round 7
+
+Copilot review `5207922567` on `78c2cdfce28c3a620001eab8b34a382bbd0d00d3` contained
+no new inline comments and five suppressed findings. Four were actionable:
+
+- Invalid-data discard, settled-command cleanup, and expired-command cleanup now handle
+  `InvalidOperationException` as well as `JSException`. Cancellation and operation-ownership
+  checks still prevent obsolete completions from changing the current sheet. A cleanup failure
+  retains the pending command or invalid bytes, keeps editing blocked, and exposes retry.
+- Settlement cleanup retains the confirmed-save or definitive-rejection message; it no longer
+  falls into the outer pre-dispatch storage-failure message for an unavailable module.
+- An administrator eligible to supersede a prior withdrawal sees the deliberate action without
+  the contradictory message that recovery is unavailable. The stale XML summary was corrected.
+  Members without that capability still see the unavailable explanation; archived and local
+  withdrawal behavior remains covered by existing tests.
+
+The fifth finding is inapplicable: an all-zero GUID has no letters, so uppercasing it cannot
+bypass an ordinal equality check. The actual browser storage-contract probe already rejects that
+exact empty token, retains its bytes, exposes invalid recovery, and verifies explicit discard.
+No case-normalization or validator change was needed.
+
+New component coverage exercises both interop exception types after confirmed saves and durable
+rejections, verifies replay retains the exact operation and payload, and tests failed expired
+cleanup followed by retry without another mutation. Invalid-data discard gains the unavailable
+module case. The prior-withdrawal test now covers both available administrator supersession and
+unavailable ordinary-member posture. The real browser supersession test asserts the contradictory
+copy is absent before opening the controls and captures the corrected state on desktop and mobile
+when the existing `NOVA_PLACE_EVIDENCE` option is enabled.
+
+Independent reviewer `/root/recovery_review` inspected the complete change, ownership guards,
+regional reload handling, sibling cleanup paths, and tests, and reported no actionable findings.
+The finish reviewer requested fresh captures of this specific conditional state; round-four
+invalid-storage captures alone do not prove it. No material composition change or new whole-frame
+comp approval is claimed.
+
+Applied the previously read C#, Blazor, testing, API, tenancy, and UI guidance, `add-blazor-ui`
+with lifecycle/state and JS-interop references, `nova-testing` with Blazor/browser references,
+the .NET test-writing/run recipes, and the existing Impeccable direction and finish constraints.
+The existing guidance already requires truthful recovery, ownership checks, and behavioral
+verification of review findings; no additional instruction or skill is warranted by this round.
+
+The first build found test-only compile/analyzer errors: generic exception type inference,
+ordinal string comparison requirements, and synchronous event dispatch in an async test. These
+were corrected without suppressions or weakened checks; the failed log remains in
+`.git/pr270-round7-build.log` and is not passing evidence.
+
+The first full browser run had one failure: reassignment timed out waiting for the team selector
+after selecting Assigned (182 passed, one failed, seven optional capture skips; 5m44.094s).
+`OpenFirstPlacementAsync` proved only native navigation and an enabled prerendered field, so the
+change event could be sent before its handler attached. Independent review confirmed the mechanism
+and inspected all five callers. The shared helper now uses the existing Filters open/close
+handshake and reasserts the enabled outcome field; the correction-return caller's duplicate
+handshake was removed. No timeout, retry policy, or save/recovery assertion changed. The failed log
+is `.git/pr270-round7-browser.log` and is not accepted as passing evidence. Application source and
+assets remained fixed throughout that run; the helper was changed only after it exited.
+
+The second full browser run passed Place but failed the existing mobile Evaluate lookup case after
+Enter on a result link (182 passed, one failed, seven optional capture skips; 5m49.195s).
+Its unchanged focused rerun passed (one case, 43.665s). The failure snapshot retained the correct
+result link and search URL but no selected sheet. Inspection found that delayed `restoreFinder`
+unconditionally focused the search input even if the user had already focused a result link.
+That explains a possible race but the log lacks event/focus traces to prove that exact occurrence.
+
+Fixed the independently verified focus invariant: finder restoration now preserves a deliberately
+focused interactive descendant instead of stealing focus or scrolling it away. It still restores
+the finder when focus is outside the workspace or on the input itself. A deterministic real-browser
+module test verifies normal restoration, then focuses a result link and calls restoration in the
+same JavaScript turn, asserting that focus stays on the link before one Enter selects the player.
+The independent reviewer found this regression sound. Its first build required adding `partial`
+to the existing test class declaration; that mechanical error was corrected without suppressions.
+The failed full run remains `.git/pr270-round7-browser-final.log`; the diagnostic focused result is
+`.git/pr270-round7-evaluate-focused.log`. Neither replaces the required final full-browser gate.
+
+### Final round-7 verification
+
+Tested source: base `78c2cdfce28c3a620001eab8b34a382bbd0d00d3` plus the round-7 changes,
+identified by fingerprint `469a3d1714d0649ff868d1c9c4e53e635d3478b354419d3bd4c1a761c92b910a`
+(1,171 files). The PR body records the resulting commit. All hashes were verified unchanged after
+the final browser run. Documentation and capture curation do not alter those source inputs.
+
+- `dotnet build Nova.slnx`: final build passed (28.61s), three existing Sass import warnings.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: final run passed
+  3,364 cases, zero failed/skipped (43.220s).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-method '*SettledSaveCleanupFailureRetainsTheExactCommandAndTruthfulResultAsync' --filter-method '*ExpiredRecoveryCleanupFailureKeepsTheOperationBlockedAndRetryableAsync' --filter-method '*InvalidStorageRequiresExplicitDiscardAndFreshEvidenceAsync' --filter-method '*APriorCampaignWithdrawalRequiresAvailableAdministratorSupersession'`:
+  13 focused cases passed (2.133s).
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: all
+  620 passed, zero failed/skipped (3m14.929s). The later browser helper, Evaluate JS focus guard,
+  and browser-test-only changes did not alter integration inputs or server/HTTP/persistence code.
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-method '*PhoneLookupRequiresSelectionAndRepeatedCaptureKeepsEachPlayerOpenAsync' --filter-method '*FinderRestorationPreservesDeliberateResultLinkFocusAsync'`:
+  both cases passed (42.860s) after the focus guard.
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`, with
+  `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round7-captures`: final full run passed 184 cases,
+  zero failures, seven existing optional accessibility-capture skips (191 total; summary duration
+  5m37.945s). Place capture generation was enabled. All five shared-helper callers and the new
+  finder-focus regression are included. Earlier failed runs above remain separate evidence.
+- `dotnet format Nova.slnx --verify-no-changes`: passed. After later browser-only edits, these
+  follow-up checks also passed without diagnostics:
+  - `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignPlaceRecoveryBrowserTests.cs`
+  - `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs Nova.Browser.Tests/CampaignEvaluationFinderFocusBrowserTests.cs`
+- `npm run check:contrast` from `Nova/`: all ratios and compiled token assertions passed.
+- `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.js --json`:
+  no findings in the two changed files. The existing unrelated Evaluate build-state advisory remains.
+- `git diff --check`: passed; source and curated image checksums verified. No schema changed,
+  so the earlier migration-model evidence remains applicable.
+
+Build preceded tests; full unit runs were isolated, and all integration/browser runs were serialized
+across the machine. No source, generated asset, build, or format changes occurred during browser
+execution. No checks, assertions, or timeouts were weakened.
+
+The curated packet adds four supersession page/board captures and two geometry/source/checksum
+sidecars. The independent finish reviewer accepted the refreshed desktop/mobile evidence with
+**ship** for the conditional-copy correction, with the mobile board capture showing the action
+unobscured. The existing comp measurement and missing design-input limitations remain explicit;
+no new whole-surface comparison or approval is claimed. Independent code review also accepted the
+recovery changes, shared readiness correction, and deterministic finder-focus fix after resolving
+the test-class declaration finding. The one commit for this review round includes all dispositions.

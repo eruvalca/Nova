@@ -330,7 +330,7 @@ public partial class CampaignPlacePanel(
     /// <summary>
     /// Gets a value indicating whether the selected participant can still receive a decision in this
     /// campaign. Archived players and local withdrawals cannot be edited; unavailable prior withdrawals
-    /// require the separate administrator supersession workflow, which this slice does not expose.
+    /// require the deliberate administrator supersession action before opening decision controls.
     /// </summary>
     private bool IsDecisionAllowed => _selected is { } selected
         && selected.PlayerLifecycleStatus is null or LifecycleStatus.Active

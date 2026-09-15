@@ -68,6 +68,7 @@ public sealed partial class CampaignPlacePanelTests
     [InlineData("changed")]
     [InlineData("read-failed")]
     [InlineData("delete-failed")]
+    [InlineData("interop-unavailable")]
     public async Task InvalidStorageRequiresExplicitDiscardAndFreshEvidenceAsync(string outcome)
     {
         var queries = RegisterServices();
@@ -81,6 +82,7 @@ public sealed partial class CampaignPlacePanelTests
             string.Equals(outcome, "changed", StringComparison.Ordinal) ? pending : null, null));
         var delete = _placementStorage.Setup<bool>("discardInvalidPending", _ => true);
         if (string.Equals(outcome, "delete-failed", StringComparison.Ordinal)) { delete.SetException(new JSException("quota")); }
+        else if (string.Equals(outcome, "interop-unavailable", StringComparison.Ordinal)) { delete.SetException(new InvalidOperationException("circuit unavailable")); }
         else { delete.SetResult(!string.Equals(outcome, "changed", StringComparison.Ordinal)); }
         if (string.Equals(outcome, "read-failed", StringComparison.Ordinal))
         {

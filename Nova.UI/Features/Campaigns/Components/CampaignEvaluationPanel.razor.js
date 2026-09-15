@@ -75,6 +75,10 @@ export function focusSheet(root, owner, lease) {
 
 export function restoreFinder(root, finderOwner, input) {
     if (!root?.isConnected) return;
+    // Delayed attachment must not steal focus from a control the user already chose.
+    const active = document.activeElement;
+    if (active !== input && active instanceof HTMLElement && root.contains(active)
+        && active.matches('a[href], button, input, select, textarea, [tabindex]')) return;
     let saved = 0;
     try { saved = Number(sessionStorage.getItem(scrollKey(finderOwner))) || 0; } catch { /* Optional scroll restoration. */ }
     input?.focus({ preventScroll: true });

@@ -89,8 +89,18 @@ public sealed partial class CampaignPlaceBrowserTests
         await page.GotoAsync(route);
         var supersede = page.GetByRole(AriaRole.Button, new() { Name = "Supersede prior withdrawal", Exact = true });
         await Expect(supersede).ToBeVisibleAsync();
+        await Expect(page.Locator(".place-sheet")).Not.ToContainTextAsync("Administrator recovery of a prior-campaign withdrawal is not available here.");
         await Expect(page.Locator("#place-outcome")).ToHaveCountAsync(0);
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync(TotalText(-1));
+        if (Environment.GetEnvironmentVariable("NOVA_PLACE_EVIDENCE") is { Length: > 0 } directory)
+        {
+            await page.SetViewportSizeAsync(1440, 900);
+            await CaptureAsync(page, "withdrawal-supersession-desktop", directory, fullPage: true, seed.CampaignId);
+            await page.SetViewportSizeAsync(390, 844);
+            await Expect(supersede).ToBeVisibleAsync();
+            await CaptureAsync(page, "withdrawal-supersession-mobile", directory, fullPage: true, seed.CampaignId);
+            await page.SetViewportSizeAsync(1440, 900);
+        }
         await InteractionHelpers.ClickUntilAsync(page, supersede, () => IsEnabledAsync(page.Locator("#place-outcome")));
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.NotSelected));
         await SaveButton(page).ClickAsync();

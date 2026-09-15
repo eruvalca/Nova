@@ -115,7 +115,8 @@ public partial class CampaignPlacePanel
             _saveError = "The earlier save's result remains unknown; any new decision requires a deliberate save.";
             if (!fresh) { EnterConflict("Current placement changed during recovery. Review the latest placement before editing."); }
         }
-        catch (JSException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is JSException or InvalidOperationException)
         {
             if (OwnsOperation(owner, scope, generation)) { _saveError = "Recovery storage could not be cleared. Retry reviewing current placement."; }
         }

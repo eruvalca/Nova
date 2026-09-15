@@ -65,7 +65,6 @@ public sealed partial class CampaignPlaceBrowserTests
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
         await OpenFirstPlacementAsync(page, seed.CampaignId);
-        await AssertPlaceSearchAttachedAsync(page);
         await page.Locator("#roster-search").FillAsync("Player 01");
         await Expect(page.Locator("#roster-search")).ToHaveValueAsync("Player 01");
         await page.WaitForURLAsync(url => url.Contains("placementSearch=Player%2001", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });
@@ -209,6 +208,9 @@ public sealed partial class CampaignPlaceBrowserTests
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=place").ToString());
         await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
             () => IsEnabledAsync(page.Locator("#place-outcome")));
+        // Native row navigation and enabled prerendered fields do not prove @onchange is attached.
+        await AssertPlaceSearchAttachedAsync(page);
+        await Expect(page.Locator("#place-outcome")).ToBeEnabledAsync();
     }
 
     private static long SelectedAssignmentId(IPage page) => long.Parse(

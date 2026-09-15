@@ -1,6 +1,7 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Teams;
@@ -624,8 +625,10 @@ public sealed partial class CampaignPlacePanelTests
         cut.Markup.ShouldContain("withdrawn for the season");
     }
 
-    [Fact]
-    public void APriorCampaignWithdrawalOffersNoOrdinaryDecisionControls()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APriorCampaignWithdrawalRequiresAvailableAdministratorSupersession(bool canSupersede)
     {
         RegisterServices(rows:
         [
@@ -638,10 +641,25 @@ public sealed partial class CampaignPlacePanelTests
             }
         ]);
 
+        Services.GetRequiredService<IPlacementContextQueryService>()
+            .GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<PlacementContextResult>(new PlacementContextResult(301, null, [], null, canSupersede)));
         var cut = RenderPanel(selectedParticipantId: 301);
         cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
         cut.FindAll("#place-outcome, #place-team, .place-decision-actions").ShouldBeEmpty();
-        cut.Find(".place-sheet").TextContent.ShouldContain("Administrator recovery of a prior-campaign withdrawal is not available here.");
+        const string Unavailable = "Administrator recovery of a prior-campaign withdrawal is not available here.";
+        if (canSupersede)
+        {
+            cut.Find(".place-sheet").TextContent.ShouldNotContain(Unavailable);
+            cut.FindAll("button").Single(button => string.Equals(Collapse(button), "Supersede prior withdrawal", StringComparison.Ordinal)).Click();
+            cut.Find("#place-outcome").HasAttribute("disabled").ShouldBeFalse();
+            cut.Find(".place-sheet").TextContent.ShouldNotContain(Unavailable);
+        }
+        else
+        {
+            cut.Find(".place-sheet").TextContent.ShouldContain(Unavailable);
+            cut.FindAll("button").ShouldNotContain(button => string.Equals(Collapse(button), "Supersede prior withdrawal", StringComparison.Ordinal));
+        }
         _ = _mutations.DidNotReceive().UpdatePlacementAsync(
             Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
     }

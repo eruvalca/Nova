@@ -208,7 +208,8 @@ public partial class CampaignPlacePanel
     {
         // Clear only the matching persisted operation; a cleanup failure keeps it available for exact replay.
         try { await _storageModule!.InvokeVoidAsync("clearPending", ComponentCancellationToken, scope, input.OperationId); }
-        catch (Microsoft.JSInterop.JSException)
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is JSException or InvalidOperationException)
         {
             if (OwnsOperation(owner, scope, generation))
             {

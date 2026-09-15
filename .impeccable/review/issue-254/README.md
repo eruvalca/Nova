@@ -21,6 +21,7 @@ Final captures and geometry sidecars are recorded in `captures/`:
 | Expanded queue filters | [Desktop](captures/filters-desktop.png) | — |
 | History paging (review round 2) | [Desktop](captures/history-paging-desktop.png) | [Mobile](captures/history-paging-mobile.png) |
 | Invalid recovery data (review round 4) | [Desktop](captures/invalid-storage-desktop.png) | [Mobile](captures/invalid-storage-mobile.png), [controls in viewport](captures/invalid-storage-mobile-actions.png) |
+| Administrator withdrawal supersession (review round 7) | [Desktop](captures/withdrawal-supersession-desktop.png) | [Mobile](captures/withdrawal-supersession-mobile.png), [unobscured working sheet](captures/withdrawal-supersession-mobile-board.png) |
 
 The original `.json` sidecars record the viewport, document geometry, campaign ID, and board bounds.
 Their `-board.png` companions isolate the same board from the same running page.
@@ -38,6 +39,12 @@ content-sized controls, an 8px gap, 44px height, full labels, and mobile wrappin
 limited to that recovery-control fix.
 
 ## Review
+
+The review-round-7 captures show the deliberate administrator supersession action with readable
+prior-withdrawal evidence and no contradictory unavailable message. The full mobile page capture
+includes fixed navigation; the board capture shows the entire action unobscured. Sidecars identify
+the final source fingerprint, viewport geometry, and image checksums. Scoped finish disposition
+is **ship** for this conditional-copy correction; composition and comp-measurement limits are unchanged.
 
 Independent code findings and their fixes are recorded in the validation record.
 The independent finish review requested three material fixes: stacked/readable rail

@@ -70,3 +70,15 @@ Final disposition: **ship**, limited to the scored recovery-control fix; no visi
 was found. This adds a regional state within the retained composition. Existing missing
 quality-card/build-spec inputs and the comp-measurement limitation remain unchanged; no new
 whole-surface or quantitative approval is claimed.
+
+## PR review round 7 — administrator supersession copy
+
+Initial disposition: **recapture**. Existing invalid-storage images did not show the newly corrected
+conditional state. Four targeted desktop/mobile page and board captures now show the deliberate
+supersession action, complete label, distinct historical/current campaign evidence, and absence of
+the contradictory unavailable explanation. The mobile board capture keeps the action unobscured.
+
+The independent reviewer inspected the refreshed captures and reported no remaining material fixes
+or visible regression. Final disposition: **ship**, limited to this conditional-copy correction.
+The shared composition, tokens, and styling are unchanged. This does not establish a new whole-surface
+or quantitative comp approval; the documented measurement and missing-input limitations remain.

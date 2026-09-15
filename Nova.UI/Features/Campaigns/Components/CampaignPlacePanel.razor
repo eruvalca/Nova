@@ -464,7 +464,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                         </div>
                     </div>
                 }
-                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed)
+                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed && _context?.CanSupersedeWithdrawal != true)
                 {
                     @* Terminal here, so the controls are absent rather than offered and refused. *@
                     <p class="place-readonly" role="status">@DecisionUnavailableReason</p>
