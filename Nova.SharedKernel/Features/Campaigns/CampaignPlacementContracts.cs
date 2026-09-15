@@ -6,7 +6,16 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// Reports the concurrency token after a placement save succeeds. An identical save returns the submitted token; a meaningful mutation returns a replacement.
 /// </summary>
 /// <param name="ConcurrencyToken">The token callers must use for the next mutation.</param>
-public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
+public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken)
+{
+    /// <summary>Gets immutable proof of the original operation, independent of current placement.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public required PlacementMutationReceipt Receipt { get; init; }
+}
+
+/// <summary>Proof of one committed save, including a successful no-op.</summary>
+public sealed record PlacementMutationReceipt(Guid OperationId, long PlayerCampaignAssignmentId,
+    CampaignSavedPlacementDecision Decision, DateTimeOffset CommittedAt, DateTimeOffset RecoveryExpiresAt);
 
 /// <summary>
 /// Bounded placement roster row for a campaign participant. Carries every persisted field needed to

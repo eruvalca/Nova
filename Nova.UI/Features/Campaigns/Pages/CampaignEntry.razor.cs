@@ -102,9 +102,12 @@ public partial class CampaignEntry(
     private string? _previousReview;
 
     /// <summary>Local Players correction link returning to this Draft.</summary>
-    private string PlayersUrl => $"/players?returnToDraft={CampaignId}";
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? CorrectionReturn { get; set; }
+    private string? CorrectionDestination => Nova.UI.Common.CorrectionReturnContext.Normalize(CorrectionReturn);
+    private string CorrectionQuery => CorrectionDestination is { } destination ? $"&returnUrl={Uri.EscapeDataString(destination)}" : string.Empty;
+    private string PlayersUrl => $"/players?returnToDraft={CampaignId}{CorrectionQuery}";
     /// <summary>Local Teams correction link returning to this Draft.</summary>
-    private string TeamsUrl => $"{ClubRoutes.Teams}?returnToDraft={CampaignId}";
+    private string TeamsUrl => $"{ClubRoutes.Teams}?returnToDraft={CampaignId}{CorrectionQuery}";
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()

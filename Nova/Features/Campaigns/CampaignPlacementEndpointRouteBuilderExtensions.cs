@@ -36,6 +36,11 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.UpdateCampaignPlacementRouteName);
 
+            group.MapGet(PlacementContextEndpoints.Relative, GetPlacementContextAsync)
+                .Produces<PlacementContextResult>().ProducesValidationProblem()
+                .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(500)
+                .RequireAuthorization(Policies.RequireClubMember).WithName("GetPlacementContext");
+
             group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandlerAsync)
                 .Produces<PagedResult<CampaignPlacementRosterItem>>()
                 .ProducesValidationProblem()
@@ -91,7 +96,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
     private static async Task<IResult> UpdateCampaignPlacementHandlerAsync(
         long playerCampaignAssignmentId,
         UpdateCampaignPlacementInput input,
-        CampaignPlacementService placementService,
+        ICampaignPlacementService placementService,
         CancellationToken cancellationToken)
     {
         // Ensure the route parameter and body agree on the target participation.
@@ -137,4 +142,8 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
         var result = await campaignPlacementQueryService.GetPlacementSummaryAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
+
+    private static async Task<IResult> GetPlacementContextAsync([AsParameters] GetPlacementContextInput input,
+        IPlacementContextQueryService service, CancellationToken cancellationToken)
+        => (await service.GetContextAsync(input, cancellationToken)).ToHttpResult();
 }

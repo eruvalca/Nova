@@ -16,6 +16,12 @@ public partial class CampaignRosterFilters
 {
     private bool _expanded = true;
 
+    /// <summary>Uses a collapsed, stacked filter shelf for a narrow working queue.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => _expanded = !Compact;
+
     /// <summary>
     /// Gets or sets a value indicating whether every discovery control is unavailable.
     /// </summary>

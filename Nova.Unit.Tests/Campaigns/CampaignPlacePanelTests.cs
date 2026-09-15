@@ -20,6 +20,19 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed partial class CampaignPlacePanelTests : BunitContext
 {
+    private readonly BunitJSModuleInterop _placementStorage;
+
+    public CampaignPlacePanelTests()
+    {
+        _placementStorage = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js");
+        _placementStorage.Mode = JSRuntimeMode.Loose;
+        var context = Substitute.For<IPlacementContextQueryService>();
+        context.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceResult<PlacementContextResult>(new PlacementContextResult(
+                call.Arg<GetPlacementContextInput>().PlayerCampaignAssignmentId, null, [], null, false)));
+        Services.AddSingleton(context);
+    }
+
     // ── Queue truth ────────────────────────────────────────────────────────────
 
     [Fact]
@@ -345,7 +358,7 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
     {
         var mutations = Substitute.For<ICampaignPlacementService>();
         mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(_replacementToken)));
+            .Returns(call => new ServiceResult<PlacementMutationSuccess>(PlacementTestReceipts.Success(call.Arg<UpdateCampaignPlacementInput>(), _replacementToken)));
         return mutations;
     }
 

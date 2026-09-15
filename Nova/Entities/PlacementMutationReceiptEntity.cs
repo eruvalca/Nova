@@ -17,6 +17,18 @@ internal class PlacementMutationReceiptEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>Gets or sets the token originally returned by this request.</summary>
     public required Guid ConcurrencyToken { get; set; }
 
+    /// <summary>Gets or sets the actor authorized to recover this operation.</summary>
+    public long ActorUserId { get; set; }
+
+    /// <summary>Gets or sets the exact request fingerprint.</summary>
+    public required string RequestSha256 { get; set; }
+
+    /// <summary>Gets or sets the immutable committed result or definitive rejection.</summary>
+    public required string ResultJson { get; set; }
+
+    /// <summary>Gets or sets the exclusive recovery deadline.</summary>
+    public DateTimeOffset RecoveryExpiresAt { get; set; }
+
     /// <summary>Gets or sets the tenant snapshot without a foreign key so commit proof survives club deletion.</summary>
     public required long ClubId { get; set; }
 }

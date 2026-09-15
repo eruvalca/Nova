@@ -188,6 +188,7 @@ internal static class ActivityEventWriter
             ClubId = clubId,
             CampaignId = campaignId,
             EventKind = kind,
+            PlayerId = (context as PlacementContext)?.PlayerId,
             IsAdminOnly = ActivityEventPolicy.IsAdminOnly(kind),
             ActorUserId = actorUserId,
             ActorDisplayName = actorDisplayName,

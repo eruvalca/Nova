@@ -46,7 +46,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
                 seed.AssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                seed.ConcurrencyToken),
+                seed.ConcurrencyToken, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
@@ -95,6 +95,9 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
                 CreatedById = actorUserId
             };
             context.Clubs.Add(club);
+            await context.SaveChangesAsync(cancellationToken);
+
+            context.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Placement", LastName = "Member" });
             await context.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

@@ -16,6 +16,51 @@ public sealed class HttpCampaignPlacementServiceTests
 {
     private const long AssignmentId = 42;
     private const long TeamId = 7;
+    private static readonly Guid _operationId = Guid.CreateVersion7();
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("receipt")]
+    [InlineData("operation")]
+    [InlineData("participant")]
+    [InlineData("decision")]
+    [InlineData("decisionParticipant")]
+    [InlineData("decisionToken")]
+    [InlineData("outcome")]
+    [InlineData("team")]
+    [InlineData("actor")]
+    [InlineData("deadline")]
+    public async Task MalformedReceiptNeverConfirmsSaveAsync(string field)
+    {
+        var input = ValidInput(Guid.NewGuid());
+        var node = System.Text.Json.JsonSerializer.SerializeToNode(PlacementTestReceipts.Success(input, Guid.NewGuid()))!;
+        switch (field)
+        {
+            case "receipt": node.AsObject().Remove("Receipt"); break;
+            case "operation": node["Receipt"]!["OperationId"] = Guid.CreateVersion7().ToString(); break;
+            case "participant": node["Receipt"]!["PlayerCampaignAssignmentId"] = 99; break;
+            case "decision": node["Receipt"]!["Decision"] = null; break;
+            case "decisionParticipant": node["Receipt"]!["Decision"]!["PlayerCampaignAssignmentId"] = 99; break;
+            case "decisionToken": node["Receipt"]!["Decision"]!["ConcurrencyToken"] = Guid.NewGuid().ToString(); break;
+            case "outcome": node["Receipt"]!["Decision"]!["Outcome"] = (int)PlacementOutcome.NotSelected; break;
+            case "team": node["Receipt"]!["Decision"]!["TeamId"] = 99; break;
+            case "actor": node["Receipt"]!["Decision"]!["ActorDisplayName"] = " "; break;
+            case "deadline": node["Receipt"]!["RecoveryExpiresAt"] = DateTimeOffset.MinValue; break;
+            default: throw new ArgumentOutOfRangeException(nameof(field));
+        }
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        using var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignPlacementService(http).UpdatePlacementAsync(input, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        PlacementMutationRejection.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
+    }
+
 
     private sealed class FakeHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {
@@ -42,7 +87,7 @@ public sealed class HttpCampaignPlacementServiceTests
         var newToken = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new PlacementMutationSuccess(newToken))
+            Content = JsonContent.Create(PlacementTestReceipts.Success(ValidInput(expectedToken), newToken))
         };
         using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -67,7 +112,7 @@ public sealed class HttpCampaignPlacementServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new PlacementMutationSuccess(Guid.Empty))
+            Content = JsonContent.Create(PlacementTestReceipts.Success(ValidInput(Guid.NewGuid()), Guid.Empty))
         };
         using var httpHandler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(httpHandler, disposeHandler: false)
@@ -92,7 +137,7 @@ public sealed class HttpCampaignPlacementServiceTests
         var expectedToken = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new PlacementMutationSuccess(expectedToken))
+            Content = JsonContent.Create(PlacementTestReceipts.Success(ValidInput(expectedToken), expectedToken))
         };
         using var httpHandler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(httpHandler, disposeHandler: false)
@@ -278,5 +323,5 @@ public sealed class HttpCampaignPlacementServiceTests
     /// <param name="expectedConcurrencyToken">The token observed when the placement was loaded.</param>
     /// <returns>The valid input.</returns>
     private static UpdateCampaignPlacementInput ValidInput(Guid expectedConcurrencyToken)
-        => new(AssignmentId, PlacementOutcome.Assigned, TeamId, expectedConcurrencyToken);
+        => new(AssignmentId, PlacementOutcome.Assigned, TeamId, expectedConcurrencyToken, _operationId);
 }

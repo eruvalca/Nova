@@ -557,9 +557,11 @@ public partial class CampaignWorkspace(
     protected override async Task OnInitializedAsync()
     {
         ApplyInitialQueryState();
+        authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        var authenticationVersion = ++_authenticationVersion;
 
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (ComponentCancellationToken.IsCancellationRequested)
+        if (ComponentCancellationToken.IsCancellationRequested || authenticationVersion != _authenticationVersion)
         {
             return;
         }
@@ -645,6 +647,8 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        ++_authenticationVersion;
         ++_requestSequence;
         ++_detailSequence;
         ++_choiceSequence;

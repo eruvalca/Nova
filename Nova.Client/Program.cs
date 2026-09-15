@@ -75,6 +75,7 @@ builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplic
 builder.Services.AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>();
 builder.Services.AddScoped<ICampaignEvaluationQueryService, HttpCampaignEvaluationQueryService>();
 builder.Services.AddScoped<ICampaignPlacementService, HttpCampaignPlacementService>();
+builder.Services.AddScoped<IPlacementContextQueryService, HttpPlacementContextQueryService>();
 builder.Services.AddScoped<ICampaignLifecycleService, HttpCampaignLifecycleService>();
 builder.Services.AddScoped<ITagDefinitionService, HttpTagDefinitionService>();
 builder.Services.AddScoped<ITagDefinitionQueryService, HttpTagDefinitionQueryService>();

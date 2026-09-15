@@ -1,6 +1,7 @@
 ﻿
 #pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Tags;
@@ -30,8 +31,17 @@ public partial class CampaignPlacePanel(
     IEffectivePlacementQueryService placementQueries,
     ICampaignPlacementService placementService,
     ICampaignPlacementQueryService campaignPlacementQueries,
-    ITeamRosterService teamRosterService) : NovaComponentBase
+    ITeamRosterService teamRosterService,
+    IPlacementContextQueryService contextQueries,
+    IJSRuntime js,
+    NavigationManager navigation) : NovaComponentBase
 {
+    /// <summary>The stable actor and club storage scope, independent of changing roles.</summary>
+    [Parameter] public string? RecoveryScope { get; set; }
+    /// <summary>Whether administrator management links may be shown.</summary>
+    [Parameter] public bool IsClubAdmin { get; set; }
+    /// <summary>Whether the workspace's latest authority read failed.</summary>
+    [Parameter] public bool AuthorityLoadFailed { get; set; }
     /// <summary>
     /// The documented cap passed to the team roster query for the bounded compatible-team choices.
     /// </summary>
@@ -268,7 +278,7 @@ public partial class CampaignPlacePanel(
     private Guid? _draftToken;
 
     /// <summary>Indicates a placement save is in flight.</summary>
-    private bool _saving;
+    private bool _saving => _phase is PlacementPhase.Submitting or PlacementPhase.Reconciling;
 
     /// <summary>The success announcement shown after an authoritative save.</summary>
     private string? _saveMessage;
@@ -280,7 +290,7 @@ public partial class CampaignPlacePanel(
     private string? _conflictMessage;
 
     /// <summary>Indicates a refusal that requires an authoritative reload before further editing.</summary>
-    private bool _conflictActive;
+    private bool _conflictActive => _phase == PlacementPhase.ConflictReview;
 
     /// <summary>Indicates the conflict statement should take focus after the next render.</summary>
     private bool _shouldFocusConflict;
@@ -321,13 +331,16 @@ public partial class CampaignPlacePanel(
     /// </summary>
     private bool IsDecisionAllowed => _selected is { } selected
         && selected.PlayerLifecycleStatus is null or LifecycleStatus.Active
-        && selected.Eligibility != EffectivePlacementEligibility.Unavailable
+        && (selected.Eligibility != EffectivePlacementEligibility.Unavailable || (_decisionOpened && _context?.CanSupersedeWithdrawal == true))
         && selected.LocalOutcome != PlacementOutcome.Withdrawn;
 
     /// <summary>
     /// Gets a value indicating whether the decision controls are editable.
     /// </summary>
-    private bool CanRecordDecision => CanEditPlacements && !IsClosed && !_conflictActive && IsDecisionAllowed;
+    private bool CanRecordDecision => CanEditPlacements && !IsClosed && !AuthorityLoadFailed
+        && !_conflictActive && _pendingCommand is null && IsDecisionAllowed
+        && AuthoritativeEvidenceFresh && !_selectedLoading && !_queueLoading
+        && (_selected?.Eligibility != EffectivePlacementEligibility.OptionalReassignment || _decisionOpened);
 
     /// <summary>
     /// Gets the written reason a selected participant cannot receive a decision here.
@@ -366,6 +379,13 @@ public partial class CampaignPlacePanel(
             _searchDebounce?.Dispose();
             _searchDebounce = null;
             _searchDraft = _appliedState.Search ?? string.Empty;
+        }
+
+        if (Initialized && IsPostureChanged)
+        {
+            ClearPostureEvidence();
+            await LoadInitialAsync();
+            return;
         }
 
         if (_saving)
@@ -410,6 +430,12 @@ public partial class CampaignPlacePanel(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        await AttachRecoveryAsync();
+        if (_focusConfirmation && _confirmationHeading.Context is not null)
+        {
+            _focusConfirmation = false;
+            await _confirmationHeading.FocusAsync();
+        }
         // On viewports where the queue and the sheet are staged, a selection transition hides the stage the
         // member was focused in, so focus has to move to the stage that replaced it.
         if (!firstRender && _stageFocusTarget is { } focusSheet)
@@ -447,12 +473,20 @@ public partial class CampaignPlacePanel(
     }
 
     /// <inheritdoc />
-    protected override ValueTask DisposeAsyncCore()
+    protected override async ValueTask DisposeAsyncCore()
     {
         _searchDebounce?.Cancel();
         _searchDebounce?.Dispose();
         _searchDebounce = null;
-        return base.DisposeAsyncCore();
+        if (_storageModule is not null)
+        {
+            try { await _storageModule.DisposeAsync(); }
+            catch (Microsoft.JSInterop.JSDisconnectedException)
+            {
+                // Circuit teardown already destroyed the browser module.
+            }
+        }
+        await base.DisposeAsyncCore();
     }
 
     /// <summary>
@@ -534,6 +568,20 @@ public partial class CampaignPlacePanel(
     /// </remarks>
     private void ClearPostureEvidence()
     {
+        InvalidateDecision();
+        ++_operationGeneration;
+        ++_storageGeneration;
+        _attachingStorage = null;
+        _reconciling = false;
+        _keepOperationId = null;
+        _phase = PlacementPhase.Editing;
+        _pendingCommand = null;
+        _storageReady = false;
+        _storageOwner = null;
+        _context = null;
+        _contextRequest++;
+        if (!string.Equals(_settledScope, StorageScope, StringComparison.Ordinal)) { _saveMessage = null; }
+        _saveError = null;
         _queue = null;
         _queueError = null;
         _queueStale = false;
@@ -632,8 +680,9 @@ public partial class CampaignPlacePanel(
     /// </summary>
     private void ApplyDraftFromSelection()
     {
+        InvalidateDecision();
         _draftOutcome = _selected?.LocalOutcome ?? PlacementOutcome.Undecided;
-        _draftTeamId = _selected?.LocalDecision?.TeamId;
+        _draftTeamId = _selected?.CorrectionReason is PlacementCorrectionReason.None ? _selected.LocalDecision?.TeamId : null;
         _draftToken = _selected?.ConcurrencyToken;
         _saveError = null;
     }

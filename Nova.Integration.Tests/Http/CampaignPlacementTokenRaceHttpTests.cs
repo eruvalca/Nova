@@ -105,7 +105,7 @@ new Uri(ClubEndpoints.PromoteMemberUrl(secondUserId), UriKind.RelativeOrAbsolute
                 seeded.AssignmentIds[0],
                 PlacementOutcome.Assigned,
                 teamId,
-                expectedToken),
+                expectedToken, operationId: Guid.CreateVersion7()),
             cancellationToken);
 #pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var secondRequest = secondClient.PutAsJsonAsync(
@@ -115,7 +115,7 @@ new Uri(ClubEndpoints.PromoteMemberUrl(secondUserId), UriKind.RelativeOrAbsolute
                 seeded.AssignmentIds[0],
                 PlacementOutcome.Withdrawn,
                 teamId: null,
-                expectedToken),
+                expectedToken, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         try

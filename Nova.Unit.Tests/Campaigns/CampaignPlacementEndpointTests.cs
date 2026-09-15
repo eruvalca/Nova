@@ -32,11 +32,12 @@ public sealed class CampaignPlacementEndpointTests
     public async Task CampaignPlacementEndpointRequiresClubMemberAndDisablesAntiforgeryAsync()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(_ => new CampaignPlacementService(
+        builder.Services.AddSingleton<ICampaignPlacementService>(_ => new CampaignPlacementService(
             Substitute.For<IDbContextFactory<NovaDbContext>>(),
             Substitute.For<ICurrentUserProvider>(),
             NullLogger<CampaignPlacementService>.Instance));
         builder.Services.AddSingleton<ICampaignPlacementQueryService>(_ => Substitute.For<ICampaignPlacementQueryService>());
+        builder.Services.AddSingleton<IPlacementContextQueryService>(_ => Substitute.For<IPlacementContextQueryService>());
         await using var app = builder.Build();
 
         app.MapCampaignPlacementEndpoints();
@@ -64,7 +65,7 @@ public sealed class CampaignPlacementEndpointTests
     public async Task ToHttpResultReturnsOkWithConcurrencyTokenForSuccessAsync()
     {
         var token = Guid.NewGuid();
-        PlacementUpdateResult result = new PlacementMutationSuccess(token);
+        PlacementUpdateResult result = PlacementTestReceipts.Success(new UpdateCampaignPlacementInput(42, Nova.SharedKernel.Enums.PlacementOutcome.NotSelected, null, Guid.NewGuid(), Guid.CreateVersion7()), token);
 
         var httpContext = await ExecuteAsync(result);
 

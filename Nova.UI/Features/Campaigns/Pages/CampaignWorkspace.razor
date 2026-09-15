@@ -237,6 +237,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                                                 SelectedParticipantId="PlacementParticipantQuery"
                                                 EvaluationReturnPath="@(ReturnToEvaluationQuery == true ? EvaluationUrl : null)"
                                                 CanEditPlacements="@_canEditPlacements" State="@_placementState"
+                                                RecoveryScope="@_captureScope" IsClubAdmin="@_isClubAdmin" AuthorityLoadFailed="@(_pageError is not null)"
                                                 GraduationYearChoices="_availableGraduationYears" TagChoices="_availableTags"
                                                 CampaignTeamChoices="_availableTeams" CampaignTeamChoicesTruncated="_teamChoicesTruncated"
                                                 CampaignTeamSearch="_teamSearch" OnCampaignTeamSearchChanged="OnTeamSearchChangedAsync"

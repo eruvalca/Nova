@@ -1,0 +1,63 @@
+{
+  "captureTool": "Microsoft.Playwright screenshot via CampaignPlaceBrowserTests.CaptureSettledPlaceSurfaceForEvidenceAsync",
+  "sourceBase": "e6b1f382cefb5176ff509685df6554970a8fd1c8",
+  "note": "Reviewed packet from the focused Place run; final full-suite captures are separate in .git/issue254-final-captures. Application source is unchanged.",
+  "images": [
+    {
+      "file": "confirmation-desktop-board.png",
+      "sha256": "1faa8234b530f42198d19c00299ea762c694138bcfda80b16691aa980fa07a0c"
+    },
+    {
+      "file": "confirmation-desktop.png",
+      "sha256": "1ff85745b888635a7a53d2784d73dc842ea376b328f538b58cd044748b920c78"
+    },
+    {
+      "file": "confirmation-mobile-board.png",
+      "sha256": "23da1664c3d66f5d77de37d2ac52a8744df9c3d4483c8dca95ca0e2ac2b7f7af"
+    },
+    {
+      "file": "confirmation-mobile.png",
+      "sha256": "afe59d8902eea526c278674355afe2ff5e61d289eccbd795f3e1acfb4b01dc9c"
+    },
+    {
+      "file": "desktop-board.png",
+      "sha256": "b44e73a19cb5c4dbf20825f237550bfc4a26d30372bdaab08abf6a68533c51df"
+    },
+    {
+      "file": "desktop.png",
+      "sha256": "6b6683697ad75499bc6ba05daa50f8c3d87608c91fa120e9f756b63bddbf4f5c"
+    },
+    {
+      "file": "filters-desktop-board.png",
+      "sha256": "c3c4d0f152fc981e42ee1a69fcfe56d85316d7e4bc8c92e70bca2afb65cf1193"
+    },
+    {
+      "file": "filters-desktop.png",
+      "sha256": "bf9b7e3fc8dab14efb53b9123933beff0e7014c161f8534d327e4878b2986013"
+    },
+    {
+      "file": "mobile-board.png",
+      "sha256": "bbe84ba8b16be440b2758d21d6ec8097c4ca698af569554c5745d7cbffd99521"
+    },
+    {
+      "file": "mobile.png",
+      "sha256": "216e2b956134ddba654f4cf886a2dcf9006b9ad40fac4eaa66c566d8cdb88ab2"
+    },
+    {
+      "file": "outcome-unknown-desktop-board.png",
+      "sha256": "eb3ba2508313454c120f218a23086b5d565fb9fc7d3b089b03d4fc7c52218a82"
+    },
+    {
+      "file": "outcome-unknown-desktop.png",
+      "sha256": "56497cd6aba71548d94a88411a71f41698656c7024c21bbda485574fc79e1103"
+    },
+    {
+      "file": "outcome-unknown-mobile-board.png",
+      "sha256": "04b4f13c734377f9a384036443e0b8fbebee2cfb4d3d34e353e62f75677fb82f"
+    },
+    {
+      "file": "outcome-unknown-mobile.png",
+      "sha256": "cd4b5508aa6a3f71efe4bb7eaf7a0f8b6ddbdcc09e3aff327fa9274268816895"
+    }
+  ]
+}

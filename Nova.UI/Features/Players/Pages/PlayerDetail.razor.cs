@@ -360,22 +360,7 @@ public partial class PlayerDetail(
     /// <param name="returnUrl">The incoming return URL query value.</param>
     /// <returns>A safe local path for the roster back link.</returns>
     private static string NormalizeReturnUrl(string? returnUrl)
-    {
-        if (string.IsNullOrWhiteSpace(returnUrl))
-        {
-            return "/players";
-        }
-
-        var candidate = returnUrl.Trim();
-        if (!Uri.IsWellFormedUriString(candidate, UriKind.Relative)
-            || candidate.StartsWith("//", StringComparison.Ordinal)
-            || candidate.StartsWith("\\\\", StringComparison.Ordinal))
-        {
-            return "/players";
-        }
-
-        return candidate.StartsWith('/') ? candidate : $"/{candidate}";
-    }
+        => Nova.UI.Common.CorrectionReturnContext.Normalize(returnUrl) ?? "/players";
 
     /// <summary>
     /// Builds a safe inline CSS style string for one current-trait badge.

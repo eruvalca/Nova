@@ -370,3 +370,38 @@ semantic `--bs-*` tokens; no raw hex belongs in this file.
         width: 100%;
     }
 }
+.place-history,
+.place-confirmation,
+.place-recovery {
+    border-top: 1px solid var(--bs-border-color);
+    padding-block: 1rem;
+    margin-top: 1rem;
+}
+
+.place-history h3 {
+    font-size: 1rem;
+    font-weight: 650;
+}
+
+.place-history-list {
+    padding-left: 1.25rem;
+}
+
+.place-history-list li {
+    margin-bottom: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.place-history-list small {
+    display: block;
+}
+
+.place-confirmation p {
+    font-weight: 650;
+}
+
+.place-history button,
+.place-confirmation button,
+.place-recovery button {
+    min-height: 2.75rem;
+}

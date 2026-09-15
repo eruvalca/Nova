@@ -2607,6 +2607,12 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         ICampaignCloseoutQueryService? readinessQueryService = null,
         AuthenticationStateProvider? authenticationStateProvider = null)
     {
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js").Mode = JSRuntimeMode.Loose;
+        var placementContext = Substitute.For<IPlacementContextQueryService>();
+        placementContext.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceResult<PlacementContextResult>(new PlacementContextResult(
+                call.Arg<GetPlacementContextInput>().PlayerCampaignAssignmentId, null, [], null, false)));
+        Services.AddSingleton(placementContext);
         if (campaignQueryService is null)
         {
             campaignQueryService = Substitute.For<ICampaignQueryService>();
@@ -2668,8 +2674,8 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         {
             placementService = Substitute.For<ICampaignPlacementService>();
             placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
-                    new PlacementMutationSuccess(Guid.NewGuid()))));
+                .Returns(call => Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                    PlacementTestReceipts.Success(call.Arg<UpdateCampaignPlacementInput>(), Guid.NewGuid()))));
         }
 
         campaignMetadataService ??= Substitute.For<ICampaignMetadataService>();

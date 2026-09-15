@@ -45,6 +45,9 @@ public class ActivityEventEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public long? CampaignId { get; set; }
 
+    /// <summary>Gets or sets the loose player snapshot used for bounded placement history.</summary>
+    public long? PlayerId { get; set; }
+
     /// <summary>
     /// Gets or sets the identifier of the user who performed the action (a loose snapshot key).
     /// </summary>

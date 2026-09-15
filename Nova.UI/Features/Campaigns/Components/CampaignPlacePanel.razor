@@ -24,11 +24,11 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
     {
         <div class="alert alert-warning place-conflict" role="alert" tabindex="-1" @ref="_conflictBanner">
             <div class="place-conflict-copy">
-                <strong>The placement changed before this save was applied.</strong>
-                <span>@_conflictMessage Nobody was overwritten. Reload to see the current placement.</span>
+                <strong>Review current placement</strong>
+                <span>@_conflictMessage</span>
             </div>
             <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_reconciling" @onclick="ReloadAfterConflictAsync">
-                Close and reload
+                Review latest placement
             </button>
         </div>
     }
@@ -41,6 +41,22 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
     @if (_saveError is not null)
     {
         <p class="alert alert-danger place-status" role="alert">@_saveError</p>
+    }
+
+    @if (_pendingCommand is not null)
+    {
+        <div class="place-recovery" role="status">
+            <span>Your original save request is retained. Recover it to confirm what happened.</span>
+            <button type="button" class="btn btn-outline-primary" disabled="@(_saving || !_storageReady)" @onclick="RecoverSaveAsync">Recover save</button>
+            @if (_recoveryExpired)
+            {
+                <button type="button" class="btn btn-outline-secondary" disabled="@_saving" @onclick="ReviewExpiredSaveAsync">Review current placement</button>
+            }
+        </div>
+    }
+    @if (!_storageReady && !IsClosed)
+    {
+        <button type="button" class="btn btn-outline-secondary" disabled="@_saving" @onclick="RetryStorageAsync">Retry storage</button>
     }
 
     @if (IsClosed)
@@ -77,7 +93,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                 </p>
             }
 
-            <CampaignRosterFilters ShowEligibility="@(!IsClosed)"
+            <CampaignRosterFilters Compact="true" ShowEligibility="@(!IsClosed)"
                                    Disabled="@(_saving || _queueLoading)"
                                    Eligibility="@SectionFilterValue"
                                    EligibilityCounts="@ActiveSectionCounts"
@@ -144,6 +160,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             }
             else
             {
+                <nova-place-scroll data-key="@($"{StorageScope}:{QueryKey(State)}")">
                 <ul class="place-rows" aria-label="Participants">
                     @foreach (var row in _queue.Rows)
                     {
@@ -173,6 +190,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                         </li>
                     }
                 </ul>
+                </nova-place-scroll>
 
                 <CampaignRosterPager Page="_queue.Page" PageSize="_queue.PageSize" TotalCount="_queue.TotalCount"
                                      Disabled="@(_saving || _queueLoading)" OnPageChanged="OnPageChangedAsync" />
@@ -254,6 +272,10 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                 {
                                     <span>No effective season placement</span>
                                 }
+                                @if (_selected.EffectiveDecision is { } effectiveDecision)
+                                {
+                                    <small>@CampaignPlaceDisplay.AttributionLabel(effectiveDecision)</small>
+                                }
                             </dd>
                         </div>
                     }
@@ -293,7 +315,36 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     </ul>
                 }
 
-                @if (CanRecordDecision)
+                    @if (_context?.PreviousPlacement is { } previous)
+                    {
+                        <p>Previous placement · @previous.Season.Name · @(previous.Source.Team?.TeamName ?? "Team unavailable")</p>
+                        @if (previous.CanKeep && CanRecordDecision)
+                        {
+                            <button type="button" class="btn btn-outline-primary" disabled="@(_saving || !_storageReady)" @onclick="KeepPreviousTeamAsync">Keep on @previous.Source.Team?.TeamName</button>
+                        }
+                    }
+                @if (!_decisionOpened && !_saving && _pendingCommand is null && CanEditPlacements && !IsClosed && AuthoritativeEvidenceFresh)
+                {
+                    @if (_selected.Eligibility == EffectivePlacementEligibility.OptionalReassignment)
+                    {
+                        <button type="button" class="btn btn-outline-primary" @onclick="BeginDecision">Reassign player</button>
+                    }
+                    else if (_context?.CanSupersedeWithdrawal == true)
+                    {
+                        <button type="button" class="btn btn-outline-primary" @onclick="BeginDecision">Supersede prior withdrawal</button>
+                    }
+                }
+                @if (_phase == PlacementPhase.Confirming)
+                {
+                    <section class="place-confirmation" aria-label="Confirm placement change">
+                        <p tabindex="-1" @ref="_confirmationHeading">@ConfirmationText</p>
+                        <div class="place-decision-actions">
+                            <button type="button" class="btn btn-primary" @onclick="ConfirmChangeAsync">Confirm change</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelConfirmation">Keep current placement</button>
+                        </div>
+                    </section>
+                }
+                @if ((CanRecordDecision || (_saving && !IsClosed && CanEditPlacements)) && _phase != PlacementPhase.Confirming)
                 {
                     <div class="place-decision">
                         <div class="place-decision-control">
@@ -305,8 +356,8 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                                     <option value="Undecided" selected disabled>No campaign decision yet</option>
                                 }
                                 <option value="Assigned">Assigned</option>
-                                <option value="NotSelected">Not selected</option>
-                                <option value="Withdrawn">Withdrawn</option>
+                                <option value="NotSelected">Not selected for this campaign</option>
+                                <option value="Withdrawn">Withdrawn for this season</option>
                             </select>
                         </div>
 
@@ -407,6 +458,42 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     <p class="place-readonly" role="status">@DecisionUnavailableReason</p>
                 }
 
+                <section class="place-history" aria-label="Placement history">
+                    <h3>Placement history</h3>
+                    @if (_contextLoading)
+                    {
+                        <p role="status">Loading placement history...</p>
+                    }
+                    else if (_contextError is not null)
+                    {
+                        <p role="alert">@_contextError</p>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => LoadContextAsync()">Retry history</button>
+                    }
+                    @if (_context is { History.Count: > 0 } context)
+                    {
+                        <ul class="place-history-list">
+                            @foreach (var change in context.History)
+                            {
+                                <li><strong>@change.CampaignName</strong> · @CampaignPlaceDisplay.OutcomeLabel(change.Outcome) @(change.TeamName)
+                                    @if (change.PreviousOutcome is { } before)
+                                    {
+                                        <span> · Previously @CampaignPlaceDisplay.OutcomeLabel(before) @(change.PreviousTeamName)</span>
+                                    }
+                                    <small>@change.ActorDisplayName · @change.OccurredAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</small>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else if (_context is not null)
+                    {
+                        <p>No recorded placement changes in this view.</p>
+                    }
+                    @if (_context?.NextEventId is not null)
+                    {
+                        <button type="button" class="btn btn-outline-secondary" disabled="@_contextLoading" @onclick="() => LoadContextAsync(more: true)">Earlier changes</button>
+                    }
+                </section>
+
                 @* Every selected participant must have an in-surface way back to the queue. On narrow
                    viewports the queue is hidden while a sheet is open, so a read-only member or a Closed
                    campaign would otherwise be stranded on the sheet. *@
@@ -416,6 +503,10 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     <a class="btn btn-outline-secondary" href="@ClearSelectionUrl">Back to placements</a>
                 </div>
 
+                @if (IsClubAdmin && !IsClosed)
+                {
+                    <p><a href="@TeamsCorrectionUrl">Manage teams</a></p>
+                }
                 <p class="place-player-link">
                     <a href="@BuildPlayerLink(_selected)">Open player record</a>
                 </p>

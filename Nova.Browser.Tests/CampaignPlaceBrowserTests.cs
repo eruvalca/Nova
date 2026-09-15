@@ -15,7 +15,7 @@ namespace Nova.Browser.Tests;
 /// </remarks>
 /// <param name="fixture">The serial Aspire browser fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
-public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
+public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
     public async Task MemberRecordsADecisionAndTheAuthoritativeQueueAndTotalsMoveAsync()
@@ -205,12 +205,14 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         // The second member's stale save is refused rather than overwriting the winner.
         await secondPage.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Withdrawn));
         await InteractionHelpers.ClickUntilAsync(secondPage, SaveButton(secondPage),
-            () => IsVisibleAsync(secondPage.Locator(".place-conflict")));
-        await Expect(secondPage.Locator(".place-conflict")).ToContainTextAsync("Nobody was overwritten");
+            () => secondPage.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true }).IsVisibleAsync());
+        await secondPage.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true }).ClickAsync();
+        await Expect(secondPage.Locator(".place-conflict")).ToBeVisibleAsync();
+        await Expect(secondPage.Locator(".place-conflict")).ToContainTextAsync("Review current placement");
         await Expect(secondPage.Locator("#place-outcome")).ToHaveCountAsync(0);
 
         // Reloading re-establishes authoritative state and shows the winner.
-        var reload = secondPage.GetByRole(AriaRole.Button, new() { Name = "Close and reload", Exact = true });
+        var reload = secondPage.GetByRole(AriaRole.Button, new() { Name = "Review latest placement", Exact = true });
         await InteractionHelpers.ClickUntilAsync(secondPage, reload,
             () => IsEnabledAsync(secondPage.Locator("#place-outcome")));
         await Expect(secondPage.Locator(".place-evidence")).ToContainTextAsync("Not selected");
@@ -283,11 +285,17 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#place-team").SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "desktop", directory, fullPage: true, seed.CampaignId);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeVisibleAsync();
+        await CaptureAsync(page, "filters-desktop", directory, fullPage: true, seed.CampaignId);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeHiddenAsync();
 
         await page.SetViewportSizeAsync(390, 844);
         await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
         await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "mobile", directory, fullPage: true, seed.CampaignId);
+        await CapturePlacementConfirmationAndRecoveryAsync(page, directory, seed.CampaignId);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

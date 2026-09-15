@@ -16,16 +16,19 @@ public sealed record UpdateCampaignPlacementInput
     /// <param name="outcome">The new placement outcome.</param>
     /// <param name="teamId">The assigned team identifier, required only for an assigned outcome.</param>
     /// <param name="expectedConcurrencyToken">The token observed when the placement was loaded.</param>
+    /// <param name="operationId">The retained identity of this exact logical command.</param>
     public UpdateCampaignPlacementInput(
         long playerCampaignAssignmentId,
         PlacementOutcome outcome,
         long? teamId,
-        Guid expectedConcurrencyToken)
+        Guid expectedConcurrencyToken,
+        Guid operationId)
     {
         PlayerCampaignAssignmentId = playerCampaignAssignmentId;
         Outcome = outcome;
         TeamId = teamId;
         ExpectedConcurrencyToken = expectedConcurrencyToken;
+        OperationId = operationId;
     }
 
     /// <summary>
@@ -53,6 +56,10 @@ public sealed record UpdateCampaignPlacementInput
     /// </summary>
     [NotEmptyGuid(ErrorMessage = "A concurrency token is required.")]
     public Guid ExpectedConcurrencyToken { get; init; }
+
+    /// <summary>Gets the UUIDv7 retained with the original payload across HTTP retries.</summary>
+    [NotEmptyGuid]
+    public Guid OperationId { get; init; }
 }
 
 /// <summary>

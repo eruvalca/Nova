@@ -1,6 +1,6 @@
-﻿
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
@@ -8,369 +8,297 @@ using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Campaigns.Components;
 
-/// <summary>
-/// Records, reconciles, and recovers the selected participant's campaign-local placement decision.
-/// </summary>
-/// <remarks>
-/// There is exactly one mutation path here. The surface presents the participant's local concurrency token,
-/// adopts the replacement token the server returns, and then re-reads the queue, the unfiltered section totals,
-/// and the selected participant's evidence authoritatively. It never applies the submitted values as truth and
-/// never re-derives eligibility on the client.
-/// </remarks>
+/// <summary>Owns the single confirm, dispatch, replay and reconcile placement path.</summary>
 public partial class CampaignPlacePanel
 {
-    /// <summary>The discovery state requested while a save was in flight, applied once the save settles.</summary>
+    private enum PlacementPhase { Editing, Confirming, Submitting, OutcomeUnknown, Reconciling, ConflictReview }
+    private PlacementPhase _phase;
+    private int _operationGeneration;
     private CampaignWorkspacePlacementState? _pendingState;
-
-    /// <summary>
-    /// Whether a lifecycle or authority boundary arrived while a save was in flight and still needs its own
-    /// reconciliation.
-    /// </summary>
     private bool _pendingPosture;
-
-    /// <summary>
-    /// Gets a value indicating whether the current lifecycle or authority scope differs from the applied one.
-    /// </summary>
+    private UpdateCampaignPlacementInput? _confirmation;
+    private UpdateCampaignPlacementInput? _pendingCommand;
+    private bool _decisionOpened;
+    private Guid? _keepOperationId;
+    private bool _recoveryExpired;
+    private bool _focusConfirmation;
+    private ElementReference _confirmationHeading;
+    private string? _confirmationOwner;
+    private string? _settledScope;
     private bool IsPostureChanged => _appliedStatus != CampaignStatus
         || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal);
+    private bool AuthoritativeEvidenceFresh => _queue is not null && _queueError is null && !_queueStale
+        && !_queueRowsStale && _selectedError is null && !AuthorityLoadFailed;
+    private bool CanSave => CanRecordDecision && _storageReady && !_saving && _selected is not null
+        && _phase == PlacementPhase.Editing && IsDraftDirty && _draftOutcome != PlacementOutcome.Undecided
+        && (_draftOutcome != PlacementOutcome.Assigned || (_draftTeamId is not null && !_teamChoicesLoading
+            && _teamChoicesError is null && VisibleTeamChoices.Any(t => t.TeamId == _draftTeamId && !t.Unavailable)));
+    private bool IsMissingTeamForAssignment => _draftOutcome == PlacementOutcome.Assigned && _draftTeamId is null
+        && _teamChoicesError is null && _compatibleTeams.Count > 0;
 
-    /// <summary>
-    /// Gets a value indicating whether the drafted decision may be submitted.
-    /// </summary>
-    /// <remarks>
-    /// <c>Assigned</c> without a team is an invalid state, so the submit is blocked rather than dispatched
-    /// and refused; the written reason is rendered beside the decision controls.
-    /// </remarks>
-    private bool CanSave => CanRecordDecision && !_saving && _selected is not null && IsDraftDirty
-        && (_draftOutcome != PlacementOutcome.Assigned || _draftTeamId is not null);
+    private void InvalidateDecision()
+    {
+        _confirmation = null;
+        _confirmationOwner = null;
+        _decisionOpened = false;
+        if (_phase == PlacementPhase.Confirming) { _phase = PlacementPhase.Editing; }
+    }
 
-    /// <summary>
-    /// Gets a value indicating whether the regions a decision is judged against hold freshly read evidence.
-    /// </summary>
-    /// <remarks>
-    /// Reconciliation can fail regionally, so a message may only claim the view was refreshed when the queue
-    /// and the selected participant's evidence were both re-read without a failure or a stale totals marker.
-    /// </remarks>
-    private bool AuthoritativeEvidenceFresh => _queueError is null && !_queueStale && _selectedError is null;
+    private void BeginDecision()
+    {
+        if (_saving || _pendingCommand is not null || IsClosed || !CanEditPlacements || !AuthoritativeEvidenceFresh) { return; }
+        _decisionOpened = true;
+        _draftOutcome = PlacementOutcome.Assigned;
+        _draftTeamId = _selected?.EffectiveTeam?.TeamId;
+    }
 
-    /// <summary>
-    /// Gets a value indicating whether the drafted decision is blocked by a missing team.
-    /// </summary>
-    private bool IsMissingTeamForAssignment => _draftOutcome == PlacementOutcome.Assigned
-        && _draftTeamId is null
-        && _teamChoicesError is null
-        && _compatibleTeams.Count > 0;
-
-    /// <summary>
-    /// Applies a drafted outcome, clearing the team whenever the draft leaves <c>Assigned</c>.
-    /// </summary>
-    /// <param name="args">The change event carrying the drafted outcome token.</param>
-    /// <returns>A completed task.</returns>
     private Task OnDraftOutcomeChangedAsync(ChangeEventArgs args)
     {
-        if (!Enum.TryParse<PlacementOutcome>(args.Value?.ToString(), ignoreCase: true, out var outcome)
-            || outcome == PlacementOutcome.Undecided)
-        {
-            // Undecided is technical participation, not a decision the mutation accepts, so it can never be
-            // drafted as a submitted outcome.
-            return Task.CompletedTask;
-        }
-
+        if (!CanRecordDecision || _saving || !Enum.TryParse<PlacementOutcome>(args.Value?.ToString(), true, out var outcome)
+            || !Enum.IsDefined(outcome) || outcome == PlacementOutcome.Undecided) { return Task.CompletedTask; }
+        _confirmation = null;
+        _phase = PlacementPhase.Editing;
         _draftOutcome = outcome;
-        if (outcome != PlacementOutcome.Assigned)
-        {
-            // Assigned without a team and a team without Assigned are both invalid states, so leaving
-            // Assigned clears the drafted team rather than leaving a stale selection behind.
-            _draftTeamId = null;
-        }
-
+        if (outcome != PlacementOutcome.Assigned) { _draftTeamId = null; }
         _saveError = null;
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Applies a drafted compatible team.
-    /// </summary>
-    /// <param name="args">The change event carrying the drafted team identifier.</param>
-    /// <returns>A completed task.</returns>
     private Task OnDraftTeamChangedAsync(ChangeEventArgs args)
     {
-        _draftTeamId = long.TryParse(args.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var teamId)
-            && teamId > 0
-            ? teamId
-            : null;
+        if (!CanRecordDecision || _saving) { return Task.CompletedTask; }
+        _confirmation = null;
+        _phase = PlacementPhase.Editing;
+        _draftTeamId = long.TryParse(args.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            && VisibleTeamChoices.Any(t => t.TeamId == id && !t.Unavailable) ? id : null;
         _saveError = null;
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Records the drafted decision against the selected participant's local concurrency token.
-    /// </summary>
-    /// <returns>A task that completes when the mutation and its reconciliation finish.</returns>
     private async Task SaveAsync()
     {
-        if (!CanSave || _selected is not { } selected || _draftToken is not { } token)
+        if (!CanSave || _selected is not { } selected || _draftToken is not { } token) { return; }
+        _keepOperationId = null;
+        var input = new UpdateCampaignPlacementInput(selected.PlayerCampaignAssignmentId, _draftOutcome,
+            _draftOutcome == PlacementOutcome.Assigned ? _draftTeamId : null, token, Guid.CreateVersion7());
+        if (_draftOutcome == PlacementOutcome.Withdrawn || selected.LocalDecision is not null || selected.EffectiveDecision is not null)
         {
+            _confirmation = input;
+            _confirmationOwner = EffectiveOwner;
+            _phase = PlacementPhase.Confirming;
+            _focusConfirmation = true;
             return;
         }
+        await DispatchAsync(input);
+    }
 
-        if (_draftOutcome == PlacementOutcome.Assigned && _draftTeamId is null)
+    private async Task ConfirmChangeAsync()
+    {
+        if (_phase != PlacementPhase.Confirming || _confirmation is not { } input || !CanRecordDecision
+            || input.PlayerCampaignAssignmentId != _selected?.PlayerCampaignAssignmentId
+            || input.ExpectedConcurrencyToken != _draftToken || !string.Equals(_confirmationOwner, EffectiveOwner, StringComparison.Ordinal)) { return; }
+        _confirmation = null;
+        await DispatchAsync(input);
+    }
+
+    private void CancelConfirmation()
+    {
+        _confirmation = null;
+        _phase = PlacementPhase.Editing;
+        ApplyDraftFromSelection();
+        _stageFocusTarget = true;
+    }
+
+    private string ConfirmationText
+    {
+        get
         {
-            _saveError = "Choose a team for an assigned participant.";
-            return;
+            var name = _selected?.DisplayName;
+            var team = VisibleTeamChoices.FirstOrDefault(t => t.TeamId == _confirmation?.TeamId)?.Name;
+            var prior = _selected?.EffectiveTeam?.TeamName ?? _selected?.LocalTeam?.TeamName;
+            var teamSuffix = team is null ? string.Empty : $" on {team}";
+            if (_draftOutcome == PlacementOutcome.Withdrawn)
+            {
+                return $"Withdraw {name} for this season? This decision is final in this campaign.";
+            }
+            if (_context?.CanSupersedeWithdrawal == true)
+            {
+                return $"Make {name} available again and record {CampaignPlaceDisplay.OutcomeLabel(_draftOutcome)}{teamSuffix}? The earlier campaign remains unchanged.";
+            }
+            if (_draftOutcome == PlacementOutcome.Assigned && prior is not null)
+            {
+                return $"Move {name} from {prior} to {team}?";
+            }
+            return $"Change {name} to {CampaignPlaceDisplay.OutcomeLabel(_draftOutcome)}{teamSuffix} for this campaign?";
         }
+    }
 
-        _saving = true;
+    private async Task DispatchAsync(UpdateCampaignPlacementInput input)
+    {
+        if (_saving || !_storageReady || _storageModule is null) { return; }
+        var owner = EffectiveOwner;
+        var scope = StorageScope;
+        var generation = ++_operationGeneration;
+        _phase = PlacementPhase.Submitting;
         _saveError = null;
         _saveMessage = null;
-
         try
         {
-            var input = new UpdateCampaignPlacementInput(
-                selected.PlayerCampaignAssignmentId,
-                _draftOutcome,
-                _draftOutcome == PlacementOutcome.Assigned ? _draftTeamId : null,
-                token);
-
-            var outcome = await SendMutationAsync(input);
-
-            if (outcome == MutationOutcome.Unconfirmed)
+            await _storageModule.InvokeVoidAsync("writePending", ComponentCancellationToken, scope, input);
+            if (!OwnsOperation(owner, scope, generation)) { return; }
+            _pendingCommand = input;
+            await SendPendingAsync(input, owner, scope, generation);
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is Microsoft.JSInterop.JSException or InvalidOperationException)
+        {
+            if (OwnsOperation(owner, scope, generation))
             {
-                var reconciliation = await ReconcileAsync();
-
-                // A discovery change deferred while the save was in flight still belongs to the URL, so it is
-                // applied here exactly as the settled paths apply it. It is applied before the message is
-                // chosen, so the words describe what the member is actually looking at.
-                await ApplyPendingStateAsync();
-
-                _saveError = reconciliation switch
-                {
-                    // A corrected page or a superseded read both mean a newer load is on its way, so the honest
-                    // words are that this view is reloading rather than that a refresh failed.
-                    ReconcileOutcome.PageCorrected or ReconcileOutcome.Obsolete =>
-                        "The save could not be confirmed. This view is reloading from the server; check the placement before saving again.",
-                    _ when AuthoritativeEvidenceFresh =>
-                        "The save could not be confirmed. This view was refreshed from the server; check the placement before saving again.",
-                    _ => "The save could not be confirmed, and this view could not be refreshed. Check the placement against the server before saving again."
-                };
-                return;
+                _saveError = "The pending placement could not be stored. Retry storage before saving.";
+                _storageReady = false;
             }
-
-            // Settlement owns the authoritative reconciliation. The gate stays closed across it because the
-            // draft is still the pre-save one with the replacement token until reconciliation replaces it,
-            // so releasing early would re-enable Save against a row the server has already moved past.
-            await SettleAsync(outcome == MutationOutcome.Committed, _draftOutcome);
         }
         finally
         {
-            // Always release the save gate so the controls never stay stuck in the saving state, but only
-            // once every step that reads authoritative state has finished.
-            _saving = false;
-        }
-    }
-
-    /// <summary>
-    /// Represents the outcome of sending one placement mutation.
-    /// </summary>
-    private enum MutationOutcome
-    {
-        /// <summary>The server accepted the mutation.</summary>
-        Committed,
-
-        /// <summary>The server refused the mutation with a specific problem.</summary>
-        Refused,
-
-        /// <summary>The transport failed before a response arrived, so the result is unknown.</summary>
-        Unconfirmed
-    }
-
-    /// <summary>
-    /// Sends the mutation, telling a committed result apart from a refusal and from an unconfirmed transport
-    /// failure. A lost response can still mean the mutation committed, so that case is never reported as a
-    /// refusal.
-    /// </summary>
-    /// <param name="input">The mutation input.</param>
-    /// <returns>The outcome of the send.</returns>
-    private async Task<MutationOutcome> SendMutationAsync(UpdateCampaignPlacementInput input)
-    {
-        try
-        {
-            var result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken);
-            return ApplyMutationResult(result) ? MutationOutcome.Committed : MutationOutcome.Refused;
-        }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
-        {
-            return MutationOutcome.Unconfirmed;
-        }
-    }
-
-    /// <summary>
-    /// Applies a mutation response, adopting the replacement token or surfacing the refusal.
-    /// </summary>
-    /// <param name="result">The mutation response to apply.</param>
-    /// <returns><see langword="true"/> when the mutation committed.</returns>
-    private bool ApplyMutationResult(ServiceResult<PlacementMutationSuccess> result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        return result.Match(
-            success =>
+            if (OwnsOperation(owner, scope, generation) && _phase == PlacementPhase.Submitting)
             {
-                // Adopt the replacement token so a later edit in this session presents current state.
-                _draftToken = success.ConcurrencyToken;
-                return true;
-            },
-            problem =>
+                _phase = _pendingCommand is null ? PlacementPhase.Editing : PlacementPhase.OutcomeUnknown;
+            }
+        }
+    }
+
+    private bool OwnsOperation(string owner, string scope, int generation) => !ComponentCancellationToken.IsCancellationRequested
+        && generation == _operationGeneration && string.Equals(owner, EffectiveOwner, StringComparison.Ordinal) && string.Equals(scope, StorageScope, StringComparison.Ordinal);
+
+    private async Task SendPendingAsync(UpdateCampaignPlacementInput input, string owner, string scope, int generation)
+    {
+        ServiceResult<PlacementMutationSuccess> result;
+        try { result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken); }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is HttpRequestException or OperationCanceledException)
+        {
+            result = ServiceProblem.ServerError("The placement save could not be confirmed.");
+        }
+        if (!OwnsOperation(owner, scope, generation)) { return; }
+        if (result.IsProblem && !PlacementMutationRejection.IsNotCommitted(result.Problem, input.OperationId))
+        {
+            _recoveryExpired = PlacementMutationRejection.IsExpired(result.Problem, input.OperationId);
+            _phase = PlacementPhase.OutcomeUnknown;
+            _saveError = _recoveryExpired
+                ? "The recovery window expired. The earlier result is unknown. Review current placement before making a new decision."
+                : "The save could not be confirmed. Recover this save before starting another placement.";
+            await ApplyPendingStateAsync();
+            return;
+        }
+        var receipt = result.IsSuccess ? result.Value.Receipt : null;
+        if (result.IsSuccess && (receipt is null || receipt.OperationId != input.OperationId
+            || receipt.PlayerCampaignAssignmentId != input.PlayerCampaignAssignmentId))
+        {
+            _phase = PlacementPhase.OutcomeUnknown;
+            _saveError = "The save response did not identify this operation. Recover this save before continuing.";
+            return;
+        }
+        await SettleCommandAsync(input, result, owner, scope, generation);
+    }
+
+    private async Task SettleCommandAsync(UpdateCampaignPlacementInput input, ServiceResult<PlacementMutationSuccess> result,
+        string owner, string scope, int generation)
+    {
+        // Clear only the matching persisted operation; a cleanup failure keeps it available for exact replay.
+        try { await _storageModule!.InvokeVoidAsync("clearPending", ComponentCancellationToken, scope, input.OperationId); }
+        catch (Microsoft.JSInterop.JSException)
+        {
+            if (OwnsOperation(owner, scope, generation))
             {
-                ApplyMutationProblem(problem);
-                return false;
-            });
-    }
-
-    /// <summary>
-    /// Maps a refused mutation onto the decision controls or the conflict posture.
-    /// </summary>
-    /// <param name="problem">The refusal returned by the mutation.</param>
-    private void ApplyMutationProblem(ServiceProblem problem)
-    {
-        _saveError = null;
-        switch (problem.Kind)
-        {
-            case ServiceProblemKind.Conflict:
-                EnterConflict(problem.Detail);
-                break;
-            case ServiceProblemKind.Validation:
-                _saveError = FirstValidationMessage(problem.Errors)
-                    ?? FirstNonBlank(problem.Detail, SaveFailureFallbackMessage);
-                break;
-            case ServiceProblemKind.Forbidden:
-            case ServiceProblemKind.NotFound:
-                _saveError = FirstNonBlank(problem.Detail, "This placement can no longer be updated.");
-                break;
-            default:
-                _saveError = FirstNonBlank(problem.Detail, SaveFailureFallbackMessage);
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Reconciles every affected region after the mutation settles, then applies any deferred discovery state.
-    /// </summary>
-    /// <param name="saved">Whether the mutation committed.</param>
-    /// <returns>A task that completes when reconciliation finishes.</returns>
-    private async Task SettleAsync(bool saved, PlacementOutcome recordedOutcome)
-    {
-        if (!saved)
-        {
-            await ApplyPendingStateAsync();
+                _phase = PlacementPhase.OutcomeUnknown;
+                _saveError = result.IsSuccess ? "Placement saved. Recovery storage could not be cleared; recover to finish." : "The save was refused. Recover to clear its stored result.";
+            }
             return;
         }
-
-        var reconciliation = await ReconcileAsync();
-        if (_conflictActive)
+        if (!OwnsOperation(owner, scope, generation)) { return; }
+        _pendingCommand = null;
+        if (result.IsSuccess)
         {
-            await ApplyPendingStateAsync();
-            return;
+            _settledScope = scope;
+            _saveMessage = "Placement saved. The original operation is confirmed.";
         }
-
-        if (reconciliation == ReconcileOutcome.PageCorrected)
-        {
-            // The committed save moved the participant off the last page, so the corrected read is still in
-            // flight. Do not announce totals taken from the page being replaced.
-            _saveMessage = "Placement saved. The queue page was corrected and is reloading.";
-            await ApplyPendingStateAsync();
-            return;
-        }
-
-        if (reconciliation == ReconcileOutcome.Obsolete)
-        {
-            // A newer request owns the state, so this settlement cannot report on evidence it no longer holds.
-            _saveMessage = "Placement saved. This view is reloading from the server.";
-        }
-        else if (AuthoritativeEvidenceFresh)
-        {
-            _saveMessage = DescribeSave(recordedOutcome);
-        }
-        else
-        {
-            // The mutation persisted, but the authoritative refresh did not answer. Do not announce
-            // success beside evidence that could not be confirmed.
-            _saveError = "Placement saved, but the authoritative result could not be refreshed.";
-        }
-
+        _phase = PlacementPhase.Reconciling;
+        await OnReloadRequested.InvokeAsync();
+        if (!OwnsOperation(owner, scope, generation)) { return; }
+        await ReconcileAsync();
+        if (!OwnsOperation(owner, scope, generation)) { return; }
         await ApplyPendingStateAsync();
+        if (!OwnsOperation(owner, scope, generation)) { return; }
+        var fresh = AuthoritativeEvidenceFresh && !_selectedLoading && !_queueLoading;
+        _phase = fresh ? PlacementPhase.Editing : PlacementPhase.ConflictReview;
+        if (!result.IsSuccess)
+        {
+            _keepOperationId = null;
+            _saveError = FirstValidationMessage(result.Problem.Errors) ?? result.Problem.Detail ?? SaveFailureFallbackMessage;
+            if (result.Problem.Kind == ServiceProblemKind.Conflict || !fresh) { EnterConflict(_saveError); }
+            return;
+        }
+        _saveMessage = fresh ? $"Placement saved. {SectionCount("NeedsPlacement")} need placement."
+            : "Placement saved. Current placement evidence could not be refreshed.";
+        if (_selected?.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
+            && _selected.LocalDecision?.ConcurrencyToken != result.Value.ConcurrencyToken && !IsClosed)
+        {
+            _saveMessage = "Placement saved. A later decision is now shown below.";
+        }
+        if (!fresh) { EnterConflict("Refresh current placement evidence before editing."); }
+        if (_keepOperationId == input.OperationId && fresh && input.PlayerCampaignAssignmentId == SelectedParticipantId && _queue is { Rows.Count: > 0 })
+        {
+            _keepOperationId = null;
+            var next = _queue.Rows[0];
+            navigation.NavigateTo(ComposePlaceUrl?.Invoke(next.PlayerCampaignAssignmentId)
+                ?? CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, State, placementParticipantId: next.PlayerCampaignAssignmentId));
+        }
     }
 
-    /// <summary>
-    /// Names what the save changed, because the destination's story is that the authoritative count moves.
-    /// </summary>
-    /// <param name="outcome">The outcome that was recorded, captured before reconciliation rebuilds the draft.</param>
-    /// <returns>The written success statement.</returns>
-    private string DescribeSave(PlacementOutcome outcome)
-        => $"Placement saved. {CampaignPlaceDisplay.OutcomeLabel(outcome)} · {SectionCount("NeedsPlacement")} need placement.";
-
-    /// <summary>
-    /// Enters the conflict posture: editing is blocked until an authoritative reload establishes the winner.
-    /// </summary>
-    /// <param name="detail">The server's conflict detail, when one was supplied.</param>
     private void EnterConflict(string? detail)
     {
-        _conflictActive = true;
+        _phase = PlacementPhase.ConflictReview;
         _conflictMessage = FirstNonBlank(detail, ConflictFallbackMessage);
         _shouldFocusConflict = true;
     }
 
-    /// <summary>
-    /// Reloads every affected region after a conflict and resumes editing from authoritative state.
-    /// </summary>
-    /// <returns>A task that completes when the reload finishes.</returns>
     private async Task ReloadAfterConflictAsync()
     {
-        if (_reconciling)
-        {
-            return;
-        }
-
+        if (_saving || _reconciling) { return; }
+        var owner = EffectiveOwner;
+        var scope = StorageScope;
+        var generation = ++_operationGeneration;
         _reconciling = true;
+        _phase = PlacementPhase.Reconciling;
         try
         {
-            _queueStale = false;
-            _pendingState = null;
-            await LoadQueueAsync(State);
-            await RefreshSelectionAsync(force: true);
-            _saveMessage = null;
-            _saveError = null;
-            PersistQueue();
-
-            // The campaign detail owns lifecycle truth; ask the workspace for the authoritative reload so a
-            // Closed transition or an authority change is reflected rather than masked by the local reload.
             await OnReloadRequested.InvokeAsync();
-
-            // Clearing the conflict last keeps the reload affordance disabled for the whole recovery and
-            // resumes editing only once authoritative state has actually been re-established.
-            _conflictActive = false;
-            _conflictMessage = null;
+            if (!OwnsOperation(owner, scope, generation)) { return; }
+            await LoadQueueAsync(State);
+            if (!OwnsOperation(owner, scope, generation)) { return; }
+            await RefreshSelectionAsync(force: true);
+            if (!OwnsOperation(owner, scope, generation)) { return; }
+            if (AuthoritativeEvidenceFresh && !_selectedLoading && !_queueLoading)
+            {
+                _phase = PlacementPhase.Editing;
+                _conflictMessage = null;
+                _saveError = null;
+            }
+            else { EnterConflict("Current placement evidence could not be refreshed. Try again."); }
         }
         finally
         {
-            _reconciling = false;
+            if (OwnsOperation(owner, scope, generation)) { _reconciling = false; }
+            if (OwnsOperation(owner, scope, generation) && _phase == PlacementPhase.Reconciling)
+            {
+                EnterConflict("Current placement evidence could not be refreshed. Try again.");
+            }
         }
     }
 
-    /// <summary>
-    /// Reloads the queue on demand after a regional read failure.
-    /// </summary>
-    /// <returns>A task that completes when the reload finishes.</returns>
     private async Task RetryQueueAsync()
     {
-        if (_saving)
-        {
-            return;
-        }
-
+        if (_saving) { return; }
         await LoadQueueAsync(State);
         await RefreshSelectionAsync();
     }

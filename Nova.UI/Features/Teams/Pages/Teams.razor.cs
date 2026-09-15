@@ -967,6 +967,10 @@ public partial class Teams(
         {
             $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
         };
+        if (CorrectionDestination is { } destination)
+        {
+            querySegments.Add($"returnUrl={Uri.EscapeDataString(destination)}");
+        }
         if (DraftReturnId is { } draftId)
         {
             querySegments.Add($"returnToDraft={draftId}");
@@ -984,6 +988,12 @@ public partial class Teams(
 
         return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
     }
+
+    /// <summary>The local destination to return to after correcting shared records.</summary>
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? CorrectionReturn { get; set; }
+    private string? CorrectionDestination => Nova.UI.Common.CorrectionReturnContext.Normalize(CorrectionReturn);
+    private string DraftCorrectionDestination(long draftId) => $"/campaigns/{draftId}"
+        + (CorrectionDestination is { } destination ? $"?returnUrl={Uri.EscapeDataString(destination)}" : string.Empty);
 
     /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
     [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
