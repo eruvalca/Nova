@@ -6,6 +6,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 public partial class CampaignWorkspace
 {
     private int _authenticationVersion;
+    private int _openingReceiptGeneration;
 
     /// <summary>Invalidates mounted evidence and pending interactions when identity or authority changes.</summary>
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
@@ -47,10 +48,17 @@ public partial class CampaignWorkspace
         _availableTeams = [];
         _pendingBoundaryMove = null;
         _openingReceiptMessage = null;
+        _receiptChecked = false;
+        ++_openingReceiptGeneration;
         _pageError = null;
         _rosterError = null;
         _isLoading = true;
         CancelMutationForm();
         PersistStartupState();
     }
+
+    private bool OwnsOpeningReceipt(string scope, long campaignId, int generation)
+        => generation == _openingReceiptGeneration && CampaignId == campaignId
+            && string.Equals(scope, _authorityScope, StringComparison.Ordinal)
+            && !ComponentCancellationToken.IsCancellationRequested;
 }

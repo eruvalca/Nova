@@ -1366,3 +1366,90 @@ async tests. Those calls now await `TriggerEventAsync`; no diagnostic was suppre
 
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
 no schema. No check was disabled or weakened. All three suites must run again before merge.
+
+## PR review round 14
+
+Review [5212061657](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5212061657)
+on `494cc7a2c58de8fd7379a2f4c85f23aafa838665` contained one inline finding and two
+suppressed findings. All three were actionable and were addressed together in one commit.
+
+### Findings and dispositions
+
+- **HTTP context tenant-isolation coverage — added.** The route already applied the tenant
+  predicates; the missing coverage now exercises them through authenticated HTTP. Club A's
+  real placement save produces readable history for A. Club B can read its own context but gets
+  the same non-disclosing 404 ProblemDetails shape for A's campaign/participant, mixed campaign
+  and participant IDs, and a missing participant. Responses contain neither history nor prior
+  placement and reveal no saved campaign/team names. A's activity remains unchanged.
+- **Opening-receipt authority reset — fixed.** Authority reset clears the once-only receipt flag
+  alongside its message and increments an ownership generation. Reads, focus, acknowledgement
+  and caught optional failures recheck scope, campaign, generation and disposal before continuing.
+  The callback also rechecks roster availability before attaching its keyboard listener. Nine
+  component cases cover user/club/role changes; delayed read/focus/acknowledgement; read/ack failure
+  while replacement detail is pending; and A-to-B-to-A authority changes without duplicate
+  acknowledgement. An acknowledgement already dispatched before authority changes remains bound
+  to its original storage scope; its completion cannot continue against replacement roster state.
+- **Durable rejection HTTP recovery coverage — added.** An archived-team business rejection and
+  exact HTTP replay both preserve the operation-bound `placementNotCommittedOperationId` extension
+  through the real client ProblemDetails decoder. Reactivating the team before replay does not
+  change the stored rejection or execute its command. Placement/token and activity remain unchanged
+  with one rejection receipt; a new deliberate operation then succeeds, producing one activity
+  event and a second receipt. This proves durable refusal rather than merely repeated validation.
+
+### Guidance and review
+
+Applied the previously read API, service, validation, tenancy, placement, lifecycle, Blazor/state,
+testing and UI instructions; `add-api-endpoint`, `add-blazor-ui`, `nova-testing` and their relevant
+HTTP, state, interop, component and Aspire references. Inspected the service's tenant predicates,
+receipt executor and serializer, opening-feedback lifecycle, authentication invalidation and
+the keyed `CampaignEntry` composition. Campaign navigation recreates the workspace through
+`@key="CampaignId"`, so a second campaign-navigation reset mechanism was unnecessary.
+
+Independent session `/root/recovery_review` identified two additional issues in the initial diff:
+the post-acknowledgement/caught-error continuation still needed an ownership check, and the delayed
+tests used unset bUnit results despite the documented one-second fault timer. Both were corrected.
+The final fixture preconfigures bUnit results and gates one module invocation explicitly. It releases
+inline on the captured renderer context so the old callback finishes through completed interop before
+negative assertions run. Follow-up independent review found no remaining findings. The later service
+registration ordering and helper nullability corrections received focused self-review.
+
+No layout, copy or composition changed; existing curated evidence and the limited finish disposition
+remain applicable. No new whole-surface finish or measurable comp claim is made. Existing guidance
+already covers ownership and explicit interop gates, so no duplicate instruction or new skill was added.
+
+### Validation
+
+Tested source: base `494cc7a2c58de8fd7379a2f4c85f23aafa838665` plus this round's four-file
+code/test diff. SHA-256 `c9e8b0e5b3de4918e1d48c20561731ab3c846378122504d3e7a5a2f8405ab0f3`
+identifies the sorted 1,177 source-path/raw-content-hash pairs. The PR body identifies the resulting
+single commit. Only this validation document was edited after the final build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Final build passed, 9.91s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,417 passed, zero failures/skips; 17.540s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 623 passed, zero failures/skips; 4m43.320s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 188 passed, zero failures, seven existing optional capture skips (195 total); 3m25.977s |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round14-captures`.
+Integration and browser suites ran serially across the machine, with source and generated assets
+fixed during browser execution. All source hashes matched after the final run; `git diff --check`
+passed before committing. New diagnostic captures remain local; the existing curated packet is unchanged.
+
+Preserved intermediate results: the first build failed MA0051 because the new HTTP method exceeded
+the configured limit by one line (4m49.63s). Its response assertions were extracted without dropping
+checks. The next build identified the extracted helper's nullable team-name argument (19.08s);
+an explicit non-null assertion fixed it, and the following build passed (10.63s). The first unit run
+passed 3,411 tests and failed six new cases during fixture registration because bUnit's provider had
+already been initialized (17.522s). Registering the wrapper before retrieving navigation services fixed
+the setup; final build/unit results appear above. No diagnostic was suppressed and no check was weakened.
+
+Local logs use `.git/pr270-round14-`: `build-fixture.log`, `unit-final.log`, `integration.log`,
+`browser.log`, `format.log`, `model.log`, `contrast.log`, and `detector.json`. Earlier build logs are
+`build.log`, `build-final.log`, `build-verified.log`; the initial unit result is `unit.log`.
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
+All three suites must run again before merge.

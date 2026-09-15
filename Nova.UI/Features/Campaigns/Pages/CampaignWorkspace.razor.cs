@@ -1544,30 +1544,36 @@ public partial class CampaignWorkspace(
         if (IsRosterLanding && !_receiptChecked)
         {
             _receiptChecked = true;
+            var receiptGeneration = _openingReceiptGeneration;
+            var receiptCampaignId = CampaignId;
             var state = await authenticationStateProvider.GetAuthenticationStateAsync();
             var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
-            if (!string.Equals(scope, _authorityScope, StringComparison.Ordinal) || ComponentCancellationToken.IsCancellationRequested)
+            if (!OwnsOpeningReceipt(scope, receiptCampaignId, receiptGeneration))
             {
                 return;
             }
             try
             {
-                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId);
-                ComponentCancellationToken.ThrowIfCancellationRequested();
-                if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
+                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, receiptCampaignId);
+                if (!OwnsOpeningReceipt(scope, receiptCampaignId, receiptGeneration)) { return; }
+                if (receipt is not null && receipt.CampaignId == receiptCampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
                 {
                     var playerNoun = receipt.EnrolledPlayerCount == 1 ? "player" : "players";
                     _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} {playerNoun}.";
                     StateHasChanged();
                     await module.InvokeVoidAsync("focus", ComponentCancellationToken, _rosterHeading);
-                    await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, receipt.OperationId);
+                    if (!OwnsOpeningReceipt(scope, receiptCampaignId, receiptGeneration)) { return; }
+                    await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, receiptCampaignId, receipt.OperationId);
                 }
             }
             catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
             {
                 // Optional feedback cannot prevent using the roster, including incompatible stored JSON.
             }
+            if (!OwnsOpeningReceipt(scope, receiptCampaignId, receiptGeneration)) { return; }
         }
+
+        if (_rosterLoading || _roster is null) { return; }
 
         // The region element is recreated across loading/error/loaded renders, so re-attach the
         // keydown suppression on every pass that renders the loaded roster. The module replaces
