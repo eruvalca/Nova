@@ -298,7 +298,7 @@ public partial class CampaignPlacePanel
                 Unavailable: _selected.CorrectionReason is not PlacementCorrectionReason.None));
         }
 
-        return choices.Where(choice => !choice.Unavailable).ToList();
+        return choices;
     }
 
     // Keep observed counts legible outside the native select when a long team name clips its option text.

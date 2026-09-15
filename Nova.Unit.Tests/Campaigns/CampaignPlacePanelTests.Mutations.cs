@@ -525,8 +525,11 @@ public sealed partial class CampaignPlacePanelTests
         cut.FindAll("#place-outcome").ShouldBeEmpty();
     }
 
-    [Fact]
-    public void AnUnavailableSavedTeamStaysEvidenceAndCannotBeSelected()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementCorrectionReason.TeamArchived, "archived")]
+    [InlineData(PlacementCorrectionReason.TeamIncompatible, "not compatible with this year")]
+    [InlineData(PlacementCorrectionReason.TeamUnavailable, "not in this club")]
+    public void AnUnavailableSavedTeamStaysEvidenceAndCannotBeSelected(PlacementCorrectionReason reason, string suffix)
     {
         RegisterServices(rows:
         [
@@ -534,7 +537,7 @@ public sealed partial class CampaignPlacePanelTests
             {
                 LocalDecision = CreateDecision(301, PlacementOutcome.Assigned, 99),
                 LocalTeam = new CampaignParticipantTeamSummaryDto(99, "Retired Gold"),
-                CorrectionReason = PlacementCorrectionReason.TeamArchived
+                CorrectionReason = reason
             }
         ]);
 
@@ -542,11 +545,17 @@ public sealed partial class CampaignPlacePanelTests
         cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
         cut.Find("#place-outcome").Change(nameof(PlacementOutcome.Assigned));
 
-        cut.WaitForAssertion(() => cut.FindAll("#place-team option").Count.ShouldBe(2));
+        cut.WaitForAssertion(() => cut.FindAll("#place-team option").Count.ShouldBe(3));
         var options = cut.FindAll("#place-team option");
         options[0].GetAttribute("value").ShouldBeEmpty();
-        options[1].GetAttribute("value").ShouldBe("21");
-        options.ShouldNotContain(option => string.Equals(option.GetAttribute("value"), "99", StringComparison.Ordinal));
+        options[1].GetAttribute("value").ShouldBe("99");
+        options[1].HasAttribute("disabled").ShouldBeTrue();
+        options[1].TextContent.ShouldContain(suffix);
+        options[2].GetAttribute("value").ShouldBe("21");
+        options[2].HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#place-team").Change("99");
+        SaveButton(cut).HasAttribute("disabled").ShouldBeTrue();
+        _ = _mutations.DidNotReceive().UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
         cut.Find(".place-sheet").TextContent.ShouldContain("Retired Gold");
     }
 

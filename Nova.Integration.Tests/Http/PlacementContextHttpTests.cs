@@ -61,7 +61,9 @@ public sealed partial class CampaignPlacementHttpTests
         context.History[0].CampaignId.ShouldBe(campaignId);
         context.NextEventId.ShouldBeNull();
         context.PreviousPlacement.ShouldBeNull();
-        using var invalid = await member.GetAsync(PlacementContextEndpoints.Url(contextInput with { BeforeEventId = 0 }), cancellationToken);
+        // Bypass canonical URL normalization to exercise rejection of malformed wire input.
+        var invalidUrl = new Uri(PlacementContextEndpoints.Url(contextInput).OriginalString + "?beforeEventId=0", UriKind.Relative);
+        using var invalid = await member.GetAsync(invalidUrl, cancellationToken);
         ((int)invalid.StatusCode).ShouldBeOneOf(400, 422);
         using var missing = await member.GetAsync(PlacementContextEndpoints.Url(contextInput with { PlayerCampaignAssignmentId = long.MaxValue }), cancellationToken);
         missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);

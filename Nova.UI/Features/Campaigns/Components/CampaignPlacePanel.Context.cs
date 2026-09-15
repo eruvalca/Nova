@@ -1,5 +1,6 @@
 ﻿using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Nova.SharedKernel.Results;
 
 namespace Nova.UI.Features.Campaigns.Components;
@@ -66,6 +67,6 @@ public partial class CampaignPlacePanel
         await DispatchAsync(input);
     }
 
-    private string TeamsCorrectionUrl => $"/club/teams?returnUrl={Uri.EscapeDataString(ComposePlaceUrl?.Invoke(SelectedParticipantId)
+    private string TeamsCorrectionUrl => $"{ClubRoutes.Teams}?returnUrl={Uri.EscapeDataString(ComposePlaceUrl?.Invoke(SelectedParticipantId)
         ?? Nova.UI.Features.Campaigns.Services.CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, State, placementParticipantId: SelectedParticipantId))}";
 }

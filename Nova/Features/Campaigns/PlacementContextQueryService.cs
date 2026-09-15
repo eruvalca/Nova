@@ -8,6 +8,7 @@ using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Activity;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Campaigns;
@@ -71,9 +72,10 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
         var writable = participant.Campaign.Status == CampaignStatus.Active
             && participant.Player.LifecycleStatus == LifecycleStatus.Active
             && await db.Clubs.AnyAsync(c => c.ClubId == club && c.CurrentSeasonId == seasonId, token);
+        var administratorRole = Roles.ClubAdmin.ToUpperInvariant();
         var administrator = await (from ur in db.UserRoles
                                    join r in db.Roles on ur.RoleId equals r.Id
-                                   where ur.UserId == actor && r.NormalizedName == "CLUBADMIN"
+                                   where ur.UserId == actor && r.NormalizedName == administratorRole
                                    select ur.UserId).AnyAsync(token);
 
         var previous = await ReadPreviousAsync(db, club, seasonId, participant.PlayerId,

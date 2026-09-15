@@ -31,10 +31,11 @@ The approved rail and selected-player sheet composition remains the visual autho
 - Players, Teams, details, and Draft links retain normalized local return context.
   Queue scroll is tab-scoped. Closed campaigns expose no new placement mutation.
 
-## Validation status
+## Initial implementation validation
 
-Tested base: `e6b1f382cefb5176ff509685df6554970a8fd1c8`; working implementation remains
-uncommitted on `codex/issue-254-place-recovery`. Source fingerprint:
+Tested base: `e6b1f382cefb5176ff509685df6554970a8fd1c8`; the tested implementation was
+subsequently committed as `7d22a6953de62cded2fb0a1dccca4297c47e1e0b` on
+`codex/issue-254-place-recovery` and opened as PR #270. Source fingerprint:
 `f0a3e678ef6236561fc89b96973d882063db5270e6ed9ff1df446fa89df5c2bf`.
 The fingerprint hashes the sorted `(repository path, SHA-256 file bytes)` list for 1,156
 tracked/unignored source, project, style, and build files; the complete manifest is retained
@@ -182,7 +183,8 @@ is not established. The original log is retained locally at
 
 Final full-run durations: unit 37.444s; integration 1m26.972s; browser 3m37.539s.
 Final source fingerprint was rechecked after browser completion and is unchanged. All
-commands were local; this implementation has not been committed, pushed, or proposed as a PR.
+commands were local and preceded the initial PR commit. The tested source manifest was checked
+against the clean committed checkout before correcting the PR body's validation metadata.
 
 ## Guidance hygiene review
 
@@ -211,3 +213,58 @@ Documentation-only verification: all three skill validators passed, edited-refer
 and named examples resolved, and `git diff --check` passed. Application suites were not rerun for
 these guidance edits; the implementation results above remain the behavioral evidence. Whether the
 clarifications prevent recurrence remains to be observed on a subsequent independent feature.
+
+## PR review round 1
+
+Addressed Copilot review `5205221195` on initial PR head
+`7d22a6953de62cded2fb0a1dccca4297c47e1e0b`. All six threads and all three suppressed
+comments were inspected. The changes form one review-round commit; no new review was requested.
+
+| Finding | Disposition and behavioral evidence |
+| --- | --- |
+| Valid unavailable prior assignment rejected by WASM | Fixed the validator to accept null decision team ID and null team with `CanKeep=false`. `ContextClientRequiresConsistentPriorAssignmentEvidenceAsync` now uses the actual producer shape and rejects missing-ID-with-team, CanKeep-without-team, and invalid IDs. |
+| `BeginDecision` allegedly guarded by `CanRecordDecision` | Inapplicable: the reviewed head already uses pre-open saving/pending/lifecycle/authority/freshness guards. `AssignedPlayerRequiresDeliberateReassignmentAndConfirmation`, `ReassignmentRequiresConfirmationAndCancelPreservesTheSavedTeamAsync`, and `PriorCampaignWithdrawalRequiresAdministratorSupersessionAndLeavesClosedDecisionImmutableAsync` exercise the correction flows. |
+| Invalid browser state accepted for replay | Added shared read/write validation for UUIDv7, nonempty GUID token, positive safe-integer participant/team IDs, allowed numeric outcome, and outcome/team relationship. `RetainedPlacementStorageRejectsMalformedCommandsAndPreservesEvidenceAsync` exercises the real module, verifies invalid bytes remain intact, and round-trips valid and expired commands. It tests storage directly; existing browser workflow tests cover UI dispatch/replay. |
+| Nonpositive history cursor emitted by URL builder | Builder omits invalid cursors. `ContextUrlIncludesOnlyPositiveCursors` checks null, zero, negative, one, and maximum values. The HTTP rejection test sends the invalid query directly, independently of normalization. |
+| Endpoint name and role literals | Mapping consumes `PlacementContextEndpoints.GetPlacementContextRouteName`; the persisted-role query derives its value from `Roles.ClubAdmin`. |
+| Suppressed: Teams correction route literal | Uses `ClubRoutes.Teams`; the existing correction-return browser scenario exercises the link and retained context. |
+| Suppressed: unavailable team option filtered out | Retains the saved option as disabled. `AnUnavailableSavedTeamStaysEvidenceAndCannotBeSelected` covers archived, incompatible, and unavailable reasons and verifies no dispatch through a disabled target. |
+| Suppressed: validation record contradicted PR metadata | The PR body was already corrected to the repository template after verifying the initial source manifest against the committed head. This record now identifies that initial commit and the subsequent review round. |
+
+Separate local reviewer `/root/recovery_review` inspected the complete round diff and both new
+test files, then checked the HTTP test follow-up. Disposition: **no actionable findings**.
+The review was read-only and did not request an external review or run suites. Existing route,
+role, URL-builder, validation, selection/save, and replay callers were inspected for the same
+invariants. Applied the existing feature/API/Blazor/testing recipes and their contract, lifecycle,
+interop, and provider/browser references; no new agent rules or diagnostic suppressions were added.
+
+The first integration run passed 613 cases and exposed one obsolete test assumption: its invalid
+cursor passed through the newly normalizing builder and therefore never reached the endpoint.
+The fixture now constructs the malformed wire URL directly; the server rejection assertion remains.
+Compiler-guided repairs used a normalized role variable and a `Uri` overload, and corrected the
+browser test constant's naming. No checks or retry budgets were relaxed.
+
+Final tested source fingerprint for this round:
+`c23f87952c51b76d90af2496639a41990c9ea4bb0d6e0537d4bc78a3058ad2ff`.
+The manifest at `.git/pr270-round1-source.json` covers the original 1,156 source files plus the
+two new test files; its fingerprint hashes the UTF-8 compact JSON of sorted path/SHA-256 pairs.
+Documentation is excluded. All 1,158 source hashes were rechecked unchanged after browser completion.
+
+| Check / command | Final round result |
+| --- | --- |
+| `dotnet build Nova.slnx --no-restore` | Passed; three existing Sass deprecation warnings |
+| Focused unit: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*HttpPlacementContextQueryServiceTests' --filter-class '*PlacementContextEndpointTests' --filter-class '*CampaignPlacePanelTests'` | 94 passed |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,296 passed; 0 failed/skipped; 19.917s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 614 passed; 0 failed/skipped; 1m21.330s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 179 passed; 0 failed; seven existing optional screenshot skips; 3m36.014s |
+| `dotnet format Nova.slnx --verify-no-changes --no-restore` | Passed |
+| `npm run check:contrast` from `Nova/` | Passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js --json` | No findings in inspected files; previously documented unrelated Evaluate build-state warning remains |
+| `git diff --check` | Passed |
+
+Build preceded tests. Integration and browser suites ran serially with no competing suite;
+browser source/assets stayed fixed and no build/format command ran alongside it. This round changes
+no schema; the initial migration-model evidence remains applicable. Temporary new captures went to
+`.git/pr270-round1-captures`, leaving the curated reviewed packet unchanged. Logs, the failed first
+integration run, and the source manifest remain under `.git/pr270-round1-*`. The retained comp and
+finish-review limitations above remain explicit; no new composition approval is claimed.

@@ -63,6 +63,8 @@ public sealed class HttpPlacementContextQueryServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("valid", true)]
     [InlineData("inaccessible", true)]
+    [InlineData("inaccessibleCanKeep", false)]
+    [InlineData("negativeDecisionTeamId", false)]
     [InlineData("blankTeamName", false)]
     [InlineData("blankCampaignName", false)]
     [InlineData("zeroTeamId", false)]
@@ -82,11 +84,12 @@ public sealed class HttpPlacementContextQueryServiceTests
             "missingDecisionTeamId" => source with { Decision = decision with { TeamId = null } },
             "mismatchedTeamId" => source with { Decision = decision with { TeamId = 91 } },
             "zeroDecisionTeamId" => source with { Team = null, Decision = decision with { TeamId = 0 } },
-            "inaccessible" => source with { Team = null },
+            "negativeDecisionTeamId" => source with { Team = null, Decision = decision with { TeamId = -1 } },
+            "inaccessible" or "inaccessibleCanKeep" => source with { Team = null, Decision = decision with { TeamId = null } },
             _ => source
         };
         var previous = new PreviousSeasonPlacement(new PlacementSeasonIdentity(5, "Prior season"), source,
-            !string.Equals(shape, "inaccessible", StringComparison.Ordinal) && !string.Equals(shape, "zeroDecisionTeamId", StringComparison.Ordinal));
+            shape is not ("inaccessible" or "zeroDecisionTeamId" or "negativeDecisionTeamId"));
         var payload = new PlacementContextResult(301, previous, [], null, false);
         using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) };
         using var handler = new ContextHandler(response);
