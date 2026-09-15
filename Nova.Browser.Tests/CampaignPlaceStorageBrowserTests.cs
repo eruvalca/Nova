@@ -12,7 +12,8 @@ public sealed partial class CampaignPlaceBrowserTests
     {
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, PlacementSeed.Password);
-        var input = new UpdateCampaignPlacementInput(301, PlacementOutcome.Assigned, 90, Guid.NewGuid(), Guid.CreateVersion7());
+        var input = new UpdateCampaignPlacementInput(301, PlacementOutcome.Assigned, 90,
+            Guid.Parse("abcdef01-2345-4678-9abc-def012345678"), Guid.Parse("abcdef01-2345-7678-9abc-def012345678"));
 
         var errors = await context.Pages[0].EvaluateAsync<string[]>(StorageContractProbe, new
         {
@@ -62,6 +63,29 @@ public sealed partial class CampaignPlaceBrowserTests
                 sessionStorage.setItem(key, '{');
                 try { module.readPending(scope); errors.push('read accepted malformed JSON'); } catch {}
                 if (sessionStorage.getItem(key) !== '{') errors.push('malformed JSON evidence removed');
+                for (const input of [valid, {...valid, outcome: 2, teamId: null}, {...valid, outcome: 3, teamId: null}]) {
+                    // A C# deserialize/serialize round trip normalizes GUID casing and property order.
+                    const reordered = Object.fromEntries(Object.entries(input).reverse());
+                    reordered.operationId = input.operationId.toUpperCase();
+                    reordered.expectedConcurrencyToken = input.expectedConcurrencyToken.toUpperCase();
+                    sessionStorage.setItem(key, JSON.stringify(reordered));
+                    module.writePending(scope, input);
+                    if (JSON.stringify(module.readPending(scope)) !== JSON.stringify(input)) errors.push('equivalent replay changed command');
+                    module.writePending(scope, reordered);
+                    const retained = sessionStorage.getItem(key);
+                    const changed = [
+                        {...input, operationId: '11111111-2222-7333-8444-555555555555'},
+                        {...input, expectedConcurrencyToken: '11111111-2222-4333-8444-555555555555'},
+                        {...input, playerCampaignAssignmentId: input.playerCampaignAssignmentId + 1},
+                        input.outcome === 1 ? {...input, teamId: input.teamId + 1} : {...input, outcome: input.outcome === 2 ? 3 : 2},
+                        input.outcome === 1 ? {...input, outcome: 2, teamId: null} : {...input, outcome: 1, teamId: 90}];
+                    for (const [index, change] of changed.entries()) {
+                        try { module.writePending(scope, change); errors.push('replaced different command ' + input.outcome + ':' + index); } catch {}
+                        if (sessionStorage.getItem(key) !== retained) errors.push('rejected replacement changed evidence');
+                    }
+                    module.clearPending(scope, input.operationId);
+                    if (module.readPending(scope) !== null) errors.push('case-normalized settlement retained operation');
+                }
                 for (const value of [valid, {...valid, outcome: 2, teamId: null}, {...valid, outcome: 3, teamId: null},
                     {...valid, operationId: valid.operationId.toUpperCase()},
                     {...valid, operationId: '00000000-0000-7000-8000-000000000001'}]) {

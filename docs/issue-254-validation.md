@@ -1119,3 +1119,82 @@ The existing curated desktop/mobile packet remains representative of the unchang
 New diagnostic captures remain local; no new comp measurement or whole-surface finish is claimed.
 All review-round findings have a disposition, including the suppressed comments. No checks were
 disabled or weakened. All three suites must run again before merge.
+
+## PR review round 11
+
+Copilot review `5210422852` on `e199aa24e5337eba88d7b3a01fe77bb23a34bd2f`
+reported “Needs a closer look” with four suppressed findings. Suppression is not resolution;
+all four were inspected. The no-findings stopping exception therefore did not apply.
+
+### Dispositions and behavioral evidence
+
+- **Incomplete prior-season team evidence — fixed.** A positive saved team ID now requires
+  the matching team summary. The server intentionally clears both fields when the team is
+  inaccessible; that null/null/non-Keep shape remains valid. WASM cases cover missing summaries
+  with either Keep value and a visible team that cannot currently be kept.
+- **Route naming — fixed.** `PlacementContextEndpoints.GetPlacementContextRelative` replaces
+  the generic constant in both the URL builder and server mapping. The HTTP route is unchanged;
+  no compatibility alias was added.
+- **Prior Assigned/null team name — inapplicable.** The assignment's team foreign key is keyed
+  by team ID, while tenant filtering can make that team inaccessible. The placement writer then
+  records a real correction with `PreviousOutcome=Assigned` and no visible previous team name.
+  Requiring a name would hide that valid event. A new relational SQLite regression seeds this
+  supported invalid-placement state, corrects it through the real command, and verifies that
+  the query retains the exact activity event, new team and actor while the earlier assignment
+  remains unchanged. The existing WASM case accepts the same shape. Blank names and impossible
+  non-assignment/team combinations remain rejected. A local code comment records the reason.
+- **Recovery equality — fixed.** Pending commands compare all five validated contract fields;
+  GUID comparison is case-insensitive. Property order and GUID letter casing may change through
+  typed deserialization without changing the logical command. The real browser storage-module
+  probe covers both representations for all three outcomes, rejects changes to operation,
+  participant, token, outcome or team, and asserts that refusal preserves the stored bytes.
+  Invalid-data discard continues to require an exact comparison of the original raw bytes.
+
+### Guidance and independent review
+
+Applied the previously recorded API, Blazor/interop, placement, tenancy and testing guidance and
+feature recipes. Rechecked the API route-naming convention, actual context producer and writer,
+assignment/team mapping, effective-placement unavailable-team tests, and the Evaluate storage
+sibling. Evaluate uses its own owner/revision guard rather than raw JSON equality between two
+commands, so that path needs no matching change.
+
+Independent session `/root/recovery_review` inspected all four findings against producers and
+constraints, then reviewed the complete eight-file code/test diff: no remaining actionable
+findings. Existing rules already cover these invariants; no new skill or broad instruction is
+warranted. The existing curated desktop/mobile evidence and documented comp/finish limitations
+remain applicable because this round does not change the composition.
+
+### Validation
+
+Tested source: base `e199aa24e5337eba88d7b3a01fe77bb23a34bd2f` plus this round's eight-file
+code/test diff. SHA-256 `5afaca5a9ffeca6ad842d9e6a353b900c7195cef68ba93dcc2b1e23c9d26c785`
+identifies the sorted 1,172 source-path/raw-content-hash pairs. The PR body names the resulting
+single commit. Only this validation document was edited after the final build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Passed, 17.02s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,383 passed, zero failures/skips; 42.203s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 620 passed, zero failures/skips; 3m09.298s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 185 passed, zero failures, seven existing optional capture skips (192 total); 5m44.201s |
+| `dotnet format Nova.slnx --verify-no-changes` | Final full check passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round11-captures`.
+Integration and browser suites ran serially across the machine; application source and generated
+assets stayed fixed during the browser run. All 1,172 source hashes matched after the final run;
+`git diff --check` passed before committing.
+
+Preserved intermediate results: the first build passed in 2m58.99s and the first unit run passed
+all 3,383 tests in 48.327s. The first full format check rejected whitespace around an explanatory
+comment embedded in the validation expression. Moving it into XML remarks fixed formatting
+without changing behavior; full format, build and unit checks then passed on the final source.
+Local logs use `.git/pr270-round11-` with `build-final.log`, `unit-final.log`, `integration.log`,
+`browser.log`, `format-final.log`, `model.log`, `contrast.log`, and `detector.json`; the initial
+build/unit/format logs remain separately recorded without the `-final` suffix.
+
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
+no schema. No check was disabled or weakened. The prior comp measurement, limited finish and
+optional-capture qualifications remain. All three suites must run again before merge.

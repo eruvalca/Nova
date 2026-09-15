@@ -147,6 +147,39 @@ public sealed partial class CampaignPlacementServiceTests
     }
 
     [Fact]
+    public async Task PlacementContextRetainsCorrectionOfAnInaccessiblePriorTeamAsync()
+    {
+        await SeedPriorDecisionAsync(PlacementOutcome.Assigned);
+        await using (var seed = _harness.CreateAdminContext())
+        {
+            var prior = await seed.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == 310,
+                TestContext.Current.CancellationToken);
+            prior.TeamId = ClubBTeamId;
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        ActAs(ClubAMemberId, ClubAId);
+
+        (await SaveAsync(PlacementOutcome.Assigned, _clubAConcurrencyToken)).Value.ShouldBeOfType<PlacementMutationSuccess>();
+        var result = await CreatePlacementContextService().GetContextAsync(
+            new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var change = result.Value.History.ShouldHaveSingleItem();
+        change.PreviousOutcome.ShouldBe(PlacementOutcome.Assigned);
+        change.PreviousTeamName.ShouldBeNull();
+        change.Outcome.ShouldBe(PlacementOutcome.Assigned);
+        change.TeamName.ShouldBe("Eligible");
+        change.ActorDisplayName.ShouldBe("Member M");
+        await using var verify = _harness.CreateAdminContext();
+        var activity = await verify.ActivityEvents.SingleAsync(TestContext.Current.CancellationToken);
+        activity.ActivityEventId.ShouldBe(change.EventId);
+        activity.EventKind.ShouldBe(ActivityEventKind.PlacementSuperseded);
+        (await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == 310,
+            TestContext.Current.CancellationToken)).TeamId.ShouldBe(ClubBTeamId);
+    }
+
+    [Fact]
     public async Task PlacementContextPagesTwentyChangesWithoutDuplicatesAsync()
     {
         ActAs(ClubAMemberId, ClubAId);

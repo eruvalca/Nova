@@ -6,7 +6,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 public static class PlacementContextEndpoints
 {
     /// <summary>The context route relative to campaigns.</summary>
-    public const string Relative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/placement-context";
+    public const string GetPlacementContextRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}/placement-context";
 
     /// <summary>The registered placement-context route name.</summary>
     public const string GetPlacementContextRouteName = "GetPlacementContext";
@@ -15,7 +15,7 @@ public static class PlacementContextEndpoints
     public static Uri Url(GetPlacementContextInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        var route = Relative.Replace("{campaignId:long}", input.CampaignId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+        var route = GetPlacementContextRelative.Replace("{campaignId:long}", input.CampaignId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{playerCampaignAssignmentId:long}", input.PlayerCampaignAssignmentId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         return new Uri($"{CampaignEndpoints.GroupPrefix}/{route}"
         + (input.BeforeEventId is > 0 and long cursor ? $"?beforeEventId={cursor.ToString(CultureInfo.InvariantCulture)}" : string.Empty), UriKind.Relative);

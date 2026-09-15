@@ -42,7 +42,10 @@ export function discardInvalidPending(scope, expectedValue) {
 export function writePending(scope, input) {
     validatePending(input);
     const current = readPending(scope);
-    if (current && JSON.stringify(current) !== JSON.stringify(input)) {
+    if (current && (current.operationId.toLowerCase() !== input.operationId.toLowerCase()
+        || current.expectedConcurrencyToken.toLowerCase() !== input.expectedConcurrencyToken.toLowerCase()
+        || current.playerCampaignAssignmentId !== input.playerCampaignAssignmentId
+        || current.outcome !== input.outcome || current.teamId !== input.teamId)) {
         throw new Error("Recover the existing placement before replacing it.");
     }
     sessionStorage.setItem(prefix + scope, JSON.stringify(input));

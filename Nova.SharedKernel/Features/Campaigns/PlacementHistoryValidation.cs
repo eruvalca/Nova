@@ -6,6 +6,7 @@ namespace Nova.SharedKernel.Features.Campaigns;
 public static class PlacementHistoryValidation
 {
     /// <summary>Rejects incomplete or contradictory evidence without inferring missing history.</summary>
+    /// <remarks>Correcting a tenant-inaccessible prior team records Assigned without a visible name snapshot.</remarks>
     public static bool IsValid(PlacementHistoryItem? item) => item is { EventId: > 0, CampaignId: > 0 }
         && !string.IsNullOrWhiteSpace(item.CampaignName) && !string.IsNullOrWhiteSpace(item.ActorDisplayName)
         && item.OccurredAt > DateTimeOffset.UnixEpoch && Enum.IsDefined(item.Outcome)

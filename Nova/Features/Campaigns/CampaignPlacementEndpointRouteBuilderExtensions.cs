@@ -36,7 +36,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.UpdateCampaignPlacementRouteName);
 
-            group.MapGet(PlacementContextEndpoints.Relative, GetPlacementContextAsync)
+            group.MapGet(PlacementContextEndpoints.GetPlacementContextRelative, GetPlacementContextAsync)
                 .Produces<PlacementContextResult>().ProducesValidationProblem()
                 .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(500)
                 .RequireAuthorization(Policies.RequireClubMember).WithName(PlacementContextEndpoints.GetPlacementContextRouteName);

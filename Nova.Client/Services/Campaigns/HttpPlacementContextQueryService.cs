@@ -35,7 +35,8 @@ internal sealed class HttpPlacementContextQueryService(HttpClient http) : IPlace
             && !string.IsNullOrWhiteSpace(previous.Season.Name)
             && previous.Source is { Decision: { Outcome: Nova.SharedKernel.Enums.PlacementOutcome.Assigned } decision }
             && !string.IsNullOrWhiteSpace(previous.Source.CampaignName)
-            && (decision.TeamId is > 0 || (decision.TeamId is null && previous.Source.Team is null && !previous.CanKeep))
+            && ((decision.TeamId is > 0 && previous.Source.Team is not null)
+                || (decision.TeamId is null && previous.Source.Team is null && !previous.CanKeep))
             && decision.SeasonId == previous.Season.SeasonId && decision.PlayerId > 0
             && decision.PlayerCampaignAssignmentId > 0 && decision.CampaignId > 0 && decision.SeasonOpeningSequence > 0
             && decision.RecordedAt > DateTimeOffset.UnixEpoch && decision.RecordedById > 0
