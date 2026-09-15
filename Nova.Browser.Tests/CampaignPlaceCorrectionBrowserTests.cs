@@ -77,6 +77,46 @@ public sealed partial class CampaignPlaceBrowserTests
     }
 
     [Fact]
+    public async Task InheritedAssignmentShowsPriorTeamEvidenceAndRequiresConfirmedReassignmentAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var seed = await PlacementSeed.SeedAsync(fixture.AppHost, token);
+        var previousSeason = await SeedHistoricalPlacementAsync(seed, previousSeason: true, PlacementOutcome.Assigned, token);
+        var inherited = await SeedHistoricalPlacementAsync(seed, previousSeason: false, PlacementOutcome.Assigned, token);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, PlacementSeed.Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri,
+            $"/campaigns/{seed.CampaignId}?tab=place&placementParticipant={inherited.AssignmentId}").ToString());
+        await Expect(page.Locator(".place-sheet")).ToContainTextAsync("Previous placement");
+        await Expect(page.Locator(".place-evidence")).ToContainTextAsync(seed.EligibleTeamName);
+        var keep = page.GetByRole(AriaRole.Button, new() { Name = "Keep on " + seed.EligibleTeamName, Exact = true });
+        await Expect(keep).ToHaveCountAsync(0);
+        var reassign = page.GetByRole(AriaRole.Button, new() { Name = "Reassign player", Exact = true });
+        await InteractionHelpers.ClickUntilAsync(page, reassign, () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await Expect(keep).ToHaveCountAsync(0);
+        await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.NotSelected));
+        await SaveButton(page).ClickAsync();
+        await Expect(page.Locator(".place-confirmation")).ToBeVisibleAsync();
+        await using var db = fixture.AppHost.CreateAdminContext();
+        (await db.PlacementMutationReceipts.CountAsync(row => row.ClubId == seed.ClubId, token)).ShouldBe(0);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true }).ClickAsync();
+        await Expect(page.Locator(".alert-success")).ToContainTextAsync("Placement saved.");
+        var current = await db.PlayerCampaignAssignments.AsNoTracking()
+            .SingleAsync(row => row.PlayerCampaignAssignmentId == inherited.AssignmentId, token);
+        current.PlacementOutcome.ShouldBe(PlacementOutcome.NotSelected);
+        current.TeamId.ShouldBeNull();
+        var previous = await db.PlayerCampaignAssignments.AsNoTracking()
+            .Where(row => row.PlayerCampaignAssignmentId == inherited.PriorAssignmentId
+                || row.PlayerCampaignAssignmentId == previousSeason.PriorAssignmentId).ToListAsync(token);
+        previous.Count.ShouldBe(2);
+        previous.ShouldAllBe(row => row.PlacementOutcome == PlacementOutcome.Assigned && row.TeamId == seed.EligibleTeamId);
+        previous.Single(row => row.PlayerCampaignAssignmentId == inherited.PriorAssignmentId).ConcurrencyToken.ShouldBe(inherited.PriorToken);
+        previous.Single(row => row.PlayerCampaignAssignmentId == previousSeason.PriorAssignmentId).ConcurrencyToken.ShouldBe(previousSeason.PriorToken);
+        (await db.PlacementMutationReceipts.CountAsync(row => row.ClubId == seed.ClubId, token)).ShouldBe(1);
+        (await db.ActivityEvents.CountAsync(row => row.ClubId == seed.ClubId && row.PlayerId == current.PlayerId, token)).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task PriorCampaignWithdrawalRequiresAdministratorSupersessionAndLeavesClosedDecisionImmutableAsync()
     {
         var token = TestContext.Current.CancellationToken;

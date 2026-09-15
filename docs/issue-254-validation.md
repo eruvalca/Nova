@@ -1294,3 +1294,75 @@ the first passing build/unit logs are `build-verified.log` and `unit.log`.
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
 no schema. Existing evidence remains curated at the previously recorded revisions; new diagnostic
 captures remain local. No check was disabled or weakened. All three suites must run again before merge.
+
+## PR review round 13
+
+Review [5211666763](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5211666763)
+on `2f9ce828f96cbd062ffc8305d15f1642602cd8a5` contained two suppressed findings and no
+new inline comments. Both findings were actionable and were addressed together in one commit.
+
+### Findings and dispositions
+
+- **Premature unavailable-withdrawal copy — fixed.** A prior-campaign withdrawal's administrator
+  recovery capability remains unknown while context is absent, loading, or failed. The definitive
+  unavailable message requires a successful, settled context read. Existing loading/error/retry
+  feedback remains in the history region. Archived-player and local-withdrawal reasons still render
+  immediately from required placement evidence, independently of optional context. Component tests
+  hold the read pending, fail it, retry it, and assert both allowed and unavailable results; two
+  further cases preserve the immediate terminal reasons through loading and failure.
+- **Keep action on an existing decision — fixed.** Markup and handler now share an eligibility
+  predicate that requires fresh context, an initial decision without either local or effective
+  saved evidence, and the editable phase. Storage/saving state continues to disable dispatch.
+  Prior-season evidence remains visible on inherited/local assignments while the inapplicable
+  fast path is absent, including after opening Reassign player. Component cases cover initial,
+  inherited and local placement. The initial action submits once without confirmation. A real
+  browser case seeds both prior-season and inherited current-season assignments, requires
+  confirmation for reassignment, and checks one receipt/event plus unchanged prior decisions and
+  tokens. Existing Keep-and-advance browser coverage remains in the full suite.
+
+### Guidance and review
+
+Applied the previously read C#, Blazor/state, placement, lifecycle, tenancy, testing and UI
+instructions, `add-blazor-ui`, `nova-testing` and their state/component/browser references.
+Rechecked instruction routing and the PR template. Inspected capability rendering, context paging
+and retry, selection invalidation, the shared mutation entry points, terminal-state branches and
+the existing initial-Keep and inherited-withdrawal tests. The server's historical assignment
+evidence remains distinct from current-season effective placement.
+
+Independent read-only session `/root/recovery_review` reviewed the complete production/test diff,
+including the new component file, and reported no findings. The subsequent synchronous-to-async
+test-event correction received focused self-review. The layout and design composition are unchanged;
+existing curated evidence and its limited finish disposition remain applicable. No new whole-surface
+finish or measurable comp claim is made. Existing guidance already covers truthful unknown states,
+shared action eligibility and behavioral tests; no new instruction or skill was warranted.
+
+### Validation
+
+Tested source: base `2f9ce828f96cbd062ffc8305d15f1642602cd8a5` plus this round's five-file
+code/test diff. SHA-256 `a53098d3af13cdee1eb33cad9ea58f12516bbd3652c6748582169992997516e9`
+identifies the sorted 1,175 source-path/raw-content-hash pairs. The PR body identifies the resulting
+single commit. Only this validation document was edited after the build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Passed, 2m44.74s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,408 passed, zero failures/skips; 1m03.494s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 621 passed, zero failures/skips; 2m35.281s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 188 passed, zero failures, seven existing optional capture skips (195 total); 3m29.263s |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round13-captures`.
+Integration and browser suites ran serially across the machine, with source and generated assets
+fixed during browser execution. All source hashes matched after the final run; `git diff --check`
+passed before committing. New diagnostic captures remain local; the existing curated packet is unchanged.
+
+The initial targeted formatting pass reported CA1849/S6966 for synchronous event calls in the new
+async tests. Those calls now await `TriggerEventAsync`; no diagnostic was suppressed. Local logs use
+`.git/pr270-round13-`: `format-apply.log`, `build.log`, `unit.log`, `integration.log`, `browser.log`,
+`format.log`, `model.log`, `contrast.log`, and `detector.json`.
+
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
+no schema. No check was disabled or weakened. All three suites must run again before merge.

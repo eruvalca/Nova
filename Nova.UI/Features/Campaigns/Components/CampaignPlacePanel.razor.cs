@@ -348,12 +348,13 @@ public partial class CampaignPlacePanel(
     /// <summary>
     /// Gets the written reason a selected participant cannot receive a decision here.
     /// </summary>
-    private string DecisionUnavailableReason => _selected switch
+    private string? DecisionUnavailableReason => _selected switch
     {
         { PlayerLifecycleStatus: not null and not LifecycleStatus.Active } =>
             "This player is archived, so no placement decision can be recorded.",
         { LocalOutcome: PlacementOutcome.Withdrawn } =>
             "This player is withdrawn for the season. Only a superseding decision in a later active campaign can change it.",
+        _ when _context is null || _contextLoading || _contextError is not null => null,
         _ => "This player is withdrawn for the season. Administrator recovery of a prior-campaign withdrawal is not available here."
     };
 

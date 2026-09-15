@@ -58,11 +58,15 @@ public partial class CampaignPlacePanel
         }, _ => _contextError = "Placement history could not be loaded.");
     }
 
+    private bool CanKeepPreviousTeam => _context?.PreviousPlacement is { CanKeep: true, Source.Team: not null }
+        && !_contextLoading && _contextError is null
+        && _selected is { EffectiveDecision: null, LocalDecision: null }
+        && CanRecordDecision && _phase == PlacementPhase.Editing;
+
     private async Task KeepPreviousTeamAsync()
     {
-        if (_context?.PreviousPlacement is not { CanKeep: true, Source.Team: { } team }
-            || _selected is null || _selected.EffectiveDecision is not null || _selected.LocalDecision is not null
-            || !CanRecordDecision || !_storageReady || _saving) { return; }
+        if (!CanKeepPreviousTeam || !_storageReady || _saving
+            || _selected is null || _context?.PreviousPlacement?.Source.Team is not { } team) { return; }
         _draftOutcome = PlacementOutcome.Assigned;
         _draftTeamId = team.TeamId;
         var input = new UpdateCampaignPlacementInput(_selected.PlayerCampaignAssignmentId,

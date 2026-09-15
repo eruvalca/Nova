@@ -330,7 +330,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     @if (_context?.PreviousPlacement is { } previous)
                     {
                         <p>Previous placement · @previous.Season.Name · @(previous.Source.Team?.TeamName ?? "Team unavailable")</p>
-                        @if (previous.CanKeep && CanRecordDecision)
+                        @if (CanKeepPreviousTeam)
                         {
                             <button type="button" class="btn btn-outline-primary" disabled="@(_saving || !_storageReady)" @onclick="KeepPreviousTeamAsync">Keep on @previous.Source.Team?.TeamName</button>
                         }
@@ -464,10 +464,11 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                         </div>
                     </div>
                 }
-                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed && _context?.CanSupersedeWithdrawal != true)
+                else if (CanEditPlacements && !IsClosed && !IsDecisionAllowed && _context?.CanSupersedeWithdrawal != true
+                    && DecisionUnavailableReason is { } unavailableReason)
                 {
                     @* Terminal here, so the controls are absent rather than offered and refused. *@
-                    <p class="place-readonly" role="status">@DecisionUnavailableReason</p>
+                    <p class="place-readonly" role="status">@unavailableReason</p>
                 }
 
                 <section class="place-history" aria-label="Placement history">
