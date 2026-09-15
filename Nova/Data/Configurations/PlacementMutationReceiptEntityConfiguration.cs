@@ -15,5 +15,7 @@ internal class PlacementMutationReceiptEntityConfiguration : IEntityTypeConfigur
         builder.HasIndex(receipt => new { receipt.ClubId, receipt.OperationId }).IsUnique();
         builder.HasIndex(receipt => new { receipt.ClubId, receipt.CreatedAt });
         builder.HasIndex(receipt => receipt.CreatedAt);
+        builder.HasIndex(receipt => receipt.RecoveryExpiresAt);
+        builder.Property(receipt => receipt.RequestSha256).HasMaxLength(64);
     }
 }

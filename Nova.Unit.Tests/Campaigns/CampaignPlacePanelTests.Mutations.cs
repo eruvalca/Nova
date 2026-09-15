@@ -1,6 +1,7 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Features.Teams;
@@ -55,6 +56,8 @@ public sealed partial class CampaignPlacePanelTests
         // Leaving Assigned clears the team rather than leaving an invalid combination behind.
         cut.WaitForAssertion(() => cut.FindAll("#place-team").Count.ShouldBe(0));
         SaveButton(cut).Click();
+        _ = _mutations.DidNotReceive().UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm change", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved."));
         _ = _mutations.Received(1).UpdatePlacementAsync(
@@ -164,8 +167,9 @@ public sealed partial class CampaignPlacePanelTests
     {
         var queries = RegisterServices();
         var mutation = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UpdateCampaignPlacementInput? sentInput = null;
         _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns(mutation.Task);
+            .Returns(call => { sentInput = call.Arg<UpdateCampaignPlacementInput>(); return mutation.Task; });
         var cut = RenderPanel(selectedParticipantId: 301);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
         var (entered, release) = HoldNextQueueRead(queries);
@@ -177,13 +181,13 @@ public sealed partial class CampaignPlacePanelTests
             await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").HasAttribute("disabled").ShouldBeTrue());
             cut.FindAll(".place-queue input, .place-queue select").ShouldAllBe(control => control.HasAttribute("disabled"));
 
-            await cut.InvokeAsync(() => mutation.SetResult(new PlacementMutationSuccess(_replacementToken)));
+            await cut.InvokeAsync(() => mutation.SetResult(PlacementTestReceipts.Success(sentInput!, _replacementToken)));
             await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
             cut.FindAll(".place-queue input, .place-queue select").ShouldAllBe(control => control.HasAttribute("disabled"));
         }
         finally
         {
-            await cut.InvokeAsync(() => mutation.TrySetResult(new PlacementMutationSuccess(_replacementToken)));
+            if (sentInput is not null) { await cut.InvokeAsync(() => mutation.TrySetResult(PlacementTestReceipts.Success(sentInput, _replacementToken))); }
             await cut.InvokeAsync(release);
             await save;
         }
@@ -233,30 +237,22 @@ public sealed partial class CampaignPlacePanelTests
     [Fact]
     public async Task AnUnconfirmedSaveStillAppliesTheDiscoveryChangeItDeferredAsync()
     {
-        // A lost transport leaves the outcome unknown, but the discovery change deferred while the save was in
-        // flight still belongs to the URL. Skipping it would leave the controls describing a state the queue
-        // was never read for.
-        var queries = RegisterServices();
+        RegisterServices();
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
         var cut = RenderPanel(selectedParticipantId: 301);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
-
-        _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns<Task<ServiceResult<PlacementMutationSuccess>>>(_ => throw new HttpRequestException("lost"));
-
-        var (entered, release) = HoldNextQueueRead(queries);
-
         await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
         var save = SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
-        await cut.WaitForAssertionAsync(() => entered.IsCompleted.ShouldBeTrue());
+        await cut.WaitForAssertionAsync(() => _ = _mutations.Received(1).UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>()));
 
         ReRender(cut, new CampaignWorkspacePlacementState { Outcome = "assigned" }, selectedParticipantId: 301);
-
-        await cut.InvokeAsync(release);
+        await cut.InvokeAsync(() => pending.SetResult(ServiceProblem.ServerError("lost")));
         await save;
 
         await cut.WaitForAssertionAsync(() => cut.Find("#roster-outcome").GetAttribute("value").ShouldBe("assigned"));
+        cut.Markup.ShouldContain("Recover save");
     }
-
     [Fact]
     public async Task ALifecycleSwapDropsTheEvidenceItReplacedBeforeTheNewReadAnswersAsync()
     {
@@ -306,7 +302,7 @@ public sealed partial class CampaignPlacePanelTests
         await cut.Find("#place-outcome").ChangeAsync(new ChangeEventArgs { Value = nameof(PlacementOutcome.NotSelected) });
         await SaveButton(cut).TriggerEventAsync("onclick", new MouseEventArgs());
 
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("could not be refreshed"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Recover this save before starting another placement."));
         cut.Markup.ShouldNotContain("This view was refreshed from the server");
     }
 
@@ -367,7 +363,7 @@ public sealed partial class CampaignPlacePanelTests
         await cut.InvokeAsync(release);
         await save;
 
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("This view is reloading from the server"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll(".place-readonly").Count.ShouldBeGreaterThan(0));
         cut.Markup.ShouldNotContain("page was corrected");
     }
 
@@ -442,6 +438,8 @@ public sealed partial class CampaignPlacePanelTests
 
         cut.Find("#place-outcome").Change(nameof(PlacementOutcome.Withdrawn));
         SaveButton(cut).Click();
+        _ = _mutations.DidNotReceive().UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm change", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved."));
         _ = _mutations.Received(1).UpdatePlacementAsync(
@@ -454,7 +452,7 @@ public sealed partial class CampaignPlacePanelTests
     {
         RegisterServices();
         _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceResult<PlacementMutationSuccess>(ServiceProblem.Conflict("Someone else saved first.")));
+            .Returns(call => new ServiceResult<PlacementMutationSuccess>(PlacementMutationRejection.NotCommitted(ServiceProblem.Conflict("Someone else saved first."), call.Arg<UpdateCampaignPlacementInput>().OperationId)));
 
         var cut = RenderPanel(selectedParticipantId: 301);
         cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
@@ -463,7 +461,7 @@ public sealed partial class CampaignPlacePanelTests
         SaveButton(cut).Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Someone else saved first."));
-        cut.Markup.ShouldContain("Close and reload");
+        cut.Markup.ShouldContain("Review latest placement");
         cut.FindAll("#place-outcome").ShouldBeEmpty();
     }
 
@@ -472,20 +470,20 @@ public sealed partial class CampaignPlacePanelTests
     {
         RegisterServices();
         _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceResult<PlacementMutationSuccess>(ServiceProblem.Conflict()));
+            .Returns(call => new ServiceResult<PlacementMutationSuccess>(PlacementMutationRejection.NotCommitted(ServiceProblem.Conflict(), call.Arg<UpdateCampaignPlacementInput>().OperationId)));
 
         var cut = RenderPanel(selectedParticipantId: 301, state: new CampaignWorkspacePlacementState { Search = "Chen" });
         cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
 
         cut.Find("#place-outcome").Change(nameof(PlacementOutcome.NotSelected));
         SaveButton(cut).Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review latest placement"));
 
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Close and reload", StringComparison.Ordinal)).Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Review latest placement", StringComparison.Ordinal)).Click();
 
         // Recovery re-enables editing against authoritative state instead of leaving the surface locked.
         cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
-        cut.Markup.ShouldNotContain("Close and reload");
+        cut.Markup.ShouldNotContain("Review latest placement");
     }
 
     [Fact]
@@ -493,8 +491,8 @@ public sealed partial class CampaignPlacePanelTests
     {
         RegisterServices();
         _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceResult<PlacementMutationSuccess>(
-                ServiceProblem.Validation("TeamId", "The chosen team is no longer eligible.")));
+            .Returns(call => new ServiceResult<PlacementMutationSuccess>(
+                PlacementMutationRejection.NotCommitted(ServiceProblem.Validation("TeamId", "The chosen team is no longer eligible."), call.Arg<UpdateCampaignPlacementInput>().OperationId)));
 
         var cut = RenderPanel(selectedParticipantId: 301);
         cut.WaitForAssertion(() => cut.FindAll("#place-outcome").Count.ShouldBe(1));
@@ -505,11 +503,11 @@ public sealed partial class CampaignPlacePanelTests
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("The chosen team is no longer eligible."));
         // A refusal is not a conflict: the controls stay available for a corrected retry.
         cut.FindAll("#place-outcome").Count.ShouldBe(1);
-        cut.Markup.ShouldNotContain("Close and reload");
+        cut.Markup.ShouldNotContain("Review latest placement");
     }
 
     [Fact]
-    public void CommittedSaveThatCannotBeRefreshedIsNotAnnouncedAsSuccess()
+    public void CommittedSaveReportsReceiptSeparatelyFromFailedEvidenceRefresh()
     {
         var queries = RegisterServices();
 
@@ -523,12 +521,16 @@ public sealed partial class CampaignPlacePanelTests
         cut.Find("#place-outcome").Change(nameof(PlacementOutcome.NotSelected));
         SaveButton(cut).Click();
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("authoritative result could not be refreshed"));
-        cut.Markup.ShouldNotContain("Placement saved.");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved."));
+        cut.Markup.ShouldContain("could not be refreshed");
+        cut.FindAll("#place-outcome").ShouldBeEmpty();
     }
 
-    [Fact]
-    public void AnUnavailableSavedTeamIsShownDisabledRatherThanSubstituted()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementCorrectionReason.TeamArchived, "archived")]
+    [InlineData(PlacementCorrectionReason.TeamIncompatible, "not compatible with this year")]
+    [InlineData(PlacementCorrectionReason.TeamUnavailable, "not in this club")]
+    public void AnUnavailableSavedTeamStaysEvidenceAndCannotBeSelected(PlacementCorrectionReason reason, string suffix)
     {
         RegisterServices(rows:
         [
@@ -536,7 +538,7 @@ public sealed partial class CampaignPlacePanelTests
             {
                 LocalDecision = CreateDecision(301, PlacementOutcome.Assigned, 99),
                 LocalTeam = new CampaignParticipantTeamSummaryDto(99, "Retired Gold"),
-                CorrectionReason = PlacementCorrectionReason.TeamArchived
+                CorrectionReason = reason
             }
         ]);
 
@@ -547,11 +549,15 @@ public sealed partial class CampaignPlacePanelTests
         cut.WaitForAssertion(() => cut.FindAll("#place-team option").Count.ShouldBe(3));
         var options = cut.FindAll("#place-team option");
         options[0].GetAttribute("value").ShouldBeEmpty();
-        // The saved but no-longer-available team stays legible and can never be re-selected, and the
-        // compatible active teams follow it rather than replacing it.
         options[1].GetAttribute("value").ShouldBe("99");
         options[1].HasAttribute("disabled").ShouldBeTrue();
+        options[1].TextContent.ShouldContain(suffix);
         options[2].GetAttribute("value").ShouldBe("21");
+        options[2].HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#place-team").Change("99");
+        SaveButton(cut).HasAttribute("disabled").ShouldBeTrue();
+        _ = _mutations.DidNotReceive().UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+        cut.Find(".place-sheet").TextContent.ShouldContain("Retired Gold");
     }
 
     [Fact]
@@ -619,8 +625,10 @@ public sealed partial class CampaignPlacePanelTests
         cut.Markup.ShouldContain("withdrawn for the season");
     }
 
-    [Fact]
-    public void APriorCampaignWithdrawalOffersNoOrdinaryDecisionControls()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APriorCampaignWithdrawalRequiresAvailableAdministratorSupersession(bool canSupersede)
     {
         RegisterServices(rows:
         [
@@ -633,10 +641,25 @@ public sealed partial class CampaignPlacePanelTests
             }
         ]);
 
+        Services.GetRequiredService<IPlacementContextQueryService>()
+            .GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<PlacementContextResult>(new PlacementContextResult(301, null, [], null, canSupersede)));
         var cut = RenderPanel(selectedParticipantId: 301);
         cut.WaitForAssertion(() => cut.FindAll(".place-name").Count.ShouldBe(1));
         cut.FindAll("#place-outcome, #place-team, .place-decision-actions").ShouldBeEmpty();
-        cut.Find(".place-sheet").TextContent.ShouldContain("Administrator recovery of a prior-campaign withdrawal is not available here.");
+        const string Unavailable = "Administrator recovery of a prior-campaign withdrawal is not available here.";
+        if (canSupersede)
+        {
+            cut.Find(".place-sheet").TextContent.ShouldNotContain(Unavailable);
+            cut.FindAll("button").Single(button => string.Equals(Collapse(button), "Supersede prior withdrawal", StringComparison.Ordinal)).Click();
+            cut.Find("#place-outcome").HasAttribute("disabled").ShouldBeFalse();
+            cut.Find(".place-sheet").TextContent.ShouldNotContain(Unavailable);
+        }
+        else
+        {
+            cut.Find(".place-sheet").TextContent.ShouldContain(Unavailable);
+            cut.FindAll("button").ShouldNotContain(button => string.Equals(Collapse(button), "Supersede prior withdrawal", StringComparison.Ordinal));
+        }
         _ = _mutations.DidNotReceive().UpdatePlacementAsync(
             Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
     }

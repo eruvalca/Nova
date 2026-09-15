@@ -42,11 +42,18 @@ Use the shared helpers in
 was injected and that exactly one aggregate with its complete dependent set persisted. SQLite
 cannot validate provider execution strategies or ambiguous-commit behavior.
 
-For receipt-based recovery, also pause verification after a successful commit, perform a later
+For receipt-based recovery, pause after the durable commit and before verification, perform a later
 mutation or supported aggregate deletion through an independent context, then resume verification.
-Assert the original request's result is recovered and no replayed effects appear.
-`CampaignPlacementRetryTests` uses `GateReceiptVerificationInterceptor` for both cases; immediate
-lost-acknowledgement recovery alone cannot prove that mutable state or cascade-deleted receipts are safe.
+Gate the transaction phase, not the first receipt SELECT: replayable executors also look up receipts
+before execution, when mutation locks may still be held. `CampaignPlacementRetryTests` uses
+`GatedLostPlacementAcknowledgementInterceptor.TransactionCommittedAsync` to release database locks
+before the intervening operation and inject the lost acknowledgement afterward. Assert the gate was
+reached and the fault injected; release the gate in `finally`.
+
+Assert the original receipt survives without duplicate effects. When the actor remains authorized,
+the original result must be recovered despite a later save; club deletion instead denies disclosure
+to the former member while retaining receipt evidence. Immediate lost-acknowledgement recovery alone
+cannot prove either boundary.
 
 A race test must establish observable contention; back-to-back task starts alone do not prove the
 lock serialized the mutation. Hold or intercept the target advisory lock, start the competing

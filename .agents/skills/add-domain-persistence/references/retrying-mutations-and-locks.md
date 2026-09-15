@@ -53,8 +53,10 @@ same context and transaction as every domain effect, and verify that receipt by 
 a fresh context. Check aggregate and club deletion as well as later updates: cascading receipt
 deletion can erase proof between commit and verification. Nova's FK-less receipt ownership rules
 are in `.github/instructions/ef-core-tenancy.instructions.md`; do not copy an older receipt's FK
-configuration without checking this boundary. `CampaignPlacementService` and
-`CampaignPlacementRetryTests` demonstrate recovery after both a later save and club deletion.
+configuration without checking this boundary. `PlacementMutationExecutor` and
+`CampaignPlacementRetryTests` demonstrate receipt survival after a later save or club deletion;
+current membership still governs whether recovery may disclose the result. For the postcommit
+fault gate, follow the [integration reference](../../nova-testing/references/aspire-integration-harness.md#retrying-mutation-fault-injection).
 
 Receipts with a durable aggregate FK can prune inline within the current tenant. Tenant-local
 pruning cannot reach FK-less receipts of deleted clubs: provide an age-based cleanup path reachable
@@ -80,8 +82,9 @@ commit only when both the tenant-scoped tombstone exists and the aggregate is ab
 
 For recovery across HTTP requests, use `PlayerImportService.CommitAsync` and
 `PlayerImportCommitPostgresTests` as the canonical implementation and provider-test examples.
-Import recovery bounds each global cleanup batch in `PruneImportReceiptsAsync`; the membership
-receipt example above demonstrates global age retention, not bounded batches.
+Import recovery bounds each global cleanup batch in `PruneImportReceiptsAsync`;
+`PlacementReceiptCleanupService.PruneAsync` is the bounded placement example. The membership
+receipt deletion in the helper above demonstrates global age retention, not bounded batches.
 The caller retains the operation ID across requests; generating a new ID per HTTP attempt only
 protects retries inside that attempt. A batch receipt owns the batch ID; do not copy it onto every
 created entity's uniquely constrained `CreationOperationId`.

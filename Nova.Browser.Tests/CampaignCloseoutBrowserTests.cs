@@ -866,9 +866,13 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             },
             async () => await save.CountAsync() > 0 && await save.IsEnabledAsync());
 
-        await InteractionHelpers.ActUntilAsync(
-            page,
-            () => save.ClickAsync(new() { Timeout = 3000 }),
-            () => page.GetByText("Placement saved.").IsVisibleAsync());
+        var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true });
+        await InteractionHelpers.ActUntilAsync(page, () => save.ClickAsync(new() { Timeout = 3000 }),
+            async () => await page.GetByText("Placement saved.").IsVisibleAsync() || await confirm.IsVisibleAsync());
+        if (await confirm.IsVisibleAsync())
+        {
+            await confirm.ClickAsync();
+            await Expect(page.GetByText("Placement saved.")).ToBeVisibleAsync();
+        }
     }
 }

@@ -37,5 +37,6 @@ internal class ActivityEventEntityConfiguration : IEntityTypeConfiguration<Activ
 
         builder.HasIndex(e => new { e.ClubId, e.CreatedAt, e.ActivityEventId });
         builder.HasIndex(e => new { e.ClubId, e.CampaignId });
+        builder.HasIndex(e => new { e.ClubId, e.PlayerId, e.ActivityEventId });
     }
 }

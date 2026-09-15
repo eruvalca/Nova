@@ -35,7 +35,7 @@ public sealed partial class CampaignPlacementServiceTests
         saved.DecisionRecordedAt.ShouldNotBeNull();
     }
 
-    /// <summary>Checks unchanged decisions preserve attribution, token, activity, and receipt counts.</summary>
+    /// <summary>Checks unchanged decisions preserve attribution, token, activity while recording a receipt for each new operation.</summary>
     /// <param name="outcome">The saved outcome to repeat.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned)]
@@ -61,7 +61,7 @@ public sealed partial class CampaignPlacementServiceTests
         saved!.DecisionRecordedAt.ShouldBe(recordedAt);
         saved.DecisionRecordedById.ShouldBe(ClubAMemberId);
         (await verify.ActivityEvents.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
-        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(3);
     }
 
     /// <summary>Checks owning-campaign withdrawal is terminal for both authorized member roles.</summary>
@@ -86,7 +86,7 @@ public sealed partial class CampaignPlacementServiceTests
         row.ConcurrencyToken.ShouldBe(first.ConcurrencyToken);
         row.DecisionRecordedById.ShouldBe(ClubAMemberId);
         (await verify.ActivityEvents.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
-        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
     }
 
     /// <summary>Checks later-campaign supersession leaves the source decision unchanged and snapshots it.</summary>
@@ -133,7 +133,7 @@ public sealed partial class CampaignPlacementServiceTests
         row.ConcurrencyToken.ShouldBe(_clubAConcurrencyToken);
         row.DecisionRecordedAt.ShouldBeNull();
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.PlacementMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Checks a previous season's withdrawal does not restrict the current season.</summary>
@@ -168,7 +168,7 @@ public sealed partial class CampaignPlacementServiceTests
         await using var verify = _harness.CreateAdminContext();
         (await verify.PlayerCampaignAssignments.FindAsync([ClubAAssignmentId], TestContext.Current.CancellationToken))!.ConcurrencyToken.ShouldBe(_clubAConcurrencyToken);
         (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
-        (await verify.PlacementMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Checks selection uses opening order before team validity and never revives an older withdrawal.</summary>
@@ -214,7 +214,7 @@ public sealed partial class CampaignPlacementServiceTests
         ActAs(ClubAMemberId, ClubAId);
 
         var result = await CreateService().UpdatePlacementAsync(new UpdateCampaignPlacementInput(
-            ClubAAssignmentId, PlacementOutcome.Assigned, SecondEligibleTeamId, _clubAConcurrencyToken), TestContext.Current.CancellationToken);
+            ClubAAssignmentId, PlacementOutcome.Assigned, SecondEligibleTeamId, _clubAConcurrencyToken, operationId: Guid.CreateVersion7()), TestContext.Current.CancellationToken);
         result.Value.ShouldBeOfType<PlacementMutationSuccess>();
 
         await using var verify = _harness.CreateAdminContext();
@@ -232,7 +232,7 @@ public sealed partial class CampaignPlacementServiceTests
     /// <returns>The actual service result.</returns>
     private Task<PlacementUpdateResult> SaveAsync(PlacementOutcome outcome, Guid token)
         => CreateService().UpdatePlacementAsync(new UpdateCampaignPlacementInput(ClubAAssignmentId, outcome,
-            outcome == PlacementOutcome.Assigned ? EligibleTeamId : null, token), TestContext.Current.CancellationToken);
+            outcome == PlacementOutcome.Assigned ? EligibleTeamId : null, token, operationId: Guid.CreateVersion7()), TestContext.Current.CancellationToken);
 
     /// <summary>Seeds an explicitly attributed Closed decision before the Active target campaign.</summary>
     /// <param name="outcome">The historical saved outcome.</param>
@@ -272,9 +272,9 @@ public sealed partial class CampaignPlacementServiceTests
             TeamId = outcome == PlacementOutcome.Assigned ? EligibleTeamId : null,
             ConcurrencyToken = token,
             CreatedById = ClubAAdminId,
-            DecisionRecordedById = ClubAAdminId,
-            DecisionRecordedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            DecisionActorDisplayName = "Admin A"
+            DecisionRecordedById = outcome == PlacementOutcome.Undecided ? null : ClubAAdminId,
+            DecisionRecordedAt = outcome == PlacementOutcome.Undecided ? null : DateTimeOffset.UtcNow.AddDays(-1),
+            DecisionActorDisplayName = outcome == PlacementOutcome.Undecided ? null : "Admin A"
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return token;

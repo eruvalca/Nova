@@ -59,7 +59,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 EligibleTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -90,7 +90,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 EligibleTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -135,7 +135,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAReassignedAssignmentId,
                 PlacementOutcome.Assigned,
                 SecondEligibleTeamId,
-                _clubAReassignedConcurrencyToken),
+                _clubAReassignedConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -189,7 +189,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 outcome,
                 teamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
@@ -213,7 +213,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 teamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
@@ -234,7 +234,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         var success = result.Value.ShouldBeOfType<PlacementMutationSuccess>();
@@ -255,7 +255,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT3.ShouldBeTrue();
@@ -275,7 +275,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubBAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                Guid.NewGuid()),
+                Guid.NewGuid(), operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT2.ShouldBeTrue();
@@ -295,7 +295,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 ClubBTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT2.ShouldBeTrue();
@@ -315,7 +315,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 IneligibleTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
@@ -354,7 +354,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -384,7 +384,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 EligibleTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -404,7 +404,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClosedCampaignAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                Guid.NewGuid()),
+                Guid.NewGuid(), operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -434,7 +434,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 EligibleTeamId,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -477,7 +477,7 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                _clubAConcurrencyToken),
+                _clubAConcurrencyToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -550,7 +550,10 @@ public sealed partial class CampaignPlacementServiceTests : IDisposable
 
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
-            new NovaUserEntity { Id = ClubAMemberId, FirstName = "Member", LastName = "M", ClubId = ClubAId });
+            new NovaUserEntity { Id = ClubAMemberId, FirstName = "Member", LastName = "M", ClubId = ClubAId },
+            new NovaUserEntity { Id = ClubBAdminId, FirstName = "Admin", LastName = "B", ClubId = ClubBId });
+        db.Roles.Add(new Microsoft.AspNetCore.Identity.IdentityRole<long> { Id = 10, Name = Nova.SharedKernel.Security.Roles.ClubAdmin, NormalizedName = Nova.SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant() });
+        db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 10 });
 
         db.Seasons.AddRange(
             new SeasonEntity

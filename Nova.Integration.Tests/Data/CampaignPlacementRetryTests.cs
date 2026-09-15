@@ -14,7 +14,7 @@ namespace Nova.Integration.Tests.Data;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>Verifies opening a Draft waits for placement and cannot enroll while the owning campaign remains Active.</summary>
     [Fact]
@@ -52,7 +52,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = true;
-        var gate = new AdvisoryLockGateInterceptor();
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 2);
         ICampaignPlacementService placement = new CampaignPlacementService(
             new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
             fixture.CurrentUser, NullLogger<CampaignPlacementService>.Instance);
@@ -62,7 +62,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         try
         {
             var placementTask = placement.UpdatePlacementAsync(
-                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
+                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
             await gate.WaitForAcquiredAsync(cancellationToken);
             var openingTask = lifecycle.OpenAsync(draftId, new OpenCampaignInput { OperationId = Guid.NewGuid() }, cancellationToken);
             await using var probe = fixture.CreateAdminContext();
@@ -155,7 +155,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         await using var transaction = await archive.Database.BeginTransactionAsync(cancellationToken);
         await archive.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({-teamId})", cancellationToken);
         var pending = service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, null, expectedToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, null, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(archive, -teamId, cancellationToken);
         var team = await archive.Teams.SingleAsync(row => row.TeamId == teamId, cancellationToken);
         team.LifecycleStatus = LifecycleStatus.Archived;
@@ -240,6 +240,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
             db.PlacementMutationReceipts.AddRange(
                 new PlacementMutationReceiptEntity
                 {
+                    RequestSha256 = new string('A', 64),
+                    ResultJson = "{}",
+                    RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                     ClubId = first.ClubId,
                     CreatedById = actorUserId,
                     OperationId = operationId,
@@ -248,6 +251,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
                 },
                 new PlacementMutationReceiptEntity
                 {
+                    RequestSha256 = new string('A', 64),
+                    ResultJson = "{}",
+                    RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                     ClubId = second.ClubId,
                     CreatedById = actorUserId,
                     OperationId = operationId,
@@ -260,6 +266,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         await using var duplicate = fixture.CreateUnnormalizedAdminContext();
         duplicate.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
         {
+            RequestSha256 = new string('A', 64),
+            ResultJson = "{}",
+            RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
             ClubId = first.ClubId,
             CreatedById = actorUserId,
             OperationId = operationId,
@@ -289,18 +298,20 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         ICampaignPlacementService service = new CampaignPlacementService(fixture.CreateTenantContextFactory(), fixture.CurrentUser,
             NullLogger<CampaignPlacementService>.Instance);
         var first = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
         first.IsSuccess.ShouldBeTrue();
         await using var before = fixture.CreateAdminContext();
         var original = await before.PlayerCampaignAssignments.AsNoTracking().SingleAsync(
             row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
         fixture.CurrentUser.UserId = actorUserId == long.MaxValue ? actorUserId - 1 : actorUserId + 1;
+        before.Users.Add(new NovaUserEntity { Id = fixture.CurrentUser.UserId.Value, ClubId = clubId, FirstName = "Another", LastName = "Member" });
+        await before.SaveChangesAsync(cancellationToken);
         var repeated = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, first.Value.ConcurrencyToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, first.Value.ConcurrencyToken, operationId: Guid.CreateVersion7()), cancellationToken);
         repeated.IsSuccess.ShouldBeTrue();
         repeated.Value.ConcurrencyToken.ShouldBe(first.Value.ConcurrencyToken);
         var stale = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
         stale.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         await using var verify = fixture.CreateAdminContext();
         var persisted = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
@@ -308,7 +319,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         persisted.DecisionRecordedAt.ShouldBe(original.DecisionRecordedAt);
         persisted.ConcurrencyToken.ShouldBe(first.Value.ConcurrencyToken);
         (await verify.ActivityEvents.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(1);
-        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(1);
+        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(3);
     }
 
     /// <summary>Verifies placement waits for season advancement and rechecks the committed current-season pointer.</summary>
@@ -330,7 +341,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         var lockKey = (long.MinValue / 16) + clubId;
         await advance.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", cancellationToken);
         var pending = ((ICampaignPlacementService)service).UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(advance, lockKey, cancellationToken);
         var nextSeason = new SeasonEntity
         {
@@ -354,7 +365,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         persisted.ConcurrencyToken.ShouldBe(expectedToken);
         persisted.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
         (await verify.ActivityEvents.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(0);
-        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(0);
+        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Verifies target team lifecycle is reloaded after real PostgreSQL lock contention.</summary>
@@ -375,7 +386,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         await using var transaction = await archive.Database.BeginTransactionAsync(cancellationToken);
         await archive.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({-teamId})", cancellationToken);
         var pending = ((ICampaignPlacementService)service).UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(archive, -teamId, cancellationToken);
         var team = await archive.Teams.SingleAsync(row => row.TeamId == teamId, cancellationToken);
         team.LifecycleStatus = LifecycleStatus.Archived;
@@ -421,7 +432,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
             NullLogger<CampaignPlacementService>.Instance);
 
         var result = await ((ICampaignPlacementService)service).UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue("a pre-commit transient failure must be retried to a successful placement");
@@ -471,7 +482,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
             NullLogger<CampaignPlacementService>.Instance);
 
         var result = await ((ICampaignPlacementService)service).UpdatePlacementAsync(
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue("an ambiguous commit must be verified rather than replayed into a conflict");
@@ -504,10 +515,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = true;
-        var failure = new FailFirstCommittedTransactionInterceptor();
-        var gate = new GateReceiptVerificationInterceptor("\"PlacementMutationReceipts\"");
+        var gate = new GatedLostPlacementAcknowledgementInterceptor();
         var firstService = new CampaignPlacementService(
-            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, failure, gate),
+            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
             fixture.CurrentUser, NullLogger<CampaignPlacementService>.Instance);
         var laterService = new CampaignPlacementService(fixture.CreateTenantContextFactory(),
             fixture.CurrentUser, NullLogger<CampaignPlacementService>.Instance);
@@ -515,8 +525,8 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         try
         {
             var firstTask = ((ICampaignPlacementService)firstService).UpdatePlacementAsync(
-                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
-            await gate.WaitForVerificationAttemptAsync(cancellationToken);
+                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
+            await gate.WaitForCommitAsync(cancellationToken);
             Guid committedToken;
 #pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var locate = fixture.CreateAdminContext())
@@ -528,14 +538,14 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
             }
 
             var laterResult = await ((ICampaignPlacementService)laterService).UpdatePlacementAsync(
-                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, null, committedToken), cancellationToken);
+                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, null, committedToken, operationId: Guid.CreateVersion7()), cancellationToken);
             laterResult.IsSuccess.ShouldBeTrue();
             gate.Release();
             var firstResult = await firstTask;
             firstResult.IsSuccess.ShouldBeTrue();
             firstResult.Value.ConcurrencyToken.ShouldBe(committedToken);
             firstResult.Value.ConcurrencyToken.ShouldNotBe(laterResult.Value.ConcurrencyToken);
-            failure.FailureCount.ShouldBe(1);
+            gate.FailureCount.ShouldBe(1);
 
             await using var verify = fixture.CreateAdminContext();
             var persisted = await verify.PlayerCampaignAssignments.SingleAsync(
@@ -552,10 +562,10 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies a receipt survives club deletion and recovers an acknowledged-lost placement without replaying it.
+    /// Verifies a receipt survives club deletion while recovery denies disclosure to its former member.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementRecoversOriginalSuccessWhenClubDeletionPrecedesCommitVerificationAsync()
+    public async Task UpdatePlacementDeniesRecoveryWhenClubDeletionPrecedesCommitVerificationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
@@ -565,17 +575,16 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = true;
-        var failure = new FailFirstCommittedTransactionInterceptor();
-        var gate = new GateReceiptVerificationInterceptor("\"PlacementMutationReceipts\"");
+        var gate = new GatedLostPlacementAcknowledgementInterceptor();
         ICampaignPlacementService service = new CampaignPlacementService(
-            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, failure, gate),
+            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
             fixture.CurrentUser, NullLogger<CampaignPlacementService>.Instance);
 
         try
         {
             var pending = service.UpdatePlacementAsync(
-                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken), cancellationToken);
-            await gate.WaitForVerificationAttemptAsync(cancellationToken);
+                new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken, operationId: Guid.CreateVersion7()), cancellationToken);
+            await gate.WaitForCommitAsync(cancellationToken);
             Guid committedToken;
 #pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
             await using (var delete = fixture.CreateAdminContext())
@@ -591,10 +600,9 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
             gate.Release();
             var result = await pending;
-            result.IsSuccess.ShouldBeTrue("a deleted aggregate must not erase a successfully committed operation's receipt");
-            result.Value.ConcurrencyToken.ShouldBe(committedToken);
-            result.Value.ConcurrencyToken.ShouldNotBe(expectedToken);
-            failure.FailureCount.ShouldBe(1);
+            result.IsProblem.ShouldBeTrue();
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+            gate.FailureCount.ShouldBe(1);
             await using var verify = fixture.CreateAdminContext();
             (await verify.Clubs.AnyAsync(row => row.ClubId == clubId, cancellationToken)).ShouldBeFalse();
             (await verify.PlayerCampaignAssignments.AnyAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken)).ShouldBeFalse();
@@ -639,6 +647,12 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
             };
             seed.Clubs.Add(club);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            if (actorUserId != 7 && !await seed.Users.AnyAsync(user => user.Id == actorUserId, TestContext.Current.CancellationToken))
+            {
+                seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Placement", LastName = "Member" });
+                await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            }
 
             var season = new SeasonEntity
             {

@@ -631,22 +631,7 @@ public partial class TeamDetail(
     /// <param name="returnUrl">The incoming return URL query value.</param>
     /// <returns>A safe local path for the teams back link, defaulting to <c>/club/teams</c>.</returns>
     private static string NormalizeReturnUrl(string? returnUrl)
-    {
-        if (string.IsNullOrWhiteSpace(returnUrl))
-        {
-            return ClubRoutes.Teams;
-        }
-
-        var candidate = returnUrl.Trim();
-        if (!Uri.IsWellFormedUriString(candidate, UriKind.Relative)
-            || candidate.StartsWith("//", StringComparison.Ordinal)
-            || candidate.Contains('\\', StringComparison.Ordinal))
-        {
-            return ClubRoutes.Teams;
-        }
-
-        return candidate.StartsWith('/') ? candidate : $"/{candidate}";
-    }
+        => Nova.UI.Common.CorrectionReturnContext.Normalize(returnUrl) ?? ClubRoutes.Teams;
 
     /// <summary>
     /// Handles an authentication-state change event by scheduling the state application on the dispatcher.

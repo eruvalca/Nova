@@ -72,6 +72,8 @@ public sealed partial class CampaignEvaluationPanelTests
     [InlineData("null-text")]
     [InlineData("wrong-assignment")]
     [InlineData("empty-operation")]
+    [InlineData("wrong-version")]
+    [InlineData("non-rfc-variant")]
     public async Task EvaluationRejectsMalformedSnapshotThenReplaysValidOriginalOperationAsync(string malformed)
     {
         var runtime = PrepareEvaluationStorageRecovery();
@@ -204,6 +206,8 @@ public sealed partial class CampaignEvaluationPanelTests
             case "null-text": pending["Text"] = null; break;
             case "wrong-assignment": pending["AssignmentId"] = 999; break;
             case "empty-operation": pending["OperationId"] = Guid.Empty; break;
+            case "wrong-version": pending["OperationId"] = "01993998-1234-4234-8234-123456789abc"; break;
+            case "non-rfc-variant": pending["OperationId"] = "01993998-1234-7234-c234-123456789abc"; break;
             default: throw new ArgumentOutOfRangeException(nameof(malformed));
         }
         return snapshot.ToJsonString();

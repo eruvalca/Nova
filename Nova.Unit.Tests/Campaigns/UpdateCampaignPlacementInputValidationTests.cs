@@ -10,6 +10,15 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class UpdateCampaignPlacementInputValidationTests
 {
+    [Fact]
+    public void ValidateRejectsMissingOperationIdentity()
+    {
+        var errors = InputValidator.Validate(new UpdateCampaignPlacementInput(1, PlacementOutcome.NotSelected,
+            null, Guid.NewGuid(), Guid.Empty));
+
+        errors.ShouldContainKey(nameof(UpdateCampaignPlacementInput.OperationId));
+        errors.Count.ShouldBe(1);
+    }
     /// <summary>
     /// Verifies every invalid outcome/team combination is rejected as a team-field error.
     /// </summary>
@@ -25,7 +34,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
         long? teamId)
     {
         var errors = InputValidator.Validate(
-            new UpdateCampaignPlacementInput(1, outcome, teamId, Guid.NewGuid()));
+            new UpdateCampaignPlacementInput(1, outcome, teamId, Guid.NewGuid(), operationId: Guid.CreateVersion7()));
 
         errors.ShouldContainKey(nameof(UpdateCampaignPlacementInput.TeamId));
     }
@@ -44,7 +53,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
         long? teamId)
     {
         var errors = InputValidator.Validate(
-            new UpdateCampaignPlacementInput(1, outcome, teamId, Guid.NewGuid()));
+            new UpdateCampaignPlacementInput(1, outcome, teamId, Guid.NewGuid(), operationId: Guid.CreateVersion7()));
 
         errors.ShouldBeEmpty();
     }
@@ -56,7 +65,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     public void ValidateReturnsOutcomeErrorForUndecidedWithoutTeam()
     {
         var errors = InputValidator.Validate(
-            new UpdateCampaignPlacementInput(1, PlacementOutcome.Undecided, null, Guid.NewGuid()));
+            new UpdateCampaignPlacementInput(1, PlacementOutcome.Undecided, null, Guid.NewGuid(), operationId: Guid.CreateVersion7()));
 
         errors.ShouldContainKey(nameof(UpdateCampaignPlacementInput.Outcome));
     }
@@ -72,7 +81,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
                 0,
                 (PlacementOutcome)99,
                 -1,
-                Guid.Empty));
+                Guid.Empty, operationId: Guid.CreateVersion7()));
 
         errors.Keys.ShouldBe(
         [

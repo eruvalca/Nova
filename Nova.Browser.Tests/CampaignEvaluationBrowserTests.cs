@@ -442,6 +442,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#participant-drawer-close").ClickAsync();
         await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
         await OpenParticipantAsync(page, page.Locator($"#roster-row-{seed.AssignmentIds[1]}"));
+        await Expect(page.GetByRole(AriaRole.Combobox, new() { Name = "Tag to apply", Exact = true })).ToBeVisibleAsync();
         var options = await page.Locator("select[aria-label=\"Tag to apply\"] option").AllTextContentsAsync();
         options.ShouldContain(seed.ActiveTagName, StringComparer.Ordinal);
         options.ShouldContain(seed.SecondActiveTagName, StringComparer.Ordinal);

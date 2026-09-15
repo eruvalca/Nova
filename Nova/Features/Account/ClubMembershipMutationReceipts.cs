@@ -26,9 +26,7 @@ internal static class ClubMembershipMutationReceipts
             await db.ClubMembershipMutationReceipts
                 .Where(receipt => receipt.CreatedAt < cutoff)
                 .ExecuteDeleteAsync(cancellationToken);
-            await db.PlacementMutationReceipts
-                .Where(receipt => receipt.CreatedAt < cutoff)
-                .ExecuteDeleteAsync(cancellationToken);
+            await Campaigns.PlacementReceiptCleanupService.PruneAsync(db, DateTimeOffset.UtcNow, cancellationToken);
             return;
         }
 
@@ -41,9 +39,6 @@ internal static class ClubMembershipMutationReceipts
             db.ClubMembershipMutationReceipts.RemoveRange(expired);
         }
 
-        var expiredPlacements = (await db.PlacementMutationReceipts.ToListAsync(cancellationToken))
-            .Where(receipt => receipt.CreatedAt < cutoff)
-            .ToList();
-        db.PlacementMutationReceipts.RemoveRange(expiredPlacements);
+        await Campaigns.PlacementReceiptCleanupService.PruneAsync(db, DateTimeOffset.UtcNow, cancellationToken);
     }
 }

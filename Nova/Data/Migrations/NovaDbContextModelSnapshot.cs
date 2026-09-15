@@ -218,11 +218,16 @@ namespace Nova.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<long?>("PlayerId")
+                        .HasColumnType("bigint");
+
                     b.HasKey("ActivityEventId");
 
                     b.HasIndex("ClubId", "CampaignId");
 
                     b.HasIndex("ClubId", "CreatedAt", "ActivityEventId");
+
+                    b.HasIndex("ClubId", "PlayerId", "ActivityEventId");
 
                     b.ToTable("ActivityEvents");
                 });
@@ -803,6 +808,9 @@ namespace Nova.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("PlacementMutationReceiptId"));
 
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("ClubId")
                         .HasColumnType("bigint");
 
@@ -827,9 +835,23 @@ namespace Nova.Data.Migrations
                     b.Property<long>("PlayerCampaignAssignmentId")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTimeOffset>("RecoveryExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("PlacementMutationReceiptId");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("RecoveryExpiresAt");
 
                     b.HasIndex("ClubId", "CreatedAt");
 

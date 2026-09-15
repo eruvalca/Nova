@@ -165,7 +165,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         Guid firstToken;
         using (var firstResponse = await adminClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, initialItem.ConcurrencyToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, initialItem.ConcurrencyToken, operationId: Guid.CreateVersion7()),
             cancellationToken))
         {
             firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -187,7 +187,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         Guid secondToken;
         using (var secondResponse = await adminClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, team.TeamId, firstToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, team.TeamId, firstToken, operationId: Guid.CreateVersion7()),
             cancellationToken))
         {
             secondResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -245,7 +245,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
             .Items.ShouldHaveSingleItem().ConcurrencyToken;
         using (var placeResponse = await adminClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, placementToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, placementToken, operationId: Guid.CreateVersion7()),
             cancellationToken))
         {
             placeResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -305,7 +305,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, as
             .Items.ShouldHaveSingleItem().ConcurrencyToken;
         using (var placementResponse = await adminClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, closedToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, closedToken, operationId: Guid.CreateVersion7()),
             cancellationToken))
         {
             placementResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -335,7 +335,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, as
             .Items.ShouldHaveSingleItem().ConcurrencyToken;
         using (var placeResponse = await adminClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, placementToken),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, placementToken, operationId: Guid.CreateVersion7()),
             cancellationToken))
         {
             placeResponse.StatusCode.ShouldBe(HttpStatusCode.OK);

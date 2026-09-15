@@ -20,7 +20,7 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 
@@ -58,7 +58,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await (isAdmin ? adminClient : memberClient).PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()), cancellationToken);
         response.StatusCode.ShouldBe(expectedStatus);
         await using var verify = fixture.CreateAdminContext();
         var source = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == sourceId, cancellationToken);
@@ -112,7 +112,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var (assignmentId, _, token) = await SeedPlacementDataAsync(club.ClubId, email, cancellationToken, initialOutcome: initialOutcome);
 
         using var response = await client.PutAsJsonAsync(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, requestedOutcome, null, token), cancellationToken);
+            new UpdateCampaignPlacementInput(assignmentId, requestedOutcome, null, token, operationId: Guid.CreateVersion7()), cancellationToken);
         response.StatusCode.ShouldBe(expectedStatus);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
         problem.ShouldNotBeNull();
@@ -122,7 +122,8 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var target = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
         target.PlacementOutcome.ShouldBe(initialOutcome);
         target.ConcurrencyToken.ShouldBe(token);
-        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == club.ClubId, cancellationToken)).ShouldBe(0);
+        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == club.ClubId, cancellationToken))
+            .ShouldBe(initialOutcome == PlacementOutcome.Withdrawn ? 1 : 0);
     }
 
     /// <summary>Seeds one earlier Closed decision with explicitly ordered opening metadata.</summary>
@@ -185,7 +186,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await anonymousClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(1),
-            new UpdateCampaignPlacementInput(1, PlacementOutcome.Assigned, 2, Guid.NewGuid()),
+            new UpdateCampaignPlacementInput(1, PlacementOutcome.Assigned, 2, Guid.NewGuid(), operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -214,7 +215,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await memberClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -253,7 +254,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await noClubClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -276,7 +277,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -309,7 +310,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId + 1, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId + 1, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -337,7 +338,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId: null, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId: null, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -405,7 +406,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await otherClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -442,7 +443,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await ownerClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, foreignTeamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, foreignTeamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -482,7 +483,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -514,7 +515,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, outcome, teamId: null, token),
+            new UpdateCampaignPlacementInput(assignmentId, outcome, teamId: null, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -558,7 +559,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -594,7 +595,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -626,7 +627,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -667,7 +668,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -696,7 +697,7 @@ new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.Rela
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);

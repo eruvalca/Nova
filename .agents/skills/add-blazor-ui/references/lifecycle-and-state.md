@@ -110,7 +110,9 @@ the new request waits.
 Persist the snapshot's club id independently of its payload (an error can have no payload), and
 validate that id before honoring `Initialized`. Give each replacement load or mutation an owned
 request token/generation: cancellation stops cooperative work, while ownership checks prevent late
-results and `finally` blocks from overwriting a newer scope's data or busy flags. See the testing
+results and `finally` blocks from overwriting a newer scope's data or busy flags. Comparing user/club
+keys alone misses an A → B → A round trip; returning to the same keys must not adopt work from the
+earlier generation. See the testing
 reference's identity and async-ownership examples for the relevant components and regressions.
 
 ### Disposal and transport cancellation
@@ -206,6 +208,19 @@ expected version independently of history rows: deletion, paging or a conflictin
 row without resolving the retained command. A delayed storage restore must also check whether the
 user has started newer work. These examples implement evaluation's recovery window; do not impose
 that duration on unrelated features.
+
+For selection-based recovery, distinguish the pending command's subject and operation ID from the
+currently selected row. A review that permits leaving an expired operation behind must load and
+verify its original subject before clearing storage; reviewing another row does not resolve it.
+Bind post-save navigation intent to the operation ID too, so a rejected Keep action cannot advance
+the queue after an unrelated save. `CampaignPlacePanel.Recovery.cs` and `.Mutations.cs` demonstrate
+these boundaries.
+
+Lifecycle changes invalidate editing and confirmations without disproving a completed operation.
+Within an unchanged authorized recovery scope, retain receipt feedback through a closure refresh
+and explain current read-only state separately. See
+`CampaignPlacePanelTests.ConfirmedReceiptFeedbackSurvivesSameScopeCampaignClosure` and
+`ExpiredRecoveryReviewNavigatesOriginalParticipantBeforeClearingPendingCommand`.
 
 ## Bounded data
 

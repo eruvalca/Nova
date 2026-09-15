@@ -215,7 +215,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
                 seed.AssignmentId,
                 PlacementOutcome.NotSelected,
                 teamId: null,
-                seed.ConcurrencyToken),
+                seed.ConcurrencyToken, operationId: Guid.CreateVersion7()),
             cancellationToken);
 
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
@@ -536,6 +536,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var db = fixture.CreateAdminContext();
         await using (db)
         {
+            db.Users.Add(new NovaUserEntity { Id = campaignSeed.ActorUserId, ClubId = campaignSeed.ClubId, FirstName = "Placement", LastName = "Member" });
             var suffix = Guid.NewGuid().ToString("N");
             var player = new PlayerEntity
             {

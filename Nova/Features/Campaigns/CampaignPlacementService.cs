@@ -54,105 +54,39 @@ internal sealed partial class CampaignPlacementService(
     ILogger<CampaignPlacementService> logger) : ICampaignPlacementService
 {
     /// <inheritdoc />
-    async Task<ServiceResult<PlacementMutationSuccess>> ICampaignPlacementService.UpdatePlacementAsync(
-        UpdateCampaignPlacementInput input,
-        CancellationToken cancellationToken)
-    {
-        var outcome = await UpdatePlacementAsync(input, cancellationToken);
-        return outcome.Match<ServiceResult<PlacementMutationSuccess>>(
-            success => success,
-            validation => ServiceProblem.Validation(validation.Value),
-            _ => ServiceProblem.NotFound(),
-            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
-            conflict => ServiceProblem.Conflict(conflict.Detail));
-    }
+    Task<ServiceResult<PlacementMutationSuccess>> ICampaignPlacementService.UpdatePlacementAsync(
+        UpdateCampaignPlacementInput input, CancellationToken cancellationToken)
+        => ExecutePlacementAsync(input, cancellationToken);
 
-    /// <summary>
-    /// Updates one campaign participant's outcome and optional team.
-    /// </summary>
-    /// <param name="input">The requested placement values and expected concurrency token.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>
-    /// The new concurrency token on success; validation, not-found, forbidden, or conflict information otherwise.
-    /// </returns>
-    public async Task<PlacementUpdateResult> UpdatePlacementAsync(
-        UpdateCampaignPlacementInput input,
+    /// <summary>Executes or recovers a placement through the existing domain result boundary.</summary>
+    public async Task<PlacementUpdateResult> UpdatePlacementAsync(UpdateCampaignPlacementInput input,
         CancellationToken cancellationToken = default)
     {
-        var validationErrors = InputValidator.Validate(input);
-        if (validationErrors.Count > 0)
+        var result = await ExecutePlacementAsync(input, cancellationToken);
+        return result.Match<PlacementUpdateResult>(success => success, problem => problem.Kind switch
         {
-            LogPlacementValidationFailed(input.PlayerCampaignAssignmentId);
-            return new Error<IReadOnlyDictionary<string, string[]>>(validationErrors);
-        }
-
-        if (currentUserProvider.GetCurrentUserState().Value is not ClubMember member)
-        {
-            LogPlacementForbidden(input.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
-            return new PlacementForbidden("You must be an approved club member to update campaign placements.");
-        }
-
-        var userId = member.UserId;
-        var clubId = member.ClubId;
-
-        // The replacement token also identifies an immutable receipt for this logical request.
-        var replacementToken = Guid.NewGuid();
-        var isClubAdmin = currentUserProvider.IsClubAdmin;
-
-        return await ExecuteWithFreshContextAsync(
-            (db, commitAttempted) => UpdatePlacementAttemptAsync(
-                db, input, userId, clubId, isClubAdmin, replacementToken, commitAttempted, cancellationToken),
-            db => VerifyPlacementCommittedAsync(
-                db, input.PlayerCampaignAssignmentId, replacementToken, cancellationToken),
-            cancellationToken);
+            ServiceProblemKind.Validation => new Error<IReadOnlyDictionary<string, string[]>>(problem.Errors
+                ?? new Dictionary<string, string[]>(StringComparer.Ordinal)),
+            ServiceProblemKind.NotFound => new NotFound(),
+            ServiceProblemKind.Forbidden => new PlacementForbidden(problem.Detail ?? "Placement unavailable."),
+            _ => new PlacementConflict(problem.Detail ?? "Placement could not be confirmed.")
+        });
     }
 
-    /// <summary>
-    /// Runs a placement mutation inside EF Core's retrying execution strategy with a fresh
-    /// tenant context per attempt, and verifies whether an ambiguous commit succeeded before the
-    /// strategy replays the mutation. Verification only runs for an attempt that reached its commit;
-    /// a transient failure raised before the commit cannot have applied the mutation, so the observed
-    /// state belongs to an earlier request and must not be credited to this one.
-    /// </summary>
-    /// <typeparam name="TResult">The result produced by the operation.</typeparam>
-    /// <param name="operation">The mutation to execute with a fresh tenant context and commit tracker.</param>
-    /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
-    /// <param name="cancellationToken">A token that cancels strategy setup, the mutation, or verification.</param>
-    /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
-    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
-        Func<NovaDbContext, CommitAttemptTracker, Task<TResult>> operation,
-        Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
+    private Task<ServiceResult<PlacementMutationSuccess>> ExecutePlacementAsync(UpdateCampaignPlacementInput input,
         CancellationToken cancellationToken)
-    {
-        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
-
-        // Records whether the most recent attempt reached CommitAsync. Verification is only
-        // meaningful for that attempt: a transient failure raised before the commit cannot have
-        // applied the mutation, so the observed state belongs to some earlier request and must
-        // not be mistaken for this one's ambiguous commit.
-        var commitAttempted = new CommitAttemptTracker();
-
-        return await strategy.ExecuteAsync(
-            (Operation: operation, VerifySucceeded: verifySucceeded, CommitAttempted: commitAttempted),
-            async (state, _) =>
+        => new PlacementMutationExecutor(dbContextFactory, currentUserProvider).ExecuteAsync(input,
+            async (db, actor, club, administrator, expiresAt) =>
             {
-                state.CommitAttempted.Reset();
-                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                return await state.Operation(db, state.CommitAttempted);
-            },
-            async (state, _) =>
-            {
-                if (!state.CommitAttempted.Attempted)
-                {
-                    return new ExecutionResult<TResult>(successful: false, default!);
-                }
-
-                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                return await state.VerifySucceeded(db);
-            },
-            cancellationToken);
-    }
+                var result = await UpdatePlacementAttemptAsync(db, input, actor, club, administrator,
+                    Guid.NewGuid(), expiresAt, cancellationToken);
+                return result.Match<ServiceResult<PlacementMutationSuccess>>(
+                    success => success,
+                    validation => ServiceProblem.Validation(validation.Value),
+                    _ => ServiceProblem.NotFound(),
+                    forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+                    conflict => ServiceProblem.Conflict(conflict.Detail));
+            }, cancellationToken);
 
     /// <summary>
     /// Executes one transactional campaign placement update attempt.
@@ -163,7 +97,7 @@ internal sealed partial class CampaignPlacementService(
     /// <param name="clubId">The current tenant club identifier.</param>
     /// <param name="isClubAdmin">Whether the acting member may supersede a prior withdrawal.</param>
     /// <param name="replacementToken">The stable token this logical request writes on success.</param>
-    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
+    /// <param name="expiresAt">The deadline for executing or recovering this operation.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The placement update result for this attempt.</returns>
 #pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
@@ -175,11 +109,9 @@ internal sealed partial class CampaignPlacementService(
         long clubId,
         bool isClubAdmin,
         Guid replacementToken,
-        CommitAttemptTracker commitAttempted,
+        DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-
         await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
         await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
 
@@ -304,7 +236,7 @@ internal sealed partial class CampaignPlacementService(
         {
             if (decision.IsNoOp)
             {
-                return new PlacementMutationSuccess(participation.ConcurrencyToken);
+                return Receipt();
             }
 
             db.Entry(participation)
@@ -337,16 +269,6 @@ internal sealed partial class CampaignPlacementService(
             participation.DecisionRecordedById = userId;
             participation.DecisionActorDisplayName = actorName;
 
-            await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
-            db.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
-            {
-                OperationId = replacementToken,
-                PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
-                ConcurrencyToken = replacementToken,
-                ClubId = default,
-                CreatedById = default,
-            });
-
             if (placementKind is ActivityEventKind kind)
             {
                 ActivityEventWriter.AppendPlacement(
@@ -376,21 +298,15 @@ internal sealed partial class CampaignPlacementService(
                     });
             }
 
-            try
-            {
-                await db.SaveChangesAsync(cancellationToken);
-                commitAttempted.MarkAttempted();
-                await transaction.CommitAsync(cancellationToken);
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
-                return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
-            }
-
             LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
-            return new PlacementMutationSuccess(replacementToken);
+            return Receipt();
         }
+
+        PlacementMutationSuccess Receipt() => new(participation.ConcurrencyToken)
+        {
+            Receipt = new PlacementMutationReceipt(input.OperationId, participation.PlayerCampaignAssignmentId,
+                participation.ToSavedPlacementDecision()!, DateTimeOffset.UtcNow, expiresAt)
+        };
 
         Task<PlacementUpdateResult> RejectNonActiveCampaignAsync(PlacementCampaignNotActive _)
         {
@@ -453,57 +369,6 @@ internal sealed partial class CampaignPlacementService(
                         ]
                     }));
         }
-    }
-
-    /// <summary>
-    /// Verifies whether an ambiguous placement commit persisted this request's immutable receipt, and
-    /// reconstructs the success result when it did.
-    /// </summary>
-    /// <param name="db">The fresh tenant context used for commit verification.</param>
-    /// <param name="playerCampaignAssignmentId">The campaign participation identifier.</param>
-    /// <param name="replacementToken">The stable token this logical request generated.</param>
-    /// <param name="cancellationToken">A token that cancels the verification query.</param>
-    /// <returns>Whether the commit landed, along with the reconstructed result when it did.</returns>
-    private async Task<ExecutionResult<PlacementUpdateResult>> VerifyPlacementCommittedAsync(
-        NovaDbContext db,
-        long playerCampaignAssignmentId,
-        Guid replacementToken,
-        CancellationToken cancellationToken)
-    {
-        var persistedToken = await db.PlacementMutationReceipts
-            .AsNoTracking()
-            .Where(receipt => receipt.PlayerCampaignAssignmentId == playerCampaignAssignmentId
-                && receipt.OperationId == replacementToken)
-            .Select(receipt => (Guid?)receipt.ConcurrencyToken)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (persistedToken != replacementToken)
-        {
-            return new ExecutionResult<PlacementUpdateResult>(successful: false, default!);
-        }
-
-        LogPlacementCommitRecovered(playerCampaignAssignmentId, replacementToken);
-        return new ExecutionResult<PlacementUpdateResult>(
-            successful: true,
-            new PlacementMutationSuccess(replacementToken));
-    }
-
-    /// <summary>Prunes expired commit evidence within the current tenant and mutation transaction.</summary>
-    /// <param name="db">The mutation context.</param>
-    /// <param name="cancellationToken">Cancels receipt pruning.</param>
-    /// <returns>A task representing the retention operation.</returns>
-    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
-    {
-        var cutoff = DateTimeOffset.UtcNow.AddDays(-1);
-        if (db.Database.IsNpgsql())
-        {
-            await db.PlacementMutationReceipts.Where(receipt => receipt.CreatedAt < cutoff)
-                .ExecuteDeleteAsync(cancellationToken);
-            return;
-        }
-
-        var receipts = await db.PlacementMutationReceipts.ToListAsync(cancellationToken);
-        db.PlacementMutationReceipts.RemoveRange(receipts.Where(receipt => receipt.CreatedAt < cutoff));
     }
 
     /// <summary>

@@ -1,0 +1,20 @@
+{
+  "cssWidth": 1440,
+  "cssHeight": 900,
+  "devicePixelRatio": 1,
+  "documentHeight": 953,
+  "campaignId": 37,
+  "board": {
+    "x": 268,
+    "y": 370.53125,
+    "width": 1144,
+    "height": 542
+  },
+  "test": "PriorCampaignWithdrawalRequiresAdministratorSupersessionAndLeavesClosedDecisionImmutableAsync",
+  "sourceBase": "78c2cdfce28c3a620001eab8b34a382bbd0d00d3",
+  "sourceSha256": "469a3d1714d0649ff868d1c9c4e53e635d3478b354419d3bd4c1a761c92b910a",
+  "imageSha256": {
+    "withdrawal-supersession-desktop.png": "6be7110dadde7c0e21ef41ef61066ea58c5d56728eb5c23e4adf6df5ef9c5ce3",
+    "withdrawal-supersession-desktop-board.png": "9b050f2ad01f00694aa08b422e60500896a09caeaadc7d97de18dacae3b52032"
+  }
+}

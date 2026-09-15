@@ -1,0 +1,39 @@
+{
+  "cssWidth": 390,
+  "cssHeight": 844,
+  "scrollY": 482,
+  "actions": [
+    {
+      "text": "Discard invalid data and refresh",
+      "rect": {
+        "x": 16,
+        "y": 242.171875,
+        "width": 248.296875,
+        "height": 44,
+        "top": 242.171875,
+        "right": 264.296875,
+        "bottom": 286.171875,
+        "left": 16
+      }
+    },
+    {
+      "text": "Retry storage",
+      "rect": {
+        "x": 16,
+        "y": 294.171875,
+        "width": 119.65625,
+        "height": 44,
+        "top": 294.171875,
+        "right": 135.65625,
+        "bottom": 338.171875,
+        "left": 16
+      }
+    }
+  ],
+  "test": "ClosedInvalidRecoveryDataCanBeDiscardedWithoutChangingFinalPlacementsAsync",
+  "sourceBase": "281619696c732d616a3c0e183df261445c70e33a",
+  "sourceSha256": "142809f94d54656fa78fa4a2bff5ad1003e6248e93028adff7a176600828522d",
+  "imageSha256": {
+    "closed-invalid-storage-mobile-actions.png": "6a80eb8e09da494471eacdd5e43fc9faf0da4de05265fd79467a1d4a27f5abb8"
+  }
+}

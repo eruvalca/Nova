@@ -384,7 +384,7 @@ new Uri(CampaignEndpoints.ReopenUrl(seeded.CampaignId), UriKind.RelativeOrAbsolu
                 previouslyNotSelected.AssignmentId,
                 PlacementOutcome.Assigned,
                 eligibleTeamId,
-                expectedToken),
+                expectedToken, operationId: Guid.CreateVersion7()),
             cancellationToken);
         updateResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 

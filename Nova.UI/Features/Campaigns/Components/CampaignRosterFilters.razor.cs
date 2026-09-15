@@ -16,6 +16,12 @@ public partial class CampaignRosterFilters
 {
     private bool _expanded = true;
 
+    /// <summary>Uses a collapsed, stacked filter shelf for a narrow working queue.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => _expanded = !Compact;
+
     /// <summary>
     /// Gets or sets a value indicating whether every discovery control is unavailable.
     /// </summary>
@@ -127,10 +133,10 @@ public partial class CampaignRosterFilters
     /// <summary>
     /// Forwards a search input change to the parent page.
     /// </summary>
-    /// <param name="args">The input event payload.</param>
+    /// <param name="search">The bound search text.</param>
     /// <returns>A task that completes when the callback is delivered.</returns>
-    private Task OnSearchInputAsync(ChangeEventArgs args)
-        => OnSearchTextChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+    private Task OnSearchInputAsync(string? search)
+        => OnSearchTextChanged.InvokeAsync(search ?? string.Empty);
 
     /// <summary>
     /// Forwards a graduation-year toggle to the parent page.

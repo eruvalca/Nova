@@ -33,19 +33,27 @@ export function read(root, owner, lease) {
     const raw = sessionStorage.getItem(storageKey(state.captureOwner));
     if (raw === null) { state.pending = false; markPending(root, false); return null; }
     const value = JSON.parse(raw);
+    validateSnapshot(value);
+    state.revision = value.revision;
+    state.pending = value.pending !== null;
+    markPending(root, state.pending);
+    return value;
+}
+
+function validateSnapshot(value) {
     if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.draft !== 'string' || typeof value.traitSearch !== 'string'
         || typeof value.editContent !== 'string' || typeof value.editOriginal !== 'string'
         || !isGuid(value.editVersion) || (value.editingNoteId !== null && (!Number.isSafeInteger(value.editingNoteId) || value.editingNoteId <= 0))) throw new Error('Invalid retained evaluation draft.');
     if (value.pending !== null && (!value.pending || typeof value.pending !== 'object'
         || !['add', 'edit', 'delete', 'apply', 'create', 'remove'].includes(value.pending.kind)
-        || !isGuid(value.pending.operationId) || !isGuid(value.pending.version)
+        || !isOperationId(value.pending.operationId) || !isGuid(value.pending.version)
         || !Number.isSafeInteger(value.pending.assignmentId) || value.pending.assignmentId <= 0
         || (value.pending.subjectId !== null && (!Number.isSafeInteger(value.pending.subjectId) || value.pending.subjectId <= 0))
         || (value.pending.text !== null && typeof value.pending.text !== 'string'))) throw new Error('Invalid retained evaluation operation.');
-    state.revision = value.revision;
-    state.pending = value.pending !== null;
-    markPending(root, state.pending);
-    return value;
+}
+
+function isOperationId(value) {
+    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function isGuid(value) {
@@ -55,6 +63,7 @@ function isGuid(value) {
 export function write(root, owner, lease, snapshot) {
     const state = requireOwner(root, owner, lease);
     if (snapshot.revision < state.revision) return false;
+    validateSnapshot(snapshot);
     const json = JSON.stringify(snapshot);
     sessionStorage.setItem(storageKey(state.captureOwner), json);
     if (sessionStorage.getItem(storageKey(state.captureOwner)) !== json) throw new Error('Evaluation storage verification failed.');
@@ -75,6 +84,10 @@ export function focusSheet(root, owner, lease) {
 
 export function restoreFinder(root, finderOwner, input) {
     if (!root?.isConnected) return;
+    // Delayed attachment must not steal focus from a control the user already chose.
+    const active = document.activeElement;
+    if (active !== input && active instanceof HTMLElement && root.contains(active)
+        && active.matches('a[href], button, input, select, textarea, summary, [tabindex]')) return;
     let saved = 0;
     try { saved = Number(sessionStorage.getItem(scrollKey(finderOwner))) || 0; } catch { /* Optional scroll restoration. */ }
     input?.focus({ preventScroll: true });

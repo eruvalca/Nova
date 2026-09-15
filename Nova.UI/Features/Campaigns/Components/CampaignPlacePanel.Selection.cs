@@ -22,18 +22,7 @@ public partial class CampaignPlacePanel
     private async Task RefreshSelectionAsync(bool force = false)
     {
         var participantId = SelectedParticipantId;
-        var previousParticipantId = _appliedParticipantId;
-        _appliedParticipantId = participantId;
-
-        // Focus follows the stage that replaced the one the member was in.
-        if (previousParticipantId is null && participantId is not null)
-        {
-            _stageFocusTarget = true;
-        }
-        else if (previousParticipantId is not null && participantId is null)
-        {
-            _stageFocusTarget = false;
-        }
+        PrepareSelection(participantId);
 
         // Every entry invalidates any in-flight selection read, including the branches that resolve without
         // a server round trip. Otherwise a read started for a previous participant can land after the user
@@ -80,6 +69,32 @@ public partial class CampaignPlacePanel
         }
 
         await AdoptSelectionAsync(row, request);
+    }
+
+    private void PrepareSelection(long? participantId)
+    {
+        var previousParticipantId = _appliedParticipantId;
+        _appliedParticipantId = participantId;
+        if (_contextParticipant != participantId)
+        {
+            _context = null;
+            _contextRequestedBeforeEventId = null;
+            _contextRequest++;
+        }
+
+        // Focus follows the stage that replaced the one the member was in.
+        if (previousParticipantId is null && participantId is not null)
+        {
+            _stageFocusTarget = true;
+        }
+        else if (previousParticipantId is not null && participantId is null)
+        {
+            _stageFocusTarget = false;
+        }
+
+        ++_teamChoicesRequestSequence;
+        _teamChoicesLoading = false;
+        _compatibleTeams = [];
     }
 
     /// <summary>
@@ -147,6 +162,8 @@ public partial class CampaignPlacePanel
         _teamChoicesTruncated = false;
         ApplyDraftFromSelection();
         PersistQueue();
+
+        _ = LoadOptionalContextAsync();
 
         if (row.ConcurrencyToken is null)
         {
@@ -259,31 +276,30 @@ public partial class CampaignPlacePanel
     /// Gets the compatible team choices to render, including a disabled current-team entry when the saved
     /// team is no longer active or compatible. An unavailable saved team is never substituted.
     /// </summary>
-    private IReadOnlyList<CampaignPlaceTeamChoice> VisibleTeamChoices
+    private IReadOnlyList<CampaignPlaceTeamChoice> VisibleTeamChoices => BuildVisibleTeamChoices();
+
+    private List<CampaignPlaceTeamChoice> BuildVisibleTeamChoices()
     {
-        get
-        {
-            var choices = _compatibleTeams
-                .Select(team => new CampaignPlaceTeamChoice(team.TeamId, team.Name, Unavailable: false)
-                {
-                    SeasonPlacementCount = team.EffectiveCurrentSeasonPlacementCount,
-                    CampaignContribution = team.CurrentCampaignPlacementContribution
-                })
-                .ToList();
-
-            if (_selected is not null && IsSavedTeamMissingFromChoices(_selected) && _selected.LocalTeam is { } current)
+        var choices = _compatibleTeams
+            .Select(team => new CampaignPlaceTeamChoice(team.TeamId, team.Name, Unavailable: false)
             {
-                // The saved team is shown so the current decision stays legible. Only the authoritative
-                // correction reason makes it unavailable: a team can also be absent here because the current
-                // search or the choice cap excluded it, which says nothing about the team itself.
-                choices.Insert(0, new CampaignPlaceTeamChoice(
-                    current.TeamId,
-                    current.TeamName,
-                    Unavailable: _selected.CorrectionReason is not PlacementCorrectionReason.None));
-            }
+                SeasonPlacementCount = team.EffectiveCurrentSeasonPlacementCount,
+                CampaignContribution = team.CurrentCampaignPlacementContribution
+            })
+            .ToList();
 
-            return choices;
+        if (_selected is not null && IsSavedTeamMissingFromChoices(_selected) && _selected.LocalTeam is { } current)
+        {
+            // The saved team is shown so the current decision stays legible. Only the authoritative
+            // correction reason makes it unavailable: a team can also be absent here because the current
+            // search or the choice cap excluded it, which says nothing about the team itself.
+            choices.Insert(0, new CampaignPlaceTeamChoice(
+                current.TeamId,
+                current.TeamName,
+                Unavailable: _selected.CorrectionReason is not PlacementCorrectionReason.None));
         }
+
+        return choices;
     }
 
     // Keep observed counts legible outside the native select when a long team name clips its option text.

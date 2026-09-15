@@ -4,7 +4,7 @@ using Nova.Entities;
 
 namespace Nova.Unit.Tests.Data;
 
-/// <summary>Maps campaign closure instants to sortable UTC ticks in the SQLite service harness.</summary>
+/// <summary>Maps ordered campaign closure and placement receipt instants to UTC ticks in the SQLite service harness.</summary>
 /// <param name="dependencies">The default model customization dependencies.</param>
 #pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
 internal sealed class CampaignClosureSqliteModelCustomizer(ModelCustomizerDependencies dependencies)
@@ -20,5 +20,7 @@ internal sealed class CampaignClosureSqliteModelCustomizer(ModelCustomizerDepend
         modelBuilder.Entity<CampaignEntity>().Property(campaign => campaign.ClosedAt)
             .HasConversion(value => value.HasValue ? value.Value.UtcTicks : (long?)null,
                 value => value.HasValue ? new DateTimeOffset(value.Value, TimeSpan.Zero) : null);
+        modelBuilder.Entity<PlacementMutationReceiptEntity>().Property(receipt => receipt.RecoveryExpiresAt)
+            .HasConversion(value => value.UtcTicks, value => new DateTimeOffset(value, TimeSpan.Zero));
     }
 }

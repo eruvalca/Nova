@@ -1,0 +1,13 @@
+{
+  "state": "Second bounded history page; Earlier changes and Latest changes visible",
+  "capture": "Unedited viewport screenshot, scrolled to history navigation",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "test": "PlacementHistorySupportsBoundedEarlierPagesAndKeyboardReturnToLatestAsync",
+  "sourceSha256": "af01d89302b13b698e06b653daab6908569d3b830410a21b431b5f228cc7a2b2",
+  "imageSha256": "7ae0bbc0dae7458acabdb80f77af3a0665f07fd71ed801240478ec28a2e8ee3a",
+  "capturedAtUtc": "2026-09-15T04:52:39.908672+00:00",
+  "reviewScope": "History action spacing only; original comp measurement limitation retained"
+}

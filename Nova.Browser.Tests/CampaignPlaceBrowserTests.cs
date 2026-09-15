@@ -15,7 +15,7 @@ namespace Nova.Browser.Tests;
 /// </remarks>
 /// <param name="fixture">The serial Aspire browser fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
-public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
+public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
     public async Task MemberRecordsADecisionAndTheAuthoritativeQueueAndTotalsMoveAsync()
@@ -30,6 +30,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync("Needs placement");
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync(TotalText());
         await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
+        await AssertPlaceSearchAttachedAsync(page);
 
         // Selecting a player opens their evidence sheet and keeps the selection in the URL.
         var firstRow = page.Locator("a.place-row").First;
@@ -59,22 +60,17 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
-        // Prove interactive attachment with observable actions before relying on key events: a visible
-        // prerendered control does not prove it can handle an event.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => Task.FromResult(Selected(page)));
-        await InteractionHelpers.ClickUntilAsync(page,
-            page.GetByRole(AriaRole.Link, new() { Name = "Back to placements", Exact = true }),
-            () => Task.FromResult(!Selected(page)));
+        await AssertPlaceSearchAttachedAsync(page);
 
         // Type once and wait for the *full* term to be applied. The field debounces at 350 ms, so a retry
         // loop that re-types would keep resetting the timer before it could fire; and waiting only for a
         // non-empty search would return on the first partial keystroke pause and race the later navigation.
         await page.Locator("#roster-search").ClickAsync();
         await page.Keyboard.TypeAsync("Player 01");
+        await Expect(page.Locator("#roster-search")).ToHaveValueAsync("Player 01");
         await page.WaitForURLAsync(
             url => url.Contains("placementSearch=Player%2001", StringComparison.Ordinal),
-            new() { Timeout = 20000 });
+            new() { Timeout = 20000, WaitUntil = WaitUntilState.Commit });
 
         // A search spans every section rather than the Needs-placement browsing default, so the applied
         // state carries a search and no section filter at all.
@@ -95,6 +91,17 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
             () => Task.FromResult(!page.Url.Contains("placementSearch=", StringComparison.Ordinal)));
         await Expect(page.Locator("button.place-section.leads")).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(page.Locator("a.place-row")).ToHaveCountAsync(50);
+    }
+
+    private static async Task AssertPlaceSearchAttachedAsync(IPage page)
+    {
+        // Links can navigate before Blazor attaches. This local toggle requires its event handler.
+        var filters = page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true });
+        await InteractionHelpers.ClickUntilAsync(page, filters, () => page.Locator("#roster-filter-shelf").IsVisibleAsync());
+        await Expect(filters).ToHaveAttributeAsync("aria-expanded", "true");
+        await filters.ClickAsync();
+        await Expect(filters).ToHaveAttributeAsync("aria-expanded", "false");
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeHiddenAsync();
     }
 
     [Fact]
@@ -148,6 +155,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
 
         var row = page.Locator("a.place-row").First;
         await Expect(row).ToBeVisibleAsync();
+        await AssertPlaceSearchAttachedAsync(page);
         (await row.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
 
         // Selecting a player promotes the sheet to the focused stage with an explicit way back. The rail is
@@ -187,6 +195,8 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var url = new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString();
         await firstPage.GotoAsync(url);
         await secondPage.GotoAsync(url);
+        await AssertPlaceSearchAttachedAsync(firstPage);
+        await AssertPlaceSearchAttachedAsync(secondPage);
 
         await InteractionHelpers.ClickUntilAsync(firstPage, firstPage.Locator("a.place-row").First,
             () => Task.FromResult(Selected(firstPage)));
@@ -205,12 +215,14 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         // The second member's stale save is refused rather than overwriting the winner.
         await secondPage.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Withdrawn));
         await InteractionHelpers.ClickUntilAsync(secondPage, SaveButton(secondPage),
-            () => IsVisibleAsync(secondPage.Locator(".place-conflict")));
-        await Expect(secondPage.Locator(".place-conflict")).ToContainTextAsync("Nobody was overwritten");
+            () => secondPage.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true }).IsVisibleAsync());
+        await secondPage.GetByRole(AriaRole.Button, new() { Name = "Confirm change", Exact = true }).ClickAsync();
+        await Expect(secondPage.Locator(".place-conflict")).ToBeVisibleAsync();
+        await Expect(secondPage.Locator(".place-conflict")).ToContainTextAsync("Review current placement");
         await Expect(secondPage.Locator("#place-outcome")).ToHaveCountAsync(0);
 
         // Reloading re-establishes authoritative state and shows the winner.
-        var reload = secondPage.GetByRole(AriaRole.Button, new() { Name = "Close and reload", Exact = true });
+        var reload = secondPage.GetByRole(AriaRole.Button, new() { Name = "Review latest placement", Exact = true });
         await InteractionHelpers.ClickUntilAsync(secondPage, reload,
             () => IsEnabledAsync(secondPage.Locator("#place-outcome")));
         await Expect(secondPage.Locator(".place-evidence")).ToContainTextAsync("Not selected");
@@ -222,10 +234,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
-
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
         await Expect(page.Locator("#place-team")).ToBeVisibleAsync();
@@ -243,10 +252,7 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
-
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
         // Assigned without a team is an invalid state: the submit is blocked and the reason is written out.
@@ -271,23 +277,27 @@ public sealed class CampaignPlaceBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password,
             new ViewportSize { Width = 1440, Height = 900 });
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
         // Select a participant so the working sheet carries evidence, which is the composition the approved
         // comp governs, and prove attachment before capturing.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await Expect(page.Locator(".place-evidence")).ToContainTextAsync("Effective season placement");
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
         await Expect(page.Locator("#place-team")).ToBeVisibleAsync();
         await page.Locator("#place-team").SelectOptionAsync(seed.EligibleTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "desktop", directory, fullPage: true, seed.CampaignId);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeVisibleAsync();
+        await CaptureAsync(page, "filters-desktop", directory, fullPage: true, seed.CampaignId);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeHiddenAsync();
 
         await page.SetViewportSizeAsync(390, 844);
         await Expect(page.Locator(".place-name")).ToBeVisibleAsync();
         await Expect(page.Locator("#place-team-counts")).ToBeVisibleAsync();
         await CaptureAsync(page, "mobile", directory, fullPage: true, seed.CampaignId);
+        await CapturePlacementConfirmationAndRecoveryAsync(page, directory, seed.CampaignId);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

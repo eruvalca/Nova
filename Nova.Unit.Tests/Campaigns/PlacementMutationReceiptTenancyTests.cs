@@ -6,6 +6,51 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignPlacementServiceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync(bool throughMembershipCleanup)
+    {
+        var now = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var retained = new List<Guid>();
+        using (var seed = _harness.CreateAdminContext())
+        {
+            for (var index = 0; index < 503; index++)
+            {
+                var operation = Guid.CreateVersion7();
+                if (index == 0 || index > 500) { retained.Add(operation); }
+                seed.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
+                {
+                    OperationId = operation,
+                    PlayerCampaignAssignmentId = ClubAAssignmentId,
+                    ConcurrencyToken = Guid.NewGuid(),
+                    ClubId = ClubAId,
+                    CreatedById = ClubAAdminId,
+                    ActorUserId = ClubAAdminId,
+                    RequestSha256 = new string('A', 64),
+                    ResultJson = "{}",
+                    RecoveryExpiresAt = index > 500 ? now.AddHours(1) : now.AddMinutes(-index)
+                });
+            }
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        using (var cleanup = _harness.CreateAdminContext())
+        {
+            if (throughMembershipCleanup)
+            {
+                await Nova.Features.Account.ClubMembershipMutationReceipts.PruneExpiredAsync(cleanup, TestContext.Current.CancellationToken);
+            }
+            else
+            {
+                await Nova.Features.Campaigns.PlacementReceiptCleanupService.PruneAsync(cleanup, now, TestContext.Current.CancellationToken);
+            }
+            cleanup.ChangeTracker.Entries<PlacementMutationReceiptEntity>().ShouldBeEmpty();
+        }
+
+        using var verify = _harness.CreateAdminContext();
+        (await verify.PlacementMutationReceipts.Select(receipt => receipt.OperationId).ToListAsync(TestContext.Current.CancellationToken))
+            .ShouldBe(retained, ignoreOrder: true);
+    }
     /// <summary>Checks placement receipts are visible only within their club through write and read contexts.</summary>
     [Fact]
     public void PlacementMutationReceiptsFilterByOwningTenant()
@@ -13,8 +58,8 @@ public sealed partial class CampaignPlacementServiceTests
         using (var seed = _harness.CreateAdminContext())
         {
             seed.PlacementMutationReceipts.AddRange(
-                new PlacementMutationReceiptEntity { OperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId },
-                new PlacementMutationReceiptEntity { OperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId });
+                new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId },
+                new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId });
             seed.SaveChanges();
         }
         ActAs(ClubAMemberId, ClubAId);
@@ -27,34 +72,38 @@ public sealed partial class CampaignPlacementServiceTests
         other.PlacementMutationReceipts.Single().PlayerCampaignAssignmentId.ShouldBe(ClubBAssignmentId);
     }
 
-    /// <summary>Checks successful saves prune only expired receipts belonging to the acting club.</summary>
+    /// <summary>Checks global expiration removes expired evidence in every tenant and retains unexpired receipts.</summary>
     [Fact]
-    public async Task PlacementMutationReceiptsPruneExpiredReceiptsWithinCurrentTenantOnlyAsync()
+    public async Task PlacementMutationReceiptsPruneExpiredEvidenceAcrossTenantsAsync()
     {
         var expiredOperation = Guid.NewGuid();
         var recentOperation = Guid.NewGuid();
         var otherOperation = Guid.NewGuid();
         using (var seed = _harness.CreateAdminContext())
         {
-            var expired = new PlacementMutationReceiptEntity { OperationId = expiredOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId };
-            var recent = new PlacementMutationReceiptEntity { OperationId = recentOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId };
-            var other = new PlacementMutationReceiptEntity { OperationId = otherOperation, PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId };
+            var expired = new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = expiredOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId };
+            var recent = new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = recentOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId };
+            var other = new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = otherOperation, PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId };
             seed.PlacementMutationReceipts.AddRange(expired, recent, other);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == expiredOperation || receipt.OperationId == otherOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.CreatedAt, DateTimeOffset.UtcNow.AddDays(-2)), TestContext.Current.CancellationToken);
-            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == recentOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.CreatedAt, DateTimeOffset.UtcNow.AddHours(-12)), TestContext.Current.CancellationToken);
+            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == expiredOperation || receipt.OperationId == otherOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.RecoveryExpiresAt, DateTimeOffset.UtcNow.AddDays(-2)), TestContext.Current.CancellationToken);
+            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == recentOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.RecoveryExpiresAt, DateTimeOffset.UtcNow.AddHours(12)), TestContext.Current.CancellationToken);
         }
         ActAs(ClubAMemberId, ClubAId);
 
         (await SaveAsync(Nova.SharedKernel.Enums.PlacementOutcome.NotSelected, _clubAConcurrencyToken)).Value
             .ShouldBeOfType<Nova.SharedKernel.Features.Campaigns.PlacementMutationSuccess>();
 
+        using (var cleanup = _harness.CreateAdminContext())
+        {
+            await Nova.Features.Campaigns.PlacementReceiptCleanupService.PruneAsync(cleanup, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+        }
         using var verify = _harness.CreateAdminContext();
         var operations = (await verify.PlacementMutationReceipts.Select(receipt => receipt.OperationId).ToListAsync(TestContext.Current.CancellationToken));
         operations.ShouldNotContain(expiredOperation);
         operations.ShouldContain(recentOperation);
-        operations.ShouldContain(otherOperation);
-        operations.Count.ShouldBe(3);
+        operations.ShouldNotContain(otherOperation);
+        operations.Count.ShouldBe(2);
     }
     /// <summary>Checks committed receipts cannot be rewritten to claim a different mutation result.</summary>
     [Fact]
@@ -85,6 +134,9 @@ public sealed partial class CampaignPlacementServiceTests
         {
             seed.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
             {
+                RequestSha256 = new string('A', 64),
+                ResultJson = "{}",
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                 OperationId = operationId,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
                 ConcurrencyToken = token,
@@ -117,10 +169,10 @@ public sealed partial class CampaignPlacementServiceTests
         using (var seed = _harness.CreateAdminContext())
         {
             seed.PlacementMutationReceipts.AddRange(
-                new PlacementMutationReceiptEntity { OperationId = expiredOperation, PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId },
-                new PlacementMutationReceiptEntity { OperationId = freshOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId });
+                new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = expiredOperation, PlayerCampaignAssignmentId = ClubBAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubBId, CreatedById = ClubBAdminId },
+                new PlacementMutationReceiptEntity { RequestSha256 = new string('A', 64), ResultJson = "{}", RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24), OperationId = freshOperation, PlayerCampaignAssignmentId = ClubAAssignmentId, ConcurrencyToken = Guid.NewGuid(), ClubId = ClubAId, CreatedById = ClubAAdminId });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
-            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == expiredOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.CreatedAt, DateTimeOffset.UtcNow.AddDays(-2)), TestContext.Current.CancellationToken);
+            await seed.PlacementMutationReceipts.Where(receipt => receipt.OperationId == expiredOperation).ExecuteUpdateAsync(setters => setters.SetProperty(receipt => receipt.RecoveryExpiresAt, DateTimeOffset.UtcNow.AddDays(-2)), TestContext.Current.CancellationToken);
         }
         using (var delete = _harness.CreateAdminContext())
         {
@@ -147,6 +199,9 @@ public sealed partial class CampaignPlacementServiceTests
         using var tenant = _harness.CreateTenantContext();
         tenant.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
         {
+            RequestSha256 = new string('A', 64),
+            ResultJson = "{}",
+            RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
             OperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = ClubBAssignmentId,
             ConcurrencyToken = Guid.NewGuid(),

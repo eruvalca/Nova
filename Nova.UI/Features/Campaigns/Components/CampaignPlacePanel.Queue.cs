@@ -110,6 +110,7 @@ public partial class CampaignPlacePanel
     /// <returns>A task that completes when the load finishes.</returns>
     private async Task LoadQueueAsync(CampaignWorkspacePlacementState state)
     {
+        _requestedPageCorrection = null;
         var request = ++_queueRequestSequence;
         var status = CampaignStatus;
         _queueLoading = true;
@@ -133,7 +134,7 @@ public partial class CampaignPlacePanel
             var lastPage = Math.Max(1, (int)Math.Ceiling(loaded.TotalCount / (double)Math.Max(1, loaded.PageSize)));
             if (state.Page > lastPage)
             {
-                await OnStateChanged.InvokeAsync(state with { Page = lastPage });
+                await RequestPageCorrectionAsync(state, lastPage);
                 return;
             }
         }
@@ -141,34 +142,40 @@ public partial class CampaignPlacePanel
         _queueLoading = false;
         if (loaded is null)
         {
-            // A failed load keeps whatever was already on screen but marks it stale, so an
-            // exact-looking total is never presented beside a read that did not answer. It may only keep
-            // rows that belong to the state the controls now show: otherwise the search would read "Chen"
-            // while the rows were still the previous unfiltered page, and the only warning would speak about
-            // totals. A read that failed for a different state drops the snapshot so the failure answers.
-            if (!string.Equals(QueryKey(state), _appliedQueryString, StringComparison.Ordinal))
-            {
-                _queue = null;
-            }
-
-            // The applied lifecycle marker still advances: the posture was decided, and repeating the same
-            // failing read on every parameter pass would not make it succeed. The comparison key advances with
-            // it, so only the explicit Retry reissues the request.
-            MarkAppliedState(state, status);
-            _queueError = QueueFailureMessage;
-            _queueStale = _queue is not null;
-            _queueRowsStale = _queue is not null;
+            AdoptQueueFailure(state, status);
             return;
         }
 
         MarkAppliedState(state, status);
         _queue = loaded;
+        _adoptedQueueRequest = request;
 
         // A Closed campaign whose campaign-local totals could not be read keeps its rows but must say the
         // totals are unavailable rather than presenting an empty section list as fact.
         _queueStale = loaded.TotalsUnavailable;
         _queueRowsStale = false;
         PersistQueue();
+    }
+
+    private void AdoptQueueFailure(CampaignWorkspacePlacementState state, CampaignStatus status)
+    {
+        // A failed load keeps whatever was already on screen but marks it stale, so an
+        // exact-looking total is never presented beside a read that did not answer. It may only keep
+        // rows that belong to the state the controls now show: otherwise the search would read "Chen"
+        // while the rows were still the previous unfiltered page, and the only warning would speak about
+        // totals. A read that failed for a different state drops the snapshot so the failure answers.
+        if (!string.Equals(QueryKey(state), _appliedQueryString, StringComparison.Ordinal))
+        {
+            _queue = null;
+        }
+
+        // The applied lifecycle marker still advances: the posture was decided, and repeating the same
+        // failing read on every parameter pass would not make it succeed. The comparison key advances with
+        // it, so only the explicit Retry reissues the request.
+        MarkAppliedState(state, status);
+        _queueError = QueueFailureMessage;
+        _queueStale = _queue is not null;
+        _queueRowsStale = _queue is not null;
     }
 
     /// <summary>
@@ -193,9 +200,13 @@ public partial class CampaignPlacePanel
     /// </returns>
     private async Task<ReconcileOutcome> ReconcileAsync()
     {
+        _requestedPageCorrection = null;
         var request = ++_queueRequestSequence;
         var status = CampaignStatus;
         var state = _appliedState;
+        _queueLoading = true;
+        _queueStale = _queue is not null;
+        _queueRowsStale = _queue is not null;
 
         var loaded = IsClosedContext(status)
             ? await ReadClosedQueueAsync(state, request)
@@ -216,11 +227,12 @@ public partial class CampaignPlacePanel
             var lastPage = Math.Max(1, (int)Math.Ceiling(loaded.TotalCount / (double)Math.Max(1, loaded.PageSize)));
             if (state.Page > lastPage)
             {
-                await OnStateChanged.InvokeAsync(state with { Page = lastPage });
+                await RequestPageCorrectionAsync(state, lastPage);
                 return ReconcileOutcome.PageCorrected;
             }
 
             _queue = loaded;
+            _adoptedQueueRequest = request;
             _queueError = null;
             _queueStale = loaded.TotalsUnavailable;
             _queueRowsStale = false;
@@ -232,7 +244,12 @@ public partial class CampaignPlacePanel
             _queueError = _queue is null ? QueueFailureMessage : null;
         }
 
+        _queueLoading = false;
         await RefreshSelectionAsync(force: true);
+        if (request != _queueRequestSequence || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return ReconcileOutcome.Obsolete;
+        }
         PersistQueue();
         return loaded is null ? ReconcileOutcome.Failed : ReconcileOutcome.Reconciled;
     }

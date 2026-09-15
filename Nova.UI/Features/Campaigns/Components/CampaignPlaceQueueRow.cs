@@ -67,6 +67,9 @@ public sealed record CampaignPlaceQueueRow
     /// <summary>The outcome that sourced the effective season placement, when one exists.</summary>
     public PlacementOutcome? EffectiveOutcome { get; init; }
 
+    /// <summary>The saved effective source, including original attribution.</summary>
+    public CampaignSavedPlacementDecision? EffectiveDecision { get; init; }
+
     /// <summary>The participant's full display name.</summary>
     public string DisplayName => $"{FirstName} {LastName}";
 
@@ -94,6 +97,7 @@ public sealed record CampaignPlaceQueueRow
             EffectiveTeam = item.EffectiveTeam,
             EffectiveSourceCampaignName = item.EffectiveDecision?.CampaignName,
             EffectiveOutcome = item.EffectiveDecision?.Decision.Outcome,
+            EffectiveDecision = item.EffectiveDecision?.Decision,
             Eligibility = item.Eligibility,
             CorrectionReason = item.CorrectionReason,
             ConcurrencyToken = item.ConcurrencyToken,

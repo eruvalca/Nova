@@ -171,6 +171,10 @@ when closing the participant drawer after opening it as a hydration proof.
   is assigned after render, so a single probe races.
 - Polling helpers must fail loudly: when a mutation may settle as success *or* conflict, poll for
   either, then throw a descriptive `TimeoutException` if neither appeared.
+- For normalized workspace return URLs, compare origin/path/fragment plus the exact query key set
+  and every value, allowing canonical key ordering. A raw URL-string comparison tests serialization
+  order as well as retained state; require it only when that order is contractual. See
+  `AssertEquivalentWorkspaceUrl` in `CampaignPlaceCorrectionBrowserTests.cs`.
 - One behavior per test; `SubjectOutcomeConditionAsync` naming for async tests, Shouldly assertions, and
   `TestContext.Current.CancellationToken` — same conventions as the other test projects.
 
@@ -213,6 +217,9 @@ Distinguish a functional completion deadline from a performance requirement. A s
 fail on a surfaced read error, assert exact counts/page contents, and record elapsed time; it proves
 a latency target only when that target was explicitly specified. Timeout changes remain quality-control
 changes subject to the rationale and review rule in `AGENTS.md`, not a default cure for a slow run.
+For a load-sensitive failure, retain the failing URL/rendered state and rerun the unchanged case
+without concurrent build/format work before interpreting timing. An isolated pass does not prove
+contention caused the failure or replace the required full-suite run.
 
 For modified-click navigation, observe new pages through the browser context; an opener-specific
 popup event is not guaranteed for native links. Retain assertions for the destination and unchanged

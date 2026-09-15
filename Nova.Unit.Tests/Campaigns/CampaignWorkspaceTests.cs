@@ -951,7 +951,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Fact]
-    public void CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTerm()
+    public async Task CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTermAsync()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -962,14 +962,17 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         navigationManager.NavigateTo("/campaigns/10");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        var searchInput = cut.Find("#roster-search");
-        searchInput.Input("a");
-        searchInput.Input("av");
-        searchInput.Input("ave");
+        // Binding can replace the handler on each render; dispatch against the current element.
+        await cut.InvokeAsync(() =>
+        {
+            cut.Find("#roster-search").Input("a");
+            cut.Find("#roster-search").Input("av");
+            cut.Find("#roster-search").Input("ave");
+        });
 
-        cut.WaitForAssertion(
+        await cut.WaitForAssertionAsync(
             () =>
             {
                 _ = participantService.Received(2).GetParticipantRosterAsync(
@@ -2607,6 +2610,14 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         ICampaignCloseoutQueryService? readinessQueryService = null,
         AuthenticationStateProvider? authenticationStateProvider = null)
     {
+        var placementStorage = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js");
+        placementStorage.Mode = JSRuntimeMode.Loose;
+        placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(null, null));
+        var placementContext = Substitute.For<IPlacementContextQueryService>();
+        placementContext.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceResult<PlacementContextResult>(new PlacementContextResult(
+                call.Arg<GetPlacementContextInput>().PlayerCampaignAssignmentId, null, [], null, false)));
+        Services.AddSingleton(placementContext);
         if (campaignQueryService is null)
         {
             campaignQueryService = Substitute.For<ICampaignQueryService>();
@@ -2668,8 +2679,8 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         {
             placementService = Substitute.For<ICampaignPlacementService>();
             placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
-                    new PlacementMutationSuccess(Guid.NewGuid()))));
+                .Returns(call => Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                    PlacementTestReceipts.Success(call.Arg<UpdateCampaignPlacementInput>(), Guid.NewGuid()))));
         }
 
         campaignMetadataService ??= Substitute.For<ICampaignMetadataService>();
