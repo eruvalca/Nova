@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
@@ -273,7 +274,18 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         page.Url.ShouldBe(origin);
         await ClickAnchorWithDiagnosticsAsync(roster);
         await page.GetByRole(AriaRole.Button, new() { Name = "Discard and leave", Exact = true }).ClickAsync();
-        await page.WaitForURLAsync(url => string.Equals(new Uri(url).AbsolutePath, $"/campaigns/{seed.CampaignId}/roster", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });
+        try
+        {
+            var destination = new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}/roster").AbsoluteUri;
+            await Expect(page).ToHaveURLAsync(new Regex($"^{Regex.Escape(destination)}(?:[?#].*)?$",
+                RegexOptions.None, TimeSpan.FromSeconds(1)), new() { Timeout = 30000 });
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            var snapshot = await page.Locator("body").AriaSnapshotAsync();
+            var pointerEvents = await page.EvaluateAsync<string>("JSON.stringify(window.__evaluationClickDiagnostics ?? [])");
+            throw new TimeoutException($"Discard navigation did not complete. URL: {page.Url}; events: {string.Join('\n', events)}; pointer/history: {pointerEvents}; ARIA: {snapshot}", exception);
+        }
         await Expect(page.Locator("#roster-search")).ToBeVisibleAsync();
         await using var database = fixture.AppHost.CreateAdminContext();
         (await database.Notes.CountAsync(note => note.PlayerCampaignAssignmentId == seed.AssignmentIds[1], TestContext.Current.CancellationToken)).ShouldBe(0);

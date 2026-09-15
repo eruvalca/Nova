@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Extensions.Campaigns;
+using Nova.Features.Activity;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Activity;
 using Nova.SharedKernel.Features.Campaigns;
@@ -44,7 +46,7 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            LogReadFailed(exception, input.PlayerCampaignAssignmentId);
+            LogReadFailed(exception, actor, club, input.GetType().Name, input.CampaignId, input.PlayerCampaignAssignmentId);
             return ServiceProblem.ServerError("Placement history could not be loaded.");
         }
     }
@@ -87,13 +89,23 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
         if (participant.Campaign.Status == CampaignStatus.Closed) { events = events.Where(e => e.CampaignId == input.CampaignId); }
         if (input.BeforeEventId is long cursor) { events = events.Where(e => e.ActivityEventId < cursor); }
         var page = await events.OrderByDescending(e => e.ActivityEventId).Take(21).ToListAsync(token);
+        return new PlacementContextResult(input.PlayerCampaignAssignmentId, previous, ProjectHistory(page.Take(20), participant.PlayerId),
+            page.Count > 20 ? page[19].ActivityEventId : null,
+            writable && administrator && latest is { PlacementOutcome: PlacementOutcome.Withdrawn }
+                && latest.CampaignId != input.CampaignId);
+    }
+
+    private static List<PlacementHistoryItem> ProjectHistory(IEnumerable<ActivityEventEntity> rows, long playerId)
+    {
         var history = new List<PlacementHistoryItem>();
-        foreach (var row in page.Take(20))
+        foreach (var row in rows)
         {
             try
             {
                 if (JsonSerializer.Deserialize<ClubActivityContext>(row.PayloadJson, _json) is PlacementContext context
-                    && context.PlayerId == participant.PlayerId)
+                    && context.PlayerId == playerId
+                    && ActivityEventPolicy.ContextMatchesKind(row.EventKind, context)
+                    && row.CampaignId == context.CampaignId)
                 {
                     var item = new PlacementHistoryItem(row.ActivityEventId, context.CampaignId, context.CampaignName,
                         context.PreviousOutcome, context.PreviousTeamName, context.Outcome, context.TeamName,
@@ -106,10 +118,7 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
                 // The continuation marks the raw page boundary even when a malformed event is omitted.
             }
         }
-        return new PlacementContextResult(input.PlayerCampaignAssignmentId, previous, history,
-            page.Count > 20 ? page[19].ActivityEventId : null,
-            writable && administrator && latest is { PlacementOutcome: PlacementOutcome.Withdrawn }
-                && latest.CampaignId != input.CampaignId);
+        return history;
     }
 
     private static async Task<PreviousSeasonPlacement?> ReadPreviousAsync(NovaReadDbContext db, long club,
@@ -152,6 +161,6 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
 
     private sealed record AncestorSeason(long SeasonId, int Depth);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Placement history read failed for ParticipantId={ParticipantId}.")]
-    private partial void LogReadFailed(Exception exception, long participantId);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Placement history read failed for UserId={UserId}, ClubId={ClubId}, Operation={Operation}, CampaignId={CampaignId}, ParticipantId={ParticipantId}.")]
+    private partial void LogReadFailed(Exception exception, long userId, long clubId, string operation, long campaignId, long participantId);
 }

@@ -329,7 +329,7 @@ The PR body identifies the commit containing this tested source.
 Build preceded tests. Integration/browser execution was serialized across the machine. The browser
 run kept source/assets fixed with no concurrent build/format process. Logs and temporary captures
 are under `.git/pr270-round2-*`; curated history-control screenshots supplement the original packet.
-No production schema changed, so the initial migration-model evidence remains applicable. The
+No production schema changed in this review round, so the initial migration-model evidence remains applicable. The
 existing comp measurement limitation remains explicit; this round claims no new whole-frame score.
 
 All 1,160 source hashes were verified unchanged after the final browser run. The refreshed
@@ -383,7 +383,7 @@ path/SHA-256 procedure as prior rounds. The PR body identifies the commit contai
 
 Build preceded tests. The read-only format verification overlapped unit/integration execution;
 integration/browser execution was serialized across the machine. Browser source/assets stayed
-fixed with no concurrent build/format process. No production schema changed, so initial migration-model
+fixed with no concurrent build/format process. No production schema changed in this review round, so initial migration-model
 evidence remains applicable. Existing curated captures and their finish-review/comp limitations
 remain applicable: this round changes behavior without changing the locked composition.
 Logs and the source manifest are under `.git/pr270-round3-*`. All 1,163 source hashes were rechecked unchanged after browser completion. The Place capture opt-in was not set this round, so its existing capture case joins the seven optional accessibility-capture skips; the new browser regression passed. Existing curated evidence was retained.
@@ -517,7 +517,7 @@ verification ran in isolation. Browser runs kept application source/assets fixed
 build or format process. Logs and manifests are under `.git/pr270-round4-*`; failed attempts above
 are not accepted as passing evidence. All 1,169 source hashes and curated image checksums were
 verified unchanged after final browser completion. `git diff --check` and the staged check passed.
-No production schema changed, so the original migration-model evidence remains applicable.
+No production schema changed in this review round, so the original migration-model evidence remains applicable.
 
 ## PR review round 5
 
@@ -735,7 +735,7 @@ the final browser run. Documentation and capture curation do not alter those sou
 - `npm run check:contrast` from `Nova/`: all ratios and compiled token assertions passed.
 - `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.js --json`:
   no findings in the two changed files. The existing unrelated Evaluate build-state advisory remains.
-- `git diff --check`: passed; source and curated image checksums verified. No schema changed,
+- `git diff --check`: passed; source and curated image checksums verified. No schema changed in this review round,
   so the earlier migration-model evidence remains applicable.
 
 Build preceded tests; full unit runs were isolated, and all integration/browser runs were serialized
@@ -899,7 +899,7 @@ capture curation are excluded from the source fingerprint.
   5m40.325s). Log: `.git/pr270-round9-browser-final.log`.
 - `git diff --check`: passed. All 1,172 source hashes were verified unchanged after the final
   browser run. Five curated Closed-recovery images and three sidecars retain source/geometry/image
-  checksums. No schema changed; earlier migration-model evidence remains applicable.
+  checksums. No schema changed in this review round; earlier migration-model evidence remains applicable.
 
 Build preceded tests. Full unit runs were isolated; integration/browser suites ran serially
 across the machine, and application source/assets stayed fixed throughout each browser run.
@@ -923,3 +923,199 @@ attachment and select the same player before either save, preserving the stale-d
 No production behavior, timeouts, retry budgets, or save/conflict assertions changed. The failed
 run remains `.git/pr270-round9-browser.log` and is not accepted as passing evidence. Application
 source and assets were fixed during that run; the browser helper correction happened after exit.
+
+## PR review round 10
+
+Copilot review `5209509862` on `f843f7c405fc60d47919ac0e4613161fb646cb6d` reported one
+inline finding and three suppressed findings. All four were inspected; suppression was not
+treated as resolution.
+
+- **Delegate mismatch is inapplicable.** Both declarations of the executor callback accept
+  `NovaDbContext`, actor ID, club ID, administrator status, and recovery deadline. Its invocation
+  supplies all five arguments, matching the five-parameter service lambda. The successful
+  current-head CI build and local build agree with the source. No signature change is warranted.
+- **History metadata validation fixed.** A placement payload must match the persisted event-kind
+  family and the row's campaign snapshot key before projection. Unknown kinds and mismatches are
+  skipped. The SQL limit remains 21 rows, projection consumes at most 20, and continuation uses
+  the twentieth raw row even when omitted. Four additional SQLite cases corrupt rows inside and
+  at the page boundary, asserting exact retained IDs and the next page. The sibling activity
+  feed already validates kind/family; its club-wide projection does not use the Closed sheet's
+  campaign restriction. The append-only writer supplies consistent kind/player/campaign keys.
+- **Unexpected read logging fixed.** Context-read exceptions producing a server error now log
+  at Error with the original exception, user, club, input operation, campaign, and participant.
+  This follows the neighboring effective-placement query and existing service/observability
+  guidance. A failing-context regression asserts severity, exception identity, and structured
+  fields. No personal names, payloads, or custom correlation IDs were added.
+- **Migration wording clarified.** This PR includes incremental migration
+  `20260915015851_PlacementRecoveryAndHistory`. Later review rounds did not change that schema;
+  their statements now explicitly identify the review-round scope. The original migration-model
+  check remains recorded above. No new migration or compatibility layer is needed for these fixes.
+
+Independent reviewer `/root/recovery_review` inspected the complete code/test diff and the
+subsequent private history-helper extraction, with no remaining actionable findings. The helper
+keeps database authorization, limits, and cursor construction in the query method. The extraction
+addresses a method-length analyzer failure without a suppression.
+
+Applied the previously read C#, service, API, validation, tenancy, placement, functional-core,
+and testing guidance; `add-feature-slice`, `add-api-endpoint`, `add-domain-persistence`, and
+`nova-testing` with the SQLite and Aspire references; and the .NET test-writing/run recipes.
+Also read the observability rules and checked the structured-logging guidance and sibling query.
+These fixes enforce existing rules; no new instruction or skill is warranted. No UI composition
+changed, so the round-9 curated evidence and its explicit finish/comp limitations are retained.
+
+### Round-10 verification
+
+Tested source: base `f843f7c405fc60d47919ac0e4613161fb646cb6d` plus this round's changes,
+identified by fingerprint `d1bd13bb704ae3bb7e0d95a3623a6309eeed1a1b84ea98b188f8fcfb68ab562c`
+(1,172 source files). The PR body identifies the resulting single commit. Documentation is
+excluded from the source fingerprint.
+
+- `dotnet build Nova.slnx`: pre-binding build passed (29.01s), with three existing Sass import warnings.
+  Log: `.git/pr270-round10-build-logger.log`. The first attempt failed the method-length rule;
+  the next failed a nullable assertion in the new logging test. Both were corrected without
+  suppressions (`-build.log`, `-build-fixed.log`). An intermediate build also passed
+  (`-build-final.log`, 32.24s).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: pre-binding full run passed
+  3,379 cases, zero failed/skipped (45.669s), including all four metadata cases and the structured
+  logging regression. Log: `.git/pr270-round10-unit-final.log`. The earlier full run passed
+  3,378 and failed the new logging fixture (46.482s, `-unit.log`): inspecting the generated
+  logger's reusable state after emission lost its fields. The final fixture snapshots them
+  inside `Log`, preserving every severity/exception/field assertion. Production did not change
+  for that fixture correction, and independent review accepted it.
+- `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build`:
+  passed; no model changes since the existing migration (`.git/pr270-round10-model.log`). The
+  existing EF tools 10.0.8/runtime 10.0.12 warning remains. This is additional current-round
+  evidence, not a claim that the full PR contains no migration.
+- `npm run check:contrast` from `Nova/`: passed (`.git/pr270-round10-contrast.log`).
+- `dotnet format Nova.slnx --verify-no-changes`: passed (`.git/pr270-round10-format.log`).
+- `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json`:
+  no findings in the inspected file (`[]`, `.git/pr270-round10-detector.json`). The previously
+  documented unrelated `COMP_ROUND_OPEN` advisory remains; no whole-surface finish is inferred.
+
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: all
+  620 passed, zero failed/skipped (3m11.990s), `.git/pr270-round10-integration.log`.
+
+### Browser search finding during round 10
+
+The first full browser run passed 184 cases, failed
+`QueueSearchWidensBeyondTheOpenSectionAndKeepsFilterTruthAsync`, and skipped seven existing
+optional capture cases (5m49.399s, `.git/pr270-round10-browser.log`). The Filters open/close
+handshake had proved attachment, but one-shot typing of `Player 01` left `P01` in the field.
+The failure snapshot also recorded a later disabled/empty frame. Source and assets stayed fixed
+throughout that run; the failure is retained separately from final evidence.
+
+Independent review identified a product binding defect in the shared `CampaignRosterFilters`
+search input. Raw `value` plus `@oninput` does not identify the event-updated value to Blazor's
+renderer, allowing older input echoes to overwrite newer browser typing. The field now uses
+`@bind:get`, `@bind:set`, and `@bind:event="oninput"`; the setter forwards to the existing callback.
+Both Place and Roster synchronously update their parent-owned draft before awaiting debounce, so
+no second child draft or synchronization mechanism is needed. The browser typing assertion,
+timeouts, retry budgets, and debounce interval are unchanged.
+
+The mechanism was checked against [ASP.NET Core 10 binding guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/data-binding?view=aspnetcore-10.0#use-bindgetbindset-modifiers-and-avoid-event-handlers-for-two-way-data-binding)
+and [the matching renderer source](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Components/Components/src/Rendering/RenderTreeUpdater.cs#L30-L40).
+The later disabled/empty transition has a separate applied-state reset and does not explain the
+already missing characters; it was not changed speculatively. Existing Blazor guidance and the
+`add-blazor-ui` recipe apply. No visual composition changes or new permanent instructions are needed.
+
+The integration result above identifies source fingerprint
+`f98839b31e4396e26ac049000bd46be7863cf0a9113ac86d7f67f282a898f8bf`; the later change touches only
+the shared UI binding. Backend, HTTP, persistence, and integration-test inputs are unchanged.
+
+The first unit run after the binding change passed 3,378 and failed the existing
+`CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTerm` fixture (43.310s,
+`.git/pr270-round10-unit-binding.log`). It cached an element across three inputs and dispatched
+an event using a handler ID replaced by a render. The async fixture now reacquires the element
+for each consecutive dispatch inside the renderer context, without awaiting each debounce.
+The exact two-total/one-final-term request assertions remain. Independent review checked this
+fixture and sibling search paths. Converting it to async also required awaited assertion helpers;
+the analyzer caught the initial synchronous calls (`-build-binding-test.log`), and they were fixed.
+
+Final verification of the complete round-10 source:
+
+- `dotnet build Nova.slnx`: passed (33.21s), three existing Sass warnings,
+  `.git/pr270-round10-build-verified.log`. The earlier binding-only build also passed (42.70s,
+  `-build-binding.log`).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: all 3,379 passed,
+  zero failed/skipped (48.102s), `.git/pr270-round10-unit-verified.log`.
+- `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignRosterFilters.razor --json`:
+  no changed-file findings (`[]`), with the same unrelated build-state advisory
+  (`.git/pr270-round10-detector-binding.json`).
+
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.UI/Features/Campaigns/Components/CampaignRosterFilters.razor Nova.UI/Features/Campaigns/Components/CampaignRosterFilters.razor.cs Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs`:
+  passed (`.git/pr270-round10-format-binding.log`), covering every source file changed after
+  the full format pass above.
+
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: all
+  620 passed, zero failed/skipped (3m13.405s), `.git/pr270-round10-integration-final.log`, on
+  source fingerprint `37ea98e57f189573b992ac224dd24897d5e82a8a66e8b8c3450be22e12758842`.
+  The later two browser-test-only corrections below leave all application and integration-test
+  inputs unchanged; this passing run remains applicable to those inputs.
+
+### Evaluate browser fixture findings during round 10
+
+The second full browser run passed the unchanged Place search case, but finished with 183 passed,
+two Evaluate failures, and seven existing optional skips (5m49.671s,
+`.git/pr270-round10-browser-final.log`). All application source and assets remained fixed.
+
+- The archived-tag case read `AllTextContentsAsync` immediately after the drawer heading became
+  visible. Optional tag choices load afterward, so the empty list was an early snapshot. The
+  test now awaits the visible Tag-to-apply picker before retaining both active-tag assertions
+  and the archived-tag exclusion. Sibling tag tests already wait through their select interaction
+  or visibility assertion.
+- The discard-navigation case timed out in `WaitForURLAsync` after the explicit click. Its
+  retained output did not include the final URL or guard state, so the cause remains unproven.
+  It now uses [Playwright's retrying URL assertion](https://playwright.dev/dotnet/docs/api/class-pageassertions#page-assertions-to-have-url)
+  for the exact fixture origin and roster path, with carried query/fragment allowed and the same
+  30-second maximum. It still checks roster visibility and zero saved notes. Failure now reports
+  URL, navigation events, pointer/history diagnostics, and ARIA. The action is not repeated, and
+  no product navigation logic or timeout budget changed. The sibling canonical-roster helper
+  already carries detailed failure diagnostics; no broad rewrite of unfailed waits was made.
+
+Independent reviewer `/root/recovery_review` accepted both fixture corrections without findings.
+These apply existing readiness and behavioral-evidence guidance; no new skill or instruction is
+warranted. Only `CampaignEvaluationBrowserTests.cs` and `CampaignEvaluationCaptureBrowserTests.cs`
+changed after the preceding application/integration validation.
+
+- `dotnet build Nova.slnx`: latest build passed (30.68s), three existing Sass warnings,
+  `.git/pr270-round10-build-navigation.log`. The earlier diagnostic-only build passed (44.97s,
+  `-build-evaluate.log`).
+
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: latest full run passed
+  all 3,379 cases, zero failed/skipped (46.923s), `.git/pr270-round10-unit-navigation.log`.
+
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignEvaluationBrowserTests.cs Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs`:
+  passed (`.git/pr270-round10-format-evaluate.log`), covering the final browser-test edits.
+
+The third full browser run passed 184 cases, failed the new URL assertion, and skipped the same
+seven optional cases (6m08.626s, `.git/pr270-round10-browser-verified.log`). Playwright rejected
+the .NET `RegexOptions.CultureInvariant` flag before evaluating the assertion. It now uses
+`RegexOptions.None`, matching existing repository Playwright regex assertions. The anchored,
+case-sensitive pattern and 30-second assertion deadline are unchanged. This was a test API
+compatibility mistake, not evidence of another product navigation failure.
+
+- `dotnet build Nova.slnx`: passed (40.28s), three existing Sass warnings,
+  `.git/pr270-round10-build-regex.log`.
+
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-method '*DraftProtectsNativeRosterLinkUntilExplicitDiscardAsync'`:
+  passed one case, zero failed/skipped (39.848s), `.git/pr270-round10-browser-focused.log`.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: final full unit run
+  passed all 3,379 cases, zero failed/skipped (44.198s), `.git/pr270-round10-unit-complete.log`.
+  Independent review accepted the supported regex flag correction with no remaining findings.
+
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs`:
+  passed (`.git/pr270-round10-format-regex.log`), covering the final flag change.
+
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`, with
+  `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round10-captures-complete`: final full run passed
+  185 cases, zero failures, seven existing optional accessibility-capture skips (192 total;
+  5m32.036s), `.git/pr270-round10-browser-complete.log`. This includes the unchanged search-typing
+  case, archived-tag choices, and explicit discard navigation with zero saved notes.
+- `git diff --check`: passed. All 1,172 source hashes were verified unchanged after the final
+  browser run. Build preceded tests; integration and browser runs were serialized across the
+  machine, with source/assets fixed throughout each browser run.
+
+The existing curated desktop/mobile packet remains representative of the unchanged composition.
+New diagnostic captures remain local; no new comp measurement or whole-surface finish is claimed.
+All review-round findings have a disposition, including the suppressed comments. No checks were
+disabled or weakened. All three suites must run again before merge.

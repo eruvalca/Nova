@@ -951,7 +951,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Fact]
-    public void CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTerm()
+    public async Task CampaignWorkspaceDebouncesSearchToSingleRequestWithFinalTermAsync()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
         participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
@@ -962,14 +962,17 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         navigationManager.NavigateTo("/campaigns/10");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        var searchInput = cut.Find("#roster-search");
-        searchInput.Input("a");
-        searchInput.Input("av");
-        searchInput.Input("ave");
+        // Binding can replace the handler on each render; dispatch against the current element.
+        await cut.InvokeAsync(() =>
+        {
+            cut.Find("#roster-search").Input("a");
+            cut.Find("#roster-search").Input("av");
+            cut.Find("#roster-search").Input("ave");
+        });
 
-        cut.WaitForAssertion(
+        await cut.WaitForAssertionAsync(
             () =>
             {
                 _ = participantService.Received(2).GetParticipantRosterAsync(

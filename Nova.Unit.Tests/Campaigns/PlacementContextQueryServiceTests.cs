@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -81,6 +82,10 @@ public sealed partial class CampaignPlacementServiceTests
     [InlineData("previous-missing-outcome-team")]
     [InlineData("previous-blank-team")]
     [InlineData("invalid-json")]
+    [InlineData("non-placement-kind")]
+    [InlineData("undefined-kind")]
+    [InlineData("campaign-mismatch")]
+    [InlineData("missing-campaign")]
     public async Task PlacementContextSkipsMalformedEvidenceWithoutLosingRawPageBoundaryAsync(string shape)
     {
         ActAs(ClubAMemberId, ClubAId);
@@ -110,13 +115,26 @@ public sealed partial class CampaignPlacementServiceTests
                 "previous-withdrawn-team" => context with { PreviousOutcome = PlacementOutcome.Withdrawn, PreviousTeamName = "Stale team" },
                 "previous-missing-outcome-team" => context with { PreviousOutcome = null, PreviousTeamName = "Stale team" },
                 "previous-blank-team" => context with { PreviousOutcome = PlacementOutcome.Assigned, PreviousTeamName = " " },
-                "invalid-json" => context,
+                "invalid-json" or "non-placement-kind" or "undefined-kind" or "campaign-mismatch" or "missing-campaign" => context,
                 _ => throw new ArgumentOutOfRangeException(nameof(shape))
             };
             var json = string.Equals(shape, "invalid-json", StringComparison.Ordinal) ? "{" : System.Text.Json.JsonSerializer.Serialize<Nova.SharedKernel.Features.Activity.ClubActivityContext>(malformed);
             // Simulate corrupt stored snapshots without weakening the append-only application writer.
             await corrupt.ActivityEvents.Where(row => row.ActivityEventId == ids[1] || row.ActivityEventId == ids[19])
                 .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.PayloadJson, json), TestContext.Current.CancellationToken);
+            if (shape is "non-placement-kind" or "undefined-kind")
+            {
+                var kind = string.Equals(shape, "non-placement-kind", StringComparison.Ordinal)
+                    ? ActivityEventKind.CampaignOpened : (ActivityEventKind)999;
+                await corrupt.ActivityEvents.Where(row => row.ActivityEventId == ids[1] || row.ActivityEventId == ids[19])
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.EventKind, kind), TestContext.Current.CancellationToken);
+            }
+            if (shape is "campaign-mismatch" or "missing-campaign")
+            {
+                long? campaignId = string.Equals(shape, "campaign-mismatch", StringComparison.Ordinal) ? 601 : null;
+                await corrupt.ActivityEvents.Where(row => row.ActivityEventId == ids[1] || row.ActivityEventId == ids[19])
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.CampaignId, campaignId), TestContext.Current.CancellationToken);
+            }
         }
         var input = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId };
         var first = (await CreatePlacementContextService().GetContextAsync(input, TestContext.Current.CancellationToken)).Value;
@@ -210,7 +228,53 @@ public sealed partial class CampaignPlacementServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
+    [Fact]
+    public async Task PlacementContextUnexpectedReadFailureLogsActorAndResourceAtErrorAsync()
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        var failure = new InvalidOperationException("Read context unavailable.");
+        var logger = new PlacementContextErrorLogger();
+        var service = new PlacementContextQueryService(
+            new TestDbContextFactory<NovaReadDbContext>(() => throw failure), _harness.CurrentUser, logger);
+        var input = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId };
+
+        var result = await service.GetContextAsync(input, TestContext.Current.CancellationToken);
+
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        var logged = logger.Entries.ShouldHaveSingleItem();
+        logged.Level.ShouldBe(LogLevel.Error);
+        logged.Exception.ShouldBeSameAs(failure);
+        var properties = logged.Properties;
+        properties["UserId"].ShouldBe(ClubAMemberId);
+        properties["ClubId"].ShouldBe(ClubAId);
+        properties["Operation"].ShouldBe(nameof(GetPlacementContextInput));
+        properties["CampaignId"].ShouldBe(input.CampaignId);
+        properties["ParticipantId"].ShouldBe(input.PlayerCampaignAssignmentId);
+    }
+
     private PlacementContextQueryService CreatePlacementContextService() => new(
         new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext), _harness.CurrentUser,
         NullLogger<PlacementContextQueryService>.Instance);
+
+    /// <summary>Copies structured fields during Log before the generated logger releases its pooled state.</summary>
+    private sealed class PlacementContextErrorLogger : ILogger<PlacementContextQueryService>
+    {
+        /// <summary>Gets the log entries captured at emission.</summary>
+        public List<(LogLevel Level, Exception? Exception, Dictionary<string, object?> Properties)> Entries { get; } = [];
+
+        /// <inheritdoc />
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc />
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc />
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var properties = state.ShouldBeAssignableTo<IEnumerable<KeyValuePair<string, object?>>>()
+                .ShouldNotBeNull().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            Entries.Add((logLevel, exception, properties));
+        }
+    }
 }
