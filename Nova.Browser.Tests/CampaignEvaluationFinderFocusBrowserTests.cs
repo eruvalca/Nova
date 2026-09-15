@@ -42,6 +42,9 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests
             new() { Width = 390, Height = 844 });
         var page = context.Pages[0];
         await OpenEvaluationAsync(page, seed.CampaignId, search: "60");
+        // Initial finder focus is applied only after interactive module attachment.
+        await InteractionHelpers.ActUntilAsync(page, () => Task.CompletedTask,
+            () => page.Locator("#evaluation-search").EvaluateAsync<bool>("input => document.activeElement === input"));
         var result = page.Locator("a[data-eval-result]");
         await Expect(result).ToHaveCountAsync(1);
 

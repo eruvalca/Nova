@@ -1616,3 +1616,66 @@ Local logs use `.git/pr270-round16-`: `build-verified.log`, `unit-final.log`, `i
 are `build.log`, `build-final.log`, and `unit.log`.
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
 All three suites must run again before merge.
+
+
+## PR review round 17
+
+Review [5213494680](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5213494680)
+contained one suppressed finding: prior-season assignment loading included the Team navigation,
+then used a separate explicitly club-scoped team lookup. Removed the unused Team include in one
+commit. Campaign/Season loading and the explicit team lookup remain, preserving inaccessible-team
+handling, source evidence and Keep eligibility. This removes redundant eager loading; it does not
+claim a reduction in database request count.
+
+Applied the previously read tenancy, service, placement, lifecycle and testing instructions and the
+relevant `add-domain-persistence`, `add-api-endpoint` and `nova-testing` query/provider references.
+Independent session `/root/recovery_review` inspected the complete diff and
+`ToSavedPlacementDecision()`: it uses scalar TeamId and Campaign, so it does not depend on the removed
+navigation. No findings remained. Existing prior-season, archived/inaccessible-team and HTTP/browser
+coverage was reused; no implementation-mirroring test or additional skill/instruction was warranted.
+All paginated reviews, comments and review bodies were inspected, including suppressed findings;
+the 13 existing threads were resolved and no new inline threads required resolution.
+
+Tested source: base `7abbfe70225eb54732f047f62407ba276bf29852` plus the three-file code/test diff.
+SHA-256 `09431da4a44932591460f57dc92a359fd2e3bc9e202d32dbb0cc0e849f9efff7` identifies the sorted
+1,180 source-path/raw-content-hash pairs. The PR body identifies the resulting single commit.
+Only this validation document was edited after the final build. The integration result identifies
+initial source fingerprint `c18249b91f9092307ed10c1e3f99280ec6d0aeb52f10c8e5ed828d85e81ea8ac`;
+application and integration-test source is identical in the final fingerprint. The only later source
+edits were the two browser fixtures described below, so that unaffected integration result is retained.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Final build passed, 38.55s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,436 passed, zero failures/skips; 39.958s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 623 passed, zero failures/skips; 4m12.623s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 191 passed, zero failures, seven existing optional capture skips (198 total); 5m45.201s |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round17-captures`.
+Integration and browser suites ran serially across the machine, with source and generated assets
+fixed during browser execution. Source hashes and `git diff --check` were verified before committing.
+No UI markup, copy or composition changed; existing curated captures and their documented finish/
+measurement limitations remain applicable. No diagnostic was suppressed or check weakened.
+
+The initial build passed (2m25.65s), as did all 3,436 unit tests (44.465s), integration and format.
+The first browser run passed 189, failed two, and skipped seven optional captures (6m09.141s).
+`FinderRestorationPreservesDeliberateResultLinkFocusAsync` accepted an SSR-visible result as readiness:
+its immediate JS focus probe passed, but the later focused assertion failed. Interactive attachment
+had not been proven and could still replace focus. The test now passively observes the app's initial
+finder focus before the unchanged same-turn preservation and Enter assertions.
+`SavingTheLastParticipantOnPageTwoAdoptsPageOneBeforeEnablingEditingAsync` selected an outcome before
+a handled selection was proven, then retried a disabled Save while the snapshot still showed
+Undecided. It now repeats the draft selection through the existing bounded helper until Save is enabled,
+matching the established lost-acknowledgement fixture. Its mutation and settlement assertions remain.
+Independent follow-up review found no issues: neither probe forces the asserted focus/settlement outcome,
+changes retry limits, or bypasses the behavior under test. The final full browser result appears above.
+
+Local logs use `.git/pr270-round17-`: `build-final.log`, `unit-final.log`, `integration.log`,
+`browser-final.log`, `format-final.log`, `model.log`, `contrast.log`, and `detector.json`.
+Initial results are retained in `build.log`, `unit.log`, `browser.log`, and `format.log`.
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
+All three suites must run again before merge.

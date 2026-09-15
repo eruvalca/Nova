@@ -40,7 +40,9 @@ public sealed partial class CampaignPlaceBrowserTests
         await Expect(page.Locator("a.place-row")).ToHaveCountAsync(1);
         await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row"), () => Task.FromResult(Selected(page)));
         await Expect(page.Locator("#place-outcome")).ToBeEnabledAsync();
-        await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.NotSelected));
+        await InteractionHelpers.ActUntilAsync(page,
+            () => page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.NotSelected)),
+            () => IsEnabledAsync(SaveButton(page)));
         await InteractionHelpers.ClickUntilAsync(page, SaveButton(page),
             () => HasTextAsync(page.Locator(".alert-success"), "Placement saved."));
         await page.WaitForURLAsync(url => !url.Contains("placementPage=2", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });

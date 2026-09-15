@@ -146,7 +146,7 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
         if (previousId is not null)
         {
             var assignment = await db.PlayerCampaignAssignments.Include(a => a.Campaign).ThenInclude(c => c.Season)
-                .Include(a => a.Team).SingleAsync(a => a.PlayerCampaignAssignmentId == previousId, token);
+                .SingleAsync(a => a.PlayerCampaignAssignmentId == previousId, token);
             var team = await db.Teams.SingleOrDefaultAsync(t => t.TeamId == assignment.TeamId && t.ClubId == club, token);
             var decision = assignment.ToSavedPlacementDecision()!;
             if (team is null) { decision = decision with { TeamId = null }; }
