@@ -23,6 +23,25 @@ public sealed partial class CampaignPlacementHttpTests
     }
 
     [Fact]
+    public async Task PlacementContextRouteReturnsForbiddenForAuthenticatedUserWithoutClubAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("placement-context-no-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(PlacementContextEndpoints.Url(new GetPlacementContextInput
+        {
+            CampaignId = 1,
+            PlayerCampaignAssignmentId = 1
+        }), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task MemberReadsPlacementHistoryWithoutCursorAndInvalidCursorIsRejectedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

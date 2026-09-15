@@ -518,3 +518,48 @@ build or format process. Logs and manifests are under `.git/pr270-round4-*`; fai
 are not accepted as passing evidence. All 1,169 source hashes and curated image checksums were
 verified unchanged after final browser completion. `git diff --check` and the staged check passed.
 No production schema changed, so the original migration-model evidence remains applicable.
+
+## PR review round 5
+
+Copilot review `5207232289` on `88db70740593b4028540c08e7fbfe60e5d38bc7a`
+contained no inline comments and one suppressed finding. The missing authenticated-without-club
+403 HTTP boundary test was actionable and is now covered by
+`PlacementContextRouteReturnsForbiddenForAuthenticatedUserWithoutClubAsync`.
+The test registers a real Identity user, clears persisted club membership, refreshes the
+authentication cookie, and calls the placement-context route with valid positive IDs.
+It asserts 403 from the membership policy before placement lookup. No production change was needed.
+
+The existing anonymous 401, member success, malformed cursor, and missing-participant cases
+remain in the same file. Related placement/effective-placement no-club tests and the Identity
+registration, persisted membership, and cookie-refresh helpers were inspected. This round applies
+the previously read testing, API, and tenancy instructions, `nova-testing` and its Aspire integration
+harness reference, `add-api-endpoint`, and the .NET `run-tests` recipe. No repository runner overlay
+exists. The existing recipes already cover this boundary; no new instruction or skill is warranted.
+
+Independent read-only reviewer `/root/recovery_review` inspected the complete round diff,
+production authorization policy, real authentication helpers, and neighboring tests. It reported
+no findings and confirmed the exact 403 assertion covers the missing boundary.
+
+Validation is associated with base `88db70740593b4028540c08e7fbfe60e5d38bc7a` plus the
+test change above and source fingerprint
+`7726f3da5f64b3d2748e560aa1744a0b6ae3f0e495cf76d12d7e64d141bd8feb`
+(1,169 files). The PR body identifies the resulting tested commit. Documentation changes do not
+alter these source inputs.
+
+Round-5 verification:
+
+- `dotnet build Nova.slnx`: passed (2m58.49s; three existing Sass import deprecation warnings).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: 3,356 passed,
+  zero failed/skipped (48.892s).
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`:
+  620 passed, zero failed/skipped (3m16.048s), including the new 403 case.
+- `dotnet format Nova.slnx --verify-no-changes`: passed, no diagnostics.
+- `git diff --check`: passed. Source fingerprints were verified unchanged after validation.
+
+Build, unit, integration, and format ran sequentially; no other Aspire-backed suite overlapped.
+The only source change is this HTTP test. Unaffected browser evidence is retained from
+`88db70740593b4028540c08e7fbfe60e5d38bc7a`: 183 passed, seven existing optional capture skips,
+zero failures, as recorded in round 4. No application markup, CSS, JS, persistence, or contracts
+changed. The earlier visual, contrast, detector, and migration-model evidence retains its original
+revision and limitations. All three suites must run again before merge. Local logs and source
+manifest are `.git/pr270-round5-*`; these local files are not the durable validation record.
