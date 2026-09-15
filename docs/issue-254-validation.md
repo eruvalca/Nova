@@ -563,3 +563,72 @@ zero failures, as recorded in round 4. No application markup, CSS, JS, persisten
 changed. The earlier visual, contrast, detector, and migration-model evidence retains its original
 revision and limitations. All three suites must run again before merge. Local logs and source
 manifest are `.git/pr270-round5-*`; these local files are not the durable validation record.
+
+## PR review round 6
+
+Copilot review `5207636688` on `d52c431da9a1538f78aa7982207c340a5e0a77f0`
+contained one inline finding and one suppressed scope finding. Both were inspected.
+
+### SQLite cleanup: inapplicable
+
+The review asserted that the ordered, bounded `ExecuteDeleteAsync` could not run in the unit
+and membership-pruning paths. `TenancyTestHarness.Options` registers
+`CampaignClosureSqliteModelCustomizer` for all three contexts; it maps placement receipt expiry
+to UTC ticks. The query therefore orders a sortable scalar in SQLite. Existing
+`PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync` exercises both direct
+and membership cleanup, verifies the exact three survivors from 503 receipts, and requires an
+empty receipt change tracker. Both cases passed again on the reviewed source. PostgreSQL has
+separate bounded-deletion and deleted-club receipt coverage. Evaluation's materializing fallback
+is not needed for this mapped placement query; no production change was made.
+
+Independent reviewer `/root/recovery_review` checked the harness registration, model conversion,
+both callers, exact survivor assertions, and PostgreSQL sibling evidence. It confirmed the finding
+is inapplicable and that copying the materializing fallback would weaken bounded cleanup.
+
+### Approved scope reconciled
+
+The original implementation request explicitly approved including the missing backend, contract,
+persistence, and WASM work for replayable placement operations and bounded placement history
+within #254. The old issue boundary and parent slice rule had not recorded that amendment.
+[Issue #254](https://github.com/eruvalca/Nova/issues/254) now quotes the approved amendment and
+names the receipts/replay/24-hour cleanup and prior-season/20-item-history prerequisites.
+[Parent #199](https://github.com/eruvalca/Nova/issues/199) records the same narrow exception.
+The PR summary also records it. No separate #163 foundation issue is needed for those approved
+prerequisites. The independent reviewer confirmed this scope evidence.
+
+Both edited issue bodies were fetched immediately before mutation, exact-match guarded, and read
+back after writing. Native membership remains #255 closed and #254 open; #199 remains one of two
+children complete. PR #270 is unmerged, and no delivery checkbox, issue state, or parent integration
+gate was changed. #163's area-level scope already accommodates the work and needed no body edit.
+
+### Guidance and verification
+
+Applied the previously read testing/API/tenancy and placement guidance, `nova-testing`, the .NET
+`run-tests` recipe, `add-domain-persistence` and its query-construction reference. Applied
+`sync-epic-roadmap` and read its roadmap-checks reference before updating the parent block.
+The existing instruction to verify review findings against behavior was sufficient; no permanent
+rule or skill was added for this false-positive report.
+
+- Source is unchanged from `d52c431da9a1538f78aa7982207c340a5e0a77f0`; this round changes only
+  this validation record and external issue/PR scope text. The source fingerprint remains
+  `7726f3da5f64b3d2748e560aa1744a0b6ae3f0e495cf76d12d7e64d141bd8feb` (1,169 files).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-method '*PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync'`:
+  both cases passed, zero failures/skips (3.158s).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: 3,356 passed,
+  zero failures/skips (43.016s), using the unchanged build from round 5.
+- Build and 620 passing integration cases remain on `d52c431da9a1538f78aa7982207c340a5e0a77f0`;
+  unaffected browser results remain on `88db70740593b4028540c08e7fbfe60e5d38bc7a` (183 passed,
+  seven optional capture skips). No source, schema, UI, or test behavior changed this round.
+- The #199 roadmap checker passed all seven mechanical checks before the update. The initial CLI
+  positional invocation misparsed the repository argument and returned 404; the successful run
+  calls the checker's exported functions directly, without changing or bypassing any checks:
+
+  ```powershell
+  node --input-type=module -e 'import { createGhIo, runChecks, formatReport } from "./.agents/skills/sync-epic-roadmap/scripts/check-roadmap.mjs"; const args = { repo: "eruvalca/Nova", epic: 199 }; const result = runChecks(createGhIo(args.repo), args); console.log(formatReport(result, args)); process.exitCode = result.findings.length ? 1 : 0;'
+  ```
+
+`dotnet format Nova.slnx --verify-no-changes` passed with no diagnostics. The same roadmap
+command passed all seven checks after the update. All 1,169 source hashes remain unchanged;
+`git diff --check` passed. No required checks were disabled or weakened. Earlier visual/comp
+limitations and optional browser skips remain recorded above. All three suites must run again
+before merge. Local round-6 logs remain under `.git/pr270-round6-*`.
