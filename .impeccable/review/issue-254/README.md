@@ -55,3 +55,10 @@ new whole-surface or quantitative comp approval. See [review dispositions](revie
 
 The earlier comp measurement limitation remains unchanged: its raster did not faithfully
 encode the locked rail-and-sheet composition. No passing comp-diff measurement is claimed.
+
+The review-round-9 `closed-invalid-storage-*` captures show local recovery cleanup in a Closed
+campaign: the uncertainty warning explicitly retains read-only status, both recovery actions are
+available, and placement-save controls are absent. Desktop/mobile page and board captures plus
+the scrolled mobile-actions viewport retain source and image checksums in their sidecars.
+Independent finish disposition is **ship**, limited to this conditional recovery state; existing
+composition and missing-input/measurement limitations remain unchanged.

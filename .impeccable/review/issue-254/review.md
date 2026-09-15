@@ -82,3 +82,17 @@ The independent reviewer inspected the refreshed captures and reported no remain
 or visible regression. Final disposition: **ship**, limited to this conditional-copy correction.
 The shared composition, tokens, and styling are unchanged. This does not establish a new whole-surface
 or quantitative comp approval; the documented measurement and missing-input limitations remain.
+
+## PR review round 9 — Closed recovery controls
+
+Initial disposition: **recapture**. Existing Active invalid-storage captures could not establish
+the Closed-campaign state. The independent reviewer viewed the new desktop, mobile, board, and
+scrolled mobile-actions captures. The warning preserves uncertainty and explicitly says the
+campaign remains read-only. Both controls have complete labels, 44px height, and clear separation;
+the scrolled mobile viewport shows them unobscured. Closed explanations are legible and new-save
+controls are absent. Existing type, materials, background, and composition are retained.
+
+Final disposition: **ship**, with no remaining material fixes within this conditional-state scope.
+This review does not attest backend behavior or suite results. The quality-bar card remains
+unavailable and earlier missing-input/comp-measurement limitations remain; no new whole-surface
+or quantitative approval is claimed.

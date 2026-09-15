@@ -8,7 +8,7 @@ public partial class CampaignPlacePanel
 
     private async Task DiscardInvalidRecoveryAsync()
     {
-        if (_invalidPending is not { } invalid || _storageModule is null || _saving || IsClosed || !CanEditPlacements) { return; }
+        if (_invalidPending is not { } invalid || _storageModule is null || _saving) { return; }
         var owner = EffectiveOwner;
         var scope = StorageScope;
         var generation = ++_operationGeneration;

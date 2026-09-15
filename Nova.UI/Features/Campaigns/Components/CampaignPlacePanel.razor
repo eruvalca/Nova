@@ -54,17 +54,17 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
             }
         </div>
     }
-    @if (!_storageReady && !IsClosed)
+    @if (!_storageReady)
     {
         <div class="place-recovery d-flex flex-column align-items-start gap-2" role="note">
             @if (_invalidPending is not null)
             {
-                <span id="place-invalid-recovery-warning">Discarding invalid recovery data does not undo a save or prove it failed. Current placement will be refreshed before you can make another decision.</span>
+                <span id="place-invalid-recovery-warning">Discarding invalid recovery data does not undo a save or prove it failed. @(IsClosed ? "Current placement will be refreshed; this campaign remains read-only." : "Current placement will be refreshed before you can make another decision.")</span>
             }
             <div class="d-flex flex-wrap gap-2">
                 @if (_invalidPending is not null)
                 {
-                    <button type="button" class="btn btn-outline-secondary" aria-describedby="place-invalid-recovery-warning" disabled="@(_saving || !CanEditPlacements)" @onclick="DiscardInvalidRecoveryAsync">Discard invalid data and refresh</button>
+                    <button type="button" class="btn btn-outline-secondary" aria-describedby="place-invalid-recovery-warning" disabled="@_saving" @onclick="DiscardInvalidRecoveryAsync">Discard invalid data and refresh</button>
                 }
                 <button type="button" class="btn btn-outline-secondary" disabled="@_saving" @onclick="RetryStorageAsync">Retry storage</button>
             </div>

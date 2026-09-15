@@ -30,6 +30,7 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync("Needs placement");
         await Expect(page.Locator("button.place-section.leads")).ToContainTextAsync(TotalText());
         await Expect(page.Locator("a.place-row").First).ToBeVisibleAsync();
+        await AssertPlaceSearchAttachedAsync(page);
 
         // Selecting a player opens their evidence sheet and keeps the selection in the URL.
         var firstRow = page.Locator("a.place-row").First;
@@ -154,6 +155,7 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
 
         var row = page.Locator("a.place-row").First;
         await Expect(row).ToBeVisibleAsync();
+        await AssertPlaceSearchAttachedAsync(page);
         (await row.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
 
         // Selecting a player promotes the sheet to the focused stage with an explicit way back. The rail is
@@ -193,6 +195,8 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         var url = new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString();
         await firstPage.GotoAsync(url);
         await secondPage.GotoAsync(url);
+        await AssertPlaceSearchAttachedAsync(firstPage);
+        await AssertPlaceSearchAttachedAsync(secondPage);
 
         await InteractionHelpers.ClickUntilAsync(firstPage, firstPage.Locator("a.place-row").First,
             () => Task.FromResult(Selected(firstPage)));
@@ -230,10 +234,7 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
-
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
         await Expect(page.Locator("#place-team")).ToBeVisibleAsync();
@@ -251,10 +252,7 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
-
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
 
         // Assigned without a team is an invalid state: the submit is blocked and the reason is written out.
@@ -279,12 +277,10 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password,
             new ViewportSize { Width = 1440, Height = 900 });
         var page = context.Pages[0];
-        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
         // Select a participant so the working sheet carries evidence, which is the composition the approved
         // comp governs, and prove attachment before capturing.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => IsEnabledAsync(page.Locator("#place-outcome")));
+        await OpenFirstPlacementAsync(page, seed.CampaignId);
         await Expect(page.Locator(".place-evidence")).ToContainTextAsync("Effective season placement");
         await page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.Assigned));
         await Expect(page.Locator("#place-team")).ToBeVisibleAsync();

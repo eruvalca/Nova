@@ -34,6 +34,7 @@ public partial class CampaignPlacePanel
             var stored = await module.InvokeAsync<PlacementRecoveryRead>("readRecovery", ComponentCancellationToken, scope)
                 ?? throw new InvalidOperationException("Placement recovery storage returned no state.");
             if (!OwnsRecovery(owner, generation)) { return; }
+            _recoveryExpired = false;
             _invalidPending = stored.InvalidValue;
             _pendingCommand = stored.Pending;
             if (_invalidPending is not null)

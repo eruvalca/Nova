@@ -814,3 +814,112 @@ The PR explanation records all four dispositions. There were no new inline threa
 the ten existing threads remain resolved. This review contains suppressed findings and therefore
 does not satisfy the user's stop condition. After the single round-8 commit is pushed, wait for
 current-head CI and a fresh automatic review without requesting one.
+
+## PR review round 9
+
+Copilot review [5208902003](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5208902003)
+on `281619696c732d616a3c0e183df261445c70e33a` contained one inline finding and three
+suppressed findings. Three reports were actionable; the history-cursor report was inapplicable.
+All findings were inspected regardless of suppression.
+
+- **Expiry belongs to its pending command and owner.** Clear expired-recovery evidence when
+  posture changes, storage attaches a replacement command, or a command settles. A previous
+  expiry can no longer expose the destructive review/clear path for a different valid pending
+  operation. Regression cases cover another owner, same-scope closure, and storage replacement
+  after an attachment retry; each verifies the replacement is replayed before its cleanup.
+- **A confirmed refusal survives authoritative reconciliation.** Record its detail before
+  refreshing evidence, preserve it through selection projection and same-scope closure, and
+  use it in the defensive obsolete-reconciliation branch. Explicit new drafts, completed conflict
+  review, ordinary navigation, and new dispatch dismiss the retained refusal. Leaving its scope
+  clears both the metadata and old conflict feedback, preventing an A → B → A identity switch
+  from resurrecting it. Held-read tests prove the real closure/ownership paths. The reviewers
+  did not find a reliable ordinary interaction that reaches the same-owner `Obsolete` branch;
+  its defensive change is not claimed as independently reproduced browser coverage.
+- **Closed campaigns retain local recovery controls.** Retry storage and explicit invalid-data
+  discard are independent of placement-edit permission. Discard still requires fresh authorized
+  campaign, queue, and selected-placement evidence, ownership checks, and exact-byte deletion.
+  All new-save gates remain Closed. Component cases cover denied reads, unavailable storage,
+  exact-command replay, and successful cleanup with editing disabled. A browser case exercises
+  keyboard discard in a Closed sheet and compares all final decisions, tokens, teams, attribution,
+  receipt count, and activity count before and after.
+- **History cursor report is inapplicable.** The Latest changes button requires nonnull `_context`.
+  Fresh reads clear that value, failures leave it null, and a successful callback assigns the new
+  context and null cursor together. There is no visible stale button in the reported sequence.
+  Two component cases page one participant backward, select another while history is delayed,
+  then return success or failure. The previous cursor stays hidden throughout. History production
+  code was not changed to address an unobserved defect.
+
+Independent reviewer `/root/recovery_review` reviewed the full change and sibling paths. The
+initial review found that selection projection still cleared the refusal and that retained
+metadata could survive an owner round trip. Both were fixed and the revised review found no
+remaining actionable issues. The first focused test run independently reproduced the closure
+problem (nine passed, one failed); the final full unit suite includes its passing regression.
+
+Applied the previously read repo, Blazor, testing, tenancy, API, placement, and UI guidance;
+`add-blazor-ui` with lifecycle/state and JS-interop references; `nova-testing` with component and
+browser references; the .NET test-writing/run recipes; and the retained Impeccable direction and
+finish constraints. These findings reinforce the existing ownership, truthful settlement, and
+behavioral-evidence rules. No additional instruction or skill is warranted.
+
+### Round-9 verification
+
+Tested source: base `281619696c732d616a3c0e183df261445c70e33a` plus this round's changes,
+identified by fingerprint `142809f94d54656fa78fa4a2bff5ad1003e6248e93028adff7a176600828522d`
+(1,172 source files). The PR body identifies the resulting single commit. Documentation and
+capture curation are excluded from the source fingerprint.
+
+- `dotnet build Nova.slnx`: final build passed (37.84s), three existing Sass import warnings.
+  The first build failed a nested-ternary test analyzer rule; the test was simplified without a
+  suppression. Logs: `.git/pr270-round9-build.log`, `-build-fixed.log`, `-build-final.log`, and
+  `-build-verified.log`, and `-build-readiness.log`. The final build includes the Closed-specific
+  read-only warning and the browser attachment correction described below; independent code
+  review accepted both.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: final run passed
+  3,374 cases, zero failed/skipped (42.096s). Log: `.git/pr270-round9-unit-final.log`.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-method '*ExpiryEvidenceCannotDiscardADifferentAttachedOperationAsync' --filter-method '*DurableRefusalSurvivesClosureButCannotLeakIntoAnotherOwnerAsync' --filter-method '*ClosedInvalidStorageCleanupRequiresFreshEvidenceAndNeverSavesAsync' --filter-method '*ClosedUnavailableStorageCanRetryAndRecoverTheExactCommandAsync' --filter-method '*ChangingParticipantHidesThePreviousHistoryCursorThroughoutReloadAsync'`:
+  the earlier focused run of the ten new component cases had one closure failure (2.267s),
+  recorded in `.git/pr270-round9-focused.log`. This failed attempt is distinct from the final
+  passing full suite and is not counted as passing evidence.
+- `dotnet format Nova.slnx --verify-no-changes`: passed. After the final conditional warning,
+  `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.Browser.Tests/CampaignPlaceInvalidStorageBrowserTests.cs`
+  also passed. Logs: `.git/pr270-round9-format.log` and `-format-copy.log`.
+  After the browser attachment correction,
+  `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignPlaceBrowserTests.cs`
+  passed (`.git/pr270-round9-format-readiness.log`).
+- `npm run check:contrast` from `Nova/`: passed. No theme or CSS source changed.
+- `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json`:
+  no changed-file findings (`[]`). The existing unrelated build-state `COMP_ROUND_OPEN` advisory
+  remains; no whole-surface finish is inferred from this detector result.
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`:
+  all 620 passed, zero failed/skipped (3m09.649s). Log: `.git/pr270-round9-integration.log`.
+  The later browser-test-only readiness correction did not change integration inputs or application code.
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`, with
+  `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round9-captures-final`: final full run passed
+  185 cases, zero failures, seven existing optional accessibility-capture skips (192 total;
+  5m40.325s). Log: `.git/pr270-round9-browser-final.log`.
+- `git diff --check`: passed. All 1,172 source hashes were verified unchanged after the final
+  browser run. Five curated Closed-recovery images and three sidecars retain source/geometry/image
+  checksums. No schema changed; earlier migration-model evidence remains applicable.
+
+Build preceded tests. Full unit runs were isolated; integration/browser suites ran serially
+across the machine, and application source/assets stayed fixed throughout each browser run.
+The independent finish reviewer requested Closed-specific evidence, then reopened the exact
+final desktop/mobile/page/board/action captures and returned **ship**, limited to the conditional
+recovery presentation. No remaining material fixes were identified. Existing quality-bar-card,
+design-input, and comp-measurement limitations remain; no new whole-surface comparison is claimed.
+All three suites must run again before merge.
+
+The first full browser run passed the new Closed cleanup case but failed the existing
+`CompatibleTeamChoicesExcludeIncompatibleTeamsAsync` (184 passed, one failed, seven optional
+capture skips; 5m58.493s). After selecting Assigned, the failure snapshot showed Undecided and
+"Choose Assigned to select a team." The test treated native row navigation and an enabled
+prerendered outcome control as proof that its change handler had attached. No event trace was
+captured, but independent code review confirmed this readiness defect and inspected its siblings.
+
+Compatible-team, missing-team, and capture tests now reuse `OpenFirstPlacementAsync`; member,
+mobile, and both concurrent sessions use the existing Filters open/close handshake before
+selection. The mobile check runs while the queue is visible. Both concurrent pages establish
+attachment and select the same player before either save, preserving the stale-decision test.
+No production behavior, timeouts, retry budgets, or save/conflict assertions changed. The failed
+run remains `.git/pr270-round9-browser.log` and is not accepted as passing evidence. Application
+source and assets were fixed during that run; the browser helper correction happened after exit.

@@ -415,7 +415,7 @@ public partial class CampaignPlacePanel(
         if (IsDiscoveryChanged)
         {
             _saveMessage = null;
-            _saveError = null;
+            DismissRejection();
             await LoadQueueAsync(State);
             await RefreshSelectionAsync();
             return;
@@ -423,6 +423,7 @@ public partial class CampaignPlacePanel(
 
         if (_appliedParticipantId != SelectedParticipantId)
         {
+            DismissRejection();
             await RefreshSelectionAsync();
         }
     }
@@ -579,13 +580,22 @@ public partial class CampaignPlacePanel(
         _keepOperationId = null;
         _phase = PlacementPhase.Editing;
         _pendingCommand = null;
+        _recoveryExpired = false;
         _invalidPending = null;
         _storageReady = false;
         _storageOwner = null;
         _context = null;
         _contextRequest++;
-        if (!string.Equals(_settledScope, StorageScope, StringComparison.Ordinal)) { _saveMessage = null; }
-        _saveError = null;
+        var retainsSettlement = string.Equals(_settledScope, StorageScope, StringComparison.Ordinal);
+        if (!retainsSettlement)
+        {
+            _saveMessage = null;
+            _settledRejectionDetail = null;
+            _settledScope = null;
+            _conflictMessage = null;
+            _shouldFocusConflict = false;
+        }
+        _saveError = retainsSettlement ? _settledRejectionDetail : null;
         _queue = null;
         _queueError = null;
         _queueStale = false;
@@ -688,7 +698,7 @@ public partial class CampaignPlacePanel(
         _draftOutcome = _selected?.LocalOutcome ?? PlacementOutcome.Undecided;
         _draftTeamId = _selected?.CorrectionReason is PlacementCorrectionReason.None ? _selected.LocalDecision?.TeamId : null;
         _draftToken = _selected?.ConcurrencyToken;
-        _saveError = null;
+        _saveError = string.Equals(_settledScope, StorageScope, StringComparison.Ordinal) ? _settledRejectionDetail : null;
     }
 
     /// <summary>

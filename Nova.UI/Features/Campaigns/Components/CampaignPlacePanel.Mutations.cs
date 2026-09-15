@@ -25,6 +25,7 @@ public partial class CampaignPlacePanel
     private ElementReference _confirmationHeading;
     private string? _confirmationOwner;
     private string? _settledScope;
+    private string? _settledRejectionDetail;
     private bool IsPostureChanged => _appliedStatus != CampaignStatus
         || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal);
     private bool AuthoritativeEvidenceFresh => _queue is not null && _queueError is null && !_queueStale
@@ -62,7 +63,7 @@ public partial class CampaignPlacePanel
         _phase = PlacementPhase.Editing;
         _draftOutcome = outcome;
         if (outcome != PlacementOutcome.Assigned) { _draftTeamId = null; }
-        _saveError = null;
+        DismissRejection();
         return Task.CompletedTask;
     }
 
@@ -73,7 +74,7 @@ public partial class CampaignPlacePanel
         _phase = PlacementPhase.Editing;
         _draftTeamId = long.TryParse(args.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
             && VisibleTeamChoices.Any(t => t.TeamId == id && !t.Unavailable) ? id : null;
-        _saveError = null;
+        DismissRejection();
         return Task.CompletedTask;
     }
 
@@ -144,6 +145,8 @@ public partial class CampaignPlacePanel
         _phase = PlacementPhase.Submitting;
         _saveError = null;
         _saveMessage = null;
+        _settledScope = null;
+        _settledRejectionDetail = null;
         try
         {
             await _storageModule.InvokeVoidAsync("writePending", ComponentCancellationToken, scope, input);
@@ -220,9 +223,12 @@ public partial class CampaignPlacePanel
         }
         if (!OwnsOperation(owner, scope, generation)) { return; }
         _pendingCommand = null;
+        _recoveryExpired = false;
+        _settledScope = scope;
+        _settledRejectionDetail = result.IsProblem ? RejectionDetail(result.Problem) : null;
+        _saveError = _settledRejectionDetail;
         if (result.IsSuccess)
         {
-            _settledScope = scope;
             _saveMessage = "Placement saved. The original operation is confirmed.";
         }
         _phase = PlacementPhase.Reconciling;
@@ -240,7 +246,7 @@ public partial class CampaignPlacePanel
         if (reconciliation == ReconcileOutcome.Obsolete)
         {
             _keepOperationId = null;
-            EnterConflict("Refresh current placement evidence before editing.");
+            EnterConflict(result.IsProblem ? RejectionDetail(result.Problem) : "Refresh current placement evidence before editing.");
             return;
         }
         await ApplyPendingStateAsync();
@@ -255,7 +261,7 @@ public partial class CampaignPlacePanel
         if (!result.IsSuccess)
         {
             _keepOperationId = null;
-            _saveError = FirstValidationMessage(result.Problem.Errors) ?? result.Problem.Detail ?? SaveFailureFallbackMessage;
+            _saveError = RejectionDetail(result.Problem);
             if (result.Problem.Kind == ServiceProblemKind.Conflict || !fresh) { EnterConflict(_saveError); }
             return;
         }
@@ -274,6 +280,15 @@ public partial class CampaignPlacePanel
             navigation.NavigateTo(ComposePlaceUrl?.Invoke(next.PlayerCampaignAssignmentId)
                 ?? CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, State, placementParticipantId: next.PlayerCampaignAssignmentId));
         }
+    }
+
+    private static string RejectionDetail(ServiceProblem problem)
+        => FirstValidationMessage(problem.Errors) ?? problem.Detail ?? SaveFailureFallbackMessage;
+
+    private void DismissRejection()
+    {
+        _saveError = null;
+        _settledRejectionDetail = null;
     }
 
     private void EnterConflict(string? detail)
@@ -303,7 +318,7 @@ public partial class CampaignPlacePanel
             {
                 _phase = PlacementPhase.Editing;
                 _conflictMessage = null;
-                _saveError = null;
+                DismissRejection();
             }
             else { EnterConflict("Current placement evidence could not be refreshed. Try again."); }
         }
