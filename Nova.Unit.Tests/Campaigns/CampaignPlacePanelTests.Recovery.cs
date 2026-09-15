@@ -73,7 +73,7 @@ public sealed partial class CampaignPlacePanelTests
     {
         RegisterServices();
         var pending = new UpdateCampaignPlacementInput(302, PlacementOutcome.NotSelected, null, Guid.NewGuid(), Guid.CreateVersion7());
-        _placementStorage.Setup<UpdateCampaignPlacementInput?>("readPending", _ => true).SetResult(pending);
+        _placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(pending, null));
         _mutations.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<PlacementMutationSuccess>(ServiceProblem.Conflict("expired") with
             {
@@ -102,8 +102,8 @@ public sealed partial class CampaignPlacePanelTests
         RegisterServices();
         if (recovering)
         {
-            _placementStorage.Setup<UpdateCampaignPlacementInput?>("readPending", _ => true).SetResult(
-                new UpdateCampaignPlacementInput(301, PlacementOutcome.NotSelected, null, Guid.NewGuid(), Guid.CreateVersion7()));
+            _placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(
+                new UpdateCampaignPlacementInput(301, PlacementOutcome.NotSelected, null, Guid.NewGuid(), Guid.CreateVersion7()), null));
         }
         _placementStorage.SetupVoid("writePending", _ => true).SetException(new JSException("quota"));
         var cut = RenderPanel(selectedParticipantId: 301);
@@ -219,7 +219,7 @@ public sealed partial class CampaignPlacePanelTests
     {
         RegisterServices();
         var pending = new UpdateCampaignPlacementInput(301, PlacementOutcome.NotSelected, null, Guid.NewGuid(), Guid.CreateVersion7());
-        _placementStorage.Setup<UpdateCampaignPlacementInput?>("readPending", _ => true).SetResult(pending);
+        _placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(pending, null));
 
         var cut = RenderPanel(selectedParticipantId: 301);
 

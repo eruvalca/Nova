@@ -14,6 +14,28 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class HttpCampaignPlacementServiceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(86400, true)]
+    [InlineData(86460, true)]
+    [InlineData(86461, false)]
+    [InlineData(172800, false)]
+    public async Task ReceiptLifetimeHonorsTheBoundedRecoveryWindowAsync(int seconds, bool valid)
+    {
+        var input = ValidInput(Guid.NewGuid());
+        var success = PlacementTestReceipts.Success(input, Guid.NewGuid());
+        success = success with { Receipt = success.Receipt with { RecoveryExpiresAt = success.Receipt.CommittedAt.AddSeconds(seconds) } };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(success) };
+        using var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpCampaignPlacementService(http).UpdatePlacementAsync(input, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBe(valid);
+        if (!valid)
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+            PlacementMutationRejection.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
+        }
+    }
+
     private const long AssignmentId = 42;
     private const long TeamId = 7;
     private static readonly Guid _operationId = Guid.CreateVersion7();

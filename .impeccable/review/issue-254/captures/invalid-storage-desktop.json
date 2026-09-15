@@ -1,0 +1,20 @@
+{
+  "cssWidth": 1440,
+  "cssHeight": 900,
+  "devicePixelRatio": 1,
+  "documentHeight": 1160,
+  "campaignId": 20,
+  "board": {
+    "x": 268,
+    "y": 577.53125,
+    "width": 1144,
+    "height": 542
+  },
+  "test": "InvalidRecoveryDataCanBeDiscardedExplicitlyBeforeANewDeliberateSaveAsync",
+  "sourceBase": "94414d2cb47b2899e6d70acb9599b3982697e373",
+  "sourceSha256": "724d9f12b43419dcbe59aad1b0927fff6fcf975529922b9f8fc3c48f91dfca28",
+  "imageSha256": {
+    "invalid-storage-desktop.png": "27bc2b0bc4d93d4d942c686cbb0ff821c32e182eefbe3091a26752bbf2638ca5",
+    "invalid-storage-desktop-board.png": "bbb3d921a710635d883b2ae6290869d283fbb279f3f024f65349712fd4a925ad"
+  }
+}

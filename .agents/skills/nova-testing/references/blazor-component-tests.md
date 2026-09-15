@@ -117,6 +117,13 @@ Use controlled `TaskCompletionSource` instances for ordering rather than timing-
 observe the cleared/loading state before releasing replacement work. Reproduce the failing behavior
 before applying a defect fix when practical. Record any missing boundary evidence explicitly.
 
+For delayed JS responses, configure the result before dispatch and gate an `IJSObjectReference`
+wrapper with explicit entered/release tasks. In the installed bUnit 2.10.3, leaving a JS handler's
+result unset uses `BunitContext.DefaultWaitTimeout` (one second by default); it is a missing-result
+fault timer, not a durable handshake. See `CampaignPlacePanelTests.CleanupInterop.cs` and the
+evaluation `NavigationRecoveryModule`/`StorageRecoveryModule` fixtures. Release gates during test
+cleanup; retain assertions and timeout settings.
+
 For query-backed component tests:
 
 - Supply `[SupplyParameterFromQuery]` values through the test `NavigationManager`, not

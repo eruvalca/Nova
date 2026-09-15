@@ -20,6 +20,26 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed class PlayerDetailComponentsTests : BunitContext
 {
+    [Fact]
+    public void PlayerDetailRefreshesReturnContextOnQueryOnlyNavigationWithoutReloadingDetail()
+    {
+        var detail = Substitute.For<IPlayerDetailService>();
+        detail.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail()));
+        RegisterServices(detailService: detail);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        const string First = "/campaigns/10?tab=place&placementPage=2&placementParticipant=301";
+        const string Second = "/players?search=Chen&view=archived";
+        navigation.NavigateTo("/players/7?returnUrl=" + Uri.EscapeDataString(First));
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        foreach (var target in new[] { First, Second, First, "https://evil.example/", string.Empty })
+        {
+            navigation.NavigateTo("/players/7?returnUrl=" + Uri.EscapeDataString(target));
+            cut.WaitForAssertion(() => cut.Find("a.btn-outline-secondary").GetAttribute("href")
+                .ShouldBe(target is First or Second ? target : "/players"));
+        }
+        _ = detail.Received(1).GetPlayerDetailAsync(7, Arg.Any<CancellationToken>());
+    }
+
     // ── Loading state ─────────────────────────────────────────────────────────
 
     [Fact]

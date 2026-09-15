@@ -52,3 +52,21 @@ Final disposition: **ship**, limited to the scored history-control fix. This is 
 finish correction, with no material composition change. The missing Place-specific quality
 card and existing comp-measurement limitation remain explicit; no new whole-surface approval
 or quantitative comparison is claimed.
+
+## PR review round 4 — invalid recovery data
+
+Initial disposition: **recapture**, followed by **fix** after fresh desktop/mobile evidence.
+The reviewer found that Retry storage stretched across the desktop field and was shorter
+than the discard action. The controls now share a wrapping group with the existing 8px gap
+and 44px minimum-height rule.
+
+The reviewer reopened the final desktop and mobile captures, including a scrolled mobile
+viewport that shows both controls above the fixed navigation bar. Content-sized desktop
+widths, the gap, 44px height, complete labels, and clean mobile wrapping were verified.
+The uncertainty warning remains explicit: discarding invalid data does not undo a save or
+prove it failed. The deliberate action still requires authoritative refresh before editing.
+
+Final disposition: **ship**, limited to the scored recovery-control fix; no visible regression
+was found. This adds a regional state within the retained composition. Existing missing
+quality-card/build-spec inputs and the comp-measurement limitation remain unchanged; no new
+whole-surface or quantitative approval is claimed.

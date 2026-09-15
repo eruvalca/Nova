@@ -2607,7 +2607,9 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         ICampaignCloseoutQueryService? readinessQueryService = null,
         AuthenticationStateProvider? authenticationStateProvider = null)
     {
-        JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js").Mode = JSRuntimeMode.Loose;
+        var placementStorage = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js");
+        placementStorage.Mode = JSRuntimeMode.Loose;
+        placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(null, null));
         var placementContext = Substitute.For<IPlacementContextQueryService>();
         placementContext.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
             .Returns(call => new ServiceResult<PlacementContextResult>(new PlacementContextResult(

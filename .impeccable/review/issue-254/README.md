@@ -20,6 +20,7 @@ Final captures and geometry sidecars are recorded in `captures/`:
 | Outcome unknown | [Desktop](captures/outcome-unknown-desktop.png) | [Mobile](captures/outcome-unknown-mobile.png) |
 | Expanded queue filters | [Desktop](captures/filters-desktop.png) | — |
 | History paging (review round 2) | [Desktop](captures/history-paging-desktop.png) | [Mobile](captures/history-paging-mobile.png) |
+| Invalid recovery data (review round 4) | [Desktop](captures/invalid-storage-desktop.png) | [Mobile](captures/invalid-storage-mobile.png), [controls in viewport](captures/invalid-storage-mobile-actions.png) |
 
 The original `.json` sidecars record the viewport, document geometry, campaign ID, and board bounds.
 Their `-board.png` companions isolate the same board from the same running page.
@@ -29,6 +30,12 @@ The review-round-2 screenshots scroll to the history controls on the second boun
 Their sidecars identify the viewport, test, image checksum, and tested source fingerprint.
 The independent finish review verified the 8px action gap, complete labels, 44px controls,
 and mobile fit, with **ship** limited to that fix. The original composition remains unchanged.
+
+The review-round-4 captures show explicit invalid-data recovery. The additional scrolled
+mobile viewport keeps both actions above the fixed navigation bar. Their sidecars retain
+geometry, source fingerprint, and image checksums. The independent finish review verified
+content-sized controls, an 8px gap, 44px height, full labels, and mobile wrapping, with **ship**
+limited to that recovery-control fix.
 
 ## Review
 

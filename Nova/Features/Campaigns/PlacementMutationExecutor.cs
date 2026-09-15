@@ -189,7 +189,8 @@ internal sealed class PlacementMutationExecutor(IDbContextFactory<NovaDbContext>
     private static DateTimeOffset? GetRecoveryDeadline(Guid operationId)
     {
         var value = operationId.ToString("N", CultureInfo.InvariantCulture);
-        if (value[12] != '7' || !long.TryParse(value.AsSpan(0, 12), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var milliseconds))
+        if (value[12] != '7' || value[16] is not ('8' or '9' or 'a' or 'b')
+            || !long.TryParse(value.AsSpan(0, 12), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var milliseconds))
         {
             return null;
         }

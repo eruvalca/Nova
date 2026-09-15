@@ -579,6 +579,7 @@ public partial class CampaignPlacePanel(
         _keepOperationId = null;
         _phase = PlacementPhase.Editing;
         _pendingCommand = null;
+        _invalidPending = null;
         _storageReady = false;
         _storageOwner = null;
         _context = null;

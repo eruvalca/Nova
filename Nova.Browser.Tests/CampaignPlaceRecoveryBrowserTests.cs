@@ -65,7 +65,9 @@ public sealed partial class CampaignPlaceBrowserTests
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
         var page = context.Pages[0];
         await OpenFirstPlacementAsync(page, seed.CampaignId);
+        await AssertPlaceSearchAttachedAsync(page);
         await page.Locator("#roster-search").FillAsync("Player 01");
+        await Expect(page.Locator("#roster-search")).ToHaveValueAsync("Player 01");
         await page.WaitForURLAsync(url => url.Contains("placementSearch=Player%2001", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("a.place-row")).ToHaveCountAsync(1);
         var placeUrl = page.Url;

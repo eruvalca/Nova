@@ -43,5 +43,6 @@ internal sealed class HttpCampaignPlacementService(HttpClient http) : ICampaignP
             && decision.TeamId == input.TeamId && decision.PlayerId > 0 && decision.CampaignId > 0
             && decision.SeasonId > 0 && decision.SeasonOpeningSequence > 0 && decision.RecordedById > 0
             && !string.IsNullOrWhiteSpace(decision.ActorDisplayName) && decision.RecordedAt > DateTimeOffset.UnixEpoch
-            && receipt.CommittedAt >= decision.RecordedAt && receipt.RecoveryExpiresAt > receipt.CommittedAt;
+            && receipt.CommittedAt >= decision.RecordedAt && receipt.RecoveryExpiresAt > receipt.CommittedAt
+            && receipt.RecoveryExpiresAt - receipt.CommittedAt <= TimeSpan.FromHours(24) + TimeSpan.FromMinutes(1);
 }

@@ -3,6 +3,9 @@ using Nova.SharedKernel.Features.Campaigns;
 
 namespace Nova.UI.Features.Campaigns.Components;
 
+/// <summary>A tab's valid pending command or the exact invalid bytes awaiting an explicit discard.</summary>
+public sealed record PlacementRecoveryRead(UpdateCampaignPlacementInput? Pending, string? InvalidValue);
+
 public partial class CampaignPlacePanel
 {
     private IJSObjectReference? _storageModule;
@@ -28,10 +31,18 @@ public partial class CampaignPlacePanel
                 "./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js").AsTask());
             if (!OwnsRecovery(owner, generation)) { return; }
             _storageModule = module;
-            var pending = await module.InvokeAsync<UpdateCampaignPlacementInput?>("readPending", ComponentCancellationToken, scope);
+            var stored = await module.InvokeAsync<PlacementRecoveryRead>("readRecovery", ComponentCancellationToken, scope)
+                ?? throw new InvalidOperationException("Placement recovery storage returned no state.");
             if (!OwnsRecovery(owner, generation)) { return; }
-            _pendingCommand = pending;
-            if (pending is not null)
+            _invalidPending = stored.InvalidValue;
+            _pendingCommand = stored.Pending;
+            if (_invalidPending is not null)
+            {
+                _phase = PlacementPhase.ConflictReview;
+                _saveError = "Stored placement recovery data is invalid and cannot be replayed. Its earlier save result remains unknown.";
+                return;
+            }
+            if (_pendingCommand is not null)
             {
                 _phase = PlacementPhase.OutcomeUnknown;
                 _saveError = "A placement save still needs confirmation. Recover the original save before recording another.";
@@ -97,8 +108,12 @@ public partial class CampaignPlacePanel
             if (!OwnsOperation(owner, scope, generation)) { return; }
             _pendingCommand = null;
             _recoveryExpired = false;
-            _phase = PlacementPhase.Editing;
-            _saveError = "Current placement has been refreshed. The earlier save's result remains unknown; any new decision requires a deliberate save.";
+            await ApplyPendingStateAsync();
+            if (!OwnsOperation(owner, scope, generation)) { return; }
+            var fresh = AuthoritativeEvidenceFresh && !_queueLoading && !_selectedLoading;
+            _phase = fresh ? PlacementPhase.Editing : PlacementPhase.ConflictReview;
+            _saveError = "The earlier save's result remains unknown; any new decision requires a deliberate save.";
+            if (!fresh) { EnterConflict("Current placement changed during recovery. Review the latest placement before editing."); }
         }
         catch (JSException)
         {

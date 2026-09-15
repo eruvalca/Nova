@@ -30,8 +30,12 @@ public sealed class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFixture fi
         {
             await page.AddInitScriptAsync($"const originalGet = Storage.prototype.getItem; Storage.prototype.getItem = function(key) {{ if (key === {JsonSerializer.Serialize(key)}) throw new Error('Storage blocked'); return originalGet.call(this, key); }};");
         }
-        if (wasm) { await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => Expect(page.GetByRole(AriaRole.Button, new() { Name = "Retry storage", Exact = true })).ToBeVisibleAsync()); }
-        else { await page.ReloadAsync(); }
+        if (wasm) { await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, () => EvaluationInteractionHelpers.AssertRecoveryBlockedAttachedAsync(page)); }
+        else
+        {
+            await page.ReloadAsync();
+            await EvaluationInteractionHelpers.AssertRecoveryBlockedAttachedAsync(page);
+        }
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Retry storage", Exact = true })).ToBeVisibleAsync();
         await Expect(page.Locator(".evaluation-save")).ToBeDisabledAsync();
         var evaluationUrl = page.Url;

@@ -52,6 +52,9 @@ public sealed partial class CampaignPlaceBrowserTests
                     sessionStorage.setItem(key, raw);
                     try { module.readPending(scope); errors.push('read accepted invalid case ' + index); } catch {}
                     if (sessionStorage.getItem(key) !== raw) errors.push('read changed evidence ' + index);
+                    if (module.readRecovery(scope).invalidValue !== raw) errors.push('invalid diagnosis lost original bytes ' + index);
+                    if (module.discardInvalidPending(scope, raw + 'changed')) errors.push('discard accepted different bytes ' + index);
+                    if (!module.discardInvalidPending(scope, raw)) errors.push('explicit discard failed ' + index);
                     sessionStorage.removeItem(key);
                     try { module.writePending(scope, value); errors.push('write accepted invalid case ' + index); } catch {}
                     if (sessionStorage.getItem(key) !== null) errors.push('write retained invalid case ' + index);
@@ -64,6 +67,7 @@ public sealed partial class CampaignPlaceBrowserTests
                     {...valid, operationId: '00000000-0000-7000-8000-000000000001'}]) {
                     sessionStorage.removeItem(key);
                     module.writePending(scope, value);
+                    if (module.discardInvalidPending(scope, JSON.stringify(value))) errors.push('discard removed valid operation');
                     if (JSON.stringify(module.readPending(scope)) !== JSON.stringify(value)) errors.push('valid payload changed');
                     module.clearPending(scope, value.operationId);
                     if (module.readPending(scope) !== null) errors.push('settled operation retained');

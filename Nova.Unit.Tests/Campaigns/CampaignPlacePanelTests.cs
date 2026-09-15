@@ -26,6 +26,7 @@ public sealed partial class CampaignPlacePanelTests : BunitContext
     {
         _placementStorage = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js");
         _placementStorage.Mode = JSRuntimeMode.Loose;
+        _placementStorage.Setup<Nova.UI.Features.Campaigns.Components.PlacementRecoveryRead>("readRecovery", _ => true).SetResult(new(null, null));
         var context = Substitute.For<IPlacementContextQueryService>();
         context.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
             .Returns(call => new ServiceResult<PlacementContextResult>(new PlacementContextResult(

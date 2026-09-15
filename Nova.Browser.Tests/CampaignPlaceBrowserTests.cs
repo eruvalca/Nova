@@ -59,22 +59,17 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
         var page = context.Pages[0];
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=place").ToString());
 
-        // Prove interactive attachment with observable actions before relying on key events: a visible
-        // prerendered control does not prove it can handle an event.
-        await InteractionHelpers.ClickUntilAsync(page, page.Locator("a.place-row").First,
-            () => Task.FromResult(Selected(page)));
-        await InteractionHelpers.ClickUntilAsync(page,
-            page.GetByRole(AriaRole.Link, new() { Name = "Back to placements", Exact = true }),
-            () => Task.FromResult(!Selected(page)));
+        await AssertPlaceSearchAttachedAsync(page);
 
         // Type once and wait for the *full* term to be applied. The field debounces at 350 ms, so a retry
         // loop that re-types would keep resetting the timer before it could fire; and waiting only for a
         // non-empty search would return on the first partial keystroke pause and race the later navigation.
         await page.Locator("#roster-search").ClickAsync();
         await page.Keyboard.TypeAsync("Player 01");
+        await Expect(page.Locator("#roster-search")).ToHaveValueAsync("Player 01");
         await page.WaitForURLAsync(
             url => url.Contains("placementSearch=Player%2001", StringComparison.Ordinal),
-            new() { Timeout = 20000 });
+            new() { Timeout = 20000, WaitUntil = WaitUntilState.Commit });
 
         // A search spans every section rather than the Needs-placement browsing default, so the applied
         // state carries a search and no section filter at all.
@@ -95,6 +90,17 @@ public sealed partial class CampaignPlaceBrowserTests(BrowserSuiteFixture fixtur
             () => Task.FromResult(!page.Url.Contains("placementSearch=", StringComparison.Ordinal)));
         await Expect(page.Locator("button.place-section.leads")).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(page.Locator("a.place-row")).ToHaveCountAsync(50);
+    }
+
+    private static async Task AssertPlaceSearchAttachedAsync(IPage page)
+    {
+        // Links can navigate before Blazor attaches. This local toggle requires its event handler.
+        var filters = page.GetByRole(AriaRole.Button, new() { Name = "Filters", Exact = true });
+        await InteractionHelpers.ClickUntilAsync(page, filters, () => page.Locator("#roster-filter-shelf").IsVisibleAsync());
+        await Expect(filters).ToHaveAttributeAsync("aria-expanded", "true");
+        await filters.ClickAsync();
+        await Expect(filters).ToHaveAttributeAsync("aria-expanded", "false");
+        await Expect(page.Locator("#roster-filter-shelf")).ToBeHiddenAsync();
     }
 
     [Fact]

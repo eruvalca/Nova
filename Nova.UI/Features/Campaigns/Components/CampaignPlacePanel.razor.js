@@ -24,6 +24,21 @@ export function readPending(scope) {
     return validatePending(JSON.parse(raw));
 }
 
+export function readRecovery(scope) {
+    const raw = sessionStorage.getItem(prefix + scope);
+    if (raw === null) return { pending: null, invalidValue: null };
+    try { return { pending: validatePending(JSON.parse(raw)), invalidValue: null }; }
+    catch { return { pending: null, invalidValue: raw }; }
+}
+
+export function discardInvalidPending(scope, expectedValue) {
+    const current = readRecovery(scope);
+    // Compare the exact inspected bytes; a repaired or replaced command must remain recoverable.
+    if (current.invalidValue === null || current.invalidValue !== expectedValue) return false;
+    sessionStorage.removeItem(prefix + scope);
+    return true;
+}
+
 export function writePending(scope, input) {
     validatePending(input);
     const current = readPending(scope);

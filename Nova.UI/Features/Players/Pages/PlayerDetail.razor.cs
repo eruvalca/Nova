@@ -130,6 +130,13 @@ public partial class PlayerDetail(
         await LoadDetailAsync();
     }
 
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        var normalized = NormalizeReturnUrl(ReturnUrl);
+        if (!string.Equals(_returnUrl, normalized, StringComparison.Ordinal)) { _returnUrl = normalized; }
+    }
+
     /// <summary>
     /// Gets the Bootstrap badge CSS class for the current lifecycle status.
     /// </summary>

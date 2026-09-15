@@ -387,3 +387,134 @@ fixed with no concurrent build/format process. No production schema changed, so 
 evidence remains applicable. Existing curated captures and their finish-review/comp limitations
 remain applicable: this round changes behavior without changing the locked composition.
 Logs and the source manifest are under `.git/pr270-round3-*`. All 1,163 source hashes were rechecked unchanged after browser completion. The Place capture opt-in was not set this round, so its existing capture case joins the seven optional accessibility-capture skips; the new browser regression passed. Existing curated evidence was retained.
+
+## PR review round 4
+
+Reviewed Copilot review `5206168370` on `94414d2cb47b2899e6d70acb9599b3982697e373`.
+Its “Needs a closer look” body had no inline comments but four suppressed findings; all four
+were actionable and are addressed together in one commit.
+
+| Finding | Disposition and behavioral evidence |
+| --- | --- |
+| Receipt recovery expiry has no upper bound | The strict placement client now permits at most 24 hours plus the existing Evaluate one-minute clock allowance after commitment. Boundary cases cover 24h, 24h1m, one second beyond, and 48h. Invalid success bodies remain unproven server errors, not evidence that the operation did not commit. |
+| Malformed session data permanently blocks recovery | A read distinguishes unavailable storage, a valid pending command, and exact invalid bytes. The explicit **Discard invalid data and refresh** action requires fresh authority/placement evidence and compare-and-delete of those same invalid bytes. It cannot discard a repaired/replaced valid operation, execute a save, or imply rollback. Failures and ownership changes retain the editing gate. Component, JavaScript module, and real keyboard/browser tests cover these transitions and a subsequent deliberate save. |
+| Player detail keeps an obsolete return URL | `OnParametersSet` now normalizes changed return context on the reused component, retaining the initial-load value. Component and hydrated browser tests exercise query-only changes and Back/Forward without reloading player detail; unsafe return URLs remain rejected. |
+| UUIDv7 validation omits the RFC variant | Placement and its Evaluate sibling now require both version 7 and RFC variant 8/9/a/b before execution. Service cases cover accepted and rejected variants; four real HTTP cases prove invalid requests return validation errors without placement, receipt, or activity effects. |
+
+Separate reviewer `/root/recovery_review` inspected the complete round diff and tests. It found
+that navigation during asynchronous recovery cleanup could leave the newly selected participant
+with stale evidence. Both explicit invalid-data discard and expired-save cleanup now apply
+deferred navigation and preserve a conflict gate if replacement evidence fails. Four regression
+cases cover both cleanup paths with successful and failed reads. Follow-up review, including
+null-response handling and the final fixture/initial-return adjustments, found **no actionable findings**.
+No external review was requested.
+
+The independent finish reviewer requested current captures, then found that Retry storage was
+shorter than the discard action and stretched across the desktop field. Both actions now share
+a wrapping group with the existing 8px gap and 44px minimum-height rule. A separate mobile viewport
+capture makes the controls inspectable above the fixed navigation bar. This is a regional recovery
+state, with no material change to the locked composition or tokens.
+
+Applied the existing feature/API/domain/Blazor/testing recipes and their contract, interop,
+retry/locking, SQLite, provider, and browser references; matching repository instructions listed
+above; the .NET test execution/generation recipes; and Impeccable's hardening reference.
+Sibling inspection covered both UUID executors, valid/invalid/expired storage cleanup, deferred
+navigation, query-return normalization, and the Evaluate receipt lifetime contract. No new skill
+was warranted. The existing bUnit reference received a narrow delayed-JS fixture
+clarification after the reproduced missing-result timeout described below.
+No schema change or diagnostic suppression was introduced, and no assertion or retry budget was weakened.
+
+Source fingerprint: `724d9f12b43419dcbe59aad1b0927fff6fcf975529922b9f8fc3c48f91dfca28`.
+The local manifest `.git/pr270-round4-source.json` covers 1,169 source files. Documentation and
+captures are excluded. The PR body identifies the commit containing this tested source.
+
+| Check / command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx --no-restore` | Passed; three existing Sass deprecation warnings; 27.96s |
+| Focused unit: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignPlacePanelTests' --filter-class '*CampaignPlacementServiceTests' --filter-class '*HttpCampaignPlacementServiceTests' --filter-class '*PlayerDetailComponentsTests'` | 213 passed before the final recovery-button grouping |
+| Focused browser: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-method '*InvalidRecoveryDataCanBeDiscardedExplicitlyBeforeANewDeliberateSaveAsync' --filter-method '*PlayerDetailReturnContextFollowsInteractiveQueryNavigationAndBrowserHistoryAsync' --filter-method '*RetainedPlacementStorageRejectsMalformedCommandsAndPreservesEvidenceAsync'` | 3 passed; 0 skipped; 58.240s before the final recovery-button grouping |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,356 passed; 0 failed/skipped; 44.522s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 619 passed; 0 failed/skipped; 4m00.413s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` with `NOVA_PLACE_EVIDENCE` set | 183 passed; 0 failed; seven existing optional accessibility-capture skips; 5m34.541s |
+| `dotnet format Nova.slnx --verify-no-changes --no-restore` | Passed before later focused changes; final changed-file verification and encoding correction are detailed below |
+| `npm run check:contrast` from `Nova/` | Passed; theme sources unchanged by the final grouping |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js --json` | No findings in inspected files; the previously documented unrelated Evaluate build-state advisory remains |
+
+The first full browser run failed two existing cases (181 passed, 2 failed, 7 optional skips).
+The Place search test typed before a proven Blazor attachment; its anchor-only probes could
+navigate while prerendered. Both search-entry siblings now exercise the Filters toggle, retain
+keyboard typing and full input/URL assertions, and wait for same-document navigation at Commit.
+The log proves character loss but does not distinguish hydration from a render race. Independent
+review cleared the readiness correction. The Evaluate WASM storage test exceeded its five-second
+attachment assertion; the later failure snapshot contained the expected Retry storage control.
+Its timeout, assertion, and production behavior were left unchanged for the focused/full reruns.
+The failed log is retained locally as .git/pr270-round4-browser-final.log; it is not passing evidence.
+
+The next focused run passed all four unchanged Evaluate cases. Both Place cases reached the
+new interactive-readiness probe and exposed an accessibility defect: a Boolean Razor value
+emitted empty ria-expanded instead of the required string. Filters now emits explicit
+true/false strings. The same defect in Draft aria-busy and three tag-lifecycle aria-pressed
+bindings was corrected after a sibling scan; native Boolean attributes remain unchanged.
+Independent review confirmed all five bindings and retained the stronger browser assertions.
+The intermediate failed focused run remains in .git/pr270-round4-browser-readiness-focused.log.
+
+The final focused browser rerun passed all six cases (0 failed/skipped; 1m51.506s):
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-method '*QueueSearchWidensBeyondTheOpenSectionAndKeepsFilterTruthAsync' --filter-method '*PlayerAndTeamsCorrectionReturnsPreserveSelectedPlaceAndDiscoveryAsync' --filter-method '*UnreadableCaptureCanLeaveExplicitlyWithoutErasingRecoveryDataAsync'.
+
+A subsequent full browser run passed both corrected Place tests but repeated the same Evaluate
+WASM attachment failure (182 passed, 1 failed, 7 optional skips; 5m40.849s). The previous 15-second
+WASM preparation occurs before reload; the failing caller then used Playwright's default
+five-second assertion after reload. The new recovery-blocked attachment helper observes the
+exact storage-unavailable alert and Retry control using the existing 60-attempt/250ms hydration
+policy. That alert is produced only after the interactive JS recovery read fails. It never clicks
+Retry, modifies the draft, changes retained bytes, or adds recovery-operation retries. The WASM
+negotiation listener stays active throughout, and exact blocking-copy, disabled-save, retained-byte,
+and no-mutation assertions remain enforced. Independent review explicitly assessed this timing
+adjustment and found it preserves enforcement. The failed run remains in
+.git/pr270-round4-browser-verified.log.
+
+After this final test-helper change, format verification also passed with
+dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/EvaluationInteractionHelpers.cs Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs.
+
+A later unit run under concurrent validation load exposed three failures in the newly added
+delayed-cleanup tests (3,353 passed; 3 failed). Installed bUnit 2.10.3 documentation confirmed
+that an unconfigured JS result uses DefaultWaitTimeout, one second by default. The intended
+delay was therefore a missing-result fault timer. The fixture now wraps a configured module
+with explicit entered/release tasks, preconfigures the eventual result, and releases gates
+during cleanup. Both invalid and expired cleanup plus ownership changes retain their assertions.
+Independent review found no issues; focused verification passed all five cases (1.930s), then
+the isolated full unit suite passed. The failed run remains in `.git/pr270-round4-unit-attachment.log`.
+The first wrapper build needed a missing dependency-injection using directive; it was fixed
+before tests. No timeout setting or assertion was weakened.
+
+Applied the skill-creator recipe to add this non-obvious, version-qualified pitfall to the existing
+`nova-testing/references/blazor-component-tests.md`, with pointers to the working fixtures.
+The shared `.agents/skills` copy serves both Codex and Copilot; no separate copy exists.
+`python C:/Users/eruva/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/nova-testing`
+passed. No new skill or repo-wide rule was introduced.
+
+The final fixture format check found only the new file's missing UTF-8 BOM. Applied the repository's
+required encoding without changing C# behavior, then verified it with
+`dotnet format whitespace Nova.slnx --verify-no-changes --no-restore --include Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.CleanupInterop.cs`.
+The earlier scoped check included both cleanup-fixture files; its other checks passed. Build and
+unit verification were repeated after the encoding change. Integration inputs were unchanged.
+
+Additional exact verification commands for the later changes:
+
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-method '*InvalidDataDiscardCannotUnlockANewStorageOwnerAsync' --filter-method '*RecoveryCleanupAppliesDeferredNavigationOrKeepsAConflictGateAsync'`: five passed after the explicit handshake fix.
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Browser.Tests/CampaignPlaceBrowserTests.cs Nova.Browser.Tests/CampaignPlaceRecoveryBrowserTests.cs Nova.UI/Features/Campaigns/Components/CampaignRosterFilters.razor Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor Nova.UI/Features/Tags/Components/TagDefinitionManager.razor`: passed.
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --include Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.CleanupInterop.cs Nova.Unit.Tests/Campaigns/CampaignPlacePanelTests.InvalidRecovery.cs`: found only the subsequently corrected encoding issue described above.
+- `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js Nova.UI/Features/Campaigns/Components/CampaignRosterFilters.razor Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor Nova.UI/Features/Tags/Components/TagDefinitionManager.razor --json`: no findings in the expanded five-file scan; the unrelated Evaluate build-state advisory remains.
+
+Final browser verification passed every functional case, including the formerly failing Place
+search and Evaluate WASM recovery scenarios. The exact final desktop/mobile images and their
+geometry/source/checksum sidecars are curated in the existing packet. The independent finish
+review reopened those images and returned **ship** for the recovery-control fix, with no remaining
+findings in that scope. The comp-measurement limitation remains unchanged.
+
+Build preceded tests; integration/browser suites ran serially across the machine. Final unit
+verification ran in isolation. Browser runs kept application source/assets fixed with no concurrent
+build or format process. Logs and manifests are under `.git/pr270-round4-*`; failed attempts above
+are not accepted as passing evidence. All 1,169 source hashes and curated image checksums were
+verified unchanged after final browser completion. `git diff --check` and the staged check passed.
+No production schema changed, so the original migration-model evidence remains applicable.

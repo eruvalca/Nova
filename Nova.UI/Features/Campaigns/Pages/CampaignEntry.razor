@@ -140,7 +140,7 @@ else if (_unavailable)
                                         }
                                     </section>
                                 </div>
-                                <section class="draft-board draft-readiness" aria-labelledby="draft-roster-heading" aria-busy="@_busy">
+                                <section class="draft-board draft-readiness" aria-labelledby="draft-roster-heading" aria-busy="@(_busy ? "true" : "false")">
                                     <h2 id="draft-roster-heading">Roster preview</h2>
                                     @if (Readiness is not null)
                                     {
