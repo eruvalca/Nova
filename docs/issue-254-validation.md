@@ -749,3 +749,68 @@ unobscured. The existing comp measurement and missing design-input limitations r
 no new whole-surface comparison or approval is claimed. Independent code review also accepted the
 recovery changes, shared readiness correction, and deterministic finder-focus fix after resolving
 the test-class declaration finding. The one commit for this review round includes all dispositions.
+
+## PR review round 8
+
+Copilot review [5208601584](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5208601584)
+reviewed `511c912ece7b073605dd1a67724928bd8142ea5e`, reported no new inline comments, and
+included four suppressed findings. Each was inspected; suppression was not treated as resolution.
+All four are inapplicable to the current implementation:
+
+1. **Backfill historical activity without `PlayerId`:** `AGENTS.md` explicitly states that Nova
+   has no production data or deployed users and prohibits legacy compatibility work. The current
+   `ActivityEventWriter` snapshots `PlacementContext.PlayerId`; the history query filters that
+   indexed player key before reading at most 21 rows for a 20-item page. A fallback scan of old
+   null-key payloads would undermine the bounded-history requirement. No backfill is required by
+   the approved scope.
+2. **Deserialize migration sentinel receipts:** `PlacementMutationExecutor.RecoverAsync` checks
+   the original actor and request fingerprint before deserialization, returning a conflict for
+   mismatches. It then rejects an expired receipt before reading `ResultJson`. The migration's
+   zero actor, empty fingerprint, and minimum expiry therefore cannot take the alleged JSON
+   deserialization path. UUIDv7 operation age is also checked before execution. Together with the
+   no-legacy-data policy, this does not warrant rewriting the migration or adding compatibility.
+3. **`OrderBy`/`Take` translation with `ExecuteDeleteAsync`:** this is already exercised against
+   both actual providers. `PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync`
+   tests direct cleanup and membership cleanup in SQLite with 503 receipts, exact three survivors,
+   and an empty change tracker. The harness maps expiry to UTC ticks. PostgreSQL test
+   `GlobalPlacementCleanupDeletesOnlyFiveHundredOldestExpiredReceiptsInPostgresAsync` exercises
+   the same ordered, bounded delete and exact survivors, including receipts without an owning
+   club. It passed in the round-7 full integration suite. No speculative provider workaround is
+   needed; this repeats the provider concern resolved in round 6.
+4. **Reinitialize expansion when `Compact` changes:** all production callers were inspected.
+   `CampaignPlacePanel.razor` passes literal `true`; `CampaignWorkspace.razor` omits the parameter
+   and uses its `false` default. Neither switches the value on an existing component or binds it
+   to viewport changes. `OnInitialized` establishes each surface's default and ordinary parameter
+   updates preserve the user's Filters toggle. The proposed responsive-parameter scenario does
+   not occur in these surfaces.
+
+Independent reviewer `/root/recovery_review` inspected the four claims, implementation gates,
+provider tests, and both filter callers in a separate read-only context and found no actionable
+issues. No product, test, schema, styling, or generated-asset change was made in this round.
+Existing repo guidance already requires checking findings against actual behavior, bounded
+provider evidence, and avoiding compatibility work; no new instruction or skill is warranted.
+Applied the previously read repo, tenancy, placement, Blazor, and testing guidance and the
+`add-domain-persistence`, `add-blazor-ui`, `nova-testing`, and .NET test-run recipes.
+
+### Round-8 verification
+
+Tested source remains `511c912ece7b073605dd1a67724928bd8142ea5e`; all 1,171 source-file hashes
+in fingerprint `469a3d1714d0649ff868d1c9c4e53e635d3478b354419d3bd4c1a761c92b910a`
+were verified unchanged. This round's sole commit adds this documentation record.
+
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: 3,364 passed,
+  zero failed/skipped (46.016s), including both SQLite cleanup cases. The existing round-7 build
+  preceded this run; no build inputs changed. Log: `.git/pr270-round8-unit.log`.
+- `dotnet format Nova.slnx --verify-no-changes`: passed with no diagnostics after the unit run.
+  Log: `.git/pr270-round8-format.log`. `git diff --check`: passed.
+- Unaffected PostgreSQL integration and browser results remain the passing round-7 evidence on
+  `511c912ece7b073605dd1a67724928bd8142ea5e`: 620 integration cases and 184 browser cases, with
+  seven existing optional accessibility-capture skips. No changed source requires rerunning these
+  suites for this documentation-only push. All three suites must run again before merge.
+- Existing migration-model, contrast, finish-review, and comp-measurement limitations remain as
+  recorded above. No new visual approval or test coverage is claimed.
+
+The PR explanation records all four dispositions. There were no new inline threads to resolve;
+the ten existing threads remain resolved. This review contains suppressed findings and therefore
+does not satisfy the user's stop condition. After the single round-8 commit is pushed, wait for
+current-head CI and a fresh automatic review without requesting one.
