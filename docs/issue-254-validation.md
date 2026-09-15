@@ -1453,3 +1453,79 @@ Local logs use `.git/pr270-round14-`: `build-fixture.log`, `unit-final.log`, `in
 `build.log`, `build-final.log`, `build-verified.log`; the initial unit result is `unit.log`.
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
 All three suites must run again before merge.
+
+
+## PR review round 15
+
+Review [5212762995](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5212762995)
+contained two suppressed findings. Both were actionable and addressed together in one commit.
+All paginated reviews, inline comments, review bodies and issue comments were inspected; the
+13 existing review threads were resolved and no new inline threads were present.
+
+### Changes and behavioral evidence
+
+- **History continuation retry — fixed.** The Place sheet retains the cursor of the requested
+  history page separately from the last successfully displayed page. Retry history submits that
+  exact cursor, including a failed initial read and first/deeper continuation pages. Latest changes
+  deliberately resets the cursor. Participant and authority changes discard the requested cursor;
+  existing request/owner/participant guards reject obsolete completions.
+- **Evaluate operation validation — fixed.** Both reads and writes of retained evaluation snapshots
+  validate operation IDs as RFC-variant UUIDv7, with matching defensive validation before C# restores
+  a pending operation. Ordinary concurrency GUIDs, including the empty initial token, retain their
+  contract. Malformed operations remain blocked before dispatch without erasing their stored bytes;
+  the existing explicit leave-and-keep-recovery-data flow remains available. Valid old UUIDv7 IDs
+  remain readable so expiry is determined through the existing recovery protocol.
+- Five new history component cases cover null/81/61 cursor retries and participant/owner reset.
+  Two additional Evaluate component cases reject invalid version/variant snapshots, then recover
+  and replay the exact valid original command. Browser cases exercise blocked retained data in
+  server and WASM modes, no HTTP mutation or persisted note, and explicit navigation preserving bytes.
+  A real browser module probe checks valid RFC variants (including uppercase) and invalid versions/
+  variants on both read and write, retaining existing bytes after rejection.
+
+### Guidance and independent review
+
+Applied the previously read Blazor architecture, API, placement, validation, testing and UI rules;
+`add-blazor-ui`, `add-api-endpoint`, `nova-testing` and their state, interop, recovery and browser
+references, plus the .NET test execution and test-writing guidance. Inspected sibling Place/Evaluate
+operation validation and storage, selection/posture invalidation, history paging and navigation guards.
+
+Independent session `/root/recovery_review` found no production issues. It identified an invalid
+terminal cursor in the initial test response; that fixture now returns null after cursor 61 and
+preserves the repeated-request assertions. No composition or copy changed, so the existing curated
+packet and limited finish disposition remain applicable. These fixes apply existing recovery and
+ownership guidance; no duplicate instructions or new skill were warranted.
+
+### Validation
+
+Tested source: base `ddd49d75a45f07ed4d73da0da369372df145732e` plus this round's nine-file
+code/test diff. SHA-256 `ba642a2a6f903a4f5bb9d30d5e1261bbabbeb345fc8744ce673e8a3ef23515c4`
+identifies the sorted 1,179 source-path/raw-content-hash pairs. The PR body identifies the resulting
+single commit. Only this validation document was edited after the final build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Final build passed, 8.93s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,424 passed, zero failures/skips; 23.796s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 623 passed, zero failures/skips; 1m40.455s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 191 passed, zero failures, seven existing optional capture skips (198 total); 3m45.025s |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round15-captures`.
+Integration and browser suites ran serially across the machine, with source and generated assets
+fixed during browser execution. Final source hashes and `git diff --check` were verified. New captures
+remain local; the existing curated packet and its documented measurement limitations are unchanged.
+
+Preserved intermediate results: the initial build failed S3358 for a nested conditional in the new
+history fixture (1m19.87s). The corrected terminal-cursor switch removed that diagnostic; the next
+build passed (12.60s), and all 3,424 unit tests passed (23.466s). Full format verification then found
+whitespace in the new browser fixture's anonymous object. The formatter applied those changes, and
+the final build/unit results appear above. No diagnostic was suppressed and no check was weakened.
+
+Local logs use `.git/pr270-round15-`: `build-verified.log`, `unit-final.log`, `integration.log`,
+`browser.log`, `format-final.log`, `model.log`, `contrast.log`, and `detector.json`. Intermediate logs
+are `build.log`, `build-final.log`, `unit.log`, `format.log`, and `format-apply.log`.
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
+All three suites must run again before merge.

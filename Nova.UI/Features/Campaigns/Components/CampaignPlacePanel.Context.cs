@@ -13,6 +13,7 @@ public partial class CampaignPlacePanel
     private int _contextRequest;
     private long? _contextParticipant;
     private long? _contextBeforeEventId;
+    private long? _contextRequestedBeforeEventId;
 
     private async Task LoadOptionalContextAsync()
     {
@@ -31,15 +32,19 @@ public partial class CampaignPlacePanel
         }
     }
 
-    private async Task LoadContextAsync(bool more = false)
+    private Task LoadContextAsync(bool more = false) => LoadContextPageAsync(more ? _context?.NextEventId : null);
+
+    private Task RetryContextAsync() => LoadContextPageAsync(_contextRequestedBeforeEventId);
+
+    private async Task LoadContextPageAsync(long? cursor)
     {
         if (_selected is not { } selected) { return; }
         var request = ++_contextRequest;
         var owner = EffectiveOwner;
         _contextLoading = true;
         _contextError = null;
-        var cursor = more ? _context?.NextEventId : null;
-        if (!more) { _context = null; }
+        _contextRequestedBeforeEventId = cursor;
+        if (cursor is null) { _context = null; }
         _contextParticipant = selected.PlayerCampaignAssignmentId;
         var result = await ReadSafelyAsync(() => contextQueries.GetContextAsync(new GetPlacementContextInput
         {

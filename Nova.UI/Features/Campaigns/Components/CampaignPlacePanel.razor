@@ -480,7 +480,7 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     else if (_contextError is not null)
                     {
                         <p role="alert">@_contextError</p>
-                        <button type="button" class="btn btn-outline-secondary" @onclick="() => LoadContextAsync()">Retry history</button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="RetryContextAsync">Retry history</button>
                     }
                     @if (_context is { History.Count: > 0 } context)
                     {

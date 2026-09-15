@@ -78,6 +78,7 @@ public partial class CampaignPlacePanel
         if (_contextParticipant != participantId)
         {
             _context = null;
+            _contextRequestedBeforeEventId = null;
             _contextRequest++;
         }
 

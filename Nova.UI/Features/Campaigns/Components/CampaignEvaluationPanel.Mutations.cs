@@ -308,7 +308,9 @@ public partial class CampaignEvaluationPanel
         if (snapshot.Revision < 0 || snapshot.Draft is null || snapshot.EditContent is null || snapshot.EditOriginal is null || snapshot.TraitSearch is null
             || snapshot.EditingNoteId is <= 0 || (snapshot.EditingNoteId is not null && snapshot.EditVersion == Guid.Empty)) { return false; }
         if (snapshot.Pending is not { } pending) { return true; }
+        var operationId = pending.OperationId.ToString("N");
         return pending.Kind is "add" or "edit" or "delete" or "apply" or "create" or "remove"
+            && operationId[12] == '7' && operationId[16] is '8' or '9' or 'a' or 'b'
             && pending.AssignmentId == State.ParticipantId && InputValidator.Validate(pending.ToInput()).Count == 0;
     }
 

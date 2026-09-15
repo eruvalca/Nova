@@ -589,6 +589,7 @@ public partial class CampaignPlacePanel(
         _storageReady = false;
         _storageOwner = null;
         _context = null;
+        _contextRequestedBeforeEventId = null;
         _contextRequest++;
         var retainsSettlement = string.Equals(_settledScope, StorageScope, StringComparison.Ordinal);
         if (!retainsSettlement)
