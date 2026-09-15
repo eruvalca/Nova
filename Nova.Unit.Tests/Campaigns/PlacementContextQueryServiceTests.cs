@@ -144,6 +144,8 @@ public sealed partial class CampaignPlacementServiceTests
         var second = (await CreatePlacementContextService().GetContextAsync(input with { BeforeEventId = first.NextEventId }, TestContext.Current.CancellationToken)).Value;
         second.History.Select(item => item.EventId).ShouldBe(ids.Skip(20));
         second.NextEventId.ShouldBeNull();
+        await AssertHistoryAcceptedByHttpClientAsync(first, input);
+        await AssertHistoryAcceptedByHttpClientAsync(second, input with { BeforeEventId = first.NextEventId });
     }
 
     [Fact]

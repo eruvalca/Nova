@@ -1529,3 +1529,90 @@ Local logs use `.git/pr270-round15-`: `build-verified.log`, `unit-final.log`, `i
 are `build.log`, `build-final.log`, `unit.log`, `format.log`, and `format-apply.log`.
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
 All three suites must run again before merge.
+
+
+## PR review round 16
+
+Review [5213191829](https://github.com/eruvalca/Nova/pull/270#pullrequestreview-5213191829)
+contained three suppressed findings. Each was evaluated against the actual producer, consumer and
+history scope; the fixes and evidence-based dispositions were published together in one commit.
+All paginated reviews, inline comments, review bodies and issue comments were inspected; the
+13 existing review threads remained resolved, with no new inline threads.
+
+### Findings and dispositions
+
+- **Local placement input validation — fixed.** The WASM mutation client now invokes the shared
+  input validator before sending a PUT. Seven invalid operation, participant, token, outcome and
+  team-shape cases return field validation without any HTTP request. Local rejection carries no
+  durable non-commit marker, so it cannot falsely settle an earlier uncertain attempt.
+- **Raw-page cursor versus projected history — inapplicable; guard retained.** The server sorts
+  raw events descending, projects a subset of the first 20, and uses raw row 20 as the continuation.
+  That boundary is at or below every returned event ID. Omitting malformed rows cannot make it
+  greater than the last valid item. For example, when event 81 is the malformed raw boundary and
+  event 82 is the last displayed item, `next > boundary` is false and the client accepts the page.
+  Removing this check would accept cursors that overlap already displayed history. All 16 existing
+  malformed-row producer cases now pass both actual query pages through the strict HTTP client;
+  they corrupt an interior row and the raw boundary. Two additional client cases cover a lower
+  raw cursor and an empty projected page that still has a continuation.
+- **Matching historical participation to the selected participation — inapplicable as proposed;
+  positive identifier validation added.** Active history belongs to the player and spans campaign
+  participations; Closed history remains restricted to its own campaign. Requiring every payload's
+  participation ID to equal the currently selected ID would erase earlier-campaign changes. The
+  projection now rejects nonpositive historical participation IDs while preserving the existing
+  tenant/player/campaign snapshot checks. Two malformed-payload cases verify that hardening.
+  A real pair of service saves for participations 300 and 310 proves Active campaign 610 shows
+  both 610 and 600, while Closed campaign 600 shows only its own immutable change. Both query results
+  are decoded by the actual WASM client. Historical snapshots remain independent of mutable or
+  deleted live references; no second ledger or live-history join was introduced.
+
+### Guidance and independent review
+
+Applied the previously read API, service, validation, tenancy, placement, lifecycle and testing rules;
+`add-api-endpoint`, `add-domain-persistence`, `nova-testing` and their HTTP/provider/query references,
+plus .NET test execution and test-writing guidance. Inspected the placement writer, activity snapshot
+keys, producer ordering, strict client validation, sibling lifecycle input validation, and Closed scope.
+
+Independent session `/root/recovery_review` confirmed all three dispositions and reviewed the concrete
+production/test diff. It found no production issues and caught a fixture that populated saved-decision
+attribution for an Undecided participation. The seed helper now leaves those three fields null for
+Undecided and preserves its existing metadata for saved decisions. Full tests enforce the actual
+attribution constraint. No diagnostic suppression or weakened history validation was introduced.
+
+No UI markup, copy, composition or assets changed. Existing curated evidence and the limited finish
+disposition remain applicable. Existing guidance already requires validation at each boundary and
+checking findings against real contracts, so no duplicate instructions or new skill were added.
+
+### Validation
+
+Tested source: base `2204f3ea7f0830a49b7665d83e57f4748b54bd8b` plus this round's seven-file
+code/test diff. SHA-256 `1db947b52bc9c761ef1c2481ed8dfe62560303400d648c2d7f5c7338db4022d1`
+identifies the sorted 1,180 source-path/raw-content-hash pairs. The PR body identifies the resulting
+single commit. Only this validation document was edited after the final build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Final build passed, 10.18s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,436 passed, zero failures/skips; 18.317s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 623 passed, zero failures/skips; 1m44.719s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 191 passed, zero failures, seven existing optional capture skips (198 total); 3m24.504s |
+| `dotnet format Nova.slnx --verify-no-changes` | Passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round16-captures`.
+Integration and browser suites ran serially across the machine, with source and generated assets
+fixed during browser execution. Final source hashes and `git diff --check` were verified. New captures
+remain local; the existing curated packet and its documented measurement limitations are unchanged.
+
+Preserved intermediate results: the initial build failed because the new tests used the shared
+service-result API against the concrete placement union (1m03.89s). Correct union assertions fixed
+compilation, and the next build passed (13.14s). The first unit run passed 3,435 tests and failed
+one new setup on `CK_PlayerCampaignAssignments_DecisionAttribution` (18.147s). The Undecided seed
+correction described above fixed it; final build/unit results appear above.
+
+Local logs use `.git/pr270-round16-`: `build-verified.log`, `unit-final.log`, `integration.log`,
+`browser.log`, `format.log`, `model.log`, `contrast.log`, and `detector.json`. Intermediate logs
+are `build.log`, `build-final.log`, and `unit.log`.
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this round changes no schema.
+All three suites must run again before merge.

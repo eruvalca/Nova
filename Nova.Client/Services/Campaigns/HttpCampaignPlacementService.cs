@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -15,6 +16,8 @@ internal sealed class HttpCampaignPlacementService(HttpClient http) : ICampaignP
         UpdateCampaignPlacementInput input,
         CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0) { return ServiceProblem.Validation(errors); }
         using var response = await http.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(input.PlayerCampaignAssignmentId),
             input,

@@ -272,9 +272,9 @@ public sealed partial class CampaignPlacementServiceTests
             TeamId = outcome == PlacementOutcome.Assigned ? EligibleTeamId : null,
             ConcurrencyToken = token,
             CreatedById = ClubAAdminId,
-            DecisionRecordedById = ClubAAdminId,
-            DecisionRecordedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            DecisionActorDisplayName = "Admin A"
+            DecisionRecordedById = outcome == PlacementOutcome.Undecided ? null : ClubAAdminId,
+            DecisionRecordedAt = outcome == PlacementOutcome.Undecided ? null : DateTimeOffset.UtcNow.AddDays(-1),
+            DecisionActorDisplayName = outcome == PlacementOutcome.Undecided ? null : "Admin A"
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return token;

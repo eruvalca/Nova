@@ -15,6 +15,40 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class HttpCampaignPlacementServiceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("operation")]
+    [InlineData("participant")]
+    [InlineData("token")]
+    [InlineData("outcome")]
+    [InlineData("missing-team")]
+    [InlineData("nonpositive-team")]
+    [InlineData("unexpected-team")]
+    public async Task InvalidPlacementInputReturnsLocalValidationWithoutHttpAsync(string invalid)
+    {
+        var input = ValidInput(Guid.NewGuid());
+        input = invalid switch
+        {
+            "operation" => input with { OperationId = Guid.Empty },
+            "participant" => input with { PlayerCampaignAssignmentId = 0 },
+            "token" => input with { ExpectedConcurrencyToken = Guid.Empty },
+            "outcome" => input with { Outcome = PlacementOutcome.Undecided, TeamId = null },
+            "missing-team" => input with { TeamId = null },
+            "nonpositive-team" => input with { TeamId = 0 },
+            "unexpected-team" => input with { Outcome = PlacementOutcome.NotSelected },
+            _ => throw new ArgumentOutOfRangeException(nameof(invalid))
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        using var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignPlacementService(http).UpdatePlacementAsync(input, TestContext.Current.CancellationToken);
+
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull().Keys.ShouldBe(Nova.SharedKernel.Validation.InputValidator.Validate(input).Keys, ignoreOrder: true);
+        handler.LastRequest.ShouldBeNull();
+        PlacementMutationRejection.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(86400, true)]
     [InlineData(86460, true)]
     [InlineData(86461, false)]

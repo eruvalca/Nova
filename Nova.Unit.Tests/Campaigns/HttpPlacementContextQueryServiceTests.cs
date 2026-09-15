@@ -12,6 +12,26 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class HttpPlacementContextQueryServiceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ContextClientAcceptsRawBoundaryAfterMalformedRowsAreOmittedAsync(bool emptyPage)
+    {
+        var history = new PlacementHistoryItem(82, 10, "Summer", null, null, PlacementOutcome.NotSelected,
+            null, "Member", DateTimeOffset.UtcNow);
+        var payload = new PlacementContextResult(301, null, emptyPage ? [] : [history], 81, false);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) };
+        using var handler = new ContextHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlacementContextQueryService(http).GetContextAsync(
+            new GetPlacementContextInput { CampaignId = 10, PlayerCampaignAssignmentId = 301, BeforeEventId = 101 }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.NextEventId.ShouldBe(81);
+        result.Value.History.ShouldBe(payload.History);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null, null, true)]
     [InlineData(null, "Unexpected team", false)]
     [InlineData(PlacementOutcome.Undecided, null, false)]

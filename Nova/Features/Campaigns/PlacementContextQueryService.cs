@@ -103,7 +103,7 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
             try
             {
                 if (JsonSerializer.Deserialize<ClubActivityContext>(row.PayloadJson, _json) is PlacementContext context
-                    && context.PlayerId == playerId
+                    && context.PlayerId == playerId && context.PlayerCampaignAssignmentId > 0
                     && ActivityEventPolicy.ContextMatchesKind(row.EventKind, context)
                     && row.CampaignId == context.CampaignId)
                 {
