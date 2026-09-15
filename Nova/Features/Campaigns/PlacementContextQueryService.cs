@@ -95,9 +95,10 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
                 if (JsonSerializer.Deserialize<ClubActivityContext>(row.PayloadJson, _json) is PlacementContext context
                     && context.PlayerId == participant.PlayerId)
                 {
-                    history.Add(new(row.ActivityEventId, context.CampaignId, context.CampaignName,
+                    var item = new PlacementHistoryItem(row.ActivityEventId, context.CampaignId, context.CampaignName,
                         context.PreviousOutcome, context.PreviousTeamName, context.Outcome, context.TeamName,
-                        row.ActorDisplayName, row.CreatedAt));
+                        row.ActorDisplayName, row.CreatedAt);
+                    if (PlacementHistoryValidation.IsValid(item)) { history.Add(item); }
                 }
             }
             catch (Exception exception) when (exception is JsonException or NotSupportedException)

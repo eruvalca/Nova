@@ -13,6 +13,27 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class CampaignPlacePanelTests
 {
     [Fact]
+    public void HistoryPagesStayBoundedAndCanReturnToLatestChanges()
+    {
+        RegisterServices();
+        var latest = Enumerable.Range(1, 20).Select(index => new PlacementHistoryItem(101 - index, 10, "Latest page",
+            null, null, PlacementOutcome.NotSelected, null, "Member", DateTimeOffset.UtcNow)).ToArray();
+        var earlier = latest[0] with { EventId = 80, CampaignName = "Earlier page" };
+        Services.GetRequiredService<IPlacementContextQueryService>()
+            .GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+                new ServiceResult<PlacementContextResult>(call.Arg<GetPlacementContextInput>().BeforeEventId is null
+                    ? new PlacementContextResult(301, null, latest, 81, false) : new PlacementContextResult(301, null, [earlier], null, false)));
+        var cut = RenderPanel(selectedParticipantId: 301);
+        cut.WaitForAssertion(() => cut.FindAll(".place-history-list li").Count.ShouldBe(20));
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Earlier changes", StringComparison.Ordinal)).Click();
+        cut.WaitForAssertion(() => cut.FindAll(".place-history-list li").Single().TextContent.ShouldContain("Earlier page"));
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Latest changes", StringComparison.Ordinal)).Click();
+        cut.WaitForAssertion(() => cut.FindAll(".place-history-list li").Count.ShouldBe(20));
+        cut.Find(".place-history").TextContent.ShouldNotContain("Earlier page");
+        cut.Find(".place-history").TextContent.ShouldNotContain("Latest changes");
+    }
+
+    [Fact]
     public void StalledOptionalHistoryDoesNotBlockCompatibleTeamsOrInitialSave()
     {
         RegisterServices();

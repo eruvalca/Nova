@@ -15,8 +15,9 @@ public static class PlacementContextEndpoints
     public static Uri Url(GetPlacementContextInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        return new Uri(string.Create(CultureInfo.InvariantCulture,
-        $"{CampaignEndpoints.GroupPrefix}/{input.CampaignId}/participants/{input.PlayerCampaignAssignmentId}/placement-context")
+        var route = Relative.Replace("{campaignId:long}", input.CampaignId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{playerCampaignAssignmentId:long}", input.PlayerCampaignAssignmentId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        return new Uri($"{CampaignEndpoints.GroupPrefix}/{route}"
         + (input.BeforeEventId is > 0 and long cursor ? $"?beforeEventId={cursor.ToString(CultureInfo.InvariantCulture)}" : string.Empty), UriKind.Relative);
     }
 }

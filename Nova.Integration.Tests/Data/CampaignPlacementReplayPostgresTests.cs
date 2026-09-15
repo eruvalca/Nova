@@ -10,6 +10,40 @@ namespace Nova.Integration.Tests.Data;
 public sealed partial class CampaignPlacementRetryTests
 {
     [Fact]
+    public async Task GlobalPlacementCleanupDeletesOnlyFiveHundredOldestExpiredReceiptsInPostgresAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var cutoff = DateTimeOffset.UnixEpoch.AddYears(30);
+        await using var db = fixture.CreateAdminContext();
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var receipts = Enumerable.Range(0, 503).Select(index => new Nova.Entities.PlacementMutationReceiptEntity
+        {
+            ClubId = long.MaxValue,
+            CreatedById = 1,
+            ActorUserId = 1,
+            PlayerCampaignAssignmentId = 1,
+            OperationId = Guid.CreateVersion7(),
+            ConcurrencyToken = Guid.NewGuid(),
+            RequestSha256 = new string('A', 64),
+            ResultJson = "{}",
+            RecoveryExpiresAt = index > 500 ? cutoff.AddDays(1) : cutoff.AddMinutes(-index)
+        }).ToArray();
+        // FK-less snapshots remain eligible even when the owning club is absent.
+        db.PlacementMutationReceipts.AddRange(receipts);
+        await db.SaveChangesAsync(cancellationToken);
+        var ids = receipts.Select(receipt => receipt.PlacementMutationReceiptId).ToArray();
+        var retained = new[] { ids[0], ids[501], ids[502] };
+        db.ChangeTracker.Clear();
+
+        await PlacementReceiptCleanupService.PruneAsync(db, cutoff, cancellationToken);
+
+        db.ChangeTracker.Entries<Nova.Entities.PlacementMutationReceiptEntity>().ShouldBeEmpty();
+        (await db.PlacementMutationReceipts.Where(receipt => ids.Contains(receipt.PlacementMutationReceiptId))
+            .Select(receipt => receipt.PlacementMutationReceiptId).ToListAsync(cancellationToken)).ShouldBe(retained, ignoreOrder: true);
+        await transaction.RollbackAsync(cancellationToken);
+    }
+
+    [Fact]
     public async Task ConcurrentExactOperationsReturnOneReceiptAndOnePlacementEventAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

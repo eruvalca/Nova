@@ -38,3 +38,17 @@ check weakening was added. Earlier changed Place/Players/Teams markup scan had n
 The detector also reports an unrelated stale Evaluate hero build state; the Place contract
 explicitly retains the prior comp measurement limitation, and this task does not rewrite
 that unrelated state.
+
+## PR review round 2 — history navigation
+
+The independent finish reviewer first requested current desktop/mobile evidence for the new
+**Latest changes** action. The captures then exposed touching button borders on both viewports.
+Disposition: **fix**, with one material requirement: a wrapping flex row and an 8px gap.
+
+The final implementation uses the existing `gap-2` spacing utility. The reviewer reopened
+both final [history-paging captures](README.md#captures), verified complete unclipped labels,
+44px control height, mobile fit, and the 8px separation, and reported no visible regression.
+Final disposition: **ship**, limited to the scored history-control fix. This is a local
+finish correction, with no material composition change. The missing Place-specific quality
+card and existing comp-measurement limitation remain explicit; no new whole-surface approval
+or quantitative comparison is claimed.

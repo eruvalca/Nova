@@ -12,6 +12,56 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignPlacementServiceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("undecided")]
+    [InlineData("missing-team")]
+    [InlineData("unexpected-team")]
+    [InlineData("campaign-id")]
+    [InlineData("campaign-name")]
+    [InlineData("previous-outcome")]
+    [InlineData("invalid-json")]
+    public async Task PlacementContextSkipsMalformedEvidenceWithoutLosingRawPageBoundaryAsync(string shape)
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        var token = _clubAConcurrencyToken;
+        for (var index = 0; index < 23; index++)
+        {
+            token = (await SaveAsync(index % 2 == 0 ? PlacementOutcome.Assigned : PlacementOutcome.NotSelected, token))
+                .Value.ShouldBeOfType<PlacementMutationSuccess>().ConcurrencyToken;
+        }
+        long[] ids;
+        await using (var corrupt = _harness.CreateAdminContext())
+        {
+            var rows = await corrupt.ActivityEvents.OrderByDescending(row => row.ActivityEventId).ToListAsync(TestContext.Current.CancellationToken);
+            ids = rows.Select(row => row.ActivityEventId).ToArray();
+            var context = System.Text.Json.JsonSerializer.Deserialize<Nova.SharedKernel.Features.Activity.ClubActivityContext>(rows[0].PayloadJson, _caseInsensitiveJsonOptions)
+                .ShouldBeOfType<Nova.SharedKernel.Features.Activity.PlacementContext>();
+            var malformed = shape switch
+            {
+                "undecided" => context with { Outcome = PlacementOutcome.Undecided },
+                "missing-team" => context with { TeamName = null },
+                "unexpected-team" => context with { Outcome = PlacementOutcome.NotSelected },
+                "campaign-id" => context with { CampaignId = 0 },
+                "campaign-name" => context with { CampaignName = " " },
+                "previous-outcome" => context with { PreviousOutcome = (PlacementOutcome)99 },
+                "invalid-json" => context,
+                _ => throw new ArgumentOutOfRangeException(nameof(shape))
+            };
+            var json = string.Equals(shape, "invalid-json", StringComparison.Ordinal) ? "{" : System.Text.Json.JsonSerializer.Serialize<Nova.SharedKernel.Features.Activity.ClubActivityContext>(malformed);
+            // Simulate corrupt stored snapshots without weakening the append-only application writer.
+            await corrupt.ActivityEvents.Where(row => row.ActivityEventId == ids[1] || row.ActivityEventId == ids[19])
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.PayloadJson, json), TestContext.Current.CancellationToken);
+        }
+        var input = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId };
+        var first = (await CreatePlacementContextService().GetContextAsync(input, TestContext.Current.CancellationToken)).Value;
+        first.History.Select(item => item.EventId).ShouldBe(ids.Take(20).Where(id => id != ids[1] && id != ids[19]));
+        first.History.ShouldAllBe(item => PlacementHistoryValidation.IsValid(item));
+        first.NextEventId.ShouldBe(ids[19]);
+        var second = (await CreatePlacementContextService().GetContextAsync(input with { BeforeEventId = first.NextEventId }, TestContext.Current.CancellationToken)).Value;
+        second.History.Select(item => item.EventId).ShouldBe(ids.Skip(20));
+        second.NextEventId.ShouldBeNull();
+    }
+
     [Fact]
     public async Task PlacementContextPagesTwentyChangesWithoutDuplicatesAsync()
     {

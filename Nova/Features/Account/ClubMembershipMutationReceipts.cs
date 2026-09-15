@@ -39,9 +39,6 @@ internal static class ClubMembershipMutationReceipts
             db.ClubMembershipMutationReceipts.RemoveRange(expired);
         }
 
-        var expiredPlacements = (await db.PlacementMutationReceipts.ToListAsync(cancellationToken))
-            .Where(receipt => receipt.RecoveryExpiresAt <= DateTimeOffset.UtcNow).Take(500)
-            .ToList();
-        db.PlacementMutationReceipts.RemoveRange(expiredPlacements);
+        await Campaigns.PlacementReceiptCleanupService.PruneAsync(db, DateTimeOffset.UtcNow, cancellationToken);
     }
 }

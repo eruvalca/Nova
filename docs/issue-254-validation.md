@@ -268,3 +268,70 @@ no schema; the initial migration-model evidence remains applicable. Temporary ne
 `.git/pr270-round1-captures`, leaving the curated reviewed packet unchanged. Logs, the failed first
 integration run, and the source manifest remain under `.git/pr270-round1-*`. The retained comp and
 finish-review limitations above remain explicit; no new composition approval is claimed.
+
+## PR review round 2
+
+Reviewed Copilot review `5205450720` on `f6d1fb1a2b870a7977bd892d6877a5cdbd6a12f9`,
+including both inline findings and all four suppressed findings. This round is one commit.
+
+| Finding / requirement | Disposition and behavioral evidence |
+| --- | --- |
+| Terminal null history cursor rejected | Inapplicable: the code uses `NextEventId is <= 0`, which does not match null. `ContextClientRequiresBoundedOrderedHistoryAsync("valid")` supplies a null continuation and succeeds; the HTTP history test also verifies terminal null. |
+| Administrator role required again for receipt recovery | Inapplicable to the approved contract: persisted club membership, original actor, tenant, and exact payload gate receipt access; administrator authority gates a new withdrawal override. `DemotedAdministratorCanRecoverAnOverrideButCannotExecuteANewOverrideAsync` proves both sides using persisted role removal and stale administrator claims, unchanged prior withdrawal/token, and no duplicate activity. |
+| Suppressed: earlier page replaces newer items | Retained the requested bounded 20-item paging and added **Latest changes** for a return within the history region. `HistoryPagesStayBoundedAndCanReturnToLatestChanges` and `PlacementHistorySupportsBoundedEarlierPagesAndKeyboardReturnToLatestAsync` exercise page sizes and keyboard navigation. No unbounded accumulation is introduced. |
+| Suppressed: URL duplicates the mapped route | URL generation substitutes IDs into `PlacementContextEndpoints.Relative`. `ContextUrlIncludesOnlyPositiveCursors` still verifies exact paths and cursor normalization; the HTTP suite verifies mapping. |
+| Suppressed: malformed saved history reaches server-rendered UI | Both projection and WASM use `PlacementHistoryValidation`. `PlacementContextSkipsMalformedEvidenceWithoutLosingRawPageBoundaryAsync` covers seven malformed shapes, interleaved invalid rows including the raw boundary, ordered remaining items, continuation, and a terminal page. |
+| Suppressed: SQLite placement cleanup materializes every receipt | Both placement-cleanup callers now execute the same filtered, ordered, capped SQL deletion. The existing SQLite model customizer maps receipt expiry to sortable UTC ticks, leaving the production PostgreSQL model unchanged. `PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync` verifies both callers, oldest-first selection, retained fresh receipts, and no tracked receipt materialization. `GlobalPlacementCleanupDeletesOnlyFiveHundredOldestExpiredReceiptsInPostgresAsync` verifies the production provider and absent-club snapshots. Existing tenancy/deleted-club tests remain green. |
+
+Separate reviewer `/root/recovery_review` found no actionable issues in the complete diff,
+then separately checked the added browser scenario and its fixture interactions. It independently
+confirmed the two inapplicable inline findings. The finish review requested fresh captures for
+the history controls, then identified touching button borders. A wrapping flex row with an
+8px gap resolves that local finish issue without changing composition. The first full browser
+run passed before the spacing fix; its captures and log are retained locally. Final captures
+and the reviewer's disposition are recorded with the evidence packet.
+
+Guidance applied: the existing feature/API/domain/Blazor/testing recipes and their query,
+retry/locking, contract, lifecycle, interop, and provider/browser references; matching repository
+instructions listed above; the .NET test execution and generation recipes. Sibling checks covered
+both cleanup callers, server/WASM history validation, and ownership of regional history results.
+No new skill, permanent instruction, migration, or diagnostic suppression was required.
+
+The initial build exposed new-test compilation/style mistakes (nullable struct assertion,
+explicit result construction, ordinal string comparisons); those were corrected before running
+tests. No assertions, retry budgets, or checks were weakened.
+
+The first full integration run used a stale incremental assembly: the new PostgreSQL method
+was added during the initial build, before the output timestamp but after compilation read its
+source. The unchanged test count and a zero-test focused discovery exposed this. A complete
+`dotnet build Nova.slnx --no-restore --no-incremental` rebuilt the assembly; the method was
+verified present and the full suites rerun. The earlier passing run is not accepted as evidence
+for the new test. Its log and the zero-test discovery log remain under `.git/pr270-round2-*`.
+The browser setup also restores its temporary current-user values in `finally`.
+
+Source fingerprint: `af01d89302b13b698e06b653daab6908569d3b830410a21b431b5f228cc7a2b2`.
+The local manifest `.git/pr270-round2-source.json` covers 1,160 source files using the same
+path/SHA-256 procedure as round 1, including both new files. Documentation and captures are excluded.
+The PR body identifies the commit containing this tested source.
+
+| Check / command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx --no-restore` | Passed; three existing Sass deprecation warnings |
+| Focused unit: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignPlacementServiceTests' --filter-class '*HttpPlacementContextQueryServiceTests' --filter-class '*PlacementContextEndpointTests' --filter-class '*CampaignPlacePanelTests'` | 178 passed |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,307 passed; 0 failed/skipped; 19.955s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 615 passed; 0 failed/skipped; 1m23.552s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 180 passed; 0 failed; seven existing optional screenshot skips; 3m33.243s |
+| `dotnet format Nova.slnx --verify-no-changes --no-restore` | Passed |
+| `npm run check:contrast` from `Nova/` | Passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js --json` | No findings in inspected files; the previously documented unrelated Evaluate build-state advisory remains |
+| `git diff --check` | Passed |
+
+Build preceded tests. Integration/browser execution was serialized across the machine. The browser
+run kept source/assets fixed with no concurrent build/format process. Logs and temporary captures
+are under `.git/pr270-round2-*`; curated history-control screenshots supplement the original packet.
+No production schema changed, so the initial migration-model evidence remains applicable. The
+existing comp measurement limitation remains explicit; this round claims no new whole-frame score.
+
+All 1,160 source hashes were verified unchanged after the final browser run. The refreshed
+finish review returned **ship** for the history spacing fix, with no remaining findings in that
+scope. Final viewport screenshots and their source/checksum sidecars are curated in the packet.

@@ -8,6 +8,36 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignPlacementServiceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DemotedAdministratorCanRecoverAnOverrideButCannotExecuteANewOverrideAsync(bool committed)
+    {
+        var priorToken = await SeedPriorDecisionAsync(PlacementOutcome.Withdrawn);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        ICampaignPlacementService service = CreateService();
+        var input = new UpdateCampaignPlacementInput(ClubAAssignmentId, PlacementOutcome.Assigned, EligibleTeamId, _clubAConcurrencyToken, Guid.CreateVersion7());
+        PlacementMutationSuccess? original = null;
+        if (committed)
+        {
+            original = (await service.UpdatePlacementAsync(input, TestContext.Current.CancellationToken)).Value;
+        }
+        await using (var demote = _harness.CreateAdminContext())
+        {
+            await demote.UserRoles.Where(role => role.UserId == ClubAAdminId).ExecuteDeleteAsync(TestContext.Current.CancellationToken);
+        }
+        // Keep stale administrator claims: persisted authority must decide whether new effects are allowed.
+        var result = await service.UpdatePlacementAsync(input, TestContext.Current.CancellationToken);
+        if (committed) { result.Value.ShouldBe(original!.Value); }
+        else { result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden); }
+        await using var verify = _harness.CreateAdminContext();
+        var prior = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == 310, TestContext.Current.CancellationToken);
+        prior.PlacementOutcome.ShouldBe(PlacementOutcome.Withdrawn);
+        prior.ConcurrencyToken.ShouldBe(priorToken);
+        (await verify.ActivityEvents.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(committed ? 1 : 0);
+        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
     [Fact]
     public async Task ExactReplayReturnsOriginalDecisionAfterLaterSaveAndClosureAsync()
     {

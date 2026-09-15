@@ -6,17 +6,22 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignPlacementServiceTests
 {
-    [Fact]
-    public async Task PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync(bool throughMembershipCleanup)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var retained = new List<Guid>();
         using (var seed = _harness.CreateAdminContext())
         {
-            for (var index = 0; index < 501; index++)
+            for (var index = 0; index < 503; index++)
             {
+                var operation = Guid.CreateVersion7();
+                if (index == 0 || index > 500) { retained.Add(operation); }
                 seed.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
                 {
-                    OperationId = Guid.CreateVersion7(),
+                    OperationId = operation,
                     PlayerCampaignAssignmentId = ClubAAssignmentId,
                     ConcurrencyToken = Guid.NewGuid(),
                     ClubId = ClubAId,
@@ -24,18 +29,27 @@ public sealed partial class CampaignPlacementServiceTests
                     ActorUserId = ClubAAdminId,
                     RequestSha256 = new string('A', 64),
                     ResultJson = "{}",
-                    RecoveryExpiresAt = now.AddMinutes(-1)
+                    RecoveryExpiresAt = index > 500 ? now.AddHours(1) : now.AddMinutes(-index)
                 });
             }
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         using (var cleanup = _harness.CreateAdminContext())
         {
-            await Nova.Features.Campaigns.PlacementReceiptCleanupService.PruneAsync(cleanup, now, TestContext.Current.CancellationToken);
+            if (throughMembershipCleanup)
+            {
+                await Nova.Features.Account.ClubMembershipMutationReceipts.PruneExpiredAsync(cleanup, TestContext.Current.CancellationToken);
+            }
+            else
+            {
+                await Nova.Features.Campaigns.PlacementReceiptCleanupService.PruneAsync(cleanup, now, TestContext.Current.CancellationToken);
+            }
+            cleanup.ChangeTracker.Entries<PlacementMutationReceiptEntity>().ShouldBeEmpty();
         }
 
         using var verify = _harness.CreateAdminContext();
-        (await verify.PlacementMutationReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.PlacementMutationReceipts.Select(receipt => receipt.OperationId).ToListAsync(TestContext.Current.CancellationToken))
+            .ShouldBe(retained, ignoreOrder: true);
     }
     /// <summary>Checks placement receipts are visible only within their club through write and read contexts.</summary>
     [Fact]

@@ -26,13 +26,7 @@ internal sealed class HttpPlacementContextQueryService(HttpClient http) : IPlace
         var boundary = input.BeforeEventId ?? long.MaxValue;
         foreach (var item in result.History)
         {
-            if (item is null || item.EventId <= 0 || item.EventId >= boundary || item.CampaignId <= 0
-                || string.IsNullOrWhiteSpace(item.CampaignName) || string.IsNullOrWhiteSpace(item.ActorDisplayName)
-                || item.OccurredAt <= DateTimeOffset.UnixEpoch || !Enum.IsDefined(item.Outcome)
-                || item.Outcome == Nova.SharedKernel.Enums.PlacementOutcome.Undecided
-                || (item.Outcome == Nova.SharedKernel.Enums.PlacementOutcome.Assigned
-                    ? string.IsNullOrWhiteSpace(item.TeamName) : item.TeamName is not null)
-                || (item.PreviousOutcome is { } prior && !Enum.IsDefined(prior))) { return false; }
+            if (!PlacementHistoryValidation.IsValid(item) || item.EventId >= boundary) { return false; }
             boundary = item.EventId;
         }
         if (result.NextEventId is long next && (next >= (input.BeforeEventId ?? long.MaxValue)

@@ -38,19 +38,9 @@ internal sealed partial class PlacementReceiptCleanupService(IServiceScopeFactor
     /// <summary>Uses the global expiration index, including receipts whose club no longer exists.</summary>
     internal static async Task PruneAsync(NovaAdminDbContext db, DateTimeOffset now, CancellationToken token)
     {
-        if (db.Database.IsNpgsql())
-        {
-            await db.PlacementMutationReceipts.Where(receipt => receipt.RecoveryExpiresAt <= now)
-                .OrderBy(receipt => receipt.RecoveryExpiresAt).ThenBy(receipt => receipt.PlacementMutationReceiptId)
-                .Take(500).ExecuteDeleteAsync(token);
-        }
-        else
-        {
-            var rows = await db.PlacementMutationReceipts.ToListAsync(token);
-            db.PlacementMutationReceipts.RemoveRange(rows.Where(receipt => receipt.RecoveryExpiresAt <= now)
-                .OrderBy(receipt => receipt.RecoveryExpiresAt).Take(500));
-            await db.SaveChangesAsync(token);
-        }
+        await db.PlacementMutationReceipts.Where(receipt => receipt.RecoveryExpiresAt <= now)
+            .OrderBy(receipt => receipt.RecoveryExpiresAt).ThenBy(receipt => receipt.PlacementMutationReceiptId)
+            .Take(500).ExecuteDeleteAsync(token);
     }
 
     /// <summary>Records a failed retention pass for the next scheduled retry.</summary>

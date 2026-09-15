@@ -19,10 +19,16 @@ Final captures and geometry sidecars are recorded in `captures/`:
 | Withdrawal confirmation | [Desktop](captures/confirmation-desktop.png) | [Mobile](captures/confirmation-mobile.png) |
 | Outcome unknown | [Desktop](captures/outcome-unknown-desktop.png) | [Mobile](captures/outcome-unknown-mobile.png) |
 | Expanded queue filters | [Desktop](captures/filters-desktop.png) | — |
+| History paging (review round 2) | [Desktop](captures/history-paging-desktop.png) | [Mobile](captures/history-paging-mobile.png) |
 
-Each `.json` sidecar records the viewport, document geometry, campaign ID, and board bounds.
-The `-board.png` companions isolate the same board from the same running page.
+The original `.json` sidecars record the viewport, document geometry, campaign ID, and board bounds.
+Their `-board.png` companions isolate the same board from the same running page.
 They are screenshots of the seeded running application, not generated visual assets.
+
+The review-round-2 screenshots scroll to the history controls on the second bounded page.
+Their sidecars identify the viewport, test, image checksum, and tested source fingerprint.
+The independent finish review verified the 8px action gap, complete labels, 44px controls,
+and mobile fit, with **ship** limited to that fix. The original composition remains unchanged.
 
 ## Review
 

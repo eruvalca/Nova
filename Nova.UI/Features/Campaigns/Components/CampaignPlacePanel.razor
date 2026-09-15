@@ -488,10 +488,16 @@ FORM: One flat board, two columns split by a single hairline. Composition locked
                     {
                         <p>No recorded placement changes in this view.</p>
                     }
-                    @if (_context?.NextEventId is not null)
-                    {
-                        <button type="button" class="btn btn-outline-secondary" disabled="@_contextLoading" @onclick="() => LoadContextAsync(more: true)">Earlier changes</button>
-                    }
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (_context?.NextEventId is not null)
+                        {
+                            <button type="button" class="btn btn-outline-secondary" disabled="@_contextLoading" @onclick="() => LoadContextAsync(more: true)">Earlier changes</button>
+                        }
+                        @if (_context is not null && _contextBeforeEventId is not null)
+                        {
+                            <button type="button" class="btn btn-outline-secondary" disabled="@_contextLoading" @onclick="() => LoadContextAsync()">Latest changes</button>
+                        }
+                    </div>
                 </section>
 
                 @* Every selected participant must have an in-surface way back to the queue. On narrow

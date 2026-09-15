@@ -12,6 +12,7 @@ public partial class CampaignPlacePanel
     private bool _contextLoading;
     private int _contextRequest;
     private long? _contextParticipant;
+    private long? _contextBeforeEventId;
 
     private async Task LoadOptionalContextAsync()
     {
@@ -50,7 +51,11 @@ public partial class CampaignPlacePanel
             || _selected?.PlayerCampaignAssignmentId != selected.PlayerCampaignAssignmentId
             || ComponentCancellationToken.IsCancellationRequested) { return; }
         _contextLoading = false;
-        result.Switch(value => _context = value, _ => _contextError = "Placement history could not be loaded.");
+        result.Switch(value =>
+        {
+            _context = value;
+            _contextBeforeEventId = cursor;
+        }, _ => _contextError = "Placement history could not be loaded.");
     }
 
     private async Task KeepPreviousTeamAsync()
