@@ -14,6 +14,10 @@ internal sealed class PendingModuleRuntime(IJSRuntime fallback, string modulePat
 
     public void CancelImport(CancellationToken cancellationToken) => _import.SetCanceled(cancellationToken);
 
+    public void CompleteImport(IJSObjectReference module) => _import.SetResult(module);
+
+    public void FailImport(Exception exception) => _import.SetException(exception);
+
     public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
         => InvokeAsync<TValue>(identifier, CancellationToken.None, args);
 

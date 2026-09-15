@@ -188,10 +188,19 @@ public partial class CampaignPlacePanel
         if (result.IsProblem && !PlacementMutationRejection.IsNotCommitted(result.Problem, input.OperationId))
         {
             _recoveryExpired = PlacementMutationRejection.IsExpired(result.Problem, input.OperationId);
+            var futureDated = PlacementMutationRejection.IsFutureDated(result.Problem, input.OperationId);
             _phase = PlacementPhase.OutcomeUnknown;
-            _saveError = _recoveryExpired
-                ? "The recovery window expired. The earlier result is unknown. Review current placement before making a new decision."
-                : "The save could not be confirmed. Recover this save before starting another placement.";
+            if (futureDated)
+            {
+                _storageReady = false;
+                _saveError = "This save's timestamp is ahead of the server. Check your device clock, then retry storage before recovering. The earlier result remains unknown.";
+            }
+            else
+            {
+                _saveError = _recoveryExpired
+                    ? "The recovery window expired. The earlier result is unknown. Review current placement before making a new decision."
+                    : "The save could not be confirmed. Recover this save before starting another placement.";
+            }
             await ApplyPendingStateAsync();
             return;
         }

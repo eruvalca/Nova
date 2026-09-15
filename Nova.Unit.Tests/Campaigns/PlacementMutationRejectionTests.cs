@@ -10,6 +10,34 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class PlacementMutationRejectionTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("guid", true)]
+    [InlineData("string", true)]
+    [InlineData("json-string", true)]
+    [InlineData("null", false)]
+    [InlineData("empty", false)]
+    [InlineData("wrong", false)]
+    [InlineData("boolean", false)]
+    [InlineData("number", false)]
+    [InlineData("object", false)]
+    [InlineData("array", false)]
+    [InlineData("undefined", false)]
+    public void FutureClockGuidanceIsBoundToTheOperationAndNeverProvesSettlement(string representation, bool expected)
+    {
+        var operation = Guid.CreateVersion7();
+        var problem = ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal)) with
+        {
+            Extensions = new Dictionary<string, object?>(StringComparer.Ordinal)
+            { [PlacementMutationRejection.FutureOperationIdExtension] = MarkerValue(representation, operation) }
+        };
+
+        PlacementMutationRejection.IsFutureDated(problem, operation).ShouldBe(expected);
+        PlacementMutationRejection.IsFutureDated(problem, Guid.Empty).ShouldBeFalse();
+        PlacementMutationRejection.IsFutureDated(problem with { Kind = ServiceProblemKind.Conflict }, operation).ShouldBeFalse();
+        PlacementMutationRejection.IsNotCommitted(problem, operation).ShouldBeFalse();
+        PlacementMutationRejection.IsExpired(problem, operation).ShouldBeFalse();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(ServiceProblemKind.Validation)]
     [InlineData(ServiceProblemKind.Forbidden)]
     [InlineData(ServiceProblemKind.NotFound)]

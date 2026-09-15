@@ -41,13 +41,10 @@ internal sealed class PlacementMutationExecutor(IDbContextFactory<NovaDbContext>
             return Forbidden();
         }
 
-        var expiresAt = GetRecoveryDeadline(input.OperationId);
+        var expiresAt = GetRecoveryDeadline(input.OperationId, out var futureTimestamp);
         if (expiresAt is null)
         {
-            return ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal)
-            {
-                [nameof(input.OperationId)] = ["Use a UUIDv7 operation ID generated at the current time."]
-            });
+            return InvalidOperationId(input.OperationId, futureTimestamp);
         }
         if (expiresAt <= DateTimeOffset.UtcNow)
         {
@@ -186,8 +183,9 @@ internal sealed class PlacementMutationExecutor(IDbContextFactory<NovaDbContext>
     }
 
     /// <summary>Uses the immutable UUIDv7 timestamp so deleted/expired receipts can never restart old operations.</summary>
-    private static DateTimeOffset? GetRecoveryDeadline(Guid operationId)
+    private static DateTimeOffset? GetRecoveryDeadline(Guid operationId, out bool futureTimestamp)
     {
+        futureTimestamp = false;
         var value = operationId.ToString("N", CultureInfo.InvariantCulture);
         if (value[12] != '7' || value[16] is not ('8' or '9' or 'a' or 'b')
             || !long.TryParse(value.AsSpan(0, 12), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var milliseconds))
@@ -197,9 +195,26 @@ internal sealed class PlacementMutationExecutor(IDbContextFactory<NovaDbContext>
 
         // UUIDv7 allows a larger timestamp range than DateTimeOffset. Bound the primitive first.
         var now = DateTimeOffset.UtcNow;
-        return milliseconds > now.AddMinutes(1).ToUnixTimeMilliseconds()
+        futureTimestamp = milliseconds > now.AddMinutes(1).ToUnixTimeMilliseconds();
+        return futureTimestamp
             ? null
             : DateTimeOffset.FromUnixTimeMilliseconds(milliseconds).AddHours(24);
+    }
+
+    /// <summary>Reports clock skew without claiming a durable rejection of a potentially later-valid ID.</summary>
+    private static ServiceProblem InvalidOperationId(Guid operationId, bool futureTimestamp)
+    {
+        var problem = ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            [nameof(UpdateCampaignPlacementInput.OperationId)] = ["Use a UUIDv7 operation ID generated at the current time."]
+        });
+        return futureTimestamp ? problem with
+        {
+            Extensions = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [PlacementMutationRejection.FutureOperationIdExtension] = operationId.ToString("D")
+            }
+        } : problem;
     }
 
     /// <summary>Reads the current administrator role under the already-held membership locks.</summary>

@@ -50,8 +50,7 @@ public partial class CampaignPlacePanel
             }
             _storageReady = true;
         }
-        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
-            && exception is JSException or InvalidOperationException or OperationCanceledException)
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
         {
             if (OwnsRecovery(owner, generation))
             {

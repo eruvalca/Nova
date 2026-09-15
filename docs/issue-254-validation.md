@@ -1198,3 +1198,99 @@ build/unit/format logs remain separately recorded without the `-final` suffix.
 This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
 no schema. No check was disabled or weakened. The prior comp measurement, limited finish and
 optional-capture qualifications remain. All three suites must run again before merge.
+
+## PR review round 12
+
+Copilot review `5210974003` on `7553c9c9ed6ca5d01b8cdf99e0c9da910c9ac712`
+reported “Needs a closer look” with four suppressed findings. All four were inspected and
+addressed in one review round; the review did not qualify for the no-findings stopping exception.
+
+### Dispositions and behavioral evidence
+
+- **Native summary focus — fixed.** Evaluate finder restoration now preserves focus on a native
+  `summary`, alongside its existing interactive-element checks. A real trait-summary browser
+  regression keeps both the search input and summary visible, focuses the summary immediately
+  before restoration, and verifies that one Enter opens its details. Independent review caught
+  the first test's mobile false-positive: the selected mobile sheet hides the finder, making
+  focus theft impossible. The final desktop test explicitly asserts the finder is visible.
+- **Pending module import — fixed.** Place teardown awaits its retained import task and disposes
+  the resulting reference once, including when import completes after disposal starts. Expected
+  failed/cancelled imports produce no reference to release. Late attachment failures are consumed
+  without changing an obsolete or disposed owner. Five component cases cover import before/after
+  teardown and JavaScript, unavailable-runtime and cancellation failures. The recording wrapper
+  forwards real bUnit interop and asserts disposal before fixture cleanup. Evaluate already awaits
+  its retained module task; role/participant changes continue to share the live Place module.
+- **Future retained ID — fixed.** Browser storage rejects UUIDv7 timestamps more than one minute
+  ahead of its clock before persistence/dispatch, or preserves existing raw bytes as invalid
+  recovery data. Old IDs remain readable for the existing expiry flow. The real module probe
+  checks the inclusive 60-second boundary, rejection at 60,001ms, unchanged invalid bytes, and
+  refusal to discard if clock advancement makes those same bytes valid before the action.
+  A browser reload case exercises explicit discard, authoritative refresh and a new deliberate
+  save, with no placement receipt before that save.
+- **Server clock disagreement — fixed without inventing settlement proof.** A future timestamp
+  now returns an exact-operation Validation diagnostic. It carries neither durable non-commit
+  nor expiry proof and creates no rejection receipt: the same ID could become valid later.
+  Place retains the exact command, explains the clock mismatch and exposes Retry storage.
+  Correcting a fast device clock lets that retry classify the retained future ID as invalid and
+  use the existing explicit discard/refresh flow. If the server clock is behind, recovery remains
+  uncertain until the clock condition is corrected. Eleven marker-shape cases, two component
+  cases and a repeated real HTTP/PostgreSQL request verify strict binding, no automatic replacement,
+  no effects/receipt, and no false proof of failure.
+
+### Guidance and review
+
+Applied the previously recorded API, service, validation, Blazor/interop, placement, tenancy and
+testing guidance and feature recipes. Inspected both placement and evaluation executors/storage
+modules, the base component's cancellation/disposal order, invalid-data compare-and-delete,
+expiry recovery and the real trait markup/responsive rules. Evaluate's different expiry handling
+does not supply a durable non-commit marker; it is not a precedent for falsely settling Place.
+
+Independent session `/root/recovery_review` diagnosed all four findings and reviewed production,
+new tests and later fixture corrections. The desktop-test issue was fixed; final review found no
+remaining actionable findings. No composition changed. Existing evidence and its limited finish
+disposition remain applicable; no new whole-surface finish or comp measurement is claimed.
+These are applications of existing ownership, recovery-proof and behavioral-test rules, so no
+new skill or permanent instruction was added.
+
+### Validation
+
+Tested source: base `7553c9c9ed6ca5d01b8cdf99e0c9da910c9ac712` plus this round's
+15-file code/test diff. SHA-256
+`c8a497aa5f42cf315d68b74ba6bba17234a20fd5f0ef6a3b2c040ea8b0bf186a`
+identifies the sorted 1,174 source-path/raw-content-hash pairs. The PR body names the resulting
+single commit. Only this validation document was edited after the final build.
+
+| Command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx` | Final build passed, 18.73s; three existing Sass deprecation warnings |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,401 passed, zero failures/skips; 42.783s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 621 passed, zero failures/skips; 3m12.667s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 187 passed, zero failures, seven existing optional capture skips (194 total); 5m00.993s |
+| `dotnet format Nova.slnx --verify-no-changes` | Full check passed; after the final one-line browser-readiness addition, `dotnet format Nova.slnx --verify-no-changes --include Nova.Browser.Tests/CampaignEvaluationFinderFocusBrowserTests.cs` also passed |
+| `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Passed; no pending model changes. Existing tools 10.0.8/runtime 10.0.12 warning remains |
+| `npm run check:contrast` from `Nova/` | All contrast ratios and token assertions passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.js --json` | No findings (`[]`); existing unrelated Evaluate `COMP_ROUND_OPEN` advisory remains |
+
+Browser execution used `NOVA_PLACE_EVIDENCE=D:/repos/Nova/.git/pr270-round12-captures`.
+Integration and browser suites ran serially across the machine. Application source and generated
+assets remained fixed during browser execution. All 1,174 source hashes matched after the final
+run; `git diff --check` passed before committing.
+
+Preserved intermediate results: the targeted formatting pass reported non-automatic S3358 and
+CA2012 fixes. The nested conditional became explicit branches. The first build failed on the
+new lifetime fixture's ambiguous test-context name and `ValueTask` mocking setup (3m05.21s).
+A recording interop wrapper replaced that setup; its missing failure-path cleanup then produced
+CA2000 in the next build (32.51s). Await-using fixture cleanup fixed that finding without weakening
+the one-component-disposal assertion. The following build passed in 30.62s and all 3,401 unit
+tests passed in 44.202s. Adding the existing non-submitting composer-attachment helper to the
+desktop browser test was the only later source edit; final build/unit results appear above.
+No diagnostics were suppressed to obtain these results.
+
+Local logs use `.git/pr270-round12-`: `build-complete.log`, `unit-final.log`, `integration.log`,
+`browser.log`, `format.log`, `format-readiness.log`, `model.log`, `contrast.log`, and
+`detector.json`. Initial build failures are retained in `build.log` and `build-final.log`;
+the first passing build/unit logs are `build-verified.log` and `unit.log`.
+
+This PR includes migration `20260915015851_PlacementRecoveryAndHistory`; this review round changes
+no schema. Existing evidence remains curated at the previously recorded revisions; new diagnostic
+captures remain local. No check was disabled or weakened. All three suites must run again before merge.

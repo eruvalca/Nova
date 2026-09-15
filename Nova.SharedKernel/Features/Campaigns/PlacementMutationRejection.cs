@@ -3,9 +3,26 @@ using Nova.SharedKernel.Results;
 
 namespace Nova.SharedKernel.Features.Campaigns;
 
-/// <summary>Identifies a durable rejection that prevents this exact operation from ever committing.</summary>
+/// <summary>Classifies placement recovery diagnostics and durable non-commit proof.</summary>
 public static class PlacementMutationRejection
 {
+    /// <summary>The operation timestamp is ahead of the server; this is not proof of non-commit or expiry.</summary>
+    public const string FutureOperationIdExtension = "placementFutureOperationId";
+
+    /// <summary>Recognizes clock guidance bound to this exact retained operation, without settling it.</summary>
+    public static bool IsFutureDated(ServiceProblem problem, Guid operationId)
+    {
+        if (operationId == Guid.Empty || problem.Kind != ServiceProblemKind.Validation
+            || problem.Extensions is null || !problem.Extensions.TryGetValue(FutureOperationIdExtension, out var value)) { return false; }
+        return value switch
+        {
+            Guid id => id == operationId,
+            string text => Guid.TryParseExact(text, "D", out var id) && id == operationId,
+            JsonElement { ValueKind: JsonValueKind.String } element => Guid.TryParseExact(element.GetString(), "D", out var id) && id == operationId,
+            _ => false
+        };
+    }
+
     /// <summary>The expired operation cannot execute again; this does not establish its earlier outcome.</summary>
     public const string ExpiredExtension = "placementExpiredOperationId";
 

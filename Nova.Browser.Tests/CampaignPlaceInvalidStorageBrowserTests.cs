@@ -1,14 +1,17 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
 
 public sealed partial class CampaignPlaceBrowserTests
 {
-    [Fact]
-    public async Task InvalidRecoveryDataCanBeDiscardedExplicitlyBeforeANewDeliberateSaveAsync()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InvalidRecoveryDataCanBeDiscardedExplicitlyBeforeANewDeliberateSaveAsync(bool futureTimestamp)
     {
         var token = TestContext.Current.CancellationToken;
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, token);
@@ -17,15 +20,23 @@ public sealed partial class CampaignPlaceBrowserTests
         await OpenFirstPlacementAsync(page, seed.CampaignId);
         var assignmentId = SelectedAssignmentId(page);
         var key = $"nova:placement:{seed.AdminUserId}:{seed.ClubId}:{seed.CampaignId}";
-        await page.EvaluateAsync("key => sessionStorage.setItem(key, '{invalid')", key);
+        var raw = futureTimestamp
+            ? System.Text.Json.JsonSerializer.Serialize(new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected,
+                null, Guid.NewGuid(), Guid.CreateVersion7(DateTimeOffset.UtcNow.AddDays(1))), System.Text.Json.JsonSerializerOptions.Web)
+            : "{invalid";
+        await page.EvaluateAsync("([key, value]) => sessionStorage.setItem(key, value)", new[] { key, raw });
         await page.ReloadAsync();
         var discard = page.GetByRole(AriaRole.Button, new() { Name = "Discard invalid data and refresh", Exact = true });
         await Expect(discard).ToBeVisibleAsync();
         await Expect(page.Locator(".place-recovery")).ToContainTextAsync("does not undo a save or prove it failed");
         await Expect(SaveButton(page)).ToHaveCountAsync(0);
-        (await page.EvaluateAsync<string>("key => sessionStorage.getItem(key)", key)).ShouldBe("{invalid");
+        (await page.EvaluateAsync<string>("key => sessionStorage.getItem(key)", key)).ShouldBe(raw);
         var directory = Environment.GetEnvironmentVariable("NOVA_PLACE_EVIDENCE");
-        if (!string.IsNullOrWhiteSpace(directory)) { await CaptureInvalidStorageAsync(page, directory, seed.CampaignId); }
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            await CaptureInvalidStorageAsync(page, directory, seed.CampaignId,
+            futureTimestamp ? "future-id-storage" : "invalid-storage");
+        }
         await discard.FocusAsync();
         await page.Keyboard.PressAsync("Enter");
         await Expect(page.Locator("#place-outcome")).ToBeEnabledAsync();

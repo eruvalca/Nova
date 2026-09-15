@@ -479,15 +479,18 @@ public partial class CampaignPlacePanel(
         _searchDebounce?.Cancel();
         _searchDebounce?.Dispose();
         _searchDebounce = null;
-        if (_storageModule is not null)
-        {
-            try { await _storageModule.DisposeAsync(); }
-            catch (Microsoft.JSInterop.JSDisconnectedException)
-            {
-                // Circuit teardown already destroyed the browser module.
-            }
-        }
         await base.DisposeAsyncCore();
+        if (_storageModuleLoad is null) { return; }
+        IJSObjectReference module;
+        try { module = await _storageModuleLoad; }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+        {
+            // A failed/cancelled import produced no browser reference to release.
+            return;
+        }
+        try { await module.DisposeAsync(); }
+        catch (JSDisconnectedException) { /* Circuit teardown already released the browser reference. */ }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { /* Browser teardown cancelled cleanup. */ }
     }
 
     /// <summary>

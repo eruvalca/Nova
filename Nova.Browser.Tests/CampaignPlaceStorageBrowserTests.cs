@@ -13,7 +13,7 @@ public sealed partial class CampaignPlaceBrowserTests
         var seed = await PlacementSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, PlacementSeed.Password);
         var input = new UpdateCampaignPlacementInput(301, PlacementOutcome.Assigned, 90,
-            Guid.Parse("abcdef01-2345-4678-9abc-def012345678"), Guid.Parse("abcdef01-2345-7678-9abc-def012345678"));
+            Guid.Parse("abcdef01-2345-4678-9abc-def012345678"), Guid.CreateVersion7());
 
         var errors = await context.Pages[0].EvaluateAsync<string[]>(StorageContractProbe, new
         {
@@ -35,6 +35,7 @@ public sealed partial class CampaignPlaceBrowserTests
                 {...valid, operationId: '11111111-2222-4333-8444-555555555555'},
                 {...valid, operationId: '11111111-2222-7333-4444-555555555555'},
                 {...valid, operationId: 7},
+                {...valid, operationId: 'ffffffff-ffff-7fff-bfff-ffffffffffff'},
                 {...valid, expectedConcurrencyToken: 'invalid'},
                 {...valid, expectedConcurrencyToken: true},
                 {...valid, expectedConcurrencyToken: '00000000-0000-0000-0000-000000000000'},
@@ -63,6 +64,29 @@ public sealed partial class CampaignPlaceBrowserTests
                 sessionStorage.setItem(key, '{');
                 try { module.readPending(scope); errors.push('read accepted malformed JSON'); } catch {}
                 if (sessionStorage.getItem(key) !== '{') errors.push('malformed JSON evidence removed');
+                const originalNow = Date.now;
+                const now = originalNow();
+                const at = offset => {
+                    const time = (now + offset).toString(16).padStart(12, '0');
+                    return time.slice(0, 8) + '-' + time.slice(8) + '-7aaa-8bbb-ccccddddffff';
+                };
+                try {
+                    Date.now = () => now;
+                    sessionStorage.removeItem(key);
+                    const boundary = {...valid, operationId: at(60_000)};
+                    module.writePending(scope, boundary);
+                    if (module.readPending(scope).operationId !== boundary.operationId) errors.push('inclusive future allowance rejected');
+                    sessionStorage.removeItem(key);
+                    const future = {...valid, operationId: at(60_001)};
+                    try { module.writePending(scope, future); errors.push('future command dispatched'); } catch {}
+                    if (sessionStorage.getItem(key) !== null) errors.push('future command persisted');
+                    const raw = JSON.stringify(future);
+                    sessionStorage.setItem(key, raw);
+                    if (module.readRecovery(scope).invalidValue !== raw) errors.push('future evidence not retained as invalid');
+                    Date.now = () => now + 60_001;
+                    if (module.discardInvalidPending(scope, raw)) errors.push('discard removed an operation that became valid');
+                    if (sessionStorage.getItem(key) !== raw) errors.push('clock advance erased pending evidence');
+                } finally { Date.now = originalNow; sessionStorage.removeItem(key); }
                 for (const input of [valid, {...valid, outcome: 2, teamId: null}, {...valid, outcome: 3, teamId: null}]) {
                     // A C# deserialize/serialize round trip normalizes GUID casing and property order.
                     const reordered = Object.fromEntries(Object.entries(input).reverse());
@@ -74,7 +98,7 @@ public sealed partial class CampaignPlaceBrowserTests
                     module.writePending(scope, reordered);
                     const retained = sessionStorage.getItem(key);
                     const changed = [
-                        {...input, operationId: '11111111-2222-7333-8444-555555555555'},
+                        {...input, operationId: '00000000-0000-7333-8444-555555555555'},
                         {...input, expectedConcurrencyToken: '11111111-2222-4333-8444-555555555555'},
                         {...input, playerCampaignAssignmentId: input.playerCampaignAssignmentId + 1},
                         input.outcome === 1 ? {...input, teamId: input.teamId + 1} : {...input, outcome: input.outcome === 2 ? 3 : 2},

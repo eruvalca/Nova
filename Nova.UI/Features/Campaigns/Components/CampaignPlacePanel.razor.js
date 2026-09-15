@@ -8,6 +8,7 @@ function validatePending(value) {
     // Retained data is untrusted. Preserve invalid evidence, but never dispatch it as a command.
     if (!value || typeof value !== "object" || Array.isArray(value)
         || typeof value.operationId !== "string" || !operationId.test(value.operationId)
+        || Number.parseInt(value.operationId.replaceAll("-", "").slice(0, 12), 16) > Date.now() + 60_000
         || typeof value.expectedConcurrencyToken !== "string" || !guid.test(value.expectedConcurrencyToken)
         || value.expectedConcurrencyToken === emptyGuid
         || !Number.isSafeInteger(value.playerCampaignAssignmentId) || value.playerCampaignAssignmentId <= 0
