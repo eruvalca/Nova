@@ -28,7 +28,9 @@ public partial class CampaignPlacePanel
     private bool IsPostureChanged => _appliedStatus != CampaignStatus
         || !string.Equals(PersistedOwner, EffectiveOwner, StringComparison.Ordinal);
     private bool AuthoritativeEvidenceFresh => _queue is not null && _queueError is null && !_queueStale
-        && !_queueRowsStale && _selectedError is null && !AuthorityLoadFailed;
+        && !_queueRowsStale && _selectedError is null && !AuthorityLoadFailed
+        && _adoptedQueueRequest == _queueRequestSequence && !IsDiscoveryChanged && !IsPostureChanged
+        && _appliedParticipantId == SelectedParticipantId;
     private bool CanSave => CanRecordDecision && _storageReady && !_saving && _selected is not null
         && _phase == PlacementPhase.Editing && IsDraftDirty && _draftOutcome != PlacementOutcome.Undecided
         && (_draftOutcome != PlacementOutcome.Assigned || (_draftTeamId is not null && !_teamChoicesLoading
@@ -225,10 +227,28 @@ public partial class CampaignPlacePanel
         _phase = PlacementPhase.Reconciling;
         await OnReloadRequested.InvokeAsync();
         if (!OwnsOperation(owner, scope, generation)) { return; }
-        await ReconcileAsync();
+        var reconciliation = await ReconcileAsync();
         if (!OwnsOperation(owner, scope, generation)) { return; }
+        if (reconciliation == ReconcileOutcome.PageCorrected)
+        {
+            _pageCorrectionSettlement = new(input, result, owner, scope, generation);
+            // Parameters can arrive inside the navigation callback, before the deferred record exists.
+            await ResumePageCorrectionSettlementAsync();
+            return;
+        }
+        if (reconciliation == ReconcileOutcome.Obsolete)
+        {
+            _keepOperationId = null;
+            EnterConflict("Refresh current placement evidence before editing.");
+            return;
+        }
         await ApplyPendingStateAsync();
         if (!OwnsOperation(owner, scope, generation)) { return; }
+        CompleteSettlement(input, result);
+    }
+
+    private void CompleteSettlement(UpdateCampaignPlacementInput input, ServiceResult<PlacementMutationSuccess> result)
+    {
         var fresh = AuthoritativeEvidenceFresh && !_selectedLoading && !_queueLoading;
         _phase = fresh ? PlacementPhase.Editing : PlacementPhase.ConflictReview;
         if (!result.IsSuccess)
@@ -240,7 +260,7 @@ public partial class CampaignPlacePanel
         }
         _saveMessage = fresh ? $"Placement saved. {SectionCount("NeedsPlacement")} need placement."
             : "Placement saved. Current placement evidence could not be refreshed.";
-        if (_selected?.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
+        if (fresh && _selected?.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
             && _selected.LocalDecision?.ConcurrencyToken != result.Value.ConcurrencyToken && !IsClosed)
         {
             _saveMessage = "Placement saved. A later decision is now shown below.";

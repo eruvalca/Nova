@@ -335,3 +335,55 @@ existing comp measurement limitation remains explicit; this round claims no new 
 All 1,160 source hashes were verified unchanged after the final browser run. The refreshed
 finish review returned **ship** for the history spacing fix, with no remaining findings in that
 scope. Final viewport screenshots and their source/checksum sidecars are curated in the packet.
+
+## PR review round 3
+
+Reviewed Copilot review `5205773923` on `fad30c3e66efc918a5ddb15c1b5d369292b8d328`,
+including its inline finding and all three suppressed findings. This round is one commit.
+
+| Finding | Disposition and behavioral evidence |
+| --- | --- |
+| Prior-season lookup should discard an earlier Assigned decision after a later non-assignment | Inapplicable to the approved historical-evidence contract. The locked [Place brief](../.impeccable/surfaces/placement.md#selected-player-working-sheet) explicitly requires the most recent prior-season `Assigned` outcome. `PreviousPlacementRetainsTheLastAssignedEvidenceWithoutReplacingCurrentSeasonDecisionsAsync` covers later prior-season NotSelected and Withdrawn, then proves that a current-season saved decision disables Keep and remains the persisted outcome without a team. This history does not participate in the current-season effective-placement query or create fallback roster membership. |
+| Suppressed: contradictory previous history transition | Shared server/WASM validation now rejects previous Undecided and a previous team name without previous Assigned, while allowing Assigned with a missing historical team name. The HTTP theory covers valid and invalid partitions; five additional stored-history corruption shapes verify skipped items without losing the raw twenty-row cursor boundary. |
+| Suppressed: settlement ignores PageCorrected/Obsolete | Settlement explicitly handles both outcomes, tracks requested page corrections, and gates feedback/editing/Keep advancement on adopted queue and selected evidence. Eight component cases cover early and delayed parameters, failed corrected reads, closure, repeated Back/Forward correction to an already-applied key, and Keep success/failure. `SavingTheLastParticipantOnPageTwoAdoptsPageOneBeforeEnablingEditingAsync` exercises the real last-row save and URL/count reconciliation. |
+| Suppressed: SQLite cannot execute bounded cleanup | Inapplicable in this repository: the SQLite harness maps receipt expiry to sortable UTC ticks, and both cleanup entry points already have passing provider tests. `PlacementCleanupRemovesAtMostFiveHundredExpiredReceiptsPerPassAsync` verifies oldest-first capped deletion with no tracked materialization for both callers. `GlobalPlacementCleanupDeletesOnlyFiveHundredOldestExpiredReceiptsInPostgresAsync` verifies the production provider. A provider split would reintroduce the behavior corrected in round 2. |
+
+Separate reviewer `/root/recovery_review` inspected the complete round diff and new tests.
+It identified a repeated-correction case where Back/Forward could return to the applied page
+while a selected-player read was pending, and a browser URL wait requiring `WaitUntilState.Commit`.
+Both were fixed and the navigation case received its own regression. Follow-up review, including
+the Keep navigation theory, returned **no actionable findings**. No external review was requested.
+
+Applied the existing feature/API/domain/Blazor/testing recipes and matching instructions already
+listed in this record, including their contract, async ownership, SQLite, and browser references.
+Sibling inspection covered queue loading, selected reads, conflict retry, expired recovery,
+posture cleanup, both receipt cleanup callers, and server/WASM history projection. The existing
+browser Commit guidance covered the local review finding; no new skill or instruction was needed.
+No markup, style, composition, schema, diagnostic suppression, or retry budget changed.
+
+Initial builds exposed method-length and new-test compilation errors. Queue failure handling was
+extracted, a redundant posture branch removed, and the assertions/types corrected. No checks or
+assertions were weakened. Formatting ran before the final build; source remained fixed during tests.
+
+Source fingerprint: `8e586e04343c3cc7918b50bd490f568bce6a4e1b44168e3d47c0f69f59089da1`.
+The local manifest `.git/pr270-round3-source.json` covers 1,163 source files using the same sorted
+path/SHA-256 procedure as prior rounds. The PR body identifies the commit containing this source.
+
+| Check / command | Result |
+| --- | --- |
+| `dotnet build Nova.slnx --no-restore` | Passed; three existing Sass deprecation warnings |
+| Focused unit: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignPlacePanelTests' --filter-class '*CampaignPlacementServiceTests' --filter-class '*HttpPlacementContextQueryServiceTests'` | 199 passed |
+| `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,333 passed; 0 failed/skipped; 54.197s |
+| `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 615 passed; 0 failed/skipped; 4m39.839s |
+| `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 180 passed; 0 failed; eight existing optional capture skips; 5m26.412s |
+| `dotnet format Nova.slnx --verify-no-changes --no-restore` | Passed |
+| `npm run check:contrast` from `Nova/` | Passed |
+| `node .agents/skills/impeccable/scripts/detect.mjs Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor Nova.UI/Features/Campaigns/Components/CampaignPlacePanel.razor.js --json` | No findings in inspected files; the previously documented unrelated Evaluate build-state advisory remains |
+| `git diff --check` | Passed |
+
+Build preceded tests. The read-only format verification overlapped unit/integration execution;
+integration/browser execution was serialized across the machine. Browser source/assets stayed
+fixed with no concurrent build/format process. No production schema changed, so initial migration-model
+evidence remains applicable. Existing curated captures and their finish-review/comp limitations
+remain applicable: this round changes behavior without changing the locked composition.
+Logs and the source manifest are under `.git/pr270-round3-*`. All 1,163 source hashes were rechecked unchanged after browser completion. The Place capture opt-in was not set this round, so its existing capture case joins the seven optional accessibility-capture skips; the new browser regression passed. Existing curated evidence was retained.

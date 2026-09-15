@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
+using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
@@ -13,12 +14,72 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class CampaignPlacementServiceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementOutcome.NotSelected)]
+    [InlineData(PlacementOutcome.Withdrawn)]
+    public async Task PreviousPlacementRetainsTheLastAssignedEvidenceWithoutReplacingCurrentSeasonDecisionsAsync(PlacementOutcome laterOutcome)
+    {
+        await SeedPriorDecisionAsync(PlacementOutcome.Assigned, previousSeason: true);
+        await using (var seed = _harness.CreateAdminContext())
+        {
+            (await seed.Seasons.SingleAsync(row => row.SeasonId == 500, TestContext.Current.CancellationToken)).CreationPreviousSeasonId = 510;
+            seed.Campaigns.Add(new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                CampaignId = 611,
+                Name = "Later prior-season decision",
+                ClubId = ClubAId,
+                SeasonId = 510,
+                SeasonOpeningSequence = 6,
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow,
+                ClosedById = ClubAAdminId,
+                CreatedById = ClubAAdminId
+            });
+            seed.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = 311,
+                PlayerId = 700,
+                CampaignId = 611,
+                ClubId = ClubAId,
+                PlacementOutcome = laterOutcome,
+                ConcurrencyToken = Guid.NewGuid(),
+                CreatedById = ClubAAdminId,
+                DecisionRecordedById = ClubAAdminId,
+                DecisionRecordedAt = DateTimeOffset.UtcNow,
+                DecisionActorDisplayName = "Admin A"
+            });
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        ActAs(ClubAMemberId, ClubAId);
+        var service = CreatePlacementContextService();
+        var input = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId };
+        var previous = (await service.GetContextAsync(input, TestContext.Current.CancellationToken)).Value.PreviousPlacement.ShouldNotBeNull();
+        previous.Source.Decision.PlayerCampaignAssignmentId.ShouldBe(310);
+        previous.Source.Decision.Outcome.ShouldBe(PlacementOutcome.Assigned);
+        previous.CanKeep.ShouldBeTrue();
+
+        (await SaveAsync(PlacementOutcome.NotSelected, _clubAConcurrencyToken)).Value.ShouldBeOfType<PlacementMutationSuccess>();
+        var after = (await service.GetContextAsync(input, TestContext.Current.CancellationToken)).Value.PreviousPlacement.ShouldNotBeNull();
+        after.Source.Decision.PlayerCampaignAssignmentId.ShouldBe(310);
+        after.CanKeep.ShouldBeFalse();
+        await using var read = _harness.CreateAdminContext();
+        var current = await read.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == ClubAAssignmentId, TestContext.Current.CancellationToken);
+        current.PlacementOutcome.ShouldBe(PlacementOutcome.NotSelected);
+        current.TeamId.ShouldBeNull();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("undecided")]
     [InlineData("missing-team")]
     [InlineData("unexpected-team")]
     [InlineData("campaign-id")]
     [InlineData("campaign-name")]
     [InlineData("previous-outcome")]
+    [InlineData("previous-undecided")]
+    [InlineData("previous-not-selected-team")]
+    [InlineData("previous-withdrawn-team")]
+    [InlineData("previous-missing-outcome-team")]
+    [InlineData("previous-blank-team")]
     [InlineData("invalid-json")]
     public async Task PlacementContextSkipsMalformedEvidenceWithoutLosingRawPageBoundaryAsync(string shape)
     {
@@ -44,6 +105,11 @@ public sealed partial class CampaignPlacementServiceTests
                 "campaign-id" => context with { CampaignId = 0 },
                 "campaign-name" => context with { CampaignName = " " },
                 "previous-outcome" => context with { PreviousOutcome = (PlacementOutcome)99 },
+                "previous-undecided" => context with { PreviousOutcome = PlacementOutcome.Undecided },
+                "previous-not-selected-team" => context with { PreviousOutcome = PlacementOutcome.NotSelected, PreviousTeamName = "Stale team" },
+                "previous-withdrawn-team" => context with { PreviousOutcome = PlacementOutcome.Withdrawn, PreviousTeamName = "Stale team" },
+                "previous-missing-outcome-team" => context with { PreviousOutcome = null, PreviousTeamName = "Stale team" },
+                "previous-blank-team" => context with { PreviousOutcome = PlacementOutcome.Assigned, PreviousTeamName = " " },
                 "invalid-json" => context,
                 _ => throw new ArgumentOutOfRangeException(nameof(shape))
             };

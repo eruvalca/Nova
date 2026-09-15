@@ -11,5 +11,9 @@ public static class PlacementHistoryValidation
         && item.OccurredAt > DateTimeOffset.UnixEpoch && Enum.IsDefined(item.Outcome)
         && item.Outcome != PlacementOutcome.Undecided
         && (item.Outcome == PlacementOutcome.Assigned ? !string.IsNullOrWhiteSpace(item.TeamName) : item.TeamName is null)
-        && (item.PreviousOutcome is null || Enum.IsDefined(item.PreviousOutcome.Value));
+        && (item.PreviousOutcome is null || (Enum.IsDefined(item.PreviousOutcome.Value)
+            && item.PreviousOutcome != PlacementOutcome.Undecided))
+        && (item.PreviousOutcome == PlacementOutcome.Assigned
+            ? item.PreviousTeamName is null || !string.IsNullOrWhiteSpace(item.PreviousTeamName)
+            : item.PreviousTeamName is null);
 }

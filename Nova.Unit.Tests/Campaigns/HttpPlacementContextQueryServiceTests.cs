@@ -12,6 +12,37 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class HttpPlacementContextQueryServiceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, null, true)]
+    [InlineData(null, "Unexpected team", false)]
+    [InlineData(PlacementOutcome.Undecided, null, false)]
+    [InlineData((PlacementOutcome)99, null, false)]
+    [InlineData(PlacementOutcome.Assigned, "Prior team", true)]
+    [InlineData(PlacementOutcome.Assigned, null, true)]
+    [InlineData(PlacementOutcome.Assigned, " ", false)]
+    [InlineData(PlacementOutcome.NotSelected, null, true)]
+    [InlineData(PlacementOutcome.NotSelected, "Unexpected team", false)]
+    [InlineData(PlacementOutcome.Withdrawn, null, true)]
+    [InlineData(PlacementOutcome.Withdrawn, "Unexpected team", false)]
+    public async Task ContextClientRequiresAConsistentPreviousSavedTransitionAsync(PlacementOutcome? previous, string? teamName, bool valid)
+    {
+        var history = new PlacementHistoryItem(20, 10, "Summer", previous, teamName, PlacementOutcome.NotSelected,
+            null, "Member", DateTimeOffset.UtcNow);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new PlacementContextResult(301, null, [history], null, false))
+        };
+        using var handler = new ContextHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var actual = await new HttpPlacementContextQueryService(http).GetContextAsync(
+            new GetPlacementContextInput { CampaignId = 10, PlayerCampaignAssignmentId = 301 }, TestContext.Current.CancellationToken);
+
+        actual.IsSuccess.ShouldBe(valid);
+        if (valid) { actual.Value.History.Single().ShouldBe(history); }
+        else { actual.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError); }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("valid")]
     [InlineData("null")]
     [InlineData("missingHistory")]

@@ -231,6 +231,9 @@ public partial class CampaignPlacePanel(
     /// <summary>The monotonic queue request identifier used to discard obsolete responses.</summary>
     private int _queueRequestSequence;
 
+    /// <summary>The queue request whose rows and totals were adopted.</summary>
+    private int _adoptedQueueRequest;
+
     /// <summary>The selected participant's authoritative evidence.</summary>
     private CampaignPlaceQueueRow? _selected;
 
@@ -388,6 +391,13 @@ public partial class CampaignPlacePanel(
             return;
         }
 
+        if (_pageCorrectionSettlement is not null)
+        {
+            DeferWhileSaving();
+            await ResumePageCorrectionSettlementAsync();
+            return;
+        }
+
         if (_saving)
         {
             // A change that arrives mid-save is deferred rather than dropped, so browser back/forward during a
@@ -399,16 +409,6 @@ public partial class CampaignPlacePanel(
 
         if (!Initialized)
         {
-            return;
-        }
-
-        // A lifecycle or authority change swaps the authoritative read entirely: Active and Closed are
-        // different endpoints with different shapes, so neither posture's retained evidence may stand in
-        // for the other, and prior authority's evidence must not survive a re-authorization.
-        if (IsPostureChanged)
-        {
-            ClearPostureEvidence();
-            await LoadInitialAsync();
             return;
         }
 
@@ -573,6 +573,9 @@ public partial class CampaignPlacePanel(
         ++_storageGeneration;
         _attachingStorage = null;
         _reconciling = false;
+        _pageCorrectionSettlement = null;
+        _requestedPageCorrection = null;
+        _resumingPageCorrection = false;
         _keepOperationId = null;
         _phase = PlacementPhase.Editing;
         _pendingCommand = null;
