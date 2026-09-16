@@ -10,12 +10,18 @@ public partial class CampaignWorkspace
     [SupplyParameterFromQuery(Name = "closeSearch")] private string? CloseSearchQuery { get; set; }
     [SupplyParameterFromQuery(Name = "closePage")] private int? ClosePageQuery { get; set; }
     [SupplyParameterFromQuery(Name = "closeBlocker")] private string? CloseBlockerQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "closeOutcome")] private string? CloseOutcomeQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "closeParticipant")] private long? CloseParticipantQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "closeBeforeEventId")] private long? CloseBeforeEventQuery { get; set; }
     [SupplyParameterFromQuery(Name = "returnToClose")] private bool? ReturnToCloseQuery { get; set; }
     private CampaignWorkspaceCloseState CloseState => new()
     {
         Search = CampaignWorkspaceCloseState.NormalizeSearch(CloseSearchQuery),
         Page = CampaignWorkspaceCloseState.NormalizePage(ClosePageQuery),
         Blocker = CampaignWorkspaceCloseState.NormalizeBlocker(CloseBlockerQuery),
+        Outcome = CampaignWorkspaceCloseState.NormalizeOutcome(CloseOutcomeQuery),
+        ParticipantId = CloseParticipantQuery is > 0 ? CloseParticipantQuery : null,
+        BeforeEventId = CloseParticipantQuery is > 0 && CloseBeforeEventQuery is > 0 ? CloseBeforeEventQuery : null,
     };
     /// <summary>The authoritative snapshot persisted across prerender and interactive attachment.</summary>
     [PersistentState] public CampaignLifecycleEvidence? PersistedCloseEvidence { get; set; }
@@ -31,6 +37,21 @@ public partial class CampaignWorkspace
     private string CurrentCloseReadKey => $"{CloseOwner}:{_detailSequence}:{_detail?.Status}";
 
     private string WithCloseContext(string url) => CloseState.Apply(url, ReturnToCloseQuery == true);
+    private void ClearReopenedCloseState(CampaignStatus? previous, CampaignStatus current)
+    {
+        if (previous != CampaignStatus.Closed || current != CampaignStatus.Active) { return; }
+        CloseOutcomeQuery = null;
+        CloseParticipantQuery = null;
+        CloseBeforeEventQuery = null;
+        ClosePageQuery = 1;
+        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["closeOutcome"] = null,
+            ["closeParticipant"] = null,
+            ["closeBeforeEventId"] = null,
+            ["closePage"] = null,
+        }), replace: true);
+    }
     private string BuildCloseUrl(CampaignWorkspaceCloseState state)
         => state.Apply(CampaignWorkspaceUrlState.WithEvaluationContext(
             CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, _placementState, _filters, _selectedParticipantId, PlacementParticipantQuery, ReturnToEvaluationQuery == true)
@@ -38,6 +59,9 @@ public partial class CampaignWorkspace
     private string BuildCloseParticipantUrl(long participantId)
         => CloseState.Apply(CampaignWorkspaceUrlState.WithEvaluationContext(
             CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new() { Eligibility = "all" }, _filters, _selectedParticipantId, participantId), EvaluationState), returnToClose: true);
+    private string BuildClosedEvaluationUrl(long participantId)
+        => CloseState.Apply(WithPlacementContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
+            EvaluationState with { ParticipantId = participantId }, _filters, _selectedParticipantId)), returnToClose: true);
     private Task OnCloseStateChangedAsync(CampaignWorkspaceCloseState state)
     {
         navigationManager.NavigateTo(BuildCloseUrl(state));

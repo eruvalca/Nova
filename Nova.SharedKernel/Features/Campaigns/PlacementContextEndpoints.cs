@@ -17,7 +17,10 @@ public static class PlacementContextEndpoints
         ArgumentNullException.ThrowIfNull(input);
         var route = GetPlacementContextRelative.Replace("{campaignId:long}", input.CampaignId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{playerCampaignAssignmentId:long}", input.PlayerCampaignAssignmentId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        var query = new List<string>();
+        if (input.BeforeEventId is > 0 and long cursor) { query.Add($"beforeEventId={cursor.ToString(CultureInfo.InvariantCulture)}"); }
+        if (input.RequireClosed is true) { query.Add("requireClosed=true"); }
         return new Uri($"{CampaignEndpoints.GroupPrefix}/{route}"
-        + (input.BeforeEventId is > 0 and long cursor ? $"?beforeEventId={cursor.ToString(CultureInfo.InvariantCulture)}" : string.Empty), UriKind.Relative);
+            + (query.Count > 0 ? "?" + string.Join("&", query) : string.Empty), UriKind.Relative);
     }
 }

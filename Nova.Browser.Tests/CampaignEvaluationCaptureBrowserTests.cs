@@ -360,8 +360,10 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
         var page = context.Pages[0];
+        var events = RecordNavigationDiagnostics(page);
         await OpenEvaluationAsync(page, seed.CampaignId, seed.AssignmentIds[1], search: "Player");
         await Expect(page.Locator(".evaluation-save")).ToBeEnabledAsync();
+        await InstallFinalClickDiagnosticsAsync(page);
         var origin = page.Url;
         await page.Locator("#evaluation-note").FillAsync("Keep the original tab draft.");
         var initialPageCount = context.Pages.Count;
@@ -376,7 +378,9 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         {
             var draft = await page.Locator("#evaluation-note").InputValueAsync();
             var pages = string.Join(" | ", context.Pages.Select(item => item.Url));
-            throw new TimeoutException($"Ctrl-click did not produce a new context page. Original URL: {origin}; current URL: {page.Url}; original-tab draft: {draft}; context pages: {pages}", exception);
+            var pointerEvents = await page.EvaluateAsync<string>("JSON.stringify(window.__evaluationClickDiagnostics ?? [])");
+            var snapshot = await page.Locator("body").AriaSnapshotAsync();
+            throw new TimeoutException($"Ctrl-click did not produce a new context page. Original URL: {origin}; current URL: {page.Url}; original-tab draft: {draft}; context pages: {pages}; events: {string.Join('\n', events)}; pointer/history: {pointerEvents}; ARIA: {snapshot}", exception);
         }
         context.Pages.Count.ShouldBe(initialPageCount + 1);
         popup.ShouldNotBeSameAs(page);
@@ -521,11 +525,28 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
                 if (entries.length < 100) entries.push({kind, time: performance.now(), scrollY, url: location.href, ...detail});
             };
             for (const kind of ['pointerdown', 'pointerup', 'click']) {
-                document.addEventListener(kind, event => record(kind, {
-                    href: event.target instanceof Element ? event.target.closest('a')?.getAttribute('href') : null,
-                    target: event.target instanceof Element ? event.target.tagName : null,
-                    x: event.clientX, y: event.clientY, prevented: event.defaultPrevented
-                }), true);
+                // Window capture precedes the document guard, including stopImmediatePropagation.
+                window.addEventListener(kind, event => {
+                    const target = event.target instanceof Element ? event.target : null;
+                    const anchor = target?.closest('a');
+                    const describe = node => node instanceof Element
+                        ? {tag:node.tagName, id:node.id, classes:node.className, href:node.getAttribute('href')}
+                        : {name:node?.nodeName ?? 'window'};
+                    const detail = {
+                        href: anchor?.getAttribute('href'), target: describe(target),
+                        path: event.composedPath().map(describe),
+                        hit: describe(document.elementFromPoint(event.clientX, event.clientY)),
+                        anchorBox: anchor?.getBoundingClientRect().toJSON(),
+                        x: event.clientX, y: event.clientY, prevented: event.defaultPrevented,
+                        button: event.button, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey
+                    };
+                    record(kind, detail);
+                    // A later task observes cancellation after all capture/bubble handlers ran.
+                    setTimeout(() => record(kind + '-completed', {
+                        ...detail, prevented: event.defaultPrevented, anchorConnected: anchor?.isConnected,
+                        finalAnchorBox: anchor?.getBoundingClientRect().toJSON()
+                    }), 0);
+                }, true);
             }
             for (const method of ['pushState', 'replaceState']) {
                 const original = history[method];

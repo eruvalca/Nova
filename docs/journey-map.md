@@ -18,7 +18,7 @@ not sign in or receive a Nova surface.
 | Actor | Product authority |
 | --- | --- |
 | Unaffiliated authenticated person | Create one club and its first season, or search for one club and submit/cancel one join request. |
-| Approved club member | View authorized club, season, team, player, Active-campaign, and Closed-campaign data; manually maintain players; evaluate; create/apply trait tags; place players during Active campaigns; view role-shaped activity; print/download Closed campaign records. |
+| Approved club member | View authorized club, season, team, player, Active-campaign, and Closed-campaign data; manually maintain players; evaluate; create/apply trait tags; place players during Active campaigns; view role-shaped activity and Closed campaign records in-app. |
 | Club administrator | All member authority plus season advancement, durable team management, Draft creation/preparation/deletion, campaign open/close/eligible reopen, member/request management, tag rename/archive/restore, bulk CSV intake, and the narrow later-campaign override of a prior `Withdrawn` outcome. |
 
 Authorization is club-scoped and enforced at every server query and mutation.
@@ -143,6 +143,8 @@ cannot return to Draft or be deleted.
 Manual intake and bulk import produce the same durable player model. CSV intake
 is administrator-only, limited to 1,000 data rows, and lives in Players—not the
 Club area. It never creates accounts, assignments, evaluations, or invitations.
+The blank import template remains downloadable. Validation errors and results
+are reviewed in-app; there is no import-error CSV download.
 
 ### 5. Evaluate players collaboratively
 
@@ -180,7 +182,7 @@ The flow is player-first. It has no capacity model, team-column drag board, bulk
 placement, vote, private draft, eligibility override, or rewrite of a Closed
 source campaign.
 
-### 7. Close, review, reopen, and export a campaign
+### 7. Close, review, and reopen a campaign
 
 1. Every member can review close readiness and the complete proposed final
    record. `Undecided`, ineligible assignments, and archived-team assignments are
@@ -188,11 +190,13 @@ source campaign.
 2. A club administrator confirms close against a fresh authoritative snapshot.
    Success freezes evaluation and placement and establishes the Closed campaign's
    official, campaign-specific record.
-3. Every approved member may read, print, and download CSV for that Closed record.
-   A later supplemental campaign never changes it.
+3. Every approved member may read that Closed record, search and filter its
+   bounded roster, and inspect selected participant and lifecycle history in-app.
+   A later supplemental campaign never changes its outcomes. There is no roster
+   export or printing.
 4. Only the most recently opened campaign in the current season may reopen, and
    only when doing so preserves the one-Active rule. Reopen retains outcomes and
-   audit history, restores Active editing, and removes final-export posture until
+   audit history, restores Active editing, and replaces the final-record view until
    the campaign closes again.
 
 There is no soft close, automatic `NotSelected`, post-close unassign, Closed

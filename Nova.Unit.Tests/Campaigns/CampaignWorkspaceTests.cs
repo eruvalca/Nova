@@ -2715,7 +2715,11 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
                 return new ServiceResult<ClosedCampaignRosterResult>(new ClosedCampaignRosterResult(
                     new(10, "Summer Tryouts", CampaignStatus.Closed, new(5, "Summer 2026")),
                     new(rows, result.Value.Page, result.Value.PageSize, result.Value.TotalCount))
-                { ParticipantCount = result.Value.TotalCount });
+                {
+                    ParticipantCount = result.Value.TotalCount,
+                    Summary = new(0, result.Value.TotalCount, 0, 0, result.Value.TotalCount),
+                    ClosingEvent = new(1, CampaignLifecycleEventType.Closed, DateTimeOffset.UnixEpoch, 1, "Original closer")
+                });
             });
         return service;
     }

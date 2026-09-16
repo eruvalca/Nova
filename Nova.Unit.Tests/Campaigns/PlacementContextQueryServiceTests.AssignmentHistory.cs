@@ -62,7 +62,7 @@ public sealed partial class CampaignPlacementServiceTests
         active.History.Select(item => item.CampaignId).ShouldBe([610L, 600L]);
         active.History.Select(item => item.Outcome).ShouldBe([PlacementOutcome.NotSelected, PlacementOutcome.Assigned]);
         await AssertHistoryAcceptedByHttpClientAsync(active, activeInput);
-        var closedInput = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId };
+        var closedInput = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId, RequireClosed = true };
         var closed = (await CreatePlacementContextService().GetContextAsync(closedInput, TestContext.Current.CancellationToken)).Value;
         closed.History.ShouldHaveSingleItem().ShouldBe(active.History[1]);
         await AssertHistoryAcceptedByHttpClientAsync(closed, closedInput);

@@ -38,7 +38,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
 
             group.MapGet(PlacementContextEndpoints.GetPlacementContextRelative, GetPlacementContextAsync)
                 .Produces<PlacementContextResult>().ProducesValidationProblem()
-                .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(500)
+                .ProducesProblem(401).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409).ProducesProblem(500)
                 .RequireAuthorization(Policies.RequireClubMember).WithName(PlacementContextEndpoints.GetPlacementContextRouteName);
 
             group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandlerAsync)

@@ -331,7 +331,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
                 page["items"]!.AsArray().Add(second);
                 page["totalCount"] = 2;
                 if (endpoint == 1) { payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web); }
-                if (endpoint == 2) { payload["participantCount"] = 2; }
+                if (endpoint == 2) { SetClosedTotal(payload, 2); }
             }
             else
             {
@@ -368,7 +368,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         payload[PageName(endpoint)]!["totalCount"] = 2;
         if (endpoint == 2)
         {
-            payload["participantCount"] = 2;
+            SetClosedTotal(payload, 2);
         }
 
         (await ReadPayloadAsync(endpoint, payload.ToJsonString())).IsSuccess.ShouldBeTrue();
@@ -604,7 +604,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
             (await ReadPayloadAsync(2, closed.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
         }
         var filtered = Payload(2);
-        filtered["participantCount"] = 100;
+        SetClosedTotal(filtered, 100);
         (await ReadPayloadAsync(2, filtered.ToJsonString())).Value.ShouldBeOfType<ClosedCampaignRosterResult>().ParticipantCount.ShouldBe(100);
     }
 
@@ -662,6 +662,11 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
                     second["effectiveTeam"] = null;
                     second["eligibility"] = (int)EffectivePlacementEligibility.Resolved;
                     payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 1, 1, 0), JsonSerializerOptions.Web);
+                }
+                else
+                {
+                    second["teamLifecycleStatus"] = null;
+                    payload["summary"] = JsonSerializer.SerializeToNode(new CampaignPlacementSummaryDto(1, 1, 0, 0, 2), JsonSerializerOptions.Web);
                 }
             }
             if (string.Equals(direction, "desc", StringComparison.Ordinal)) { ReverseRows(payload); }
@@ -788,7 +793,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
             second["localDecision"]!["playerCampaignAssignmentId"] = 102;
             payload["counts"] = JsonSerializer.SerializeToNode(new EffectivePlacementCounts(0, 2, 0, 0), JsonSerializerOptions.Web);
         }
-        else { payload["participantCount"] = 2; }
+        else { SetClosedTotal(payload, 2); }
         payload["participants"]!["items"]!.AsArray().Add(second);
         payload["participants"]!["totalCount"] = 2;
         return payload;
@@ -819,11 +824,17 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
                 new([new(101, 202, "Zoe", "Adams", 2028, 42, LifecycleStatus.Active, _decisionToken, Decision(), source, source.Team,
                     EffectivePlacementEligibility.OptionalReassignment, PlacementCorrectionReason.None) { LocalTeam = source.Team }], 1, 50, 1)),
             2 => new ClosedCampaignRosterResult(new(42, "Campaign", CampaignStatus.Closed, season),
-                new([new(101, 202, "Zoe", "Adams", 2028, 42, source)], 1, 50, 1))
-            { ParticipantCount = 1 },
+                new([new(101, 202, "Zoe", "Adams", 2028, 42, source) { TeamLifecycleStatus = LifecycleStatus.Active }], 1, 50, 1))
+            { ParticipantCount = 1, Summary = new(1, 0, 0, 0, 1), ClosingEvent = new(1, CampaignLifecycleEventType.Closed, DateTimeOffset.UnixEpoch, 70, "Original closer") },
             _ => throw new ArgumentOutOfRangeException(nameof(endpoint))
         };
         return JsonSerializer.SerializeToNode(payload, JsonSerializerOptions.Web)!;
+    }
+
+    private static void SetClosedTotal(JsonNode payload, int count)
+    {
+        payload["participantCount"] = count;
+        payload["summary"] = JsonSerializer.SerializeToNode(new CampaignPlacementSummaryDto(count, 0, 0, 0, count), JsonSerializerOptions.Web);
     }
 
     private static string PageName(int endpoint) => endpoint == 0 ? "roster" : "participants";

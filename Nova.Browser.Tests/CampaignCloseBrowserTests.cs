@@ -81,12 +81,19 @@ public sealed partial class CampaignCloseBrowserTests(BrowserSuiteFixture fixtur
         await Expect(page.Locator("#lifecycle-heading")).ToBeFocusedAsync();
         await Expect(page.Locator(".lifecycle-checkpoint")).ToContainTextAsync("Campaign closed.");
         await Expect(page.Locator(".close-roster")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".closed-record tbody a")).ToHaveCountAsync(50);
+        await Expect(page.Locator(".record-summary")).ToContainTextAsync("Not selected 60");
         await CaptureAsync(page, "closed");
         await page.GetByRole(AriaRole.Button, new() { Name = "Review reopen", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign", Exact = true }).ClickAsync();
         await Expect(page.Locator(".lifecycle-checkpoint")).ToContainTextAsync("Campaign reopened.");
         await Expect(page.Locator(".close-review")).ToContainTextAsync("Not selected 60");
         await Expect(page.Locator("#lifecycle-heading")).ToBeFocusedAsync();
+        await Expect(page.Locator(".closed-record")).ToHaveCountAsync(0);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Review close", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Close campaign", Exact = true }).ClickAsync();
+        await Expect(page.Locator(".closed-record tbody a")).ToHaveCountAsync(50);
+        await Expect(page.Locator(".lifecycle-history li")).ToHaveCountAsync(3);
     }
 
     private async Task PrepareReviewAsync(SeededEvaluationWorkspace seed)

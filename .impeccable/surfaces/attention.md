@@ -101,7 +101,7 @@ Explicit exclusions:
 
 - Adding, editing, or deleting evaluation notes.
 - Applying, creating, renaming, or archiving tags.
-- Opening a page, viewing a player, downloading an export, filtering a directory, or other observational behavior.
+- Opening a page, viewing a player, downloading the blank import template, filtering a directory, or other observational behavior.
 - Campaign metadata edits that do not change lifecycle, routine player/team CRUD, authentication events, and system diagnostics.
 - Technical enrollment rows created automatically when a campaign opens or a player is added. Participation is not a fabricated placement decision.
 

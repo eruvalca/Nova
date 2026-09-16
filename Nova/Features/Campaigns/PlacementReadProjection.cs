@@ -18,7 +18,11 @@ internal static class PlacementReadProjection
                 a.DecisionRecordedAt!.Value, a.DecisionRecordedById!.Value, a.DecisionActorDisplayName!, a.ConcurrencyToken),
                 a.Campaign.Name,
                 a.Team != null && a.Team.ClubId == clubId
-                    ? new CampaignParticipantTeamSummaryDto(a.Team.TeamId, a.Team.Name) : null));
+                    ? new CampaignParticipantTeamSummaryDto(a.Team.TeamId, a.Team.Name) : null))
+        {
+            PlayerLifecycleStatus = a.Player.LifecycleStatus,
+            TeamLifecycleStatus = a.Team != null && a.Team.ClubId == clubId ? a.Team.LifecycleStatus : null,
+        };
 
     internal static Expression<Func<PlayerCampaignAssignmentEntity, CurrentSeasonRosterItem>> RosterRow()
         => a => new CurrentSeasonRosterItem(a.PlayerId, a.Player.FirstName, a.Player.LastName,

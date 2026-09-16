@@ -73,6 +73,8 @@ The complete product model and eight end-to-end flows are recorded in the
 - Every approved member may manually add, edit, archive, and restore player
   records. Administrators additionally own the bounded CSV
   **Template → Upload → Review → Finish** import flow.
+  The blank import template remains downloadable; row errors and results stay
+  in the application, with no import-error CSV download.
 - Every approved member may find campaign participants, create shared
   author-attributed evaluation notes, apply trait tags, and create missing trait
   tags inline. Note authors own their edits/deletes. Administrators own tag
@@ -93,9 +95,10 @@ The complete product model and eight end-to-end flows are recorded in the
 - Evaluation and placement outcomes are immutable while Closed. There is no
   post-close unassign or correction mutation. Only the most recently opened
   campaign in the current season may reopen, subject to the one-Active rule.
-- Every approved member may print or download CSV for a Closed campaign's
-  immutable, campaign-specific final roster. Later supplemental decisions do
-  not change that record.
+- Every approved member may inspect a Closed campaign's immutable,
+  campaign-specific final roster and bounded in-app history. Later supplemental
+  decisions do not change that record. Roster export and printing are outside
+  the product scope.
 - Attention is in-app only: role-shaped append-only activity for approved
   members plus administrator attention for pending join requests and players who
   need placement. Nova has no email, push, notification inbox, bell, unread

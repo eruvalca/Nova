@@ -109,8 +109,23 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Markup.ShouldContain("3");
 
         var nameLink = cut.Find("tbody a");
-        nameLink.GetAttribute("href").ShouldBe("campaigns/10");
+        nameLink.GetAttribute("href").ShouldBe("/campaigns/10");
         nameLink.TextContent.Trim().ShouldBe("Summer Tryouts");
+    }
+
+    [Fact]
+    public void ClosedDirectoryNameAndActionOpenTheFinalRecord()
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        var group = CreateSeasonGroups()[0];
+        var closed = group.Campaigns[0] with { Status = CampaignStatus.Closed };
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignListResult>(new CampaignListResult { Seasons = [group with { Campaigns = [closed] }], TotalCount = 1 }));
+        RegisterServices(isClubAdmin: false, queryService: queries);
+        var cut = Render<CampaignsPage>();
+        var links = cut.FindAll("tbody a");
+        links.Count.ShouldBe(2);
+        links.ShouldAllBe(link => string.Equals(link.GetAttribute("href"), $"/campaigns/{closed.CampaignId}?tab=close", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
 using Nova.UI.Features.Campaigns.Components;
@@ -14,6 +15,30 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignWorkspaceTests
 {
+    [Fact]
+    public async Task DelayedHistoryDenialAfterUnchangedParentRefreshSettlesAndRemainsRetryableAsync()
+    {
+        RegisterServices(detailResult: new ServiceResult<CampaignDetailResult>(CreateDetail(status: CampaignStatus.Closed)));
+        var history = Services.GetRequiredService<IPlacementContextQueryService>();
+        var first = new TaskCompletionSource<ServiceResult<PlacementContextResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<ServiceResult<PlacementContextResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        history.GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(first.Task, second.Task, Task.FromResult(new ServiceResult<PlacementContextResult>(new PlacementContextResult(101, null, [], null, false))));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=close&closeParticipant=101");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        first.SetResult(new ServiceResult<PlacementContextResult>(ServiceProblem.Forbidden("Membership changed")));
+        await cut.WaitForAssertionAsync(() =>
+            _ = history.Received(2).GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>()));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        second.SetResult(new ServiceResult<PlacementContextResult>(ServiceProblem.Forbidden("Membership still changed")));
+        await cut.WaitForAssertionAsync(() => cut.Find(".participant-history [role=alert]").TextContent.ShouldContain("could not be loaded"));
+        _ = history.Received(2).GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>());
+        _ = Services.GetRequiredService<ICampaignQueryService>().Received(2).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+        await cut.Find(".participant-history button").ClickAsync(new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => cut.FindAll(".participant-history [role=alert]").ShouldBeEmpty());
+        _ = history.Received(3).GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>());
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(42_949_673, 42_949_673)]
     [InlineData(int.MaxValue, 1)]

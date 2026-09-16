@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
@@ -80,6 +81,7 @@ public sealed partial class CampaignPlacementHttpTests
         context.History[0].CampaignId.ShouldBe(campaignId);
         context.NextEventId.ShouldBeNull();
         context.PreviousPlacement.ShouldBeNull();
+        await AssertClosedContextGuardAsync(member, contextInput, cancellationToken);
         // Bypass canonical URL normalization to exercise rejection of malformed wire input.
         var invalidUrl = new Uri(PlacementContextEndpoints.Url(contextInput).OriginalString + "?beforeEventId=0", UriKind.Relative);
         using var invalid = await member.GetAsync(invalidUrl, cancellationToken);
@@ -87,5 +89,15 @@ public sealed partial class CampaignPlacementHttpTests
         using var missing = await member.GetAsync(PlacementContextEndpoints.Url(contextInput with { PlayerCampaignAssignmentId = long.MaxValue }), cancellationToken);
         missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await db.PlacementMutationReceipts.CountAsync(row => row.ClubId == club.ClubId, cancellationToken)).ShouldBe(1);
+    }
+
+    private static async Task AssertClosedContextGuardAsync(HttpClient member, GetPlacementContextInput input, CancellationToken token)
+    {
+        using var response = await member.GetAsync(PlacementContextEndpoints.Url(input with { RequireClosed = true }), token);
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+        var problem = (await response.Content.ReadFromJsonAsync<JsonObject>(token)).ShouldNotBeNull();
+        problem["status"]!.GetValue<int>().ShouldBe(409);
+        problem["traceId"]!.GetValue<string>().ShouldNotBeNullOrWhiteSpace();
     }
 }

@@ -103,7 +103,7 @@ The Campaign Route Markers are navigation with lifecycle awareness, not a visite
 
 - Closing moves Active to Closed through the administrator-only closeout flow. Closed campaigns remain visible to all club members as immutable season history and do not disappear from the directory. Evaluation and placement mutations, including post-close unassign, are unavailable for every role.
 - Reopening returns Closed directly to Active; it never creates a new Draft or bypasses the one-Active-campaign rule. Only the most recently opened campaign in the current season may reopen, as defined by the closeout brief.
-- Active and Closed campaigns cannot be deleted. Complete-close readiness, unresolved outcomes, immutable Closed detail, constrained reopening, and roster export are owned by the closeout brief and supporting export work.
+- Active and Closed campaigns cannot be deleted. Complete-close readiness, unresolved outcomes, immutable Closed detail, constrained reopening, and in-app final-record inspection are owned by the closeout brief.
 
 ## Draft preparation workspace
 
@@ -177,7 +177,7 @@ Explicit anti-goals:
 - No return from Active to Draft and no deletion of Active or Closed history.
 - No gated stepper, visit-based progress, generic nav tabs, or hidden workflow destinations.
 - No generic card grid, ornamental sports imagery, celebratory interstitial, or CSS-level direction.
-- No redesign of player intake, evaluation details, placement decisions, closeout rules, season management, or export behavior; their owning briefs and foundation issues supply those contracts.
+- No redesign of player intake, evaluation details, placement decisions, closeout rules, or season management; their owning briefs and foundation issues supply those contracts.
 
 ## Constraints and implementation consequences
 
@@ -185,7 +185,7 @@ Explicit anti-goals:
 - Existing campaign screens are behavioral evidence only. Their Bootstrap creation form, status filter, and nav-tabs composition are not design authority.
 - Foundation issue [#178](https://github.com/eruvalca/Nova/issues/178) owns Draft persistence, one-Active enforcement, query-time Draft visibility, opening-time enrollment backfill, transaction safety, and eligibility foundations. Campaign creation currently writes Active immediately and must not be treated as the intended lifecycle.
 - Draft deletion is required by this brief but is not present in the current API or explicitly owned by #178. The campaign-loop build must add or separately track an administrator-only, tenant-safe delete capability rather than simulating deletion in the client.
-- Placement participation depends on [#175](https://github.com/eruvalca/Nova/issues/175); first-class season behavior depends on [#176](https://github.com/eruvalca/Nova/issues/176); detailed close/reopen behavior depends on [#172](https://github.com/eruvalca/Nova/issues/172); roster export depends on [#182](https://github.com/eruvalca/Nova/issues/182). This spine frames those destinations without pre-empting their detailed briefs.
+- Placement participation depends on [#175](https://github.com/eruvalca/Nova/issues/175); first-class season behavior depends on [#176](https://github.com/eruvalca/Nova/issues/176); detailed close/reopen behavior depends on [#172](https://github.com/eruvalca/Nova/issues/172). This spine frames those destinations without pre-empting their detailed briefs. Roster export and printing are outside product scope.
 - Preserve authoritative validation, idempotency keys, lifecycle mutation locks, transactions, retry verification, append-only lifecycle events, bounded queries, and explicit truncation or paging. The opening preview is advisory; the locked server mutation owns the final roster and one-Active invariant.
 
 ## Decision record

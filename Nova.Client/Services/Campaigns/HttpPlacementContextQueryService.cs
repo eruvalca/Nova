@@ -26,7 +26,8 @@ internal sealed class HttpPlacementContextQueryService(HttpClient http) : IPlace
         var boundary = input.BeforeEventId ?? long.MaxValue;
         foreach (var item in result.History)
         {
-            if (!PlacementHistoryValidation.IsValid(item) || item.EventId >= boundary) { return false; }
+            if (!PlacementHistoryValidation.IsValid(item) || item.EventId >= boundary
+                || input.RequireClosed is true && item.CampaignId != input.CampaignId) { return false; }
             boundary = item.EventId;
         }
         if (result.NextEventId is long next && (next >= (input.BeforeEventId ?? long.MaxValue)

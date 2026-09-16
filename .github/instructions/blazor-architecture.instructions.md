@@ -178,6 +178,10 @@ Nova.UI/
   event handlers may enhance the same anchor but must not be the only navigation path. Keep
   canonical route tokens and defensive normalization in the feature URL-state helper; derive
   active state from the normalized URL and expose it with `aria-current="page"`.
+- Within the same authorized workspace, each destination owns its query keys. Preserve other
+  destinations' namespaced discovery, selection, and return context unless an intentional
+  transition resets it. Carry that context through subsequent native forms and paging/selection
+  links, not only the initial handoff.
 - Treat query-string return URLs as untrusted. Normalize them to well-formed local relative paths;
   reject absolute URLs, network-path references, and malformed values, then fall back to a known
   local route.

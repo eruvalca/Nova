@@ -14,6 +14,8 @@ public sealed record GetPlacementContextInput
     [Range(1, long.MaxValue)] public required long PlayerCampaignAssignmentId { get; init; }
     /// <summary>The exclusive event-identity cursor for the next twenty changes.</summary>
     [Range(1, long.MaxValue)] public long? BeforeEventId { get; init; }
+    /// <summary>When true, reject a reopened campaign instead of returning Active history scope.</summary>
+    public bool? RequireClosed { get; init; }
 }
 
 /// <summary>A factual previous-season assignment, separate from current-season membership.</summary>

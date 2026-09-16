@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
 using Nova.SharedKernel.Enums;
@@ -155,6 +156,16 @@ internal static class PlacementSeed
             campaign.Status = CampaignStatus.Closed;
             campaign.ClosedAt = DateTimeOffset.UtcNow.AddDays(-1);
             campaign.ClosedById = adminUserId;
+            context.ActivityEvents.Add(new ActivityEventEntity
+            {
+                ClubId = club.ClubId,
+                CampaignId = campaign.CampaignId,
+                EventKind = ActivityEventKind.CampaignClosed,
+                ActorUserId = adminUserId,
+                ActorDisplayName = "Alice Author",
+                CreatedById = adminUserId,
+                PayloadJson = "{}",
+            });
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -172,6 +183,16 @@ internal static class PlacementSeed
             allResolvedCampaign.Status = CampaignStatus.Closed;
             allResolvedCampaign.ClosedAt = DateTimeOffset.UtcNow.AddDays(-1);
             allResolvedCampaign.ClosedById = adminUserId;
+            context.ActivityEvents.Add(new ActivityEventEntity
+            {
+                ClubId = club.ClubId,
+                CampaignId = allResolvedCampaign.CampaignId,
+                EventKind = ActivityEventKind.CampaignClosed,
+                ActorUserId = adminUserId,
+                ActorDisplayName = "Alice Author",
+                CreatedById = adminUserId,
+                PayloadJson = "{}",
+            });
             await context.SaveChangesAsync(cancellationToken);
 
             var activeCampaign = await context.Campaigns.SingleAsync(

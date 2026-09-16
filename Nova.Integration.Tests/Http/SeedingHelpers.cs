@@ -247,6 +247,16 @@ internal static class SeedingHelpers
                 previousCampaign.Status = CampaignStatus.Closed;
                 previousCampaign.ClosedAt = DateTimeOffset.UtcNow;
                 previousCampaign.ClosedById = user.Id;
+                context.ActivityEvents.Add(new ActivityEventEntity
+                {
+                    ClubId = clubId,
+                    CampaignId = previousCampaign.CampaignId,
+                    EventKind = ActivityEventKind.CampaignClosed,
+                    ActorUserId = user.Id,
+                    ActorDisplayName = "Seeded closing actor",
+                    CreatedById = user.Id,
+                    PayloadJson = "{}",
+                });
             }
 
             if (previousActiveCampaigns.Count > 0)

@@ -220,6 +220,16 @@ public sealed class CampaignWorkspaceBrowserTests(BrowserSuiteFixture fixture)
         campaign.Status = CampaignStatus.Closed;
         campaign.ClosedAt = DateTimeOffset.UtcNow;
         campaign.ClosedById = seed.AdminUserId;
+        db.ActivityEvents.Add(new ActivityEventEntity
+        {
+            ClubId = seed.ClubId,
+            CampaignId = campaign.CampaignId,
+            EventKind = ActivityEventKind.CampaignClosed,
+            ActorUserId = seed.AdminUserId,
+            ActorDisplayName = "Original closer",
+            CreatedById = seed.AdminUserId,
+            PayloadJson = "{}",
+        });
         var assignment = await db.PlayerCampaignAssignments.Include(a => a.Player)
             .SingleAsync(a => a.PlayerCampaignAssignmentId == seed.AssignmentIds[0], token);
         assignment.Player.FirstName = "Avery";

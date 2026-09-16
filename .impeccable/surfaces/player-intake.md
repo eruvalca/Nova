@@ -159,7 +159,7 @@ Explicit anti-goals:
 - No inline spreadsheet editor, guessed column mapping, silent coercion, silent duplicate merge, overwrite, or restore.
 - No all-or-nothing requirement that forces clean rows to wait for unrelated bad rows; equally, no hidden commitment of rows the administrator did not review as eligible.
 - No one-request-per-row client loop, unbounded preview table, decorative upload celebration, generic CRUD cards, or CSS-level visual specification.
-- No redesign of evaluation, placement, campaign closeout, team composition, or final roster export. Their owning briefs define those workflows.
+- No redesign of evaluation, placement, campaign closeout, team composition, or final roster inspection. Their owning briefs define those workflows.
 
 ## Constraints and implementation consequences
 

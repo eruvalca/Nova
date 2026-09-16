@@ -8,11 +8,11 @@ Visitor mode: Operate
 
 ## Job and audience
 
-Nova must give club staff a dependable boundary between active decision-making and an official campaign record. Every approved club member reaches Close to understand whether the campaign is ready, review the complete outcome, and return to unresolved placement work. A club administrator alone commits the lifecycle transition. After close, every member can read and export the final campaign record, while only an eligible administrator can reopen it.
+Nova must give club staff a dependable boundary between active decision-making and an official campaign record. Every approved club member reaches Close to understand whether the campaign is ready, review the complete outcome, and return to unresolved placement work. A club administrator alone commits the lifecycle transition. After close, every member can read the final campaign record in-app, while only an eligible administrator can reopen it.
 
 Closeout is not a celebratory finish screen or a passive totals dashboard. It is the last operational checkpoint in the non-linear **Roster → Evaluate → Place → Close** route. Its job is to prove that every participant has an explicit outcome, expose genuine placement-integrity problems, state exactly what closing changes, and preserve the resulting campaign as stable history.
 
-The activation moment is an administrator seeing a complete, credible roster and confidently closing the campaign without reconciling a spreadsheet. Success is a Closed campaign whose outcome record, audit trail, print view, and CSV agree—and whose history is not rewritten by later supplemental campaigns.
+The activation moment is an administrator seeing a complete, credible roster and confidently closing the campaign without reconciling a spreadsheet. Success is a Closed campaign whose outcome record and bounded in-app history agree—and whose history is not rewritten by later supplemental campaigns.
 
 ## Outcome and proof
 
@@ -21,7 +21,7 @@ The activation moment is an administrator seeing a complete, credible roster and
 - Closing is administrator-only. It makes evaluation and placement read-only for everyone and preserves every campaign outcome until an eligible administrator explicitly reopens that campaign.
 - Closed campaigns permit no unassign, placement replacement, note mutation, or tag mutation. Later same-season changes happen in a new supplemental campaign, preserving the earlier campaign's record.
 - Only the most recently opened campaign in the club's current season may reopen. A later Draft does not matter; any campaign opened later permanently makes the earlier campaign ineligible to reopen.
-- Every approved club member can print or download the Closed campaign's final roster. Exports are campaign-specific records and never drift when a later supplemental campaign changes the effective season roster.
+- Every approved club member can inspect the Closed campaign's final roster in-app. Campaign-local outcomes remain unchanged when a later supplemental campaign changes the effective season roster.
 
 This brief is normative for lifecycle and Closed-campaign mutation behavior. The reconciled journey map and placement brief preserve the same complete-close rule: Closed evaluation and outcomes are immutable, and there is no post-close administrator unassign.
 
@@ -29,7 +29,7 @@ This brief is normative for lifecycle and Closed-campaign mutation behavior. The
 
 Closeout is a **final roster board** at the last Campaign Route Marker. Its upper field gives one written verdict—**Ready to close** or **Work remains**—with authoritative counts and direct correction paths. Below it, one roster confirmation field organizes assigned players by team and separates the terminal non-roster outcomes. The administrator's lifecycle action sits beside its consequence, after the evidence rather than before it.
 
-When Closed, the same surface changes posture instead of becoming a different product: readiness controls give way to closure attribution, the stable campaign record, shared export actions, and narrowly constrained reopen authority. Fieldhouse Wayfinding remains operational and flat. Wayfinding Teal identifies the primary lifecycle action; Signal Amber identifies unresolved work; Copper Rust is reserved for failed operations or destructive/error states. Every status has words, counts, and semantic structure rather than color alone.
+When Closed, the same surface changes posture instead of becoming a different product: readiness controls give way to closure attribution, the stable campaign record, selected participant history, and narrowly constrained reopen authority. Fieldhouse Wayfinding remains operational and flat. Wayfinding Teal identifies the primary lifecycle action; Signal Amber identifies unresolved work; Copper Rust is reserved for failed operations or destructive/error states. Every status has words, counts, and semantic structure rather than color alone.
 
 ## Active closeout working surface
 
@@ -38,7 +38,7 @@ Close retains the shared campaign header and complete Route Markers. The selecte
 The working surface presents, in order:
 
 1. **Readiness verdict** — a written status, participant total, resolved total, and authoritative blocker counts.
-2. **Outcome summary** — `Assigned`, `Not selected`, `Withdrawn`, and `Undecided`, with the unresolved count using the exact **Needs placement** definition from the placement brief.
+2. **Outcome summary** — `Assigned`, `Not selected`, `Withdrawn`, and `Undecided`, with the separate **Needs placement** count using the effective-placement definition from the placement brief. Local `Undecided` is a close blocker even when a valid inherited assignment makes the participant optional reassignment.
 3. **Final roster confirmation** — assigned players grouped by active team, followed by distinct `Not selected` and `Withdrawn` sections. `Undecided` appears as work remaining rather than as part of a final roster.
 4. **Lifecycle checkpoint** — the effect of closing, administrator authority, and the primary close action when every blocker is cleared.
 
@@ -50,7 +50,7 @@ Roster confirmation is bounded and searchable for large campaigns. Whole-campaig
 
 Closeout uses one blocker language, but distinguishes the work each condition requires:
 
-- **Needs a decision — _N_ players:** participants who are eligible, teamless, and currently `Undecided`. The correction path opens Place with **Needs placement** selected and preserves a return to Close.
+- **No campaign decision — _N_ players:** every participant with local `Undecided`, including inherited valid assignments. Review filters by the local outcome blocker, then opens the selected participant in Place with all eligibility states available and a return to Close. This count is distinct from effective **Needs placement**.
 - **Ineligible assignment — _N_ players:** assigned participants whose team is incompatible under the authoritative eligibility policy. The correction path opens the affected placement records for a new valid outcome.
 - **Archived team assignment — _N_ players:** assigned participants referencing a team that can no longer carry the final roster. The correction path opens the affected placement records for reassignment or another explicit terminal outcome.
 
@@ -76,7 +76,7 @@ The Closed surface is the official record for that campaign, not a view of the c
 - Final campaign counts for `Assigned`, `Not selected`, and `Withdrawn`.
 - Assigned players grouped by their final team, plus separate `Not selected` and `Withdrawn` sections.
 - A bounded lifecycle and decision audit that preserves who closed, reopened, changed outcomes while Active, and closed again.
-- Shared **Print roster** and **Download CSV** actions.
+- Search by name or tryout number, outcome filters, 50-row pages and inline selected-participant history in 20-event pages. Group counts describe only the visible page.
 
 Every campaign outcome is immutable while the campaign remains Closed. No member—including an administrator—can unassign, reassign, replace an outcome, edit evaluation content, or use an apparent correction shortcut from the record. An older Closed campaign remains unchanged when a later supplemental campaign moves or resolves the same player.
 
@@ -93,45 +93,37 @@ Reopen is administrator-only and appears on the Closed record only when all of t
 
 Later unopened Drafts may coexist and do not make the latest operational campaign historical. A campaign from an earlier season or one followed by any later opened campaign cannot reopen. Its record explains the reason in words and links to the current/latest campaign when that provides a useful next step; it does not render a permanently disabled action without explanation.
 
-Reopening uses inline confirmation that names the campaign and consequence: existing outcomes and audit history remain, evaluation and placement become editable again, and exports cease to represent a final record until the campaign closes again. Reopen does not reset players to `Undecided`, create a Draft, discard outcomes, or alter later unopened Drafts.
+Reopening uses inline confirmation that names the campaign and consequence: existing outcomes and audit history remain, evaluation and placement become editable again, and the final-record view returns to Active review until the campaign closes again. Reopen does not reset players to `Undecided`, create a Draft, discard outcomes, or alter later unopened Drafts.
 
-On success, remain on Close, move focus to the Active status, announce **Campaign reopened**, and restore the working-surface posture and complete active route. Staff deliberately choose Evaluate or Place rather than being redirected. Re-closing evaluates the full fresh blocker set. The new outcomes and latest close attribution become the one official campaign record; lifecycle and placement audit trails preserve the earlier close, reopen, changes, and subsequent close without creating a downloadable roster-version system.
+On success, remain on Close, move focus to the Active status, announce **Campaign reopened**, and restore the working-surface posture and complete active route. Staff deliberately choose Evaluate or Place rather than being redirected. Re-closing evaluates the full fresh blocker set. The new outcomes and latest close attribution become the one official campaign record; lifecycle and placement audit trails preserve the earlier close, reopen, changes, and subsequent close without creating a second audit ledger.
 
-## Print and CSV export
+## In-app record boundaries
 
-Exports are available only while the campaign is Closed and to every approved club member. They are generated on demand from the authoritative final campaign record. Reopening removes the final-export actions until the campaign closes again; re-closing makes newly generated exports reflect the new official outcome.
+Roster export, printing and import-error CSV downloads are outside product scope. CSV player import and its blank downloadable template remain; row errors and results are reviewed in-app. The intake brief's corresponding wording is owned by #218.
 
-The print view is communication-focused:
+The final record reads campaign-local decisions, their original attribution and the latest stored closing event. Whole-campaign integrity and totals are checked before filters. Each page is internally coherent; navigation between pages does not promise one shared snapshot. Archived players and teams remain readable. Player and team display metadata are current; this does not create a profile-snapshot archive.
 
-- Lead with club, season, campaign, written Closed status, latest close attribution, and generation time.
-- Group assigned players by team with stable team ordering and page-break behavior that keeps headings recognizable.
-- Show full name, tryout number when present, and graduation year for each player.
-- Follow assigned rosters with clearly separated `Not selected` and `Withdrawn` appendices.
-- Remove application navigation, controls, filters, and interactive-only status treatment from print while preserving readable hierarchy in color and monochrome.
-
-The CSV is operationally complete and contains one row per campaign participant. It includes campaign and season, player name, tryout number when present, graduation year, final outcome, final team when assigned, decision author, and decision time. Values use stable documented headings and unambiguous human-readable outcomes. Formula-like user content is escaped safely, encoding supports real names, and no evaluation notes, tags, profile imagery, private account data, or internal-only diagnostics are exported.
-
-Print and CSV use the same authoritative participant set and outcomes. An export failure leaves the Closed record intact, names which format failed, and offers a local retry. Generating or downloading an export does not create a lifecycle event or imply that the roster was externally delivered.
+Lifecycle activity shows up to fifty recent close/reopen events. Selected history is campaign-local, independently retryable, and links to the existing read-only evaluation destination. Reopening replaces this record with Active review; a new close refreshes totals and latest closing attribution.
 
 ## States and ranges
 
 The design covers one participant, a typical 20–200-player campaign, and larger bounded/paged campaigns; one team, many teams, mixed graduation years, duplicate names, missing tryout numbers, and long team or player names. It covers all-assigned rosters, mixtures of all three terminal outcomes, all-non-roster outcomes, and each blocker alone or in combination.
 
-Material states include initial loading, partial region failure, authoritative refresh, filtered-empty roster, ready, blocked, close pending, close conflict, close committed after an ambiguous response, Closed, export pending/failed/succeeded, print preparation, reopen eligible, reopen ineligible because of season or lifecycle order, reopen pending/conflicted, reopened, permission changed, and a campaign changed by another administrator.
+Material states include initial loading, partial region failure, authoritative refresh, filtered-empty roster, ready, blocked, close pending, close conflict, close committed after an ambiguous response, Closed, record/history/activity read failure and retry, reopen eligible, reopen ineligible because of season or lifecycle order, reopen pending/conflicted, reopened, permission changed, and a campaign changed by another administrator.
 
-A legitimately Closed record cannot contain `Undecided`. If legacy or inconsistent data produces that state, Nova identifies it as a record-integrity problem rather than presenting a valid final roster or silently repairing it in the browser.
+A legitimately Closed record cannot contain `Undecided`. If inconsistent data produces that state, Nova identifies it as a record-integrity problem rather than presenting a valid final roster or silently repairing it in the browser.
 
 ## Interaction and layout
 
 - Desktop uses one broad flat roster board: readiness and lifecycle consequence remain visible without turning counts into a generic card grid. Team sections support dense scanning and deliberate pagination.
-- Mobile stacks verdict, blockers, roster sections, and lifecycle action in task order. Full Route Marker labels remain available, participant identity never collapses into initials alone, and print/export actions remain distinct.
+- Mobile stacks verdict, blockers, roster sections, and lifecycle action in task order. Full Route Marker labels remain available, participant identity never collapses into initials alone, and selected history remains inline and bounded.
 - Every interactive target is at least 2.75rem. Keyboard focus is visible and deliberately moved after close or reopen. Async feedback is announced; blocker counts, read-only posture, and lifecycle eligibility never rely on color.
 - Search, filters, pagination, and correction handoffs preserve URL-backed context and browser navigation. Returning from Place restores Close and refreshes authoritative readiness.
 - Reduced motion preserves every orientation and status cue. Long and localized labels reflow without separating an action from its consequence.
 
 ## Scope and boundaries
 
-This brief covers the Active Close destination, readiness and final-roster review, administrator close, the Closed campaign record, constrained reopen, and shared print/CSV export experience. It defines production-ready responsive behavior but no visual comp, direction contract, or production code.
+This brief covers the Active Close destination, readiness and final-roster review, administrator close, the Closed campaign record, constrained reopen, and in-app record inspection. It defines production-ready responsive behavior but no visual comp, direction contract, or production code.
 
 Explicit anti-goals:
 
@@ -139,8 +131,8 @@ Explicit anti-goals:
 - No post-close unassign, placement correction, evaluation mutation, inline outcome control, or history rewrite.
 - No reopening an older campaign, a campaign from an inactive season, or a campaign followed by another opened campaign.
 - No automatic redirect after reopen, reset to Draft, outcome reset, or deletion of lifecycle history.
-- No export of evaluation notes, tags, photos, account details, or a live effective roster assembled from later campaigns.
-- No separate downloadable snapshot for every close/reopen cycle and no claim that an export was delivered to players or families.
+- No roster export, printing, import-error CSV download, or live effective roster assembled from later campaigns.
+- No separate snapshot/version ledger for every close/reopen cycle.
 - No bulk placement, roster editing, team management, player management, or spreadsheet import inside Close.
 - No generic completion dashboard, card mosaic, celebratory interstitial, ornamental sports imagery, ambient shadow, color-only state, or CSS-level visual specification.
 
@@ -151,8 +143,7 @@ Explicit anti-goals:
 - The current closeout panels, Bootstrap cards, nav tabs, summary boxes, and blocker copy are behavioral evidence only. They do not govern the new composition.
 - Reopen enforcement must be server-authoritative and concurrency-safe. It needs current-season identity plus deterministic opened-order evidence under the lifecycle mutation lock; planned dates and client ordering are insufficient.
 - Closed-campaign mutation authorization must remove the previously designed administrator unassign path. Existing placement contracts, services, endpoints, and tests that permit post-close unassign must be revised during the owning build/foundation work.
-- Closed record and export queries must project campaign-specific final outcomes, not recalculate historical campaigns from the current effective season roster.
-- Roster export implementation belongs to [#182](https://github.com/eruvalca/Nova/issues/182). The campaign-loop build may own the Close surface and handoff, but it must not simulate CSV or print data from a partially loaded client page.
+- Closed record queries must project campaign-specific final outcomes, not recalculate historical campaigns from the current effective season roster.
 - Preserve lifecycle mutation locks, optimistic concurrency, retry verification, append-only lifecycle events, actor/time attribution, tenant-safe identifiers, and explicit paging or truncation. The server owns every close/reopen invariant.
 - The journey map and reconciled placement brief are normative for same-season eligibility and supersession. They may change effective season truth only through a new decision in a later Active campaign; they never authorize mutation of this Closed campaign record.
 
@@ -166,5 +157,5 @@ Explicit anti-goals:
 - Allow only the most recently opened campaign in the current active season to reopen; ignore later unopened Drafts, but treat any later opened campaign as a permanent boundary.
 - Preserve outcomes when reopening, stay on Close after success, and require normal readiness again before re-closing.
 - Maintain one current official record per campaign while retaining complete lifecycle and placement audit trails across close/reopen cycles.
-- Give every approved club member on-demand print and CSV exports of the Closed campaign record.
-- Use team-grouped communication print plus a one-row-per-participant operational CSV; export no evaluation content or private account data.
+- Give every approved club member searchable, bounded access to the Closed campaign record in-app.
+- Keep team/non-assignment grouping, original attribution and existing history on the final-record board.

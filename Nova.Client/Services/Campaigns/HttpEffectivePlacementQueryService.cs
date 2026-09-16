@@ -152,21 +152,50 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
     private static bool ValidClosed(ClosedCampaignRosterResult result, GetClosedCampaignRosterInput input)
         => result is not null && ValidCampaign(result.Campaign, input.CampaignId, CampaignStatus.Closed)
             && ValidPage(result.Participants, input)
+            && result.Summary is { AssignedCount: >= 0, NotSelectedCount: >= 0, WithdrawnCount: >= 0, UndecidedCount: 0 }
+            && (long)result.Summary.AssignedCount + result.Summary.NotSelectedCount + result.Summary.WithdrawnCount == result.ParticipantCount
+            && result.Summary.TotalCount == result.ParticipantCount
+            && result.ClosingEvent is { CampaignLifecycleEventId: > 0, EventType: CampaignLifecycleEventType.Closed, ActorUserId: > 0 } closure
+            && closure.CreatedAt != default && !string.IsNullOrWhiteSpace(closure.ActorDisplayName)
             && result.ParticipantCount >= result.Participants.TotalCount
             && result.Participants.Items.All(row => row is not null && row.PlayerCampaignAssignmentId > 0
                 && row.TryoutNumber is null or > 0
-                && ValidPlayer(row.PlayerId, row.FirstName, row.LastName, row.GraduationYear)
                 && ValidSource(row.Source, row.PlayerId, result.Campaign.Season.SeasonId, allowUnavailableTeam: false)
+                && Enum.IsDefined(row.PlayerLifecycleStatus)
+                && (row.Source.Decision.Outcome == PlacementOutcome.Assigned
+                    ? row.TeamLifecycleStatus is { } teamStatus && Enum.IsDefined(teamStatus) : row.TeamLifecycleStatus is null)
+                && ValidPlayer(row.PlayerId, row.FirstName, row.LastName, row.GraduationYear)
                 && row.Source.Decision.CampaignId == input.CampaignId
                 && row.Source.Decision.PlayerCampaignAssignmentId == row.PlayerCampaignAssignmentId
                 && ValidDiscovery(input, row.PlayerCampaignAssignmentId, row.GraduationYear,
                     row.Source.Decision.Outcome, row.Source.Team, row.AppliedTags))
+            && ValidClosedOutcomeCounts(result, input)
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
             && (input.SortBy is null && input.SortDirection is null
                 ? Ordered(result.Participants.Items.Select(row => new OrderKey(0, row.LastName, row.FirstName, row.PlayerId)))
                 : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
                     row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber, row.Source.Decision.Outcome, row.Source.Team)), input));
+
+    private static bool ValidClosedOutcomeCounts(ClosedCampaignRosterResult result, GetClosedCampaignRosterInput input)
+    {
+        foreach (var (outcome, count) in new[]
+        {
+            (PlacementOutcome.Assigned, result.Summary.AssignedCount),
+            (PlacementOutcome.NotSelected, result.Summary.NotSelectedCount),
+            (PlacementOutcome.Withdrawn, result.Summary.WithdrawnCount),
+            (PlacementOutcome.Undecided, result.Summary.UndecidedCount),
+        })
+        {
+            if (result.Participants.Items.Count(row => row.Source.Decision.Outcome == outcome) > count
+                || string.Equals(input.LocalOutcome, outcome.ToString(), StringComparison.OrdinalIgnoreCase)
+                    && result.Participants.TotalCount > count)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static bool ValidLocalTeam(CampaignParticipantTeamSummaryDto? team, CampaignSavedPlacementDecision? decision)
         => decision?.TeamId is null ? team is null

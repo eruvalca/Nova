@@ -155,7 +155,7 @@ FORM: Directory companion to the approved Details and readiness system. -->
                                                     @foreach (var campaign in season.Campaigns)
                                                     {
                                                         <tr>
-                                                            <td><a href="@($"campaigns/{campaign.CampaignId}")">@campaign.Name</a></td>
+                                                            <td><a href="@CampaignDestination(campaign.CampaignId, campaign.Status)">@campaign.Name</a></td>
                                                             <td class="text-nowrap">@FormatCampaignDates(campaign)</td>
                                                             <td>
                                                                 <span
@@ -166,7 +166,7 @@ FORM: Directory companion to the approved Details and readiness system. -->
                                                                 }
                                                             </td>
                                                             <td>@CampaignEnrollmentLabel(campaign)</td>
-                                                                <td><a href="@($"/campaigns/{campaign.CampaignId}")">@CampaignActionLabel(campaign.Status)</a></td>
+                                                                <td><a href="@CampaignDestination(campaign.CampaignId, campaign.Status)">@CampaignActionLabel(campaign.Status)</a></td>
                                                                     @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status ==
                                                             CampaignStatus.Active))
                                                                     {

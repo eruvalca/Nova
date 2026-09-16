@@ -718,6 +718,7 @@ public partial class CampaignWorkspace(
             detail =>
             {
                 _detail = detail;
+                ClearReopenedCloseState(previousStatus, detail.Status);
                 NormalizeCurrentClosedFilters();
                 DiscardUnownedRoster(StateOwner(detail.Status));
                 detailLoaded = true;

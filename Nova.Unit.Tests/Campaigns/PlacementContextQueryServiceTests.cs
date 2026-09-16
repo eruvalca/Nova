@@ -14,6 +14,16 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignPlacementServiceTests
 {
+    [Fact]
+    public async Task ClosedOnlyHistoryRejectsActiveCampaignWithoutBroadeningScopeAsync()
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        var input = new GetPlacementContextInput { CampaignId = 600, PlayerCampaignAssignmentId = ClubAAssignmentId, RequireClosed = true };
+        var rejected = await CreatePlacementContextService().GetContextAsync(input, TestContext.Current.CancellationToken);
+        rejected.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        (await CreatePlacementContextService().GetContextAsync(input with { RequireClosed = null }, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.NotSelected)]
     [InlineData(PlacementOutcome.Withdrawn)]
