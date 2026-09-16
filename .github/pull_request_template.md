@@ -10,13 +10,13 @@
 
 ## Checklist
 
-<!-- AGENTS.md → Build & validation is authoritative. Before opening and before
-     merge, all three suites must pass locally. On intermediate pushes use the
-     affected-suite policy (unit always; integration for provider/HTTP/EF changes;
-     browser for interactive UI/markup/CSS/JS changes; all three when in doubt).
-     CI does not run the integration or browser suites. -->
+<!-- Follow AGENTS.md → Pull request test gate for selection, N/A, and evidence reuse.
+     When full browser validation is permitted to remain pending at opening,
+     record it and leave the pre-merge checkbox unchecked until satisfied. -->
 
 - [ ] Build and format checks pass.
-- [ ] Unit, integration, and browser results satisfy the current PR-stage gate.
+- [ ] Unit and integration results satisfy the current PR-stage gate.
+- [ ] Browser selection, results, pending full-suite work, or N/A rationale are recorded and satisfy the current PR-stage gate.
+- [ ] Before merge: full browser-suite evidence covers the final inputs, or documented browser N/A applies.
 - [ ] Applicable migration-model and design checks pass; limitations are recorded.
 - [ ] Applicable guidance and sibling paths were checked; required local reviews and all human/bot findings, including suppressed findings, have evidence-backed dispositions.

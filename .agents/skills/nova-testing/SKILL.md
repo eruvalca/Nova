@@ -43,5 +43,4 @@ and opening/intermediate/final PR gates. All three projects use xUnit v4 on MTP;
 
 For a targeted run, append `--filter-class "*Name"` to the relevant command. Repeat
 `--filter-class` for multiple classes; do not join them with `|`. Do not pass VSTest-only flags
-(`--nologo`, `--collect`, `--logger`); MTP rejects them. A targeted pass is development feedback,
-not a replacement for the PR-stage suites.
+(`--nologo`, `--collect`, `--logger`); MTP rejects them.

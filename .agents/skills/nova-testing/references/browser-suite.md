@@ -203,7 +203,8 @@ dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --
 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --output Detailed --long-running 90 --xunit-diagnostics on
 ```
 
-Local-only: CI runs build and unit tests only, so run the suite locally before opening a PR, before merge, and on pushes that change UI markup, styles, or JS interop.
+For required run scope and evidence reuse, follow the
+[PR test gate](../../../../AGENTS.md#pull-request-test-gate).
 
 ## Diagnosing a stalled or slow run
 

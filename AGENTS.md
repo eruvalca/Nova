@@ -26,7 +26,38 @@
 - After the build, unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`
 - Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — see the local PR test gate below.
 - Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
-- **Pull request test gate**: before opening a PR, run all three suites locally — unit, integration, and browser — and ensure they pass. Both Aspire-backed suites start their own AppHost through the test fixture, so run `dotnet test` directly rather than starting one first. On pushes to an open PR, re-run the suites the change can affect: unit always (cheap, and CI runs them); integration for provider/HTTP-boundary or EF changes; browser for interactive UI, markup, CSS, or JS-interop changes. When in doubt, run all three. Re-run all three before merge. CI only builds and runs unit tests (the Aspire-dependent suites are local-only), so a green CI run is not proof the full suite is green. The PR template links the validation record and confirms this gate.
+
+### Pull request test gate
+
+Both Aspire-backed suites start their own AppHost through the test fixture, so run `dotnet test`
+directly rather than starting one first. CI only builds and runs unit tests; integration and browser
+tests are local-only.
+
+- **Unit and integration:** run both full suites locally and ensure they pass before opening a PR;
+  re-run both and ensure they pass before merge. On intermediate pushes, run unit tests always and
+  integration tests for provider, HTTP-boundary, or EF changes; run integration tests when their
+  impact is uncertain.
+- **Browser applicability:** browser evidence is required when application or browser-suite inputs
+  change: source (including shared test helpers), dependencies, build/runtime configuration,
+  discovery, or generated assets. Otherwise record browser **N/A** with the impact rationale, for
+  example for documentation or unrelated unit-test changes. Changes to test commands, guidance, or
+  validation policy still need appropriate checks and review of their effect on coverage and enforcement.
+- **Browser selection:** select by affected behavior, including backend services and HTTP contracts
+  used by browser flows, as well as UI, CSS, and JS interop. Record named scenarios/classes and the
+  selection rationale. Use the full suite for broad or uncertain impact, especially shared
+  authentication, recovery, navigation/layout, rendering, or HTTP contracts.
+
+| Browser validation stage | Required evidence |
+| --- | --- |
+| Before opening a PR | Selected browser scenarios pass; the full suite may be explicitly pending for a focused change. |
+| Intermediate pushes | Re-run the selection affected by the push. |
+| Before merge | A full browser-suite pass covers the final inputs, unless browser N/A applies. Targeted evidence is insufficient. |
+
+Reuse a browser pass only while the application and browser-suite inputs listed above remain
+unchanged. In the validation record, identify the tested revision and any uncommitted changes included
+in the run, and compare them with the current revision, including incoming changes after a rebase or
+merge. Changes to these inputs require new evidence under the stage gate; later documentation-only
+edits can reuse the pass with the comparison recorded.
 
 ## Repository decisions
 
@@ -105,14 +136,16 @@ were applied. Generic Aspire, .NET inspection, and Playwright recipes also live 
   narrating execution. A focused documentation change needs evidence appropriate to its content,
   not an application transition matrix.
 - Keep the current result for each check with its tested revision. Retain concise material failure
-  dispositions: what failed, cause or unresolved status, fix, and confirming evidence. Record each
-  review finding once with its source, disposition, and evidence; link any required original review
-  or approval artifact. Do not maintain a second execution diary in the PR or capture README.
-- The recipes select small, relevant evidence; they do not waive the build, format, unit,
-  integration, browser, migration-model, or applicable design checks. Apply the affected-suite
-  policy above on intermediate pushes, identify the revision of any reused unaffected-suite result,
-  and complete the required final validation before merge. An unavailable check remains a limitation,
-  not a pass.
+  dispositions: what failed, cause or unresolved status, fix, and confirming evidence. A green rerun
+  alone does not resolve an unexplained failure or establish that contention caused it. Resolve
+  required failures before merge. Record each review finding once with its source, disposition, and
+  evidence; link any required original review or approval artifact. Do not maintain a second
+  execution diary in the PR or capture README.
+- The recipes select small, relevant evidence; they do not waive applicable build, format, unit,
+  integration, browser, migration-model, or design checks. Apply the PR-stage, browser applicability,
+  and evidence-reuse rules in the [test gate](#pull-request-test-gate), identify the revision of any
+  reused unaffected-suite result, and complete the required final validation before merge. An
+  unavailable check remains a limitation, not a pass.
 
 ### Review triage
 
