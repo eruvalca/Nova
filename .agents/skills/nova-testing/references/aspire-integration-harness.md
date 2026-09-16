@@ -123,7 +123,7 @@ Prefer explicit seed helpers for lifecycle-constrained entities. The fixture's c
 normalizer exists only to keep older direct Active/Closed seeds concise; provider constraint tests
 must use `CreateUnnormalizedAdminContext()` so intentionally invalid metadata is not repaired before
 PostgreSQL evaluates it. Any future compatibility normalizer must provide the same bypass.
-For current-season and supersession scenarios, follow the shared
+For current-season, supersession, and Closed-record scenarios, follow the shared
 [campaign lifecycle seed requirements](unit-sqlite-harness.md#campaign-lifecycle-seeds).
 
 ## HTTP-layer e2e

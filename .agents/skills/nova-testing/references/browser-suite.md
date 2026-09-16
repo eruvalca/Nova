@@ -146,6 +146,8 @@ when closing the participant drawer after opening it as a hydration proof.
   registration), sets distinct display names so actor-metadata assertions are meaningful, and
   seeds data through the admin EF context.
 - Add new shared seeding primitives to `SeedingHelpers` — do not copy them per file.
+- For current-season, supersession, and Closed-record scenarios, follow the shared
+  [campaign lifecycle seed requirements](unit-sqlite-harness.md#campaign-lifecycle-seeds).
 - The shared AppHost fixture best-effort waits for the Azurite `storage` resource to report healthy
   before probing the `profile-photos` container, and `IdentityHttpClientHelper` retries the
   profile-photo upload POST on transient failures (transport errors / 5xx) with a fresh multipart

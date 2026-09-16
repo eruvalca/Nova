@@ -62,6 +62,10 @@ attribution for direct seeds. It does not set `Club.CurrentSeasonId`. For curren
 set that pointer explicitly; for supersession scenarios, also set `SeasonOpeningSequence` explicitly
 so precedence does not depend on seed order. `EffectivePlacementQueryServiceTests` shows these seeds.
 
+The interceptor does not create closing events. Fixtures representing a valid Closed record must
+close through the lifecycle service or explicitly provide matching tenant/campaign-scoped closure
+evidence. Keep deliberately incomplete fixtures invalid; do not make the normalizer repair them.
+
 ## Conventions and gotchas
 
 - One behavior per test; use `SubjectOutcomeCondition` names (append `Async` for async methods), e.g.
