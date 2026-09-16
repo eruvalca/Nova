@@ -6,12 +6,14 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Implementation revision: `f25d19a2f149e145988cafe846c2cca3071b7fa4` on
-`codex/279-player-command-recovery`, based on `fc2c0053`. Build, unit, integration, model and format checks
-ran against `fc2c0053` plus the exact source changes committed as `f25d19a2`; committing changed no build
-inputs. The browser run used that same build and revision. The subsequent validation-record commit
-changes only this document; application and browser-suite inputs match `f25d19a2` exactly. No source,
-configuration, dependencies or generated assets changed during the browser run.
+Current implementation revision: `c9c1d7e542a0b924929f45fc45904b54f50e3981` on
+`codex/279-player-command-recovery`, based on `fc2c0053`. This includes the original implementation
+`f25d19a2`, guidance follow-up `430010e0`, and the two PR-review fixes below. Build, unit, integration,
+model and format checks ran against `430010e0` plus the exact production/test changes committed as
+`c9c1d7e`; committing changed no build inputs. The full browser run used that same build at `c9c1d7e`.
+The subsequent validation-record commit changes only this document; application and browser-suite
+inputs match `c9c1d7e` exactly. No source, configuration, dependencies or generated assets changed
+during the browser run. All required checks in the current gate table pass.
 
 Remote `main` was verified still at `fc2c0053` before the browser run; no merge-input differences exist.
 
@@ -31,6 +33,10 @@ Remote `main` was verified still at `fc2c0053` before the browser run; no merge-
 - Installed `dotnet-test` skills: code-testing-agent, run-tests, and find-untested-sources. Static Roslyn
   pairing completed; test-generation work was performed inline. Local pipeline artifacts reside under
   the worktree Git directory's `testagent` folder; this document is the authoritative durable record.
+- PR-review fix pass: reused the relevant repository instructions and recipes above; applied the installed
+  `code-review` skill's local-review doctrine/checklist and `dotnet-test` test-gap-analysis,
+  assertion-quality, and test-analysis-extensions with `extensions/dotnet.md`. The separate reviewer
+  read these sources independently. Existing source/test pairing was reused for the bounded fixes.
 
 ## Behavior and evidence
 
@@ -45,6 +51,8 @@ Remote `main` was verified still at `fc2c0053` before the browser run; no merge-
 | Receipt tenant isolation, immutability, cleanup after deletion, exclusive expiry | [PlayerManagementServiceTests.Creation](../Nova.Unit.Tests/Features/Players/PlayerManagementServiceTests.Creation.cs), [PlayerCreationOperationTests](../Nova.Unit.Tests/Features/Players/PlayerCreationOperationTests.cs), [ExpiryDuringRosterOrCampaignWaitRollsBackAsync](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.cs), [CleanupDeletesAtMostFiveHundredExpiredReceiptsAcrossDeletedClubsAsync](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.cs) |
 | Complete HTTP success bodies, nullable evidence presence, strict contradictory-conflict rejection | [HttpPlayerManagementServiceTests.Receipts](../Nova.Unit.Tests/Players/HttpPlayerManagementServiceTests.Receipts.cs), [CreationReplaysOriginalEvidenceThroughFreshClientAsync](../Nova.Integration.Tests/Http/PlayerManagementHttpTests.Recovery.cs) |
 | Frozen pending payload survives uncertainty and role-only changes, rejection permits correction | [PlayerComponentsTests.CreationRecovery](../Nova.Unit.Tests/Players/PlayerComponentsTests.CreationRecovery.cs), [PlayerFormBrowserTests.Recovery](../Nova.Browser.Tests/PlayerFormBrowserTests.Recovery.cs) |
+| In-flight identity changes cannot redirect tenant queries, writes or audit attribution; fresh recovery rejects a changed actor | [CreationKeepsOriginalIdentityAcrossLockWaitAsync](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.Identity.cs), [RecoveryRejectsChangedCircuitIdentityAsync](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.Identity.cs), [ManualMutationKeepsOriginalIdentityAcrossLockWaitAsync](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.Identity.cs) |
+| Validation feedback never releases uncertain work; malformed validation is a protocol failure | [CreateRejectsMalformedValidationEvidenceAsync](../Nova.Unit.Tests/Players/HttpPlayerManagementServiceTests.Receipts.cs), [CreatePreservesValidValidationFeedbackAsync](../Nova.Unit.Tests/Players/HttpPlayerManagementServiceTests.Receipts.cs), [PlayersRetainsPendingCreationAfterValidationFailureAsync](../Nova.Unit.Tests/Players/PlayerComponentsTests.CreationRecovery.cs), [PlayerFormRetriesSameOperationAfterLostAcknowledgementAsync](../Nova.Browser.Tests/PlayerFormBrowserTests.Recovery.cs) |
 | Existing graduation-year, lifecycle history, enrollment, CSV behavior | Full unit/integration/browser suites; CSV role denials retained |
 
 ## Execution results and failure dispositions
@@ -53,16 +61,17 @@ Remote `main` was verified still at `fc2c0053` before the browser run; no merge-
   contention, component, and browser cases; it is not final gate evidence.
 - Initial focused integration run: 35 passed, 14 failed. Failures involved fixtures that asserted mutation success for random actor IDs absent from persisted
   membership, and contention cases observing the former first lock. Fixtures now seed real users; tests
-  observe the actual membership/season/roster serialization boundary. Confirmed by the full 652-test integration pass below.
-- First full unit pass found six legacy expectation/fixture failures: lifecycle endpoint metadata still
+  observe the actual membership/season/roster serialization boundary. Confirmed by 652 integration passes
+  on `f25d19a2` and the current full-suite result below.
+- Original implementation's first full unit pass found six legacy expectation/fixture failures: lifecycle endpoint metadata still
   expected administrator-only access, and a historical lifecycle fixture omitted persisted users. After
   adding users, its old member-denial assertion was updated to member success. Confirmed by 3,657 passing
-  unit tests, zero skipped, on the current implementation.
+  unit tests, zero skipped, on `f25d19a2`.
 - First full integration run: 649 passed, three failed. Two additional legacy seeds omitted persisted
   users (cross-club enrollment and concurrent Draft creation); both now seed approved users. The HTTP
   receipt test expected the seed prefix instead of the actual uniquely suffixed campaign name; it now
   compares the receipt with the exact seeded database name. All new provider contention/recovery cases
-  passed in that run. Confirmed by the full 652-test integration pass below.
+  passed in that run. Confirmed by 652 integration passes on `f25d19a2` and the current full-suite result below.
 - Formatting verification identified only initializer/switch layout and import ordering in the final
   added tests. These were corrected without changing behavior; full verification now passes.
 - Intermediate compiler/analyzer failures were corrected: CSV still constructing manual inputs,
@@ -76,9 +85,9 @@ Current gate evidence for the implementation revision above:
 | Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors |
 | Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass |
 | Migration model | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Pass: no pending changes (tool 10.0.8 emits an informational runtime 10.0.12 version warning) |
-| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,657 passed, zero failed/skipped |
-| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 652 passed, zero failed/skipped |
-| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 205 passed, zero failed, 8 existing opt-in evidence captures skipped; full suite selected because shared input, authorization, enrollment and HTTP behavior span flows |
+| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,672 passed, zero failed/skipped |
+| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped |
+| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 206 passed, zero failed, 8 existing opt-in captures skipped; full suite selected because authentication, recovery and HTTP behavior span flows. |
 
 The incremental [receipt migration](../Nova/Data/Migrations/20260916204134_AddPlayerCreationReceipts.cs)
 was applied by the Aspire integration/browser fixtures. The browser skips were the existing accessibility
@@ -102,7 +111,57 @@ It identified test setup corrections (persisted administrator and correct first 
 and an existing Active player for campaign-opening readiness), plus an exact duplicate-operation-ID
 assertion. All were applied. The requested delayed creation-success/failure regression now proves that
 a late response cannot settle newer club-owned pending work, and passes in the full unit suite.
-Full unit, provider, and browser evidence passes as recorded above. There are no unresolved in-scope findings.
+That review's evidence passed on `f25d19a2`. The subsequent PR review and its fixes are recorded below.
+
+## PR review fixes
+
+Source: [PR review at `430010e0`](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5228816142).
+Both findings are addressed in `c9c1d7e`.
+
+| Finding | Disposition and confirming evidence |
+| --- | --- |
+| [High: creation can switch tenant during a retained-circuit identity change](https://github.com/eruvalca/Nova/pull/283#discussion_r4031195802) | `PlayerMutationAuthorization` binds each fresh context's provider to a matching authenticated actor/club snapshot before membership-lock waits. Filters and interceptor stamping share that snapshot. Persisted membership is still checked under locks; fresh retries and verification reject a changed actor, including a different member of the same club. `CreationKeepsOriginalIdentityAcrossLockWaitAsync` proves original club, enrollment, player/receipt attribution, no other-club effects and replay. `RecoveryRejectsChangedCircuitIdentityAsync` proves denial after lost acknowledgement followed by original-actor recovery. `ManualMutationKeepsOriginalIdentityAcrossLockWaitAsync` covers edit/archive/restore siblings. |
+| [Medium: malformed validation can discard unresolved creation](https://github.com/eruvalca/Nova/pull/283#discussion_r4031198864) | The creation client classifies empty/malformed field errors and validation carrying receipt markers as protocol failures, preserving trace extensions. Well-formed field errors remain available. The UI releases a dispatched command only after valid completion or matching receipt-backed rejection. Client, component and browser tests in the behavior table cover lost acknowledgement, invalid validation, exact retry payload and definitive duplicate correction. |
+
+Failure dispositions and focused commands:
+
+- Before applying the production fix, `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj
+  --no-build --filter-method '*CreateRejectsMalformedValidationEvidenceAsync'
+  --filter-method '*PlayersRetainsPendingCreationAfterValidationFailureAsync'` reproduced all 13 failures:
+  invalid validation remained `Validation`, and the form became editable after uncertainty.
+- Against the original production build, `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
+  --no-build --filter-method '*CreationKeepsOriginalIdentityAcrossLockWaitAsync'
+  --filter-method '*RecoveryRejectsChangedCircuitIdentityAsync'
+  --filter-method '*ManualMutationKeepsOriginalIdentityAcrossLockWaitAsync'` reproduced eight failures
+  in nine cases: wrong tenant, wrong actor attribution, wrong duplicate scope, same-club receipt disclosure,
+  and sibling operations losing their query scope. Cross-club verification denial already passed.
+- After the fixes, `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build
+  --filter-class '*HttpPlayerManagementServiceTests' --filter-class '*PlayerComponentsTests'`:
+  89 passed, zero failed/skipped. `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
+  --no-build --filter-class '*PlayerCreationRecoveryPostgresTests'`: 24 passed, zero failed/skipped.
+  The full unit/integration/browser passes above confirm the regressions and existing behavior together.
+- The first draft of the new tests had six compiler/analyzer errors (nullable assertion overload,
+  string comparisons and constant-array allocation). Corrected the assertions/initializers; no
+  suppression or test weakening. Formatting identified the new test file's missing UTF-8 BOM;
+  applied `dotnet format Nova.slnx --no-restore --include
+  Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.Identity.cs`, then full verification passed.
+
+Fresh-context reviewer `review_279_fixes` reviewed the complete fix diff and new test file against
+`430010e0`, including authorization, query/audit binding, retry/verification, protocol classification,
+UI ownership and sibling paths. No further production findings or material test gaps. The focused
+test-gap/assertion review found substantive tenant/count/audit, denial, exact-payload and browser
+side-effect assertions; no assertion-free or trivial-only cases. It was a static review, with no
+independent test executions or mutation-score claim.
+
+Before publishing this record, `git diff --name-only c9c1d7e` identified only
+`docs/279-validation.md`; the final documentation commit therefore changes none of the tested
+application/browser inputs. `git diff --check` and all 17 distinct relative file links in this record
+passed. No unresolved in-scope review finding remains.
+
+The PostgreSQL tests use the real `CurrentUserProvider` fallback and
+`ServerAuthenticationStateProvider.SetAuthenticationState` while actual advisory-lock contention is
+observed. They exercise the circuit principal replacement boundary directly; a physical browser
+WebSocket reconnect/account-switch sequence is not separately automated.
 
 ## Guidance follow-up
 
