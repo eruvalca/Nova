@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "84ed0efb6ce29e71f542f43bb9a2f726122fbd9d plus complete round-three working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "31c7f29c68d97ebba83578a16e6de6fd0be75221 plus complete round-four working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "f9e1cffa86d614110adf8c954d2acaacc3f988847f953774d7760a308efbfc37",
-  "testFingerprint": "8060653a2f14fb1a035230c461721f69d2d6b62ea63dba0071c86d7e1ca1988c",
+  "productionFingerprint": "457be8fb6e7edb85d279cacb42699509f19d486fe4baf4e91682c25d9ee0ce8d",
+  "testFingerprint": "b272358550ebd223dbb71ba2873e9fb80df4d5fcd6a9166c167650fd8af726a2",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -44,7 +44,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor.cs",
-      "sha256": "f13cd2e4ad831648f03a954a427e0077fa8a7d28d78f6e6587f1a3b42f62e4bf"
+      "sha256": "942a0156efe48bc8bc48b56e1a571266e4c99273703f25ac692fd1ebf902f188"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor.css",
@@ -52,7 +52,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor",
-      "sha256": "1dbc950967dc3d827b079bb4c0775868888f0c0d6e10b5524e3bd7ac14b7b4a5"
+      "sha256": "03670574c1193239a6b8c109c2147676a13ac5dcfb69b1ead406aec0ee130f76"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
@@ -68,11 +68,11 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor",
-      "sha256": "3d2896aaf083608fe6d80e09f67deafd01b149afb9e552692d293a20cddfc17a"
+      "sha256": "469524c8a781b4b8dc9543a727637b5057da0730e11e19b160f1c6048430b31b"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.cs",
-      "sha256": "757a648054ff8b986b7611e0e7a351a81cf1a5ddb1380ebea23cabe6ff0b3b38"
+      "sha256": "88ab3f0d98ffad982446b13ec957f4ccc53d7ea4bdc4c23c4e518e6056520bfe"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.css",
@@ -154,7 +154,7 @@
     },
     {
       "path": "Nova.Browser.Tests/CampaignCloseoutBrowserTests.cs",
-      "sha256": "f99e89a96968c8f9f9dc29882a6df5ef937fbbb685906df3f9dbac2394cb76ed"
+      "sha256": "546de539cc1707d8b9676413209082375eded64f16699b4238699db5375ae436"
     },
     {
       "path": "Nova.Browser.Tests/CampaignCloseRecoveryBrowserTests.cs",
@@ -185,6 +185,10 @@
       "sha256": "1bbb79cc24ea01e45d3e6e4b3f68aac7de49d8d07e25f7fc78b1576b45c3ce51"
     },
     {
+      "path": "Nova.Integration.Tests/Data/EffectivePlacementPostgresTests.Closeout.cs",
+      "sha256": "a7f17cb750eefaf4d9f26a4406a7535e6edb066caa475166adb059cfadc7fd26"
+    },
+    {
       "path": "Nova.Integration.Tests/Data/PlayerImportCommitPostgresTests.cs",
       "sha256": "07888d6f3da5367b6d584b5dc05b5ce05f505821dae7e62b0422b631ebcfcf91"
     },
@@ -210,7 +214,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutPanelTests.Refresh.cs",
-      "sha256": "b5ab359a5fe83b66b784cdd042094695d7f5910385cb833b18875d5b24dec5d0"
+      "sha256": "2cfbf3f973c165ec76b544af6d2d459a1f5624c8b3e588e2176dca6a77eb4dbd"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutQueryServiceTests.cs",
@@ -282,15 +286,15 @@
       "file": "captures/admin-confirmation.png",
       "width": 1280,
       "height": 1455,
-      "sha256": "746b53d892db2eccfc99d67e3d5c488c58e483f22171a68f684c6e959761b391",
-      "capturedAtUtc": "2026-09-16T06:56:32.2302420Z"
+      "sha256": "4bd6be1e36d22f0a48d8b161ef95045b0afb8e79aa8726a6047a89eb7837325c",
+      "capturedAtUtc": "2026-09-16T07:34:57.1776167Z"
     },
     {
       "file": "captures/closed.png",
       "width": 1280,
       "height": 800,
-      "sha256": "892f6af320421762ad22cc5a218b499db1674d5fdbf0d3ae8a2aff27f35910ef",
-      "capturedAtUtc": "2026-09-16T06:56:33.2432422Z"
+      "sha256": "da6acfdca71002e9f6a32105d00abb1e71b72f807ba20fd7151d469a98377392",
+      "capturedAtUtc": "2026-09-16T07:34:58.2106516Z"
     },
     {
       "file": "captures/comparison.png",
@@ -303,48 +307,48 @@
       "file": "captures/desktop.png",
       "width": 1440,
       "height": 1192,
-      "sha256": "41d5abcd1cb6c35d4e9db6eab5466912cde862db1750f248071c214ceae609c8",
-      "capturedAtUtc": "2026-09-16T06:56:34.8189348Z"
+      "sha256": "0ec6d9e4438766a7ad7ca0f97289ab05ab2cb30019ef2676a626e13ec444ed05",
+      "capturedAtUtc": "2026-09-16T07:34:59.8577940Z"
     },
     {
       "file": "captures/hero-repro.png",
       "width": 1536,
       "height": 1024,
-      "sha256": "be7248fcf87e61e013552edff484cb562404dc04f8f10145080f0bc49a08a6ee",
-      "capturedAtUtc": "2026-09-16T06:56:34.4656665Z"
+      "sha256": "8562ef296f43fcc8a7cd74f04a8bb102fd4fb188d190ceb073c6b6b8819c8df3",
+      "capturedAtUtc": "2026-09-16T07:34:59.4870547Z"
     },
     {
       "file": "captures/mobile.png",
       "width": 390,
       "height": 1680,
       "sha256": "8415e3af10ce339b357ddf116d9613124bb2d63459bc79577ff273452144b0b6",
-      "capturedAtUtc": "2026-09-16T06:56:34.9915878Z"
+      "capturedAtUtc": "2026-09-16T07:35:00.0551505Z"
     },
     {
       "file": "captures/phone-empty.png",
       "width": 390,
       "height": 1432,
       "sha256": "11301ce7414ebdebfed738c0ac05bc1e53ae5bba03ea5bed3a26ee0b0c678cf7",
-      "capturedAtUtc": "2026-09-16T06:56:32.9252221Z"
+      "capturedAtUtc": "2026-09-16T07:34:57.8867058Z"
     },
     {
       "file": "captures/phone-return.png",
       "width": 390,
       "height": 1505,
-      "sha256": "bfd7eb4d48c7df95e9d510d2dadce97b2207caca86816900fabd774a233bcc41",
-      "capturedAtUtc": "2026-09-16T06:56:37.1897226Z"
+      "sha256": "f09a7cdc264325c982b2b2f66683675feca1dc08e513f6797579910a167d4d40",
+      "capturedAtUtc": "2026-09-16T07:35:01.8133000Z"
     },
     {
       "file": "captures/phone-roster-error.png",
       "width": 390,
       "height": 1533,
-      "sha256": "280ab790719d4c9a2e0a36bf7984e2a2f85e351573ce3dfc573b279b9e4adaeb",
-      "capturedAtUtc": "2026-09-16T06:57:05.3315885Z"
+      "sha256": "789458a499cb3cd9ffaab0352399c7a8dc3d84daf0b937d2d173f438c975f370",
+      "capturedAtUtc": "2026-09-16T07:35:29.7400795Z"
     }
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-three settled browser captures.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-four settled browser captures.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]

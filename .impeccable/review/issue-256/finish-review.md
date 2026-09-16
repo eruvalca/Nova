@@ -62,3 +62,9 @@ Enlarged-root-font rendering, individual link-focus states and the specific inhe
 The independent reviewer inspected the seven refreshed shipping captures and affected UI source. **Disposition: ship**, limited to these changes: no material visual regression; lifecycle actions/retry are suppressed during required loading, confirmation is cleared and all three Close regions emit explicit ARIA busy values. Restriction copy names the club.
 
 Loading, transient restriction states and related-link eligibility remain uncaptured. The visual reviewer did not establish server-side link filtering; the reason-specific query mapping and its persisted tests were separately verified in local code review. Full browser results are recorded in the validation record rather than inferred from captures. The failed 71.3% comparison and user-approved B/shell decision remain unchanged; this bounded verdict does not broaden the original full-surface review.
+
+# Round-four bounded finish verdict
+
+The independent reviewer inspected seven refreshed shipping captures and the affected source. **Disposition: ship**, limited to the copy and recovery-feedback changes. No material visual regression was found. The selector and blocker count consistently use “Ineligible assignments”; transient read failures occupy a separate polite status region and clear on fresh evidence while durable attempt feedback remains.
+
+The ineligible selection and transient recovery-feedback transitions are not visually captured; component tests and source review supply that evidence. Full browser results are recorded in the validation record, not inferred from settled images. The failed 71.3% comparison and approved B/actual-shell decision remain unchanged; this bounded verdict does not broaden the original full-surface review.

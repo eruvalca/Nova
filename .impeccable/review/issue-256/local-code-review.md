@@ -45,3 +45,11 @@ Final read-only verdict: “No material findings in the current 14-file round 3 
 The reviewer also confirmed the corrected helper XML and Activity lifetime, then reinspected the unit-failure fixes: explicit ARIA true/false strings across the three Close regions and a missing-opening fixture arranged after seed normalization. The log and interceptor implementation support both causes; assertions remain intact and no checks were weakened.
 
 The next run established that the missing-opening database fixture also violates CK_Campaigns_StatusLifecycleMetadata. The reviewer acknowledged that its earlier fixture check missed this second constraint and approved removing only the impossible new query-theory row. Three valid persisted link/reason cases remain, and defensive MissingOpening policy coverage now includes another-Active overlap. No database constraint was bypassed and no existing test was removed.
+
+# Review round 4 — independent disposition and delta review
+
+The independent reviewer (`reload_backend_review`) verified the actual server eligibility filter rather than inferring it from the lossy client correction-reason projection. The server predicate already matches the closure policy; broader “ineligible” wording is appropriate, without a query change.
+
+The reviewer inspected the feedback separation, four recovery permutations, new PostgreSQL snapshot gates and fixture authority. Two findings were corrected before execution: four browser label assertions/locators, and the Active fixture's initially incorrect assumption that local Not selected needs placement. Final reinspection: “Both findings are fixed. The four browser label updates preserve their assertions and correction journeys. The Active PostgreSQL fixture now proves NeedsPlacement changes from 1 to 0 alongside readiness and CanClose, while the suspended read retains the original snapshot. No remaining findings in this delta.”
+
+The one-line CA5394 exception is restricted to a non-secret fixture identity and follows existing isolated-actor tests. It disables no behavioral check or security validation. This was a read-only review; build and suite evidence remain in the authoritative validation record.

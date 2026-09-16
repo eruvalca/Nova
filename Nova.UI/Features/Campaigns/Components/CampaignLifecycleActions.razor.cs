@@ -28,6 +28,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
     private bool _unavailable;
     private bool _focusPending;
     private string? _feedback;
+    private string? _readFeedback;
     private ElementReference _heading;
     private bool IsBusy => _busy || Loading;
     private bool Eligible => !_unavailable && Evidence is { } evidence && (evidence.Readiness.Lifecycle.CanClose || evidence.Readiness.Lifecycle.CanReopen);
@@ -43,6 +44,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
             _busy = false;
             _confirmation = null;
             _feedback = null;
+            _readFeedback = null;
             _unavailable = false;
         }
         if (Loading || !ReferenceEquals(_confirmation, Evidence))
@@ -52,7 +54,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         if (!ReferenceEquals(_observedEvidence, Evidence))
         {
             _observedEvidence = Evidence;
-            if (Evidence is not null) { _unavailable = false; }
+            if (Evidence is not null) { _unavailable = false; _readFeedback = null; }
         }
     }
 
@@ -76,6 +78,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         }
         _busy = true;
         _feedback = null;
+        _readFeedback = null;
         _confirmation = null;
         var operation = ++_operation;
         var owner = Owner;
@@ -93,7 +96,8 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         }
         else
         {
-            _feedback = _unavailable ? "The required review could not be refreshed. Retry the read before taking an action." : "The campaign changed. Review its current readiness before taking an action.";
+            if (_unavailable) { _readFeedback = "The required review could not be refreshed. Retry the read before taking an action."; }
+            else { _feedback = "The campaign changed. Review its current readiness before taking an action."; }
         }
     }
 
@@ -149,10 +153,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         _busy = false;
         _unavailable = refreshed is null && !superseded;
         _feedback = message;
-        if (_unavailable)
-        {
-            _feedback += " Current state is unavailable. Retry the read before taking another action.";
-        }
+        _readFeedback = _unavailable ? "Current state is unavailable. Retry the read before taking another action." : null;
         _focusPending = succeeded && refreshed is not null && !superseded;
     }
 
@@ -195,6 +196,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         }
         _busy = false;
         _unavailable = refreshed is null && !superseded;
+        _readFeedback = _unavailable ? "Current state is unavailable. Retry the read before taking another action." : null;
         _confirmation = null;
     }
 

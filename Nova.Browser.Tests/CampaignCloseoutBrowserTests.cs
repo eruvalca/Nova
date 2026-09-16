@@ -36,14 +36,14 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(blockerRows).ToHaveCountAsync(3);
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("missing campaign outcomes");
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("1");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("incompatible assignments");
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("ineligible assignments");
         await Expect(blockerRows.Nth(2)).ToContainTextAsync("archived team");
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review close" })).ToHaveCountAsync(0);
 
         // Resolve the outcomes blocker through the unresolved drill-down, then the eligibility and
         // archived-team blockers through their no-filter drill-downs.
         await ResolveBlockerAsync(page, "missing campaign outcomes", seed.BlockedAssignmentIds[0]);
-        await ResolveBlockerAsync(page, "incompatible assignments", seed.BlockedAssignmentIds[1]);
+        await ResolveBlockerAsync(page, "ineligible assignments", seed.BlockedAssignmentIds[1]);
         await ResolveBlockerAsync(page, "archived team", seed.BlockedAssignmentIds[2]);
 
         await Expect(page.Locator(".close-blocker")).ToHaveCountAsync(0);
@@ -76,7 +76,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(blockerRows).ToHaveCountAsync(3);
         // Blocker detail is text (Count + Message), not color-only.
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("1 missing campaign outcomes");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("1 incompatible assignments");
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("1 ineligible assignments");
         await Expect(blockerRows.Nth(2)).ToContainTextAsync("1 assignments use an archived team");
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review close" })).ToHaveCountAsync(0);
 
@@ -467,7 +467,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var blockerRows = narrowPage.Locator(".close-blocker");
         await Expect(blockerRows).ToHaveCountAsync(3);
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("missing campaign outcomes");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("incompatible assignments");
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("ineligible assignments");
         await Expect(blockerRows.Nth(2)).ToContainTextAsync("archived team");
         await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, blockerRows.First.GetByRole(AriaRole.Link), "Review players");
         await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.Locator("#close-search"), "Close search");

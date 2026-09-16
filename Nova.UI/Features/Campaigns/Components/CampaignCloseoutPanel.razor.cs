@@ -38,7 +38,7 @@ public partial class CampaignCloseoutPanel
     private static string BlockerLabel(CampaignCloseoutBlockerDto blocker) => blocker.Condition switch
     {
         CloseoutBlockerConditions.Outcomes => $"{blocker.Count} missing campaign outcomes",
-        CloseoutBlockerConditions.Eligibility => $"{blocker.Count} incompatible assignments",
+        CloseoutBlockerConditions.Eligibility => $"{blocker.Count} ineligible assignments",
         CloseoutBlockerConditions.ArchivedTeams => $"{blocker.Count} assignments use an archived team",
         _ => blocker.Message,
     };

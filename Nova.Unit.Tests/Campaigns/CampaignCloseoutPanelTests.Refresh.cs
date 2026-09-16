@@ -17,10 +17,39 @@ public sealed partial class CampaignCloseoutPanelTests
         _evidence = null;
         Button(cut, "Review close").Click();
         cut.Markup.ShouldContain("Retry lifecycle read");
+        cut.Markup.ShouldContain("The required review could not be refreshed");
         cut.Render(p => p.Add(x => x.Evidence, Evidence()));
         Button(cut, "Review close").HasAttribute("disabled").ShouldBeFalse();
         cut.Markup.ShouldNotContain("Retry lifecycle read");
+        cut.Markup.ShouldNotContain("The required review could not be refreshed");
         _refreshes.ShouldBe(1);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FreshEvidenceClearsReadFailureButRetainsMutationOutcome(bool unknown, bool parentRefresh)
+    {
+        _lifecycle.CloseAsync(10, Arg.Any<CancellationToken>()).Returns(unknown
+            ? new ServiceResult<Success>(ServiceProblem.ServerError("Unknown")) : new ServiceResult<Success>(new Success()));
+        var cut = Actions();
+        Button(cut, "Review close").Click();
+        _evidence = null;
+        Button(cut, "Close campaign").Click();
+        var message = unknown ? "request outcome is unknown" : "Campaign closed.";
+        cut.Markup.ShouldContain(message);
+        cut.Markup.ShouldContain("Current state is unavailable");
+        _evidence = Evidence(status: unknown ? Nova.SharedKernel.Enums.CampaignStatus.Active : Nova.SharedKernel.Enums.CampaignStatus.Closed);
+        if (parentRefresh) { cut.Render(p => p.Add(x => x.Evidence, _evidence)); }
+        else { Button(cut, "Retry lifecycle read").Click(); }
+        cut.Markup.ShouldContain(message);
+        cut.Markup.ShouldNotContain("Current state is unavailable");
+        cut.Markup.ShouldNotContain("Retry lifecycle read");
+        cut.FindAll(".confirmation").ShouldBeEmpty();
+        _refreshes.ShouldBe(parentRefresh ? 2 : 3);
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
     }
 
     [Theory(IncludeTestCaseIndex = true)]
