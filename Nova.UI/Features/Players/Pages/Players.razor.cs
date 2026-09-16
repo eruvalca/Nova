@@ -678,7 +678,7 @@ public partial class Players(
             problem =>
             {
                 _mutationError = problem.Detail ?? "Could not create player.";
-                if (problem.Kind == ServiceProblemKind.Validation || PlayerCreationProblems.IsNotCommitted(problem, _pendingCreate.OperationId))
+                if (PlayerCreationProblems.IsNotCommitted(problem, _pendingCreate.OperationId))
                 {
                     _pendingCreate = null;
                     PlayerCreationProblems.TryGetDuplicate(problem, out _creationDuplicate);

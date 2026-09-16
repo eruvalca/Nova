@@ -21,8 +21,8 @@ internal sealed class HttpPlayerManagementService(HttpClient http) : IPlayerMana
         if (!response.IsSuccessStatusCode)
         {
             var problem = await response.ToServiceProblemAsync(cancellationToken);
-            return problem.Kind == ServiceProblemKind.Conflict && !PlayerCreationProblems.IsValidConflict(problem, input.OperationId)
-                ? ServiceProblem.ServerError("The server returned contradictory player creation evidence. Retry the original operation.")
+            return !IsValidCreationProblem(problem, input.OperationId)
+                ? ServiceProblem.ServerError("The server returned invalid player creation evidence. Retry the original operation.", problem.Extensions)
                 : problem;
         }
 
@@ -51,6 +51,18 @@ internal sealed class HttpPlayerManagementService(HttpClient http) : IPlayerMana
             "The server returned an invalid player response.",
             player => IsValidPlayer(player, input.PlayerId),
             cancellationToken);
+    }
+
+    /// <summary>Validates field feedback separately from the receipt evidence needed to settle an operation.</summary>
+    private static bool IsValidCreationProblem(ServiceProblem problem, Guid operationId)
+    {
+        if (problem.Kind == ServiceProblemKind.Conflict) { return PlayerCreationProblems.IsValidConflict(problem, operationId); }
+        if (problem.Kind != ServiceProblemKind.Validation) { return true; }
+        return problem.Errors is { Count: > 0 }
+            && problem.Errors.All(error => error.Value is { Length: > 0 }
+                && error.Value.All(message => !string.IsNullOrWhiteSpace(message)))
+            && (problem.Extensions is null || !problem.Extensions.Keys.Any(key => key is
+                PlayerCreationProblems.ReasonExtension or PlayerCreationProblems.NotCommittedExtension or PlayerCreationProblems.DuplicateExtension));
     }
 
     /// <summary>Requires original operation, profile, deadline and enrollment evidence to agree.</summary>

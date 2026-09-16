@@ -13,6 +13,42 @@ namespace Nova.Unit.Tests.Players;
 
 public sealed partial class PlayerComponentsTests
 {
+    /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>
+    [Fact]
+    public async Task PlayersRetainsPendingCreationAfterValidationFailureAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            ServiceResult<PlayerCreationCompletion> result = commands.Count switch
+            {
+                1 => ServiceProblem.ServerError("Lost acknowledgement"),
+                2 => ServiceProblem.Validation("FirstName", "Unexpected validation response"),
+                _ => CreationCompletion(input)
+            };
+            return Task.FromResult(result);
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = Render<PlayersPage>();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await FillAndSubmitAsync(cut);
+        await cut.Find("button[type='submit']").ClickAsync(new());
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldContain("retry it unchanged");
+        cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Replacement must not escape";
+        await cut.Find("button[type='submit']").ClickAsync(new());
+
+        commands.Count.ShouldBe(3);
+        commands[1].ShouldBeSameAs(commands[0]);
+        commands[2].ShouldBeSameAs(commands[0]);
+        commands[2].FirstName.ShouldBe("Taylor");
+        cut.Markup.ShouldContain("Enrolled in Original campaign.");
+    }
+
     /// <summary>Late creation results cannot settle or unfreeze work owned by a newer club identity.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(true)]

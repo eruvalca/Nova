@@ -17,7 +17,7 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>Proves immutable creation recovery and serialization with actual PostgreSQL lock waiters.</summary>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class PlayerCreationRecoveryPostgresTests(NovaAppHostFixture fixture)
+public sealed partial class PlayerCreationRecoveryPostgresTests(NovaAppHostFixture fixture)
 {
     /// <summary>Competing requests either replay one operation or settle the second as a duplicate.</summary>
     [Theory(IncludeTestCaseIndex = true)]

@@ -12,6 +12,62 @@ namespace Nova.Unit.Tests.Players;
 
 public sealed partial class HttpPlayerManagementServiceTests
 {
+    /// <summary>Malformed validation and conflicting receipt markers are protocol failures, not settlement proof.</summary>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"errors\":{}}")]
+    [InlineData("{\"errors\":{\"FirstName\":null}}")]
+    [InlineData("{\"errors\":{\"FirstName\":[]}}")]
+    [InlineData("{\"errors\":{\"FirstName\":[null]}}")]
+    [InlineData("{\"errors\":{\"FirstName\":[\" \"]}}")]
+    [InlineData("{\"errors\":{\"FirstName\":[\"Invalid\"]},\"playerCreationReason\":\"possibleDuplicate\"}")]
+    [InlineData("{\"errors\":{\"FirstName\":[\"Invalid\"]},\"playerCreationNotCommittedOperationId\":null}")]
+    [InlineData("{\"errors\":{\"FirstName\":[\"Invalid\"]},\"playerCreationDuplicate\":{}}")]
+    public async Task CreateRejectsMalformedValidationEvidenceAsync(string body)
+    {
+        var input = CreateInput();
+        using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        using var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerManagementService(http).CreateAsync(input, TestContext.Current.CancellationToken);
+
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        PlayerCreationProblems.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
+    }
+
+    /// <summary>Well-formed field feedback and correlation remain available without claiming durable rejection.</summary>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.UnprocessableEntity)]
+    public async Task CreatePreservesValidValidationFeedbackAsync(HttpStatusCode status)
+    {
+        var input = CreateInput();
+        using var response = new HttpResponseMessage(status)
+        {
+            Content = JsonContent.Create(new
+            {
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["FirstName"] = ["Invalid name"] },
+                traceId = "trace-279"
+            })
+        };
+        using var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerManagementService(http).CreateAsync(input, TestContext.Current.CancellationToken);
+
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors!["FirstName"].ShouldBe(["Invalid name"]);
+        result.Problem.Extensions!["traceId"]!.ToString().ShouldBe("trace-279");
+        PlayerCreationProblems.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
+    }
+
     /// <summary>Contradictory rejection evidence cannot release an uncertain pending operation.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("expired")]

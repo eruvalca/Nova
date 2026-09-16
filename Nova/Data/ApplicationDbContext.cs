@@ -17,10 +17,10 @@ namespace Nova.Data;
 internal abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, IdentityRole<long>, long>
 {
     /// <summary>
-    /// The provider exposing the current user's id, club id, and roles.
+    /// The provider exposing the current user's id, club id, and roles, optionally bound to an operation snapshot.
     /// Referenced by query filter expressions so EF parameterizes them per context instance.
     /// </summary>
-    protected readonly ICurrentUserProvider _currentUser;
+    protected ICurrentUserProvider _currentUser;
 
     /// <summary>
     /// When true, all tenant query filters are bypassed. Set by <see cref="NovaAdminDbContext"/>.
