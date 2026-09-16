@@ -8,6 +8,45 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class HttpEffectivePlacementQueryServiceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, false, false)]
+    [InlineData(1, true, false)]
+    [InlineData(2, false, false)]
+    [InlineData(2, true, false)]
+    [InlineData(1, false, true)]
+    [InlineData(1, true, true)]
+    [InlineData(2, false, true)]
+    [InlineData(2, true, true)]
+    public async Task CloseoutValidatesNumericTeamAndExactNameParticipantTiesAsync(int endpoint, bool reversed, bool sameTeam)
+    {
+        var payload = TwoRowPayload(endpoint);
+        var rows = payload["participants"]!["items"]!.AsArray();
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var row = rows[index]!;
+            var teamId = index == 0 || sameTeam ? 2 : 10;
+            row[SourceName(endpoint)]!["team"]!["teamId"] = teamId;
+            row[SourceName(endpoint)]!["decision"]!["teamId"] = teamId;
+            if (!sameTeam) { row["lastName"] = index == 0 ? "Zulu" : "Alpha"; }
+            if (endpoint == 1)
+            {
+                row["localTeam"]!["teamId"] = teamId;
+                row["effectiveTeam"]!["teamId"] = teamId;
+                row["localDecision"]!["teamId"] = teamId;
+            }
+        }
+        if (reversed) { ReverseRows(payload); }
+        using var handler = new RecordingHandler(_ => Response(payload.ToJsonString()));
+        using var http = CreateHttp(handler);
+        var service = new HttpEffectivePlacementQueryService(http);
+        CampaignRosterDiscoveryInput input = endpoint == 1
+            ? new GetCampaignEffectivePlacementsInput { CampaignId = 42, SortBy = "closeout" }
+            : new GetClosedCampaignRosterInput { CampaignId = 42, SortBy = "closeout" };
+        var result = await ReadDiscoveryAsync(service, input);
+        result.IsSuccess.ShouldBe(!reversed);
+        if (reversed) { result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError); }
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("eligibility", PlacementCorrectionReason.None, false)]
     [InlineData("eligibility", PlacementCorrectionReason.TeamUnavailable, true)]
     [InlineData("eligibility", PlacementCorrectionReason.TeamIncompatible, true)]

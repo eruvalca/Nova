@@ -6,12 +6,15 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// <summary>Campaign-local discovery shared by Active work and immutable Closed records.</summary>
 public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
 {
+    /// <summary>The shared bound for literal campaign discovery text.</summary>
+    public const int MaximumSearchLength = 200;
+
     /// <summary>The campaign to read.</summary>
     [Range(1, long.MaxValue)]
     public required long CampaignId { get; init; }
 
     /// <summary>A literal name substring or exact tryout number.</summary>
-    [MaxLength(200)]
+    [MaxLength(MaximumSearchLength)]
     public string? Search { get; init; }
 
 #pragma warning disable CA1819 // Minimal API binds repeated scalar query parameters as arrays.

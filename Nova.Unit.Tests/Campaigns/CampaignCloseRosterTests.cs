@@ -40,6 +40,22 @@ public sealed class CampaignCloseRosterTests : BunitContext
     }
 
     [Fact]
+    public void InheritedNotSelectedOutcomeUsesReadableCopy()
+    {
+        var source = new PlacementDecisionSource(new(91, 30, 9, 20, 1, PlacementOutcome.NotSelected,
+            null, DateTimeOffset.UnixEpoch, 40, "Member", Guid.NewGuid()), "Prior", null);
+        var row = new CampaignEffectivePlacementItem(101, 30, "Alex", "Player", 2030, 1, LifecycleStatus.Active,
+            Guid.NewGuid(), null, source, null, EffectivePlacementEligibility.NeedsPlacement, PlacementCorrectionReason.None);
+        _queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(new CampaignEffectivePlacementsResult(
+                new(10, "Campaign", CampaignStatus.Active, new(20, "Season")), new(1, 0, 0, 0), new([row], 1, 50, 1))));
+        var cut = Render<CampaignCloseRoster>(p => p.Add(x => x.CampaignId, 10).Add(x => x.Owner, "member:club:10:1")
+            .Add(x => x.BuildCloseUrl, _ => "/campaigns/10?tab=close").Add(x => x.BuildParticipantUrl, _ => "/campaigns/10?tab=place"));
+        cut.Markup.ShouldContain("Inherited not selected; still needs a local outcome");
+        cut.Markup.ShouldNotContain("notselected");
+    }
+
+    [Fact]
     public async Task DisposedRosterRetryDoesNotPublishAnUnavailableResultAsync()
     {
         _queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())

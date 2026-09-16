@@ -5,7 +5,7 @@
     <div class="roster-toolbar">
         <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
             <label for="close-search" class="visually-hidden">Name or tryout number</label>
-            <input id="close-search" class="form-control" type="search" placeholder="Name or tryout number" maxlength="100" @bind="_search" />
+            <input id="close-search" class="form-control" type="search" placeholder="Name or tryout number" maxlength="@CampaignRosterDiscoveryInput.MaximumSearchLength" @bind="_search" />
             <button class="btn btn-outline-primary" type="submit">Search</button>
         </form>
         <label for="close-blocker">Show players with this blocker</label>
@@ -47,7 +47,7 @@
                                 <tr @key="row.PlayerCampaignAssignmentId">
                                     <th scope="row"><a href="@BuildParticipantUrl(row.PlayerCampaignAssignmentId)">@row.FirstName @row.LastName</a>@if (row.PlayerLifecycleStatus == LifecycleStatus.Archived) { <span class="d-block small fw-normal">Archived player</span> }</th>
                                     <td>@(row.TryoutNumber?.ToString(System.Globalization.CultureInfo.CurrentCulture) ?? "—")</td><td>@row.GraduationYear</td>
-                                    <td>@Outcome(row)@if (row.LocalDecision is null && row.EffectiveDecision is not null) { <span class="d-block small text-body-secondary">Inherited @row.EffectiveDecision.Decision.Outcome.ToString().ToLowerInvariant(); still needs a local outcome</span> }</td>
+                                    <td>@Outcome(row)@if (row.LocalDecision is null && row.EffectiveDecision is not null) { <span class="d-block small text-body-secondary">Inherited @OutcomeLabel(row.EffectiveDecision.Decision.Outcome).ToLowerInvariant(); still needs a local outcome</span> }</td>
                                     <td>@(row.LocalTeam?.TeamName ?? "—")</td>
                                 </tr>
                             }

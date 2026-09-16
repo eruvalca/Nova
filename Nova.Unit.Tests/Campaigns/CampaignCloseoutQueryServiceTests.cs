@@ -1,10 +1,12 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -45,6 +47,30 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <inheritdoc />
     public void Dispose() => _harness.Dispose();
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReadinessUsesPersistedNormalizedAdministratorIdentityAsync(bool normalizedAdministrator)
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            db.Roles.Add(new IdentityRole<long>
+            {
+                Id = 800,
+                Name = normalizedAdministrator ? "clubadmin" : Roles.ClubAdmin,
+                NormalizedName = normalizedAdministrator ? Roles.ClubAdmin.ToUpperInvariant() : "OTHER",
+            });
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 800 });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        _harness.CurrentUser.UserId = ClubAAdminId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var result = await CreateService().GetCloseoutReadinessAsync(new() { CampaignId = _readyCampaignId }, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Lifecycle.IsAdministrator.ShouldBe(normalizedAdministrator);
+        result.Value.Lifecycle.CanClose.ShouldBe(normalizedAdministrator);
+    }
 
     /// <summary>Verifies an unsigned-in caller cannot read closeout readiness.</summary>
     [Fact]

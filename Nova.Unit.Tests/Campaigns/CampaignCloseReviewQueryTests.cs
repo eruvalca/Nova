@@ -8,6 +8,29 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class EffectivePlacementQueryServiceTests
 {
     [Fact]
+    public async Task ClosedCloseoutOrderKeepsAssignedBeforeTerminalOutcomesAcrossPagesAsync()
+    {
+        var withdrawn = AddDecision(AddPlayer("Aaron"), PriorCampaignId, PlacementOutcome.Withdrawn);
+        var notSelected = AddDecision(AddPlayer("Aaron"), PriorCampaignId, PlacementOutcome.NotSelected);
+        var assigned = AddDecision(AddPlayer("Zulu"), PriorCampaignId, PlacementOutcome.Assigned, TeamId);
+        var ids = new List<long>();
+        for (var page = 1; page <= 2; page++)
+        {
+            var result = await CreateService().GetClosedCampaignRosterAsync(new()
+            {
+                CampaignId = PriorCampaignId,
+                SortBy = "closeout",
+                PageSize = 2,
+                Page = page,
+            }, TestContext.Current.CancellationToken);
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.Participants.TotalCount.ShouldBe(3);
+            ids.AddRange(result.Value.Participants.Items.Select(row => row.PlayerCampaignAssignmentId));
+        }
+        ids.ShouldBe([assigned.PlayerCampaignAssignmentId, notSelected.PlayerCampaignAssignmentId, withdrawn.PlayerCampaignAssignmentId]);
+    }
+
+    [Fact]
     public async Task CloseoutOrderGroupsLocalTeamsThenTerminalOutcomesAcrossBoundedPagesAsync()
     {
         var missing = AddDecision(AddPlayer("Aaron"), ActiveCampaignId, PlacementOutcome.Undecided);

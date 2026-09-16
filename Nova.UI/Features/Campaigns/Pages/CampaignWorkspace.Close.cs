@@ -13,7 +13,7 @@ public partial class CampaignWorkspace
     [SupplyParameterFromQuery(Name = "returnToClose")] private bool? ReturnToCloseQuery { get; set; }
     private CampaignWorkspaceCloseState CloseState => new()
     {
-        Search = string.IsNullOrWhiteSpace(CloseSearchQuery) ? null : CloseSearchQuery.Trim(),
+        Search = CampaignWorkspaceCloseState.NormalizeSearch(CloseSearchQuery),
         Page = Math.Max(1, ClosePageQuery ?? 1),
         Blocker = CampaignWorkspaceCloseState.NormalizeBlocker(CloseBlockerQuery),
     };

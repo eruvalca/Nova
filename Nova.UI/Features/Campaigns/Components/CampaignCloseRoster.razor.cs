@@ -121,7 +121,8 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
     private bool Current(int request, string key) => request == _request && string.Equals(key, RequestKey, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
     private Task SearchAsync() => OnStateChanged.InvokeAsync(State with { Search = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(), Page = 1 });
     private Task BlockerChangedAsync(ChangeEventArgs args) => OnStateChanged.InvokeAsync(State with { Blocker = string.IsNullOrEmpty(args.Value?.ToString()) ? null : args.Value.ToString(), Page = 1 });
-    private static string Outcome(CampaignEffectivePlacementItem row) => row.LocalDecision?.Outcome switch
+    private static string Outcome(CampaignEffectivePlacementItem row) => OutcomeLabel(row.LocalDecision?.Outcome);
+    private static string OutcomeLabel(PlacementOutcome? outcome) => outcome switch
     {
         PlacementOutcome.Assigned => "Assigned",
         PlacementOutcome.NotSelected => "Not selected",

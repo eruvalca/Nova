@@ -372,7 +372,7 @@ public sealed partial class CampaignLifecycleRetryTests(NovaAppHostFixture fixtu
 
     /// <summary>
     /// Verifies a close whose commit reached the database but surfaced a transient failure is
-    /// reported as success rather than replayed into a spurious "already closed" conflict.
+    /// reported as an unknown acknowledgement, without replay or state-based success inference.
     /// </summary>
     [Fact]
     public async Task CampaignCloseReportsUnknownWhenCommitSucceedsButAcknowledgementIsLostAsync()

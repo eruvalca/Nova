@@ -49,3 +49,10 @@ The independent finish reviewer reinspected the round-one desktop, mobile, admin
 - Resolved: empty-state recovery, Retry roster and Return to Close remain readable and separated on phone; inspected CSS applies the 2.75rem minimum height. Retry readiness has the same source rule.
 - Resolved: the workspace THESIS comment is restored.
 - No material visual regression in the seven supplied captures. Retry readiness has no new rendered capture; its actual target measurement is browser evidence. This bounded verdict does not expand the original full-surface review scope. The failed 71.3% comparison and user-approved override remain unchanged.
+# Round-two bounded finish verdict
+
+The same independent reviewer examined seven refreshed Close captures and the affected source. **Disposition: ship**, limited to the mechanical/copy regression check: rem-based targets preserve visible sizes and spacing, the shared label maps inherited NotSelected to readable text, and the search-length binding causes no visible layout change. Approved composition B, Ready wording, recovery controls, confirmation and Closed feedback remain intact.
+
+The final shipping run refreshed these captures after the sibling focus-rule correction. The reviewer reinspected all seven: “All three focus rules use `.125rem` outlines and `.1875rem` offsets, equivalent to the previous dimensions at a 16px root. Closed-heading focus remains visible and unclipped. No material regression in the seven refreshed captures.” Final bounded disposition: **ship**.
+
+Enlarged-root-font rendering, individual link-focus states and the specific inherited NotSelected label are not captured; source/component-test evidence supplies the latter claim. The first browser failure, passive readiness-wait correction and passing final full suite are recorded in the authoritative validation record. The failed 71.3% comparison and approved override are unchanged; this verdict does not broaden the original full-surface scope.

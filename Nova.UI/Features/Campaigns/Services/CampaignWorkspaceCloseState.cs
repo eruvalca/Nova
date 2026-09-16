@@ -14,6 +14,13 @@ public sealed record CampaignWorkspaceCloseState
     /// <summary>The one-based 50-participant page.</summary>
     public int Page { get; init; } = 1;
 
+    /// <summary>Normalizes bookmarked search text; invalid lengths show the unfiltered roster.</summary>
+    public static string? NormalizeSearch(string? value)
+    {
+        var search = value?.Trim();
+        return search is { Length: > 0 and <= CampaignRosterDiscoveryInput.MaximumSearchLength } ? search : null;
+    }
+
     /// <summary>Normalizes bookmarked blocker tokens; unknown values show all participants.</summary>
     public static string? NormalizeBlocker(string? value) => value?.Trim().ToUpperInvariant() switch
     {
@@ -32,9 +39,9 @@ public sealed record CampaignWorkspaceCloseState
         ArgumentNullException.ThrowIfNull(destination);
         var parts = new List<string>();
         if (Page > 1) { parts.Add($"closePage={Page.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); }
-        if (Search is not null)
+        if (NormalizeSearch(Search) is { } search)
         {
-            parts.Add($"closeSearch={Uri.EscapeDataString(Search)}");
+            parts.Add($"closeSearch={Uri.EscapeDataString(search)}");
         }
         if (NormalizeBlocker(Blocker) is { } blocker)
         {

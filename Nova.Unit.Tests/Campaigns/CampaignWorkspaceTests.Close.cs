@@ -15,6 +15,21 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class CampaignWorkspaceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(200)]
+    [InlineData(201)]
+    public void CloseBookmarkSearchIsBoundedBeforeQuerying(int length)
+    {
+        RegisterServices();
+        var search = new string('a', length);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10?tab=close&closeSearch={search}");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        var expected = length <= CampaignRosterDiscoveryInput.MaximumSearchLength ? search : null;
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1)
+            .GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.SortBy == "closeout" && x.Search == expected), Arg.Any<CancellationToken>());
+        cut.Find("#close-search").GetAttribute("maxlength").ShouldBe("200");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("unknown", null)]
     [InlineData("ARCHIVEDTEAMS", "archivedTeams")]
     [InlineData("%20Eligibility%20", "eligibility")]

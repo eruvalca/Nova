@@ -107,8 +107,7 @@ internal sealed partial class CampaignCloseoutQueryService(
         var activeId = await db.Campaigns.Where(candidate => candidate.ClubId == clubId
                 && candidate.CampaignId != campaignId && candidate.Status == CampaignStatus.Active)
             .Select(candidate => (long?)candidate.CampaignId).FirstOrDefaultAsync(cancellationToken);
-        var administrator = await db.UserRoles.AnyAsync(role => role.UserId == actorId
-            && db.Roles.Any(definition => definition.Id == role.RoleId && definition.Name == Roles.ClubAdmin), cancellationToken);
+        var administrator = await IsAdministratorAsync(db, actorId, cancellationToken);
         var reopen = CampaignReopenPolicy.Evaluate(campaign.Status, campaign.SeasonId, currentSeasonId,
             campaign.SeasonOpeningSequence, latest?.SeasonOpeningSequence, activeId.HasValue);
         var reason = reopen.Match(_ => CampaignReopenUnavailableReason.None, blocked => blocked.Reason);
@@ -120,6 +119,13 @@ internal sealed partial class CampaignCloseoutQueryService(
                 administrator && reason == CampaignReopenUnavailableReason.None, reason,
                 reason == CampaignReopenUnavailableReason.LaterCampaignOpened ? latest?.CampaignId : activeId)
         };
+    }
+
+    private static Task<bool> IsAdministratorAsync(NovaReadDbContext db, long actorId, CancellationToken cancellationToken)
+    {
+        var administratorRole = Roles.ClubAdmin.ToUpperInvariant();
+        return db.UserRoles.AnyAsync(role => role.UserId == actorId
+            && db.Roles.Any(definition => definition.Id == role.RoleId && definition.NormalizedName == administratorRole), cancellationToken);
     }
 
     /// <summary>Totals and blockers use the same local facts, never a separately queried roster page.</summary>
