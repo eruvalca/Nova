@@ -1,7 +1,7 @@
 {
   "issue": 257,
   "baseRevision": "199b58b35e26fdf44b65e5a3773e88bdc1cc391b",
-  "testedRevision": "Base plus issue-257 working-tree application/test changes; final committed comparison is in docs/issue-257-validation.md",
+  "testedRevision": "b17ba2001710a9c7304330dbe23019b52f93fc7a; only the unrelated evaluation browser diagnostic addition differs from capture-time inputs, as recorded in the validation record",
   "inputInventory": {
     "sha256": "1151abba52a0ad7547a61bc6e4a7d8f441e6870e1fa5dc09e0960f2985709146",
     "count": 1225

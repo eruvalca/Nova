@@ -18,9 +18,11 @@ Scope: [#257](https://github.com/eruvalca/Nova/issues/257), the in-app Closed ca
 
 ## Current validation
 
+Implementation revision: `b17ba2001710a9c7304330dbe23019b52f93fc7a`. This commit contains the inputs tested above, including the diagnostic-only browser addition. The following evidence-stamp commit changes only this record and the capture manifest; it reuses those results without changing application, test, build, runtime or generated inputs. `origin/main` still equals the base revision; no incoming changes were added after validation.
+
 **Draft PR; merge remains blocked on the unexplained modified-click validation incident.** The latest full browser run passes, but that does not resolve the original failure. No merge is requested or performed.
 
-Tested input: `199b58b35e26fdf44b65e5a3773e88bdc1cc391b` plus the issue-257 application/test changes. The final unit and selected browser runs used an inventory of 1,225 application/test/build inputs, including generated theme CSS, with SHA-256 `1151abba52a0ad7547a61bc6e4a7d8f441e6870e1fa5dc09e0960f2985709146`. All entries still matched after the initial full browser run. Only `Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs` subsequently changed to add failure diagnostics; its actions and assertions are unchanged. The rebuilt final browser inventory is `f3efcc288958ba8fa25ec6c0c4fcc058a0145a4633e48dede9a919681e314caf`; all 1,225 entries still match after the passing full run. Final committed comparison will be recorded below.
+Tested input: `199b58b35e26fdf44b65e5a3773e88bdc1cc391b` plus the issue-257 application/test changes in the implementation revision. The final unit and selected browser runs used an inventory of 1,225 application/test/build inputs, including generated theme CSS, with SHA-256 `1151abba52a0ad7547a61bc6e4a7d8f441e6870e1fa5dc09e0960f2985709146`. All entries still matched after the initial full browser run. Only `Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs` subsequently changed to add failure diagnostics; its actions and assertions are unchanged. The rebuilt final browser inventory is `f3efcc288958ba8fa25ec6c0c4fcc058a0145a4633e48dede9a919681e314caf`; all 1,225 entries still match after the passing full run and implementation commit.
 
 | Check | Command / evidence | Current result |
 | --- | --- | --- |
