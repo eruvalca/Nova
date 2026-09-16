@@ -6,16 +6,19 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current implementation revision: `c9c1d7e542a0b924929f45fc45904b54f50e3981` on
+Current fix revision: `c3b99cd643934959df8da6775e2aeb7988625dcd` on
 `codex/279-player-command-recovery`, based on `fc2c0053`. This includes the original implementation
-`f25d19a2`, guidance follow-up `430010e0`, and the two PR-review fixes below. Build, unit, integration,
-model and format checks ran against `430010e0` plus the exact production/test changes committed as
-`c9c1d7e`; committing changed no build inputs. The full browser run used that same build at `c9c1d7e`.
-The subsequent validation-record commit changes only this document; application and browser-suite
-inputs match `c9c1d7e` exactly. No source, configuration, dependencies or generated assets changed
-during the browser run. All required checks in the current gate table pass.
+`f25d19a2`, guidance follow-up `430010e0`, production-review fixes `c9c1d7e`, and the conformance fixes
+below. The latest build, format, unit, and integration checks ran against `d4c3fbc7` plus the exact six
+fixture changes and skill-reference correction committed as `c3b99cd6`; committing changed no tested
+source. The following validation-record commit changes only this document.
 
-Remote `main` was verified still at `fc2c0053` before the browser run; no merge-input differences exist.
+Application, shared harness, and browser-suite inputs still match `c9c1d7e`; its full browser and
+migration-model results remain applicable. No source, configuration, dependencies or generated assets
+changed during that browser run. All required checks in the current gate table pass, and both
+conformance findings have verified fixes below.
+
+Remote `main` was verified still at `fc2c0053` during the conformance-fix pass; no merge-input differences exist.
 
 ## Guidance applied
 
@@ -37,6 +40,10 @@ Remote `main` was verified still at `fc2c0053` before the browser run; no merge-
   `code-review` skill's local-review doctrine/checklist and `dotnet-test` test-gap-analysis,
   assertion-quality, and test-analysis-extensions with `extensions/dotnet.md`. The separate reviewer
   read these sources independently. Existing source/test pairing was reused for the bounded fixes.
+- Conformance-fix pass: reused the applicable C#, testing, tenancy, validation, and Blazor rules;
+  `nova-testing` and its integration/persisted-membership references; and the form/lifecycle recipe.
+  Applied the installed `skill-creator` and `dotnet-test/run-tests` skills for the narrow guidance edit
+  and repository-compatible MTP execution. Existing behavioral tests cover the fixture-only changes.
 
 ## Behavior and evidence
 
@@ -80,14 +87,14 @@ Remote `main` was verified still at `fc2c0053` before the browser run; no merge-
 
 Current gate evidence for the implementation revision above:
 
-| Check | Command | Current result |
-| --- | --- | --- |
-| Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors |
-| Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass |
-| Migration model | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Pass: no pending changes (tool 10.0.8 emits an informational runtime 10.0.12 version warning) |
-| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,672 passed, zero failed/skipped |
-| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped |
-| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 206 passed, zero failed, 8 existing opt-in captures skipped; full suite selected because authentication, recovery and HTTP behavior span flows. |
+| Check | Command | Current result | Tested revision |
+| --- | --- | --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors | `c3b99cd6` inputs |
+| Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass | `c3b99cd6` inputs |
+| Migration model | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Pass: no pending changes (tool 10.0.8 emits an informational runtime 10.0.12 version warning) | `c9c1d7e`, unchanged model inputs |
+| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,672 passed, zero failed/skipped | `c3b99cd6` inputs |
+| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped | `c3b99cd6` inputs |
+| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 206 passed, zero failed, 8 existing opt-in captures skipped; full suite selected because authentication, recovery and HTTP behavior span flows. | `c9c1d7e`, unchanged application/browser inputs |
 
 The incremental [receipt migration](../Nova/Data/Migrations/20260916204134_AddPlayerCreationReceipts.cs)
 was applied by the Aspire integration/browser fixtures. The browser skips were the existing accessibility
@@ -156,12 +163,46 @@ independent test executions or mutation-score claim.
 Before publishing this record, `git diff --name-only c9c1d7e` identified only
 `docs/279-validation.md`; the final documentation commit therefore changes none of the tested
 application/browser inputs. `git diff --check` and all 17 distinct relative file links in this record
-passed. No unresolved in-scope review finding remains.
+passed. Both findings from the original PR review were resolved by this fix pass; later review
+findings are recorded separately below.
 
 The PostgreSQL tests use the real `CurrentUserProvider` fallback and
 `ServerAuthenticationStateProvider.SetAuthenticationState` while actual advisory-lock contention is
 observed. They exercise the circuit principal replacement boundary directly; a physical browser
 WebSocket reconnect/account-switch sequence is not separately automated.
+
+## Agent-guidance conformance review
+
+Source: [review at `d4c3fbc7`](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5229247759),
+against `fc2c0053`. This source/evidence review reused the applicable instructions and recipes listed
+above and applied the installed `code-review` skill's doctrine, PR workflow, and checklist. It checked
+production invariants, guidance examples and routing, integration isolation, ecosystem copies,
+prior review dispositions, and validation applicability. The prior two production fixes remain valid.
+
+| Finding | Disposition and confirming evidence |
+| --- | --- |
+| [Medium: new integration user seeds assign random primary keys](https://github.com/eruvalca/Nova/pull/283#discussion_r4031583958) | Fixed in `c3b99cd6`. All eleven affected insert sites save users without explicit IDs, then use generated IDs for attribution and principals; membership is saved before service calls. The full integration pass covers `CampaignCreationPostgresTests`, `CampaignOpeningRosterRaceTests`, `PlayerEnrollmentPostgresTests`, `PlayerLifecycleRetryTests`, `PlayerManagementRetryTests`, and `TeamPlayerGraduationYearRaceTests`. Existing assertions and fault/lock gates are preserved. |
+| [Medium: form-validation recipe still validates the manual creation command](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5229247759) | Fixed in `c3b99cd6`. The [form recipe](../.agents/skills/add-blazor-ui/references/forms-and-validation.md) now validates `PlayerProfileInput` and shows separate dispatch-time conversion with operation/club metadata. Focused comparison with `PlayerFormState` and `Players` confirms metadata is allocated once and the immutable pending command is retained for retries. Skill structure validation passes. |
+
+The review itself ran no builds, tests, benchmarks, or formatting commands. The random-key collision
+was established as an isolation risk by source inspection, not reproduced at runtime. The subsequent
+fix pass ran the build, formatting, and full unit/integration checks in the current gate table; all
+passed on the first run. Removed only obsolete `CA5394` suppressions beside deleted random actor-ID
+allocation; no assertions, skips, or validation controls were weakened.
+
+`python -X utf8 C:/Users/eruva/.codex/skills/.system/skill-creator/scripts/quick_validate.py
+.agents/skills/add-blazor-ui` passed. Focused self-review checked all affected seed callers, the form
+example and recovery link, and shared Codex/Copilot guidance placement. This small reference correction
+adds no skill, mirror, or new policy; no independent forward-test was needed.
+
+Browser rerun: **N/A for this fix**, with the prior full pass retained. Comparing `c9c1d7e` to the final
+inputs identifies only six integration test classes, the form recipe, and this record. The browser
+project references the integration assembly for shared helpers, but none of the six changed classes
+is used by browser tests; shared fixtures/helpers, discovery, build/runtime configuration, application
+source, and generated assets are unchanged. The bootstrap output also retained its pre-build timestamp
+and size. Migration-model verification is reused because no model or migration input changed.
+`git diff --check` and all 18 distinct relative file links pass. Both findings are addressed; no
+unresolved conformance finding remains.
 
 ## Guidance follow-up
 
