@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Http;
@@ -12,6 +13,54 @@ namespace Nova.Browser.Tests;
 [Collection(BrowserSuiteCollection.Name)]
 public sealed class CampaignClosedRecordBrowserTests(BrowserSuiteFixture fixture)
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EvaluationRoundTripPreservesPlaceContextThroughSearchPagingAndSelectionAsync(bool javaScriptEnabled)
+    {
+        var seed = await SeedClosedAsync();
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password,
+            new() { Width = 1440, Height = 1000 }, javaScriptEnabled: javaScriptEnabled);
+        var page = context.Pages[0];
+        var carried = "placementSearch=Goalie&placementPage=2&placementParticipant=25&placementYears=2028,2029"
+            + "&placementTags=7,9&placementOutcome=assigned&placementTeamId=60&placementSortBy=tryoutNumber"
+            + "&placementSortDirection=desc&returnToEvaluation=true&search=preserved&closeOutcome=assigned";
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=close&{carried}&closeParticipant={seed.AssignmentIds[0]}").ToString());
+        await Expect(page.Locator(".participant-history li")).ToHaveCountAsync(20);
+        await page.GetByRole(AriaRole.Link, new() { Name = "Read evaluation", Exact = true }).ClickAsync();
+        await Expect(page.Locator(".evaluation-sheet")).ToBeVisibleAsync();
+        AssertCarriedContext(page, carried, seed.AssignmentIds[0]);
+        await page.Locator("#evaluation-search").FillAsync("Player");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Find", Exact = true }).ClickAsync();
+        await Expect(page.Locator("[data-eval-result]")).ToHaveCountAsync(20);
+        AssertCarriedContext(page, carried, seed.AssignmentIds[0]);
+        await page.GetByRole(AriaRole.Link, new() { Name = "Next page", Exact = true }).ClickAsync();
+        await Expect(page.Locator(".evaluation-paging")).ToContainTextAsync("Page 2 of 3");
+        AssertCarriedContext(page, carried, seed.AssignmentIds[0]);
+        await page.Locator("[data-eval-result]").First.ClickAsync();
+        await Expect(page.Locator(".evaluation-sheet")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Save note", Exact = true })).ToHaveCountAsync(0);
+        AssertCarriedContext(page, carried, seed.AssignmentIds[0]);
+        await page.GetByRole(AriaRole.Link, new() { Name = "Return to Close", Exact = true }).ClickAsync();
+        await Expect(page.Locator(".participant-history li")).ToHaveCountAsync(20);
+        AssertCarriedContext(page, carried, seed.AssignmentIds[0]);
+        var finalQuery = QueryHelpers.ParseQuery(new Uri(page.Url).Query);
+        finalQuery["tab"].ToString().ShouldBe("close");
+        finalQuery["evalSearch"].ToString().ShouldBe("Player");
+        finalQuery["evalPage"].ToString().ShouldBe("2");
+    }
+
+    private static void AssertCarriedContext(IPage page, string carried, long closeParticipant)
+    {
+        var actual = QueryHelpers.ParseQuery(new Uri(page.Url).Query);
+        foreach (var pair in QueryHelpers.ParseQuery(carried))
+        {
+            actual[pair.Key].Count.ShouldBe(1, $"{pair.Key} must be present exactly once");
+            actual[pair.Key].ToString().ShouldBe(pair.Value.ToString(), pair.Key);
+        }
+        actual["closeParticipant"].ToString().ShouldBe(closeParticipant.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public async Task MemberReadsPagedFinalRecordAndInlineHistoryWithReadOnlyEvaluationReturnAsync()
     {

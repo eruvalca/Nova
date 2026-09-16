@@ -254,7 +254,7 @@ FORM: Roster beside participant context, seed 16fb136e; Close compact review abo
                         }
                         else if (_activeTab == EvaluateTabName)
                         {
-                            <CampaignEvaluationPanel PreserveCloseContext="WithCloseContext" CaptureScope="@_captureScope" CampaignId="CampaignId" Status="_detail.Status" AuthorityScope="@_authorityScope" State="EvaluationState" RosterState="_filters" RosterParticipantId="_selectedParticipantId" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
+                            <CampaignEvaluationPanel PreserveCloseContext="WithCloseContext" PreservePlacementContext="WithPlacementContext" CaptureScope="@_captureScope" CampaignId="CampaignId" Status="_detail.Status" AuthorityScope="@_authorityScope" State="EvaluationState" RosterState="_filters" RosterParticipantId="_selectedParticipantId" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
                         else if (_activeTab == CloseTabName)
                         {

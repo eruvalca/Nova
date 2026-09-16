@@ -86,7 +86,9 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
         && permit.Request == _departureSequence && permit.Restore == _captureRestoreSequence && !HasDraft && _pending is null);
     /// <summary>Preserves the Close correction handoff through evaluation navigation.</summary>
     [Parameter] public Func<string, string> PreserveCloseContext { get; set; } = static url => url;
-    private string LookupUrl(CampaignWorkspaceEvaluationState state) => PreserveCloseContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId));
+    /// <summary>Preserves carried Place state through lookup navigation, excluding deliberate Place-player handoffs.</summary>
+    [Parameter] public Func<string, string> PreservePlacementContext { get; set; } = static url => url;
+    private string LookupUrl(CampaignWorkspaceEvaluationState state) => PreserveCloseContext(PreservePlacementContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId)));
     private string PlayerUrl(long id) => LookupUrl(State with { ParticipantId = id });
     private string PlacePlayerUrl => PreserveCloseContext(CampaignWorkspaceUrlState.WithEvaluationContext(
         CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
@@ -96,7 +98,7 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     {
         get
         {
-            var query = PreserveCloseContext("?" + CampaignWorkspaceUrlState.BuildQueryString(RosterState)).TrimStart('?');
+            var query = PreserveCloseContext(PreservePlacementContext("?" + CampaignWorkspaceUrlState.BuildQueryString(RosterState))).TrimStart('?');
             foreach (var queryField in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
             {
                 var pair = queryField.Split('=', 2);

@@ -169,12 +169,33 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
                 && row.Source.Decision.PlayerCampaignAssignmentId == row.PlayerCampaignAssignmentId
                 && ValidDiscovery(input, row.PlayerCampaignAssignmentId, row.GraduationYear,
                     row.Source.Decision.Outcome, row.Source.Team, row.AppliedTags))
+            && ValidClosedOutcomeCounts(result, input)
             && Unique(result.Participants.Items.Select(row => row.PlayerId))
             && Unique(result.Participants.Items.Select(row => row.PlayerCampaignAssignmentId))
             && (input.SortBy is null && input.SortDirection is null
                 ? Ordered(result.Participants.Items.Select(row => new OrderKey(0, row.LastName, row.FirstName, row.PlayerId)))
                 : OrderedDiscovery(result.Participants.Items.Select(row => DiscoveryKey(input, row.PlayerCampaignAssignmentId,
                     row.FirstName, row.LastName, row.GraduationYear, row.TryoutNumber, row.Source.Decision.Outcome, row.Source.Team)), input));
+
+    private static bool ValidClosedOutcomeCounts(ClosedCampaignRosterResult result, GetClosedCampaignRosterInput input)
+    {
+        foreach (var (outcome, count) in new[]
+        {
+            (PlacementOutcome.Assigned, result.Summary.AssignedCount),
+            (PlacementOutcome.NotSelected, result.Summary.NotSelectedCount),
+            (PlacementOutcome.Withdrawn, result.Summary.WithdrawnCount),
+            (PlacementOutcome.Undecided, result.Summary.UndecidedCount),
+        })
+        {
+            if (result.Participants.Items.Count(row => row.Source.Decision.Outcome == outcome) > count
+                || string.Equals(input.LocalOutcome, outcome.ToString(), StringComparison.OrdinalIgnoreCase)
+                    && result.Participants.TotalCount > count)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static bool ValidLocalTeam(CampaignParticipantTeamSummaryDto? team, CampaignSavedPlacementDecision? decision)
         => decision?.TeamId is null ? team is null

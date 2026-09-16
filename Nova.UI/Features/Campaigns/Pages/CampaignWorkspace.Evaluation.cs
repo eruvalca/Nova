@@ -38,9 +38,18 @@ public partial class CampaignWorkspace
 
     private long? LegacyEvaluationParticipant => EvaluationQuery != true && string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal) ? _selectedParticipantId : null;
 
-    private string EvaluationUrl => WithCloseContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
+    private string EvaluationUrl => WithCloseContext(WithPlacementContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
         string.Equals(_activeTab, RosterTabName, StringComparison.Ordinal) && _selectedParticipantId is not null
-            ? EvaluationState with { ParticipantId = _selectedParticipantId } : EvaluationState, _filters, _selectedParticipantId));
+            ? EvaluationState with { ParticipantId = _selectedParticipantId } : EvaluationState, _filters, _selectedParticipantId)));
+
+    private string WithPlacementContext(string url)
+    {
+        var query = CampaignWorkspaceUrlState.BuildPlacementQueryString(_placementState);
+        if (PlacementParticipantQuery is > 0) { query += $"&placementParticipant={PlacementParticipantQuery}"; }
+        if (ReturnToEvaluationQuery == true) { query += "&returnToEvaluation=true"; }
+        if (string.IsNullOrEmpty(query)) { return url; }
+        return url + (url.Contains('?', StringComparison.Ordinal) ? "&" : "?") + query.TrimStart('&');
+    }
 
     private string CloseUrl => BuildCloseUrl(CloseState);
 }

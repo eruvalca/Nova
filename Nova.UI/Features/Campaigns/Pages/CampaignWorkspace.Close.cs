@@ -60,8 +60,8 @@ public partial class CampaignWorkspace
         => CloseState.Apply(CampaignWorkspaceUrlState.WithEvaluationContext(
             CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new() { Eligibility = "all" }, _filters, _selectedParticipantId, participantId), EvaluationState), returnToClose: true);
     private string BuildClosedEvaluationUrl(long participantId)
-        => CloseState.Apply(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
-            EvaluationState with { ParticipantId = participantId }, _filters, _selectedParticipantId), returnToClose: true);
+        => CloseState.Apply(WithPlacementContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
+            EvaluationState with { ParticipantId = participantId }, _filters, _selectedParticipantId)), returnToClose: true);
     private Task OnCloseStateChangedAsync(CampaignWorkspaceCloseState state)
     {
         navigationManager.NavigateTo(BuildCloseUrl(state));
