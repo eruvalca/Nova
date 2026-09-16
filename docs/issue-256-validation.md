@@ -2,6 +2,8 @@
 
 Status: implementation and required local validation complete. Base revision: `8e89f7d3d6889f7a9779cd0efe96a1c2c1a2123e`. The final tested production fingerprint is `0b0acf81be5507d7f18f7b4b2ab4e3ecee5406e8d1a2c2bf3c833ada4cc3dd8e`; test-source fingerprint is `937a12ae032dbeb5f2478a6d74d058b12178a0dc0dfe7227db5a09edb2559d87`. Per-file normalized hashes and representative-capture hashes are in the capture manifest linked below.
 
+Tested implementation commit: `542e28eccb81637208740fa8a813b0abf67eec33`. The subsequent commit updates only this validation record and capture-manifest revision metadata; application/test fingerprints remain unchanged and all suite results apply to that source.
+
 ## Scope and handoff
 
 Active Close roster review, authoritative local-outcome readiness, correction returns, and the single administrator close/reopen action shared with #257. One 50-row page, with local team/outcome groups and whole-campaign totals. No export, printing, receipt storage, schema migration or deployment. #257 retains ownership of the full Closed record and product-document reconciliation.
