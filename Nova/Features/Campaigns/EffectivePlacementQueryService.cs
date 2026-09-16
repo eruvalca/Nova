@@ -19,6 +19,9 @@ internal sealed partial class EffectivePlacementQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<EffectivePlacementQueryService> logger) : IEffectivePlacementQueryService
 {
+    // Explicit .NET whitespace keeps SQL trim consistent across PostgreSQL and SQLite.
+    private const string AttributionWhitespace = "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000";
+
     /// <inheritdoc />
     public Task<ServiceResult<CurrentSeasonRosterResult>> GetCurrentSeasonRosterAsync(
         GetCurrentSeasonRosterInput input, CancellationToken cancellationToken = default)
@@ -165,7 +168,9 @@ internal sealed partial class EffectivePlacementQueryService(
         var query = db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId && a.CampaignId == input.CampaignId
             && a.Player.ClubId == clubId);
         if (await query.AnyAsync(a => a.PlacementOutcome == PlacementOutcome.Undecided || a.DecisionRecordedAt == null
-            || a.DecisionRecordedById == null || a.DecisionActorDisplayName == null
+            || a.DecisionRecordedAt == default(DateTimeOffset) || a.ConcurrencyToken == Guid.Empty
+            || a.DecisionRecordedById == null || a.DecisionRecordedById <= 0 || a.DecisionActorDisplayName == null
+            || a.DecisionActorDisplayName.Trim(AttributionWhitespace.ToCharArray()) == string.Empty
             || a.PlacementOutcome == PlacementOutcome.Assigned && (a.Team == null || a.Team.ClubId != clubId), token))
         {
             return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.",
@@ -178,7 +183,8 @@ internal sealed partial class EffectivePlacementQueryService(
             .OrderByDescending(e => e.ActivityEventId)
             .Select(e => new CampaignActivityItemDto(e.ActivityEventId, CampaignLifecycleEventType.Closed,
                 e.CreatedAt, e.ActorUserId, e.ActorDisplayName)).FirstOrDefaultAsync(token);
-        if (closingEvent is null || string.IsNullOrWhiteSpace(closingEvent.ActorDisplayName))
+        if (closingEvent is null || closingEvent.CampaignLifecycleEventId <= 0 || closingEvent.ActorUserId <= 0
+            || closingEvent.CreatedAt == default || string.IsNullOrWhiteSpace(closingEvent.ActorDisplayName))
         {
             return ServiceProblem.Conflict("The Closed campaign contains an incomplete closure record.",
                 new Dictionary<string, string[]>(StringComparer.Ordinal) { [ClosedCampaignRecordErrors.Integrity] = ["Incomplete closure record."] });

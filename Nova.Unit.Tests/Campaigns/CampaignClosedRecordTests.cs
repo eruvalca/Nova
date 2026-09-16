@@ -88,6 +88,23 @@ public sealed class CampaignClosedRecordTests : BunitContext
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0)]
+    [InlineData(60)]
+    public void EmptyRosterPageKeepsSelectedHistoryAndEvaluation(int matching)
+    {
+        _roster.GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(input => input.ParticipantId == null), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<ClosedCampaignRosterResult>(Record() with
+            { ParticipantCount = 60, Summary = new(60, 0, 0, 0, 60), Participants = new([], 3, 50, matching) }));
+        var cut = RenderRecord(new() { Page = 3, Search = "missing", ParticipantId = 101 });
+        cut.FindAll("table").ShouldBeEmpty();
+        cut.Markup.ShouldContain(matching == 0 ? "No participants match" : "beyond the current results");
+        cut.Find(".participant-history").TextContent.ShouldContain("Original member");
+        cut.Find(".participant-history").TextContent.ShouldContain("Not selected → Assigned · North");
+        cut.FindAll(".history-actions a").Single(link => string.Equals(link.TextContent, "Read evaluation", StringComparison.Ordinal))
+            .GetAttribute("href").ShouldBe("/campaigns/10?tab=evaluate&evalParticipant=101&returnToClose=true");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, 0, "has no participants")]
     [InlineData(3, 0, "No participants match")]
     [InlineData(60, 60, "beyond the current results")]
