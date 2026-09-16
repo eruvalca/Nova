@@ -522,9 +522,10 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         await using (db)
         {
             var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+            var actor = new NovaUserEntity { FirstName = "Campaign", LastName = "Member" };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -535,7 +536,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             };
             db.Clubs.Add(club);
             await db.SaveChangesAsync(cancellationToken);
-            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Campaign", LastName = "Member" });
+            actor.ClubId = club.ClubId;
             await db.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

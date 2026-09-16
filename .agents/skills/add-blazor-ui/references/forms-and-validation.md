@@ -26,7 +26,15 @@ public sealed class PlayerFormState : IValidatableObject
 
     public static PlayerFormState FromDetail(PlayerDetailDto detail) => new() { /* ... */ };
 
-    public CreatePlayerInput ToCreateInput() => new() { FirstName = FirstName, /* ... */ };
+    public PlayerProfileInput ToProfileInput() => new() { FirstName = FirstName, /* ... */ };
+
+    public CreatePlayerInput ToCreateInput(Guid operationId, long clubId) => new()
+    {
+        OperationId = operationId,
+        ClubId = clubId,
+        FirstName = FirstName,
+        // ... remaining profile fields
+    };
 
     public UpdatePlayerInput ToUpdateInput() => new() { PlayerId = PlayerId, /* ... */ };
 
@@ -35,7 +43,7 @@ public sealed class PlayerFormState : IValidatableObject
     {
         var errors = IsEdit
             ? InputValidator.Validate(ToUpdateInput())
-            : InputValidator.Validate(ToCreateInput());
+            : InputValidator.Validate(ToProfileInput());
 
         foreach (var (field, messages) in errors)
         {
@@ -47,6 +55,11 @@ public sealed class PlayerFormState : IValidatableObject
     }
 }
 ```
+
+For player creation, validate `PlayerProfileInput` before allocating command metadata. After a valid
+submission, the parent calls `ToCreateInput(operationId, clubId)` once to freeze the command and retains
+that exact input for retries. Profile validation never generates or replaces an operation ID. See
+[pending-command recovery](lifecycle-and-state.md#pending-command-recovery) for ownership and settlement.
 
 The `ValidationResult` member name must match the form property name so `ValidationMessage For="..."`
 renders it next to the right input.

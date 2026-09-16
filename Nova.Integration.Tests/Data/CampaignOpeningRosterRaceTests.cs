@@ -238,13 +238,14 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken,
         int activeTeamCount = 0)
     {
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
         var suffix = Guid.CreateVersion7().ToString("N");
         var context = fixture.CreateAdminContext();
         await using (context)
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            context.Users.Add(actor);
+            await context.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.CreateVersion7(),
@@ -255,7 +256,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
             };
             context.Add(club);
             await context.SaveChangesAsync(cancellationToken);
-            context.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+            actor.ClubId = club.ClubId;
             await context.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

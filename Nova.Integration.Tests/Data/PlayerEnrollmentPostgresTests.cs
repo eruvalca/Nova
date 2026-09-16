@@ -144,15 +144,16 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         await using (var db = fixture.CreateAdminContext())
         {
             var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+            var actor = new NovaUserEntity { FirstName = "Isolation", LastName = "Member" };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
 
             var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
             var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
             db.Clubs.AddRange(clubA, clubB);
             await db.SaveChangesAsync(cancellationToken);
-            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = clubA.ClubId, FirstName = "Isolation", LastName = "Member" });
+            actor.ClubId = clubA.ClubId;
             await db.SaveChangesAsync(cancellationToken);
 
             var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Season A {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = actorUserId };
@@ -217,9 +218,10 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         await using (db)
         {
             var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
 
             var club = new ClubEntity
             {
@@ -231,7 +233,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
             };
             db.Clubs.Add(club);
             await db.SaveChangesAsync(cancellationToken);
-            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+            actor.ClubId = club.ClubId;
             await db.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

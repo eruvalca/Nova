@@ -43,10 +43,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     public async Task TeamUpdateLocksPlacedPlayersBeforeTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
-#pragma warning restore CA5394
-        var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var seed = await SeedPlacementAsync(teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var actorUserId = seed.ActorUserId;
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = seed.ClubId;
@@ -77,10 +75,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 #pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
-#pragma warning restore CA5394
-        var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var seed = await SeedPlacementAsync(teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var actorUserId = seed.ActorUserId;
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = seed.ClubId;
@@ -154,10 +150,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     public async Task TeamUpdateReportsConflictWhenPlacementAppearsForUnlockedPlayerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
-#pragma warning restore CA5394
-        var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var seed = await SeedPlacementAsync(teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var actorUserId = seed.ActorUserId;
         var latecomerPlayerId = await SeedPlayerAsync(seed.ClubId, actorUserId, graduationYear: 2030);
         var campaignId = await ReadCampaignIdAsync(seed.PlacementId);
 
@@ -254,14 +248,12 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// <summary>
     /// Seeds a club, an active campaign, a team, a player, and one Assigned placement joining them.
     /// </summary>
-    /// <param name="actorUserId">The creating user identifier.</param>
     /// <param name="teamGraduationYear">The team's starting graduation year.</param>
     /// <param name="playerGraduationYear">The player's starting graduation year.</param>
     /// <returns>Identifiers and current values needed by the assertions.</returns>
 #pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<PlacementSeed> SeedPlacementAsync(
 #pragma warning restore MA0051
-        long actorUserId,
         int teamGraduationYear,
         int playerGraduationYear)
     {
@@ -275,6 +267,10 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         var seed = fixture.CreateAdminContext();
         await using (seed)
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -285,7 +281,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
             };
             seed.Clubs.Add(club);
             await seed.SaveChangesAsync(cancellationToken);
-            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity
@@ -354,7 +350,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
                 player.FirstName,
                 player.LastName,
                 player.DateOfBirth,
-                placement.PlayerCampaignAssignmentId);
+                placement.PlayerCampaignAssignmentId,
+                actorUserId);
         }
     }
 
@@ -369,6 +366,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
     /// <param name="PlayerLastName">The seeded player last name.</param>
     /// <param name="PlayerDateOfBirth">The seeded player date of birth.</param>
     /// <param name="PlacementId">The seeded Assigned placement identifier.</param>
+    /// <param name="ActorUserId">The database-generated acting user identifier.</param>
     private sealed record PlacementSeed(
         long ClubId,
         long TeamId,
@@ -377,7 +375,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         string PlayerFirstName,
         string PlayerLastName,
         DateOnly PlayerDateOfBirth,
-        long PlacementId);
+        long PlacementId,
+        long ActorUserId);
 
     /// <summary>
     /// Records the advisory-lock keys a mutation acquires, in acquisition order.
