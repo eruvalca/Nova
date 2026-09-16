@@ -7,6 +7,28 @@ namespace Nova.Browser.Tests;
 public sealed partial class CampaignClosedRecordBrowserTests
 {
     [Fact]
+    public async Task DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync()
+    {
+        var seed = await SeedClosedAsync();
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        var url = new Uri(fixture.BaseUri, $"/campaigns/{seed.CampaignId}?tab=close&closeParticipant={seed.AssignmentIds[0]}").ToString();
+        await page.GotoAsync(url);
+        await Expect(page.Locator(".participant-history li")).ToHaveCountAsync(20);
+        await Expect(page.Locator("#closed-history-heading")).ToBeFocusedAsync();
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, async () =>
+        {
+            await Expect(page.Locator("#closed-history-heading")).ToBeFocusedAsync();
+            await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Review reopen", Exact = true }),
+                () => page.Locator(".confirmation").IsVisibleAsync());
+            await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+        });
+        await page.GotoAsync(url);
+        await Expect(page.Locator(".participant-history li")).ToHaveCountAsync(20);
+        await Expect(page.Locator("#closed-history-heading")).ToBeFocusedAsync();
+    }
+
+    [Fact]
     public async Task FailedRecordRefreshKeepsHistoryRetryableAndFocusesRestoredHeadingAsync()
     {
         var seed = await SeedClosedAsync();

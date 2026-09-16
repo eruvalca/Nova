@@ -93,7 +93,7 @@ public partial class CampaignClosedRecord(IEffectivePlacementQueryService querie
         }
         if (!string.Equals(_historyRequestKey, CurrentHistoryKey, StringComparison.Ordinal))
         {
-            _focusHistory = _historyRequestKey is not null && State.ParticipantId is not null;
+            _focusHistory = State.ParticipantId is not null;
             _historyRequestKey = CurrentHistoryKey;
             if (!string.Equals(HistoryKey, CurrentHistoryKey, StringComparison.Ordinal)) { loads.Add(LoadHistoryAsync()); }
         }

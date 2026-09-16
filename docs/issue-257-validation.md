@@ -55,7 +55,37 @@ Readiness review rechecked all GitHub review bodies and inline threads, includin
 
 `./scripts/Test-AgentGuidance.ps1` and `./scripts/Test-AgentGuidance.ps1 -SelfTest` pass: four agent families/hook mirrors and 17 drift/format/missing/provider fixtures. CI build and unit checks pass on `496a45d2` (run `35132581318`). The diagnostics do not change production behavior, schema, layout or visual design; existing design acceptance remains applicable.
 
-## Current validation — Copilot review round 1
+## Current validation — Copilot review round 2
+
+Source: [review 5227242679](https://github.com/eruvalca/Nova/pull/282#pullrequestreview-5227242679), head `0e096d68`. Its single suppressed accessibility finding matches workflow `35138390803`'s one stored comment and 1/1 moderate classifier count. All review bodies, conversation comments and inline threads were inspected; the four earlier threads remain resolved and this round creates no thread. CI build and unit checks passed on `0e096d68` (run `35138381616`).
+
+**Finding fixed:** an initial `closeParticipant` selection did not schedule history focus because the previous history request key was null. An initial main-record failure followed by regional retry also retained no pending focus. Schedule focus whenever a new history key has a selected participant, including initial attachment and restored prerender state. The existing rendered-heading guard still defers focus while loading or failed; removing selection cancels it. Unchanged parameters do not refocus. Workspace mounts the Closed record only on Close, its route focus targets `h1`, and Evaluate already schedules initial selected-sheet focus. Returning to Close with retained selection is the same remount path.
+
+| Requirement | Evidence |
+| --- | --- |
+| Direct initial selection and initial record failure → retry focus history | Both rows of `DirectSelectionFocusesHistoryAfterInitialRecordOrRetryAsync`; also verifies an unchanged render adds no focus call |
+| Restored success/error focuses without duplicate history reads | Both rows of `RestoredDirectSelectionFocusesHistoryWithoutRepeatingHistoryReadsAsync` |
+| Hidden or removed heading never receives pending focus | Existing `RefreshFailureDefersHistoryFocusUntilRecordRetryRendersHeadingAsync` and `RemovingSelectionDuringRefreshDiscardsPendingHistoryFocusAsync`, now measured relative to legitimate initial focus |
+| Actual direct URL, initial attachment and WASM reload focus | `DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`; URL intentionally has no fragment, so native scrolling cannot satisfy focus. The warmup callback asserts focus before its lifecycle interaction in the same document whose attachment it verifies |
+
+All four new component rows failed before the production change because the expected focus call was absent. Initial test compilation exposed that bUnit's invocation dictionary has no `Clear`; the tests now capture the initial focus count and retain assertions for zero additional calls while hidden and one after recovery. No assertion, timeout, retry policy, skip or suppression was weakened. The separate local reviewer checked the complete round diff and host/sibling ownership, recommended asserting focus inside the observed WASM document, rechecked that correction, and reported no actionable findings.
+
+Applied the previously recorded guidance, with focused reads of C#, Blazor architecture, UI-design and testing instructions; add-blazor-ui's render-mode/lifecycle references; nova-testing's transition, component and browser references; and the installed focused code-testing-agent and run-tests skills. This changes focus scheduling only, with no markup, styling, service, HTTP, EF, schema or dependency change. Existing visual evidence and the full 636-test integration pass for `0e096d68` remain applicable. Full browser validation is selected to cover focus and mounted/remounted navigation siblings.
+
+Tested inputs: `0e096d68` plus `CampaignClosedRecord.razor.cs`, `CampaignClosedRecordTests.cs` and `CampaignClosedRecordFocusBrowserTests.cs`; later edits only update this record. The frozen 1,227-file application/test/build/generated-input inventory has SHA-256 `857d06c2c6e1cde6cf1f0d60fd1fe48eca0847165a18a1c44137f2f733762b2c`; every entry still matches after the full browser run. Remote `main` remains `199b58b3`, with no incoming application changes. Aspire suites ran serially, with no separately started AppHost.
+
+| Check | Command / evidence | Result |
+| --- | --- | --- |
+| Build | `dotnet build Nova.slnx` | Pass, 0 warnings/errors |
+| Focused unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignClosedRecordTests'` | 20 passed, 0 failed/skipped |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,610 passed, 0 failed/skipped |
+| Full integration | Unaffected result at `0e096d68`, recorded in round 1 | 636 passed, 0 failed/skipped; reused for this UI-only correction |
+| Format | `dotnet format Nova.slnx --verify-no-changes` | Pass, exit 0 |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 203 passed, 0 failed, 8 existing opt-in capture skips |
+
+The earlier R3 incident remains explicitly deferred by the owner, not fixed. Fresh CI and automatic Copilot review are required after this round's single combined commit; no review is requested manually.
+
+## Previous validation — Copilot review round 1
 
 Source: [review 5226829865](https://github.com/eruvalca/Nova/pull/282#pullrequestreview-5226829865), head `496a45d2`. All three findings are in the suppressed-comments section; no inline thread was created. Workflow `35133947104` records exactly three stored locations and a 3/3 moderate classifier count, matching the complete review body. Existing human reviews, comments and all four resolved threads were rechecked. The “Needs a closer look” label does not meet the owner's clean stopping exception while these findings remain.
 
