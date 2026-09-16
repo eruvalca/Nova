@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "f7fb95b6d3c2918be290ad1fc21be30a888f32ff plus complete round-six working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "aefe6f15c2bd95c597b4b0a823752e712bc53422 plus complete round-seven working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "8ef5197c68a8d3a30cfc8d8ae16863f906de92b620cc92d82b9af7d3a1e38d8c",
-  "testFingerprint": "857828b0acd8420e7ac487ab4f0038bce7a9fb7a2d22aa907de47e954cc44389",
+  "productionFingerprint": "44b17b9473fc123ccc74cc474cf67844709d762b27ed8d4fcbfd83d759b2b303",
+  "testFingerprint": "2ee861df942dd4bb65a6823e48871746a2adb8d131e1a4c44150b08f5bec2a4d",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -23,6 +23,10 @@
       "sha256": "9e04f86b98a70863ad91aaa09dd7d55ed6bab1f0950c19d4b809108d2224d944"
     },
     {
+      "path": "Nova.SharedKernel/Features/Campaigns/CampaignEndpoints.cs",
+      "sha256": "6fce4db4c578b358400338aee59de0b86d5724ec3faf6117f394c53f674abd63"
+    },
+    {
       "path": "Nova.SharedKernel/Features/Campaigns/CampaignLifecycleCapabilities.cs",
       "sha256": "950d7f48d47a35dd9528958e50ff91cbb19a2324c1b4261b7bcb90ccec881a62"
     },
@@ -36,7 +40,7 @@
     },
     {
       "path": "Nova.SharedKernel/Features/Campaigns/PlacementQueryUrls.cs",
-      "sha256": "716851c8d900edc52126b6fcd203327d74bef9f6c28115dc7bb73f2da707799e"
+      "sha256": "513a571f960f87c0434dbc7203944fbecb2b9fb2c889cd1f3116949a676d6e2c"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor",
@@ -290,7 +294,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/HttpEffectivePlacementQueryServiceTests.Close.cs",
-      "sha256": "0ba619c5102be3e9de438ea0a62923bd5ee1f45bcceeb8ad03f08d8bf7c97d2a"
+      "sha256": "d2c8cd5660448c644b7f3685dcec60a4aebf54ad53927719b0a0564509c5cd75"
     }
   ],
   "captures": [
@@ -367,7 +371,7 @@
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, including phone stale-page recovery.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, reused for round seven because no UI markup, CSS, copy or composition changed; round seven has fresh full browser behavior validation.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]

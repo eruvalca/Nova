@@ -55,7 +55,10 @@ public static class CampaignEndpoints
     public const string EffectivePlacementsRouteName = "GetCampaignEffectivePlacements";
     /// <summary>The Closed campaign roster endpoint name.</summary>
     public const string ClosedRosterRouteName = "GetClosedCampaignRoster";
-    /// <summary>Builds the effective placement context request.</summary>
+    /// <summary>
+    /// Builds the effective placement context request, canonicalizing recognized close-blocker tokens
+    /// and omitting unknown ones. Services validate the original input before calling this builder.
+    /// </summary>
     public static string EffectivePlacementsUrl(GetCampaignEffectivePlacementsInput input)
     {
         ArgumentNullException.ThrowIfNull(input);

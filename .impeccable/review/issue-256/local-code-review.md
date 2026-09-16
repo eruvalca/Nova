@@ -69,3 +69,9 @@ The browser fixture resets exactly 51 of 60 local decisions; its selected partic
 The first build also required an explicit non-null assertion on validation errors. The reviewer verified that assertion and the enabled-Save settlement correction; final round-six code verdict is clean, without suppressions or weakened checks.
 
 The first full browser run exposed an ambiguous status locator: normal conflict feedback and refresh progress were both present. The reviewer inspected the failure trace, requested the same correction for the fifth sibling, and reinspected all five expected-text filters. Final read-only verdict: clean; actions and behavioral assertions remain unchanged, while concurrent progress messages no longer create ambiguity. Test results remain in the validation record.
+
+# Review round 7 — corrected public builder contract
+
+The independent reviewer acknowledged that its round-six inapplicability disposition missed the explicit API Routes rule for public builders. Client short-circuiting does not satisfy that separate contract. Reinspection found the corrected canonicalization/omission clean: existing shared blocker keys are reused, original input remains unchanged, and strict client/service validation still rejects invalid originals without HTTP. Nine exact URL cases plus three preserved invalid-client cases cover the boundary without weakening validation.
+
+The reviewer also inspected the workflow's withdrawn retry-performance comment. Panel RetryAsync intentionally forwards to workspace RefreshCloseEvidenceAsync, which refreshes authorized detail, invalidates readiness/generation, reads fresh readiness and republishes startup state. No demonstrated defect justifies changing this recovery contract. Final read-only verdict: clean. No suites were run by the reviewer.

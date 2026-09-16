@@ -1,13 +1,14 @@
 ﻿using Nova.Client.Services.Campaigns;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class HttpEffectivePlacementQueryServiceTests
 {
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("unknown")]
     [InlineData(" ")]
     [InlineData(" outcomes ")]
@@ -18,12 +19,31 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         using var http = CreateHttp(handler);
         var service = new HttpEffectivePlacementQueryService(http);
         var input = new GetCampaignEffectivePlacementsInput { CampaignId = 42, CloseoutBlocker = blocker };
-        CampaignEndpoints.EffectivePlacementsUrl(input).ShouldContain("closeoutBlocker=" + Uri.EscapeDataString(blocker));
         var result = await service.GetCampaignEffectivePlacementsAsync(input, TestContext.Current.CancellationToken);
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors.ShouldContainKey(nameof(input.CloseoutBlocker));
         requests.ShouldBe(0);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData(" ", null)]
+    [InlineData("unknown", null)]
+    [InlineData("outcomes", "outcomes")]
+    [InlineData(" OUTCOMES ", "outcomes")]
+    [InlineData("ELIGIBILITY", "eligibility")]
+    [InlineData("ArchivedTeams", "archivedTeams")]
+    [InlineData(" archivedTeams ", "archivedTeams")]
+    public void CloseBlockerUrlEmitsOnlyCanonicalAcceptedTokens(string? supplied, string? expected)
+    {
+        var input = new GetCampaignEffectivePlacementsInput { CampaignId = 42, CloseoutBlocker = supplied };
+        var expectedUrl = "/api/campaigns/42/effective-placements?page=1&pageSize=50";
+        if (expected is not null) { expectedUrl += "&closeoutBlocker=" + expected; }
+        CampaignEndpoints.EffectivePlacementsUrl(input).ShouldBe(expectedUrl);
+        InputValidator.Validate(input with { CloseoutBlocker = expected }).ShouldBeEmpty();
+        input.CloseoutBlocker.ShouldBe(supplied);
     }
 
     [Theory(IncludeTestCaseIndex = true)]
