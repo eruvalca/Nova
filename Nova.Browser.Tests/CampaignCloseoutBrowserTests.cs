@@ -722,6 +722,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         var errorAlert = page.Locator(".close-review [role=alert]");
         var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry readiness" });
+        await page.SetViewportSizeAsync(390, 844);
         try
         {
             await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
@@ -729,6 +730,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
             await Expect(errorAlert).ToContainTextAsync("Close readiness could not be verified");
             await Expect(retry).ToBeVisibleAsync();
+            (await retry.BoundingBoxAsync())!.Height.ShouldBeGreaterThanOrEqualTo(44);
         }
         finally
         {

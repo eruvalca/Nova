@@ -14,6 +14,35 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class CampaignWorkspaceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("unknown", null)]
+    [InlineData("ARCHIVEDTEAMS", "archivedTeams")]
+    [InlineData("%20Eligibility%20", "eligibility")]
+    public void CloseBookmarkNormalizesBlockerBeforeQuerying(string query, string? expected)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10?tab=close&closeBlocker={query}");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1)
+            .GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.SortBy == "closeout" && x.CloseoutBlocker == expected), Arg.Any<CancellationToken>());
+        cut.Find("#close-blocker").GetAttribute("value").ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task ReturningFromEvaluateLoadsEachRosterOnlyOnceAsync()
+    {
+        RegisterServices();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns/10?tab=evaluate");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        var queries = Services.GetRequiredService<IEffectivePlacementQueryService>();
+        queries.ClearReceivedCalls();
+        await cut.InvokeAsync(() => navigation.NavigateTo("/campaigns/10?tab=close"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#close-roster-heading").TextContent.ShouldBe("Campaign roster"));
+        _ = queries.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.SortBy == "closeout"), Arg.Any<CancellationToken>());
+        _ = queries.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.SortBy != "closeout"), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task CloseConfirmationUsesCompletedWorkspacePreflightAfterDelayedReadAsync()
     {

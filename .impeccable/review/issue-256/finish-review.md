@@ -41,3 +41,11 @@ Preserve B, the actual shell/type, written readiness, separate local outcomes, 4
 Final member captures reproduced the approved composition without visible regression. Added settled `admin-confirmation.png` (long names, whole counts and explicit Close/Cancel) and `closed.png` (read-only status, attribution, success, heading focus and Review reopen) were inspected by the same reviewer.
 
 One newly evidenced Ready-state copy defect changed the supplemental disposition to **fix**: “Every participant still needs a campaign outcome” contradicted “Ready to close” and 60 local outcomes. Replaced it with “Every participant requires a campaign-local outcome.” After recapture the reviewer scored this sole finding **resolved**, with no visible regression from the copy change; final fix-verdict disposition **ship**. This verdict scores the listed fix; prior full-review scope and uncaptured-state limitations remain unchanged. The documenter rechecked DESIGN/sidecar and found no documentation change necessary after the copy correction.
+# Round-one bounded finish verdict
+
+The independent finish reviewer reinspected the round-one desktop, mobile, administrator confirmation, Closed, phone-empty, phone-return and phone-roster-error captures, alongside the affected source and approved direction. **Disposition: ship**, limited to these scored changes.
+
+- Resolved: Ready wording distinguishes participant outcomes from assigned-team requirements.
+- Resolved: empty-state recovery, Retry roster and Return to Close remain readable and separated on phone; inspected CSS applies the 2.75rem minimum height. Retry readiness has the same source rule.
+- Resolved: the workspace THESIS comment is restored.
+- No material visual regression in the seven supplied captures. Retry readiness has no new rendered capture; its actual target measurement is browser evidence. This bounded verdict does not expand the original full-surface review scope. The failed 71.3% comparison and user-approved override remain unchanged.

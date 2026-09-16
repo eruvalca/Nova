@@ -19,6 +19,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
     [Parameter, EditorRequired] public Func<Task<CampaignLifecycleEvidence?>> RefreshEvidence { get; set; } = null!;
 
     private CampaignLifecycleEvidence? _confirmation;
+    private CampaignLifecycleEvidence? _observedEvidence;
     private string? _owner;
     private int _operation;
     private bool _busy;
@@ -45,6 +46,11 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         {
             _confirmation = null;
         }
+        if (!ReferenceEquals(_observedEvidence, Evidence))
+        {
+            _observedEvidence = Evidence;
+            if (Evidence is not null) { _unavailable = false; }
+        }
     }
 
     /// <inheritdoc />
@@ -70,20 +76,21 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         _confirmation = null;
         var operation = ++_operation;
         var owner = Owner;
-        var refreshed = await RefreshAsync();
+        var (refreshed, superseded) = await RefreshAsync();
         if (!Current(operation, owner))
         {
             return;
         }
         _busy = false;
-        _unavailable = refreshed is null;
-        if (refreshed is not null && (refreshed.Readiness.Lifecycle.CanClose || refreshed.Readiness.Lifecycle.CanReopen))
+        _unavailable = refreshed is null && !superseded;
+        if (refreshed is not null && !superseded
+            && (refreshed.Readiness.Lifecycle.CanClose || refreshed.Readiness.Lifecycle.CanReopen))
         {
             _confirmation = refreshed;
         }
         else
         {
-            _feedback = refreshed is null ? "The required review could not be refreshed. Retry the read before taking an action." : "The campaign changed. Review its current readiness before taking an action.";
+            _feedback = _unavailable ? "The required review could not be refreshed. Retry the read before taking an action." : "The campaign changed. Review its current readiness before taking an action.";
         }
     }
 
@@ -114,6 +121,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
             succeeded = result.IsSuccess;
             message = ResultMessage(result, close);
         }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             // A transport failure cannot establish whether the server committed.
@@ -130,19 +138,19 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         }
         _feedback = message;
         StateHasChanged();
-        var refreshed = await RefreshAsync();
+        var (refreshed, superseded) = await RefreshAsync();
         if (!Current(operation, owner))
         {
             return;
         }
         _busy = false;
-        _unavailable = refreshed is null;
+        _unavailable = refreshed is null && !superseded;
         _feedback = message;
-        if (refreshed is null)
+        if (_unavailable)
         {
             _feedback += " Current state is unavailable. Retry the read before taking another action.";
         }
-        _focusPending = succeeded && refreshed is not null;
+        _focusPending = succeeded && refreshed is not null && !superseded;
     }
 
     private static string ResultMessage(ServiceResult<OneOf.Types.Success> result, bool close)
@@ -153,10 +161,19 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
             : result.Problem.Detail ?? "The campaign could not be changed. Review its current state.";
     }
 
-    private async Task<CampaignLifecycleEvidence?> RefreshAsync()
+    private async Task<(CampaignLifecycleEvidence? Value, bool Superseded)> RefreshAsync()
     {
-        try { return await RefreshEvidence(); }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { return null; }
+        var previous = Evidence;
+        CampaignLifecycleEvidence? refreshed;
+        try { refreshed = await RefreshEvidence(); }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { refreshed = null; }
+        // A synchronous parent refresh can return before its queued parameter render reaches us.
+        // Reject replacement evidence observed during the read; Commit still requires exact identity.
+        var superseded = refreshed is not null
+            ? !ReferenceEquals(refreshed, Evidence) && !ReferenceEquals(previous, Evidence)
+            : Evidence is not null && !ReferenceEquals(previous, Evidence);
+        return (refreshed, superseded);
     }
 
     private async Task RetryReadAsync()
@@ -168,13 +185,13 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
         _busy = true;
         var operation = ++_operation;
         var owner = Owner;
-        var refreshed = await RefreshAsync();
+        var (refreshed, superseded) = await RefreshAsync();
         if (!Current(operation, owner))
         {
             return;
         }
         _busy = false;
-        _unavailable = refreshed is null;
+        _unavailable = refreshed is null && !superseded;
         _confirmation = null;
     }
 

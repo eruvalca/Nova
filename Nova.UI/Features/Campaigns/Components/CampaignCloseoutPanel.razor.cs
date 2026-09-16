@@ -14,6 +14,8 @@ public partial class CampaignCloseoutPanel
     [Parameter] public CampaignLifecycleEvidence? Evidence { get; set; }
     /// <summary>The current user, club, campaign and authority owner.</summary>
     [Parameter, EditorRequired] public string Owner { get; set; } = string.Empty;
+    /// <summary>The stable refresh generation, independent of readiness completion or failure.</summary>
+    [Parameter] public long RefreshGeneration { get; set; }
     /// <summary>Whether readiness is loading.</summary>
     [Parameter] public bool Loading { get; set; }
     /// <summary>The readiness failure, independent of roster loading.</summary>

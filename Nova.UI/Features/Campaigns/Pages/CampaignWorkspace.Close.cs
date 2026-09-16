@@ -15,7 +15,7 @@ public partial class CampaignWorkspace
     {
         Search = string.IsNullOrWhiteSpace(CloseSearchQuery) ? null : CloseSearchQuery.Trim(),
         Page = Math.Max(1, ClosePageQuery ?? 1),
-        Blocker = CloseBlockerQuery,
+        Blocker = CampaignWorkspaceCloseState.NormalizeBlocker(CloseBlockerQuery),
     };
     /// <summary>The authoritative snapshot persisted across prerender and interactive attachment.</summary>
     [PersistentState] public CampaignLifecycleEvidence? PersistedCloseEvidence { get; set; }
@@ -81,7 +81,7 @@ public partial class CampaignWorkspace
             return;
         }
         _closeReadKey = key;
-        var generation = ++_closeGeneration;
+        var generation = _closeGeneration;
         _closeEvidence = null;
         _closeLoading = true;
         _closeError = null;

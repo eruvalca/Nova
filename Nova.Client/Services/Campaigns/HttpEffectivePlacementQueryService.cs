@@ -114,12 +114,26 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         }
         var expectedState = ExpectedEligibility(row, validTeam);
         return row.Eligibility == expectedState
-            && (input.CloseoutBlocker is null || (string.Equals(input.CloseoutBlocker, CloseoutBlockerConditions.Outcomes, StringComparison.OrdinalIgnoreCase)
-                ? row.LocalDecision is null : row.LocalDecision?.Outcome == PlacementOutcome.Assigned))
+            && MatchesCloseoutBlocker(row, input.CloseoutBlocker)
             && (input.TeamId is null || row.EffectiveTeam?.TeamId == input.TeamId)
             && (!Enum.TryParse<EffectivePlacementEligibility>(input.Eligibility, true, out var requested)
                 || !Enum.IsDefined(requested) || row.Eligibility == requested);
     }
+
+    private static bool MatchesCloseoutBlocker(CampaignEffectivePlacementItem row, string? condition)
+        => condition?.ToUpperInvariant() switch
+        {
+            "OUTCOMES" => row.LocalDecision is null,
+            "ARCHIVEDTEAMS" => row.LocalDecision?.Outcome == PlacementOutcome.Assigned
+                && row.CorrectionReason == PlacementCorrectionReason.TeamArchived,
+            // Archived takes precedence in the projected reason and can overlap incompatibility.
+            // This DTO cannot distinguish those two archived-team cases; reject only disproven membership.
+            "ELIGIBILITY" => row.LocalDecision?.Outcome == PlacementOutcome.Assigned
+                && row.CorrectionReason is PlacementCorrectionReason.TeamUnavailable
+                    or PlacementCorrectionReason.TeamIncompatible or PlacementCorrectionReason.TeamArchived,
+            null => true,
+            _ => false,
+        };
 
     private static EffectivePlacementEligibility ExpectedEligibility(CampaignEffectivePlacementItem row, bool validTeam)
     {

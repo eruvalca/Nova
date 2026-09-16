@@ -4,6 +4,8 @@
     padding-block: .5rem;
 }
 
+.close-return { min-height: 2.75rem; display: inline-flex; align-items: center; }
+
 .campaign-back-link {
     display: inline-flex;
     align-items: center;

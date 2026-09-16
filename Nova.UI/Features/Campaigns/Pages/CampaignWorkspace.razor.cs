@@ -551,6 +551,8 @@ public partial class CampaignWorkspace(
         if (_closeReturnPending)
         {
             _closeReturnPending = false;
+            // The full evidence refresh below owns this pending roster reload.
+            _reloadRosterPending = false;
             await RefreshCloseEvidenceAsync();
         }
         else

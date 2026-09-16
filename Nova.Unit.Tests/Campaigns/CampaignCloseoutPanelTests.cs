@@ -12,7 +12,7 @@ using Shouldly;
 namespace Nova.Unit.Tests.Campaigns;
 
 /// <summary>Close evidence, explicit confirmation, authority replacement and unknown-result recovery.</summary>
-public sealed class CampaignCloseoutPanelTests : BunitContext
+public sealed partial class CampaignCloseoutPanelTests : BunitContext
 {
     private readonly ICampaignLifecycleService _lifecycle = Substitute.For<ICampaignLifecycleService>();
     private CampaignLifecycleEvidence? _evidence = Evidence();

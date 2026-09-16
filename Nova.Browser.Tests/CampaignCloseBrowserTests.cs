@@ -40,6 +40,9 @@ public sealed partial class CampaignCloseBrowserTests(BrowserSuiteFixture fixtur
             () => page.Locator("#place-outcome").IsVisibleAsync());
         await Expect(page.Locator("#place-outcome")).ToBeEnabledAsync();
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Return to Close", Exact = true })).ToBeVisibleAsync();
+        await page.SetViewportSizeAsync(390, 844);
+        await AssertPhoneTargetAsync(page.GetByRole(AriaRole.Link, new() { Name = "Return to Close", Exact = true }));
+        await CaptureAsync(page, "phone-return");
         await InteractionHelpers.ActUntilAsync(page, () => page.Locator("#place-outcome").SelectOptionAsync(nameof(PlacementOutcome.NotSelected)),
             async () => await page.Locator("#place-team").CountAsync() == 0);
         await page.GetByRole(AriaRole.Button, new() { Name = "Save placement", Exact = true }).ClickAsync();
@@ -129,6 +132,10 @@ public sealed partial class CampaignCloseBrowserTests(BrowserSuiteFixture fixtur
         await page.Locator("#close-search").FillAsync("Nobody matches this search");
         await page.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
         await Expect(page.Locator(".close-roster")).ToContainTextAsync("No participants match this review.");
+        await page.SetViewportSizeAsync(390, 844);
+        await AssertPhoneTargetAsync(page.GetByRole(AriaRole.Link, new() { Name = "Show all campaign participants", Exact = true }));
+        await CaptureAsync(page, "phone-empty");
+        await page.SetViewportSizeAsync(1536, 1024);
         page.Url.ShouldNotContain("closePage=");
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator(".close-roster tbody a")).ToHaveCountAsync(10);
@@ -145,5 +152,14 @@ public sealed partial class CampaignCloseBrowserTests(BrowserSuiteFixture fixtur
         await page.Mouse.MoveAsync(0, 0);
         await page.EvaluateAsync("window.scrollTo(0, 0)");
         await page.ScreenshotAsync(new() { Path = Path.Combine(directory, name + ".png"), FullPage = fullPage });
+    }
+
+    private static async Task AssertPhoneTargetAsync(ILocator control)
+    {
+        await Expect(control).ToBeVisibleAsync();
+        var box = await control.BoundingBoxAsync();
+        box.ShouldNotBeNull();
+        box.Height.ShouldBeGreaterThanOrEqualTo(44);
+        box.Width.ShouldBeGreaterThanOrEqualTo(44);
     }
 }

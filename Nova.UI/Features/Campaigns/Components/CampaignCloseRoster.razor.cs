@@ -26,6 +26,15 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
     /// <summary>Refreshes authorized detail after a conflicting roster lifecycle.</summary>
     [Parameter] public EventCallback OnLifecycleChanged { get; set; }
 
+    /// <summary>Whether this region has a startup result, including a retryable failure.</summary>
+    [PersistentState] public bool Initialized { get; set; }
+    /// <summary>The authority, campaign, refresh generation and discovery owning the startup result.</summary>
+    [PersistentState] public string? PersistedKey { get; set; }
+    /// <summary>The bounded page restored at interactive attachment.</summary>
+    [PersistentState] public PagedResult<CampaignEffectivePlacementItem>? PersistedPage { get; set; }
+    /// <summary>The independently retryable startup failure.</summary>
+    [PersistentState] public string? PersistedError { get; set; }
+
     private string? _key;
     private int _request;
     private bool _loading;
@@ -41,6 +50,13 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
         {
             _key = RequestKey;
             _search = State.Search ?? string.Empty;
+            if (Initialized && string.Equals(PersistedKey, _key, StringComparison.Ordinal))
+            {
+                _page = PersistedPage;
+                _error = PersistedError;
+                _loading = false;
+                return;
+            }
             await LoadAsync();
         }
     }
@@ -81,6 +97,7 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
                 }
             }
         }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             if (Current(request, key))
@@ -93,6 +110,10 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
             if (Current(request, key))
             {
                 _loading = false;
+                PersistedKey = key;
+                PersistedPage = _page;
+                PersistedError = _error;
+                Initialized = true;
             }
         }
     }

@@ -81,7 +81,9 @@ internal sealed class HttpCampaignLifecycleService(HttpClient http) : ICampaignL
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        return new Success();
+        return response.StatusCode == System.Net.HttpStatusCode.NoContent
+            ? new Success()
+            : ServiceProblem.ServerError("The server did not acknowledge completion of the lifecycle request.");
     }
 
     /// <summary>

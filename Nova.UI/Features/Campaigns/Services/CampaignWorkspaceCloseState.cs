@@ -1,5 +1,7 @@
 ﻿
 
+using Nova.SharedKernel.Features.Campaigns;
+
 namespace Nova.UI.Features.Campaigns.Services;
 
 /// <summary>Close discovery is independent of Roster, Evaluate and Place filters.</summary>
@@ -11,6 +13,15 @@ public sealed record CampaignWorkspaceCloseState
     public string? Blocker { get; init; }
     /// <summary>The one-based 50-participant page.</summary>
     public int Page { get; init; } = 1;
+
+    /// <summary>Normalizes bookmarked blocker tokens; unknown values show all participants.</summary>
+    public static string? NormalizeBlocker(string? value) => value?.Trim().ToUpperInvariant() switch
+    {
+        "OUTCOMES" => CloseoutBlockerConditions.Outcomes,
+        "ELIGIBILITY" => CloseoutBlockerConditions.Eligibility,
+        "ARCHIVEDTEAMS" => CloseoutBlockerConditions.ArchivedTeams,
+        _ => null,
+    };
 
     /// <summary>Preserves Close context through a correction journey.</summary>
     /// <param name="destination">The existing destination and other workspace state.</param>
@@ -25,9 +36,9 @@ public sealed record CampaignWorkspaceCloseState
         {
             parts.Add($"closeSearch={Uri.EscapeDataString(Search)}");
         }
-        if (Blocker is not null)
+        if (NormalizeBlocker(Blocker) is { } blocker)
         {
-            parts.Add($"closeBlocker={Uri.EscapeDataString(Blocker)}");
+            parts.Add($"closeBlocker={Uri.EscapeDataString(blocker)}");
         }
         if (returnToClose)
         {

@@ -8,7 +8,13 @@
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
 
-
+<!--
+THESIS: A searchable participant field and adjacent context keep club staff oriented while working.
+OWN-WORLD: Fieldhouse semantic teal, sea-glass navigation, white boards, system typography and hairlines.
+STORY: Confirm campaign authority, find and correct participants, review local outcomes, then deliberately close or reopen.
+FIRST VIEWPORT: Compact identity and complete Route Markers precede each destination; Close keeps verdict and blockers above its full-width roster.
+FORM: Roster beside participant context, seed 16fb136e; Close compact review above roster, approved option B, seed issue-256-approved-plan.
+-->
 <div class="campaign-field" @ref="_workspaceElement" data-workspace-owner="@_jsOwner">
     <a class="campaign-back-link" href="/campaigns"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13 8H3m4-4L3 8l4 4" /></svg> Back to campaigns</a>
 
@@ -103,7 +109,7 @@
         }
         @if (ReturnToCloseQuery == true && _activeTab != CloseTabName)
         {
-            <a class="btn btn-outline-primary mb-3" href="@CloseUrl">Return to Close</a>
+            <a class="close-return btn btn-outline-primary mb-3" href="@CloseUrl">Return to Close</a>
         }
 
         @if (!string.IsNullOrWhiteSpace(_statusMessage))
@@ -252,7 +258,7 @@
                         }
                         else if (_activeTab == CloseTabName)
                         {
-                            <CampaignCloseoutPanel Detail="_detail" Owner="@CloseOwner" Evidence="_closeEvidence" Loading="_closeLoading" Error="@(_closeError ?? _pageError)"
+                            <CampaignCloseoutPanel Detail="_detail" Owner="@CloseOwner" RefreshGeneration="_closeGeneration" Evidence="_closeEvidence" Loading="_closeLoading" Error="@(_closeError ?? _pageError)"
                                 State="CloseState" BuildCloseUrl="BuildCloseUrl" BuildParticipantUrl="BuildCloseParticipantUrl" OnStateChanged="OnCloseStateChangedAsync"
                                 RefreshEvidence="RefreshCloseEvidenceAsync" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
