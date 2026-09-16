@@ -187,9 +187,17 @@ tests cover a close rejection whose draft and explanation must remain available 
 
 ## Pending-command recovery
 
-Use this only when the feature requires recovery across reloads. Follow the scoped
-`.github/instructions/blazor-architecture.instructions.md` recoverable-command rules; do not add
-browser persistence to ordinary mutations merely because they are asynchronous.
+Use this when a command supports recovery from an uncertain outcome, including in-session retries.
+Follow the scoped `.github/instructions/blazor-architecture.instructions.md` recoverable-command
+rules. Retain the original operation ID and payload in memory; add browser persistence only when
+the feature requires recovery across reloads.
+
+Keep pending-command ownership separate from the generation that owns rendered capabilities and
+late responses. For the same user and club, a role-only refresh invalidates that generation without
+discarding the pending command. Pair `Players.razor.cs` with
+`PlayerComponentsTests.PlayersRetriesExactPendingPayloadAcrossAdministratorDemotionAsync` and
+`PlayersIgnoresLateCreationResultWhileNewClubCreationIsPendingAsync` for in-memory retention and
+late-response isolation. Retention does not authorize replay or expose unavailable data.
 
 For tab-scoped recovery, initialize session storage after interactive attachment. Keep the original
 command payload separate from editable form state until an ambiguous result is resolved. A transport

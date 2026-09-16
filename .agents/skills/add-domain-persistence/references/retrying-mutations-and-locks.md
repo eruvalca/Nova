@@ -89,6 +89,13 @@ The caller retains the operation ID across requests; generating a new ID per HTT
 protects retries inside that attempt. A batch receipt owns the batch ID; do not copy it onto every
 created entity's uniquely constrained `CreationOperationId`.
 
+For single-player JSON commands, `PlayerManagementService.Creation.cs` and
+`PlayerCreationRecoveryPostgresTests` demonstrate immutable success and duplicate-rejection
+receipts. Within the recovery window, replaying a matching rejection still rejects after the original
+duplicate changes, so a delayed retry cannot silently become a new creation; see
+`PlayerManagementServiceTests.DuplicateRejectionRemainsSettledAfterMatchingPlayerChangesAsync`.
+The recovery window and duplicate policy remain feature-specific.
+
 Bind recovery to the authenticated tenant, actor, and original request fingerprint, and authorize
 against current persisted membership and roles before returning the receipt. Return the stored
 original result before reclassifying mutable domain state. Recheck for the receipt after acquiring
@@ -113,8 +120,9 @@ For preview/confirm flows that promise to import only reviewed eligible rows, bi
 classification as well as the exact bytes into the confirmation. Revalidate eligible rows at commit;
 previously excluded rows cannot become silently eligible. Inspect all writers of the checked
 identity: Nova's import duplicate check needs roster serialization in profile name/date-of-birth
-updates as well as creation. This serialization does not impose import duplicate policy on manual
-creation.
+updates as well as creation. Manual player creation uses the same trimmed, invariant-case name and
+date-of-birth comparison, including archived players. Profile edits participate in serialization
+without applying creation's duplicate-rejection policy.
 
 ## Multi-entity advisory locks
 

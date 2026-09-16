@@ -104,9 +104,15 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 - Minimal-API enum query binding is **case-sensitive**. Bind as `string?` and parse explicitly with
   `Enum.TryParse<T>(value, ignoreCase: true, out …)`, applying a default on failure.
 
-## WASM success payloads
+## WASM response contracts
 
 - A success response with a required body must deserialize to that body. Treat an empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError` (or a deliberate protocol exception consistent with the service contract), never as an empty collection or default DTO that hides a contract defect.
+- For receipt-based recovery, accept definitive rejection only when the declared rejection reason,
+  operation identity, and required evidence agree. A status code or isolated rejection marker is
+  insufficient. Missing, malformed, or contradictory settlement evidence is a protocol failure;
+  authorization denial, expiry, and transport failure do not prove an earlier attempt rolled back.
+  See the [WASM recipe](../../.agents/skills/add-feature-slice/references/wasm-client.md)
+  for rejection validation and its regression example.
 
 ## Polymorphic payload contexts
 

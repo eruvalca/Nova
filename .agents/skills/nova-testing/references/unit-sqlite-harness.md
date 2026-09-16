@@ -55,6 +55,15 @@ public void TenantContextReturnsOnlyCurrentClubsRows()
 }
 ```
 
+## Persisted membership
+
+`ActAs`, `CurrentUser`, and the integration fixture's `UseUser` configure the simulated principal;
+they do not create or update database users or roles. When a service checks persisted authorization,
+seed a `NovaUserEntity` with the correct `ClubId` and any required Identity role assignments through
+the admin context, then configure the principal from the saved identifiers. Keep claims/database
+disagreement intentional for stale-membership and stale-role rejection tests. This applies to both
+the SQLite and Aspire harnesses.
+
 ## Campaign lifecycle seeds
 
 Both harnesses use `CampaignTestSeedInterceptor` to fill absent opening metadata and saved-decision

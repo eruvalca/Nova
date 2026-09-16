@@ -143,16 +143,18 @@ Nova.UI/
   connect/disconnect lifecycle so replacement or removal does not leak listeners.
 - Step-by-step recipe with code examples: `.agents/skills/add-blazor-ui/references/js-interop.md`.
 
-## Recoverable lifecycle commands
+## Recoverable commands
 
 - Reuse the command's existing idempotency/replay contract. For flows that retain pending commands
   across reloads, persist the original operation ID and required payload before dispatch on **every**
   submission path, including confirmation/retry. A failed storage write cannot enable an unpersisted
   commit. Browser recovery context is never authorization or readiness evidence.
-- Scope recovery storage to the authenticated user and club. Permission changes invalidate visible
-  data, capabilities and in-flight UI ownership, but must not strand an unresolved operation by
-  changing its storage key. Reauthorize every replay on the server; a retained payload grants no
-  permissions. Clear unavailable or no-longer-authorized visible data before awaiting cleanup.
+- Scope pending commands to the authenticated user and club, whether retained in memory or browser
+  storage. Permission changes invalidate visible data, capabilities and in-flight UI ownership,
+  but do not settle an unresolved command: retain its original operation ID and payload for the
+  same owner, without changing its storage key when persistence is used. Reauthorize every replay
+  on the server; a retained payload grants no permissions. Clear unavailable or no-longer-authorized
+  visible data before awaiting cleanup.
 - Report committed effects from the command's immutable receipt, not a refreshed preview or later
   aggregate count. See `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md` for recovery.
 

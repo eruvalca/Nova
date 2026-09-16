@@ -104,6 +104,42 @@ assertion. All were applied. The requested delayed creation-success/failure regr
 a late response cannot settle newer club-owned pending work, and passes in the full unit suite.
 Full unit, provider, and browser evidence passes as recorded above. There are no unresolved in-scope findings.
 
+## Guidance follow-up
+
+Reviewed at `0e88128dd59a8b1d11ada23bb481c422d1db170b` plus the documentation changes in this commit to
+`AGENTS.md`, API/Blazor instructions, and the existing feature, persistence, Blazor, and testing skill
+references. No new skill or instruction file was added. Application and test inputs still match
+`f25d19a2`; this follow-up changes only guidance and its validation record.
+
+Applied the installed `skill-creator/SKILL.md` and the existing guidance listed above, using
+[Microsoft's instructions-hygiene guidance](https://devblogs.microsoft.com/dotnet/instructions-hygiene-what-frontier-models-still-need-you-to-say/)
+to keep additions specific to demonstrated gaps. Changes cover rejection-evidence validation,
+in-memory recovery ownership, persisted membership in test fixtures, and formatter/edit
+serialization. Updated the manual-creation duplicate example; feature-specific durations and
+limits remain outside general instructions. The formatter rule addresses an implementation-session
+overlap in which a source-writing format pass overwrote newer edits; those edits were restored
+before the implementation's final gates.
+
+- `git diff --check`: pass.
+- Before committing/pushing this follow-up, `dotnet format Nova.slnx --verify-no-changes --no-restore`:
+  pass; `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: 3,657 passed,
+  zero failed/skipped. Both ran against the parent revision plus these documentation changes;
+  the subsequent edits to this record changed no application/test inputs.
+- `python -X utf8 C:/Users/eruva/.codex/skills/.system/skill-creator/scripts/quick_validate.py
+  .agents/skills/<skill>`: pass for `add-blazor-ui`, `add-domain-persistence`, `add-feature-slice`,
+  and `nova-testing`. This validates skill structure, not behavioral effectiveness.
+- Focused self-review: relative links/anchors and named implementation/test examples checked;
+  no mandatory browser persistence, authorization bypass, new feature-wide lifetime, or weakened
+  validation gate introduced. The affected skills have no `.github/skills` mirrors; their shared
+  `.agents/skills` sources and path-scoped instructions serve both Codex and Copilot.
+- `git diff --name-only f25d19a2 0e88128d` identifies only this validation record; the working diff adds
+  only the guidance/documentation paths above. Build, migration, integration and browser evidence
+  for `f25d19a2` remains applicable to unchanged application/test inputs. Browser
+  rerun: N/A for this documentation-only follow-up. Test commands and PR gates are unchanged.
+- Limitation: no independent forward-test on a different feature was performed. Evaluate these
+  instructions during future recovery work such as #264; existing regression tests establish the
+  examples' behavior, not an improvement in future agent decisions.
+
 ## Consumer handoff to issues 263 and 264
 
 - Manual create/update derive from `PlayerProfileInput`; CSV candidates use only that profile contract.
