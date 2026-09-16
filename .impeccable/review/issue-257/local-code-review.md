@@ -58,6 +58,8 @@ The reviewer inspected the exact diagnostic-only diff in `CampaignEvaluationCapt
 
 The implementing agent reports both an isolated pass and a passing final full browser behavior run. Green reruns do not resolve the original unexplained failure or establish contention as its cause. The remaining diagnostic limitation is that `defaultPrevented` is sampled in document capture, not after dispatch; an earlier `stopImmediatePropagation` can also hide that click from the listener. A recurrence needs final-event cancellation plus actual target/composed-path and pointer geometry evidence to distinguish the causes.
 
+Readiness follow-up: the original failing tool output was recovered and independently inspected; it confirms the recorded timeout and unchanged source state but contains no additional causal evidence. The new diagnostic-only enhancement moves observation to window capture, records the actual target/composed path/hit target/geometry, and uses a later task to observe final cancellation and anchor connection/geometry. This closes the identified observation gaps for a recurrence without changing actions, assertions, timeouts, retries or skips. Independent review found no demonstrated causal defect; instrumentation can perturb timing and remains evidence collection, not a fix. Current execution results are in the authoritative validation record.
+
 Disposition: open and merge-blocking until the original failure is explained and appropriately resolved. A draft PR may expose the completed work and evidence for review; this disposition does not authorize merging or weakening the test. Current execution details and the original failure remain in the authoritative validation record.
 
 ## Checked paths and limits
