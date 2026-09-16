@@ -74,3 +74,9 @@ The independent reviewer inspected eight refreshed captures from 08:48–08:49 U
 
 The parsed provenance prompt matches the sibling text after removing its final newline; approved B remains recorded. Keyboard activation and target measurements are separate browser assertions, and suite success is not inferred from these images. The failed 71.3% comparison and approved actual-shell override remain unchanged. This verdict covers the scored changes without broadening the original full-surface review.
 The reviewer reinspected all nine final shipping captures refreshed at 09:05 UTC after the browser-selector correction: no material visual regression; stale-page recovery, true-empty, error, confirmation and Closed states retain their reviewed treatment. Final bounded disposition: **ship**. This does not establish the browser suite result or change the original comparison limitation.
+
+# Round-nine bounded finish verdict
+
+The independent finish reviewer inspected all ten final shipping captures refreshed at 11:27–11:28 UTC and the native-filter source diff. **Disposition: ship**, limited to these changes. “Apply filters” remains readable on desktop and phone; the native-filter result, recovery links, confirmation and Closed feedback preserve approved composition B without a material visual regression.
+
+The new script-disabled capture shows the settled one-result state. Submission, keyboard and history behavior are established separately by browser assertions; the reviewer did not infer the running full suite's outcome from images. Original scope limitations and uncaptured transient states remain. The original 71.3% comparison remains failed under the user-approved B/actual-shell override; this bounded verdict does not broaden the original surface review.

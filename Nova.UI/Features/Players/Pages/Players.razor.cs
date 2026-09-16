@@ -238,7 +238,10 @@ public partial class Players(
     protected bool IsRosterTruncated => _roster is not null && _roster.TotalCount > _roster.Items.Count;
 
     /// <inheritdoc />
-    protected override void OnParametersSet()
+    protected override void OnParametersSet() => ApplyQueryFilters();
+
+    /// <summary>Applies incoming URL filters once when binding the initial identity.</summary>
+    private void ApplyQueryFilters()
     {
         if (_queryFiltersApplied)
         {
@@ -258,6 +261,7 @@ public partial class Players(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        ApplyQueryFilters();
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         var authenticationVersion = _authenticationVersion;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
@@ -322,14 +326,24 @@ public partial class Players(
 
             ++_identityVersion;
             ++_rosterVersion;
+            var discardReturnContext = _identityApplied
+                || (Initialized && !string.Equals(SnapshotScope, $"{userId}:{clubId}:{canManagePlayers}", StringComparison.Ordinal));
             _identityApplied = true;
             _clubId = clubId;
             _userId = userId;
             _canManagePlayers = canManagePlayers;
             ResetIdentityState();
+            if (!discardReturnContext)
+            {
+                _queryFiltersApplied = false;
+                ApplyQueryFilters();
+            }
             _isLoading = _clubId is not null;
             StateHasChanged();
-            navigationManager.NavigateTo("/players", replace: true);
+            if (discardReturnContext)
+            {
+                navigationManager.NavigateTo("/players", replace: true);
+            }
             if (_clubId is null)
             {
                 _pageError = "You must join a club before viewing the player roster.";

@@ -130,7 +130,7 @@ public sealed partial class CampaignCloseBrowserTests(BrowserSuiteFixture fixtur
         await page.GetByRole(AriaRole.Link, new() { Name = "Next page", Exact = true }).ClickAsync();
         await Expect(page.Locator(".close-roster tbody a")).ToHaveCountAsync(10);
         await page.Locator("#close-search").FillAsync("Nobody matches this search");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Apply filters", Exact = true }).ClickAsync();
         await Expect(page.Locator(".close-roster")).ToContainTextAsync("No participants match this review.");
         await page.SetViewportSizeAsync(390, 844);
         await AssertPhoneTargetAsync(page.GetByRole(AriaRole.Link, new() { Name = "Show all campaign participants", Exact = true }));

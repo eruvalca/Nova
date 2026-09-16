@@ -20,6 +20,45 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed class PlayerComponentsTests : BunitContext
 {
+    /// <summary>Retains correction context and applies discovery filters before either startup authentication path loads the roster.</summary>
+    /// <param name="notificationOvertakesStartup">Whether the initial identity arrives through a notification before startup completes.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlayersStartupPreservesIncomingCorrectionContextAndFiltersAsync(bool notificationOvertakesStartup)
+    {
+        RegisterServices(isClubAdmin: true);
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/players?returnToDraft=10&returnUrl=%2Fcampaigns%2F10%3Ftab%3Dclose&view=archived&search=Avery&graduationYear=2032&tag=11");
+        var cut = Render<PlayersPage>();
+        var identity = new AuthenticationState(CreatePrincipal(true));
+        if (notificationOvertakesStartup)
+        {
+            await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(identity)));
+        }
+        else
+        {
+            await cut.InvokeAsync(() => pending.SetResult(identity));
+        }
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        navigation.Uri.ShouldContain("returnToDraft=10");
+        navigation.Uri.ShouldContain("returnUrl=");
+        cut.Markup.ShouldContain("Return to draft");
+        await Services.GetRequiredService<IPlayerService>().Received(1).GetPlayerRosterAsync(
+            Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 42 && string.Equals(input.Search, "Avery", StringComparison.Ordinal)
+                && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal) && input.GraduationYear == 2032 && input.PlayerTagId == 11),
+            Arg.Any<CancellationToken>());
+        if (notificationOvertakesStartup)
+        {
+            await cut.InvokeAsync(() => pending.SetResult(identity));
+        }
+        navigation.Uri.ShouldContain("returnToDraft=10");
+        cut.Markup.ShouldContain("Return to draft");
+    }
+
     /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without loading another user's roster.</summary>
     [Fact]
     public async Task PlayersAppliesEmptyIdentityWhenItOvertakesStartupAsync()

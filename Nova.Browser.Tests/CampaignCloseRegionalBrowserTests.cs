@@ -27,7 +27,7 @@ public sealed partial class CampaignCloseBrowserTests
         try
         {
             await page.Locator("#close-search").FillAsync("Player");
-            await page.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Apply filters", Exact = true }).ClickAsync();
             await AssertPhoneTargetAsync(page.GetByRole(AriaRole.Button, new() { Name = "Retry roster", Exact = true }));
             await Expect(page.Locator(".close-review")).ToContainTextAsync("Ready to close");
             await CaptureAsync(page, "phone-roster-error");

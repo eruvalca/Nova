@@ -22,6 +22,41 @@ public sealed class CampaignCloseRosterTests : BunitContext
             .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(new CampaignEffectivePlacementsResult(new(10, "Campaign", CampaignStatus.Active, new(20, "Season")), new(0, 0, 0, 0), new([], 1, 50, 0))));
     }
 
+    [Fact]
+    public void NativeFilterFormPreservesWorkspaceContextWithoutStaleCloseFields()
+    {
+        var cut = Render<CampaignCloseRoster>(p => p.Add(x => x.CampaignId, 10)
+            .Add(x => x.State, new CampaignWorkspaceCloseState { Search = "A & B", Blocker = "outcomes", Page = 2 })
+            .Add(x => x.BuildCloseUrl, _ => "/campaigns/10?tab=close&search=Roster%20%26%20context&placementSearch=Place&evalSearch=Evaluate&tag=1&tag=2&closePage=2&closeSearch=stale&closeBlocker=stale")
+            .Add(x => x.BuildParticipantUrl, _ => "/campaigns/10?tab=place"));
+        var form = cut.Find("form");
+        form.GetAttribute("method").ShouldBe("get");
+        form.GetAttribute("action").ShouldBe("/campaigns/10");
+        cut.Find("#close-search").GetAttribute("name").ShouldBe("closeSearch");
+        cut.Find("#close-search").GetAttribute("value").ShouldBe("A & B");
+        cut.Find("#close-blocker").GetAttribute("name").ShouldBe("closeBlocker");
+        cut.Find("#close-blocker").GetAttribute("form").ShouldBe(form.Id);
+        cut.Find("#close-blocker option[selected]").GetAttribute("value").ShouldBe("outcomes");
+        cut.FindAll("input[type=hidden]").Select(x => (x.GetAttribute("name"), x.GetAttribute("value")))
+            .ShouldBe(new (string?, string?)[] { ("tab", "close"), ("search", "Roster & context"), ("placementSearch", "Place"), ("evalSearch", "Evaluate"), ("tag", "1"), ("tag", "2") });
+    }
+
+    [Fact]
+    public void InteractiveFiltersRetainSiblingCloseValueAndResetPage()
+    {
+        CampaignWorkspaceCloseState? applied = null;
+        var cut = Render<CampaignCloseRoster>(p => p.Add(x => x.CampaignId, 10)
+            .Add(x => x.State, new CampaignWorkspaceCloseState { Search = "original", Blocker = "outcomes", Page = 2 })
+            .Add(x => x.BuildCloseUrl, _ => "/campaigns/10?tab=close")
+            .Add(x => x.BuildParticipantUrl, _ => "/campaigns/10?tab=place")
+            .Add(x => x.OnStateChanged, value => applied = value));
+        cut.Find("#close-search").Change(" new search ");
+        cut.Find("form").Submit();
+        applied.ShouldBe(new CampaignWorkspaceCloseState { Search = "new search", Blocker = "outcomes" });
+        cut.Find("#close-blocker").Change("eligibility");
+        applied.ShouldBe(new CampaignWorkspaceCloseState { Search = "original", Blocker = "eligibility" });
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]

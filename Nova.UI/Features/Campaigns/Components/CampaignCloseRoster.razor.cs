@@ -44,6 +44,23 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
     private int LastAvailablePage => _page is null ? 1 : Math.Max(1, (int)Math.Ceiling(_page.TotalCount / (double)Math.Max(1, _page.PageSize)));
     private string RequestKey => $"{Owner}:{CampaignId}:{State}";
 
+    private IEnumerable<KeyValuePair<string, string>> NativeQueryFields
+    {
+        get
+        {
+            var url = BuildCloseUrl(new());
+            var queryStart = url.IndexOf('?', StringComparison.Ordinal);
+            if (queryStart < 0) { yield break; }
+            foreach (var queryField in url[(queryStart + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var pair = queryField.Split('=', 2);
+                var name = Uri.UnescapeDataString(pair[0]);
+                if (name is "tab" or "closeSearch" or "closeBlocker" or "closePage") { continue; }
+                yield return new(name, pair.Length > 1 ? Uri.UnescapeDataString(pair[1]) : string.Empty);
+            }
+        }
+    }
+
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {

@@ -3,17 +3,22 @@
 <section class="close-roster" aria-labelledby="close-roster-heading" aria-busy="@(_loading ? "true" : "false")">
     <h2 class="h5" id="close-roster-heading">Campaign roster</h2>
     <div class="roster-toolbar">
-        <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
+        <form id="close-roster-filters" method="get" action="@($"/campaigns/{CampaignId}")" autocomplete="off" @onsubmit="SearchAsync" @onsubmit:preventDefault>
+            <input type="hidden" name="tab" value="close" />
+            @foreach (var field in NativeQueryFields)
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" />
+            }
             <label for="close-search" class="visually-hidden">Name or tryout number</label>
-            <input id="close-search" class="form-control" type="search" placeholder="Name or tryout number" maxlength="@CampaignRosterDiscoveryInput.MaximumSearchLength" @bind="_search" />
-            <button class="btn btn-outline-primary" type="submit">Search</button>
+            <input id="close-search" name="closeSearch" class="form-control" type="search" placeholder="Name or tryout number" maxlength="@CampaignRosterDiscoveryInput.MaximumSearchLength" @bind="_search" />
+            <button class="btn btn-outline-primary" type="submit">Apply filters</button>
         </form>
         <label for="close-blocker">Show players with this blocker</label>
-        <select id="close-blocker" class="form-select" value="@State.Blocker" @onchange="BlockerChangedAsync">
-            <option value="">All players</option>
-            <option value="outcomes">Missing campaign outcomes</option>
-            <option value="eligibility">Ineligible assignments</option>
-            <option value="archivedTeams">Archived team assignments</option>
+        <select id="close-blocker" name="closeBlocker" form="close-roster-filters" class="form-select" value="@State.Blocker" @onchange="BlockerChangedAsync">
+            <option value="" selected="@(State.Blocker is null)">All players</option>
+            <option value="outcomes" selected="@(string.Equals(State.Blocker, CloseoutBlockerConditions.Outcomes, StringComparison.Ordinal))">Missing campaign outcomes</option>
+            <option value="eligibility" selected="@(string.Equals(State.Blocker, CloseoutBlockerConditions.Eligibility, StringComparison.Ordinal))">Ineligible assignments</option>
+            <option value="archivedTeams" selected="@(string.Equals(State.Blocker, CloseoutBlockerConditions.ArchivedTeams, StringComparison.Ordinal))">Archived team assignments</option>
         </select>
     </div>
     @if (_loading)

@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "aa18cc1ba7f47cf5a84136375c38ceee84d6708e plus complete round-eight working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "be6b5f05d80f966735ec1d9d1970e1d96fbcc48d plus complete round-nine working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "604d1d9b273d7a8019b5dee73e0bb16170b0b49d72ff57739f612ec43e9d7ead",
-  "testFingerprint": "2ee861df942dd4bb65a6823e48871746a2adb8d131e1a4c44150b08f5bec2a4d",
+  "productionFingerprint": "4dff22fe92ff34cb526f916be13d1b2ddb89ff2a1f6ee28d491acbdea23b8048",
+  "testFingerprint": "d52621cd567cd2f555bf7da26593c4267a2e3aa79ac1ae849225cc3e566efa59",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -56,11 +56,11 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor",
-      "sha256": "1f0a95d88772abef5d194682176ed6afaab650f032fa8632b83bd0c13e85d5f6"
+      "sha256": "bbb5742abd54ca505f98e7188ab3b86bcb8195cc45aedbdb8ff7a07544195d4c"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
-      "sha256": "76bb7d42224bcb311698c02123cdf1bdbda4c3e7d7ef9ff911a7555e2d749ad1"
+      "sha256": "f7d1d0f419d9ac69b7b3fcebcb37dbbb5a0c1fcdae3d755c468566c6d33ac1d3"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.css",
@@ -131,6 +131,14 @@
       "sha256": "dfe42149791b10fd64aeff4adc0f65b0bc961d631801b7b0deb925186ba20fa9"
     },
     {
+      "path": "Nova.UI/Features/Players/Pages/Players.razor.cs",
+      "sha256": "c32d9d1d72002c1832da1fb0959e84e488c6127ae01d0c66762aca02f291d7b0"
+    },
+    {
+      "path": "Nova.UI/Features/Teams/Pages/Teams.razor.cs",
+      "sha256": "1c408c5cb1bd3d222b82f6d3b294de586f5f0ff6490798331dc3a26c08f57c14"
+    },
+    {
       "path": "Nova/Features/Campaigns/CampaignCloseoutQueryService.cs",
       "sha256": "8274e368c1ea2b46a744d3985affa57037254da550ae38129d0dbbd7788a59a6"
     },
@@ -158,7 +166,11 @@
   "testFiles": [
     {
       "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.cs",
-      "sha256": "a9e9e39b3d89eb1d487327e9cb40787fd16f86f364861cd2943ac4b591784124"
+      "sha256": "d2b90d1f66e7b0ae5ba9cae594fe2b66ee8fda25dcb89d46ff801b4c8be42809"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.Native.cs",
+      "sha256": "5bf075f9233855729b8968292a82e26f69c7400cf9bef32b8771a6c87644d0db"
     },
     {
       "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.Paging.cs",
@@ -174,7 +186,11 @@
     },
     {
       "path": "Nova.Browser.Tests/CampaignCloseRegionalBrowserTests.cs",
-      "sha256": "a0446cbe969d3f53be35daa7f44b35109c2433e0a76cabd40da7a2ed4dae6daf"
+      "sha256": "417c8c048075fbb6d0a4f090ec0458f4f686f57c1ceeb158b89455bec0dff3ef"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignDraftBrowserTests.cs",
+      "sha256": "6d429aa3f5e5a2282119246785b825519f71eec23b3bb66f1777165534ec4476"
     },
     {
       "path": "Nova.Browser.Tests/CampaignPlaceRecoveryBrowserTests.cs",
@@ -238,7 +254,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseRosterTests.cs",
-      "sha256": "3bd8e1f2e7e39ed7ef5ea292fc389f77f27939083862824e1785adca35b427f9"
+      "sha256": "a77504054e7e54f7f2d25a1d023f979493f871cdbbf2038db79caa79e67e9bf0"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignEvaluationPanelTests.cs",
@@ -295,6 +311,14 @@
     {
       "path": "Nova.Unit.Tests/Campaigns/HttpEffectivePlacementQueryServiceTests.Close.cs",
       "sha256": "d2c8cd5660448c644b7f3685dcec60a4aebf54ad53927719b0a0564509c5cd75"
+    },
+    {
+      "path": "Nova.Unit.Tests/Players/PlayerComponentsTests.cs",
+      "sha256": "1b69a2b5c7f5019e64d9c3df2c3532fad7fd1a5137e549ab5645cfa37d55e392"
+    },
+    {
+      "path": "Nova.Unit.Tests/Teams/TeamComponentsTests.cs",
+      "sha256": "c289cc8d4ca3db9235d9bf61bd5e5da6f851a326e52c96aef592dfd18e3ee618"
     }
   ],
   "captures": [
@@ -302,15 +326,15 @@
       "file": "captures/admin-confirmation.png",
       "width": 1280,
       "height": 1455,
-      "sha256": "e1eb9b5d4a9b27965608afc146b17463553f0501781a3c113e2cbb7f1fe94ed5",
-      "capturedAtUtc": "2026-09-16T09:05:17.0413354Z"
+      "sha256": "893197a506f93a4c4ee72a730a2d6fa6bae4bb2999995278b69cad3f7aa53956",
+      "capturedAtUtc": "2026-09-16T11:27:27.7233458Z"
     },
     {
       "file": "captures/closed.png",
       "width": 1280,
       "height": 800,
-      "sha256": "81c9dfd0ff0f19e0938938e0c8fd844908333874eaeea136db6ded80c9e3dcc5",
-      "capturedAtUtc": "2026-09-16T09:05:17.5126279Z"
+      "sha256": "f68439d9f1de058573a1ada4e3e1a2c9e0bb853b0ae9a207f097ef56a51525a5",
+      "capturedAtUtc": "2026-09-16T11:27:28.2540212Z"
     },
     {
       "file": "captures/comparison.png",
@@ -323,55 +347,62 @@
       "file": "captures/desktop.png",
       "width": 1440,
       "height": 1192,
-      "sha256": "007aad91f84fa0b949b994e1985d248e56ac7fa2c7337ad6ad6a9bd05a88e927",
-      "capturedAtUtc": "2026-09-16T09:05:21.2776254Z"
+      "sha256": "19cbb82c07b388b774d89eada4d0be366e7bd87a892ab0d73c32cea201f6e7a3",
+      "capturedAtUtc": "2026-09-16T11:27:30.7712257Z"
     },
     {
       "file": "captures/hero-repro.png",
       "width": 1536,
       "height": 1024,
-      "sha256": "dbbdb4052ba02901376f631def01c4f6f164634fe8463a1256bd2d29c8639bcd",
-      "capturedAtUtc": "2026-09-16T09:05:20.8880718Z"
+      "sha256": "1e910ed63dc514630d44b1d5d1b0239f13e3f74d09711b96f40d8dcc442d257f",
+      "capturedAtUtc": "2026-09-16T11:27:30.4314366Z"
     },
     {
       "file": "captures/mobile.png",
       "width": 390,
       "height": 1680,
       "sha256": "8415e3af10ce339b357ddf116d9613124bb2d63459bc79577ff273452144b0b6",
-      "capturedAtUtc": "2026-09-16T09:05:21.4751920Z"
+      "capturedAtUtc": "2026-09-16T11:27:31.0173619Z"
     },
     {
       "file": "captures/phone-empty.png",
       "width": 390,
       "height": 1432,
       "sha256": "11301ce7414ebdebfed738c0ac05bc1e53ae5bba03ea5bed3a26ee0b0c678cf7",
-      "capturedAtUtc": "2026-09-16T09:05:19.6169702Z"
+      "capturedAtUtc": "2026-09-16T11:27:29.1693753Z"
+    },
+    {
+      "file": "captures/phone-native-filters.png",
+      "width": 390,
+      "height": 1484,
+      "sha256": "8c1aa598e524cf0d8adb16c1ac88176a74646471bf4117e8cbdd83a89bf2c6ca",
+      "capturedAtUtc": "2026-09-16T11:27:36.7132714Z"
     },
     {
       "file": "captures/phone-return.png",
       "width": 390,
       "height": 1505,
-      "sha256": "c282a85a8771ba2e252993a5ae49157d950238c5b86b368a15cac234101782c9",
-      "capturedAtUtc": "2026-09-16T09:05:24.5605228Z"
+      "sha256": "1dda25af1682648a40438723ed074380e6e92a0c9eac8f61713556fbe1f83f5b",
+      "capturedAtUtc": "2026-09-16T11:27:33.3729404Z"
     },
     {
       "file": "captures/phone-roster-error.png",
       "width": 390,
       "height": 1533,
-      "sha256": "a0cb1d529a919509403ba3078837be76998985dc2352d0fd5cdc8343f52135ed",
-      "capturedAtUtc": "2026-09-16T09:05:51.6475016Z"
+      "sha256": "87555db00a385554c1c4e3d401c9e809e6dad0e4a5aafe8dcc288f38a5e01bde",
+      "capturedAtUtc": "2026-09-16T11:28:04.3994706Z"
     },
     {
       "file": "captures/phone-stale-page.png",
       "width": 390,
       "height": 1576,
-      "sha256": "77c5fe3766750ca5f2b885b5ae5ea50e6185171ac668952e53fba51c3ca47ee7",
-      "capturedAtUtc": "2026-09-16T09:05:17.2884310Z"
+      "sha256": "8d73d3e8a6b010c7ee5f7f39d156119d8573a5dc6488ef4646045e0510a01989",
+      "capturedAtUtc": "2026-09-16T11:27:28.3452881Z"
     }
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, reused for round eight because no UI markup, CSS, copy or composition changed; round eight has fresh full browser behavior validation.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-nine settled browser captures, including phone stale-page recovery and script-disabled native filters.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]
