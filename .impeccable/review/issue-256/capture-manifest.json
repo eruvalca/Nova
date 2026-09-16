@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "31c7f29c68d97ebba83578a16e6de6fd0be75221 plus complete round-four working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "971e1d4b186bc70d84cc1041daa3ac168bb9d836 plus complete round-five working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "457be8fb6e7edb85d279cacb42699509f19d486fe4baf4e91682c25d9ee0ce8d",
-  "testFingerprint": "b272358550ebd223dbb71ba2873e9fb80df4d5fcd6a9166c167650fd8af726a2",
+  "productionFingerprint": "013a5b6d8ac05c22cf068e2e78fdd31b77a65a3f8052efabbd9595dc33519ac2",
+  "testFingerprint": "31394b692569fff5df6ccb604b0d0a2f1948ed2f54a989f8e802a4be1a5a393d",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -92,7 +92,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Close.cs",
-      "sha256": "62e6206987ac1e22b14ce40f3a1ecd2e73ec091ec31719a65da9b68032b02b42"
+      "sha256": "944112edaccf8c8715fddb35062096e02b4a4c11318e54ac87ef022172263e3a"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Evaluation.cs",
@@ -113,6 +113,10 @@
     {
       "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.css",
       "sha256": "da0b80d7219260984c30dc44523bf136165a044fea75d8711ff09c172e81572a"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Services/CampaignCloseReadFailure.cs",
+      "sha256": "cc8689df93af4e5058ca40c76535af7c948f1262bd9d185914a59803ff4e30ff"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Services/CampaignLifecycleEvidence.cs",
@@ -253,8 +257,12 @@
       "sha256": "53c08558ecba2c5fbc085d4a36c5b6524ff0aecc1fa1d4ddee01c78da50e6955"
     },
     {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.CloseStartup.cs",
+      "sha256": "0094c06d2e608ba48dafa0914846d8bc1fa2c48e137629713d7741ba2d3766a3"
+    },
+    {
       "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs",
-      "sha256": "06540942d405e1f00494cb5fc4f22aa46fb9f3bc75a4c3dbcad015a26b573d2d"
+      "sha256": "aefae6a9d43a1b63a2b0eba29c1f73f0ce600c521158457459344c22d9ae5034"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.LifecycleConflict.cs",
@@ -348,7 +356,7 @@
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-four settled browser captures.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-four settled browser captures reused for round five, which changes startup persistence only with no markup, CSS, copy or composition change.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]

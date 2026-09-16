@@ -3034,6 +3034,12 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         [Parameter]
         public PagedResult<CampaignParticipantRosterItem>? SeedRoster { get; set; }
 
+        [Parameter]
+        public CampaignLifecycleEvidence? SeedCloseEvidence { get; set; }
+
+        [Parameter]
+        public CampaignCloseReadFailure? SeedCloseFailure { get; set; }
+
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
         {
@@ -3042,6 +3048,8 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
                 Initialized = true;
                 PersistedDetail = PersistedCampaignDetail;
                 PersistedRoster = SeedRoster;
+                PersistedCloseEvidence = SeedCloseEvidence;
+                PersistedCloseFailure = SeedCloseFailure;
                 PersistedOwner = SeedOwner ?? $"101:42:False:{CampaignId}:{PersistedCampaignDetail?.Status}:";
             }
 

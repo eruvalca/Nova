@@ -19,6 +19,8 @@ public partial class CampaignWorkspace
     };
     /// <summary>The authoritative snapshot persisted across prerender and interactive attachment.</summary>
     [PersistentState] public CampaignLifecycleEvidence? PersistedCloseEvidence { get; set; }
+    /// <summary>A completed failed startup read, owned independently of its absent readiness payload.</summary>
+    [PersistentState] public CampaignCloseReadFailure? PersistedCloseFailure { get; set; }
     private CampaignLifecycleEvidence? _closeEvidence;
     private string? _closeError;
     private bool _closeLoading;
@@ -46,6 +48,7 @@ public partial class CampaignWorkspace
         ++_closeGeneration;
         _closeEvidence = null;
         PersistedCloseEvidence = null;
+        PersistedCloseFailure = null;
         _closeReadKey = null;
         _closeError = null;
         _closeLoading = false;
@@ -80,9 +83,19 @@ public partial class CampaignWorkspace
             _closeReadKey = key;
             return;
         }
+        if (_closeReadKey is null && PersistedCloseFailure is { } failure
+            && string.Equals(failure.Owner, CloseOwner, StringComparison.Ordinal) && failure.Detail == detail)
+        {
+            _closeError = failure.Message;
+            _closeGeneration = failure.Generation;
+            _closeReadKey = key;
+            return;
+        }
         _closeReadKey = key;
         var generation = _closeGeneration;
         _closeEvidence = null;
+        PersistedCloseEvidence = null;
+        PersistedCloseFailure = null;
         _closeLoading = true;
         _closeError = null;
         var result = await ReadSafelyAsync(() => closeoutQueryService.GetCloseoutReadinessAsync(new() { CampaignId = CampaignId }, ComponentCancellationToken));
@@ -99,6 +112,7 @@ public partial class CampaignWorkspace
         else
         {
             _closeError = "Close readiness could not be verified. Refresh the campaign before taking an action.";
+            PersistedCloseFailure = new(CloseOwner, generation, detail, _closeError);
             if (result.IsSuccess && !_reconcilingLifecycle)
             {
                 await OnCampaignReloadRequestedAsync();
