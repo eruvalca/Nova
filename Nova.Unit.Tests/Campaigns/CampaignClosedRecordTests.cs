@@ -87,7 +87,7 @@ public sealed class CampaignClosedRecordTests : BunitContext
         cut.FindAll("a").Single(a => string.Equals(a.TextContent, "Read evaluation", StringComparison.Ordinal)).GetAttribute("href")!.ShouldBe("/campaigns/10?tab=evaluate&evalParticipant=101&returnToClose=true");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, 0, "has no participants")]
     [InlineData(3, 0, "No participants match")]
     [InlineData(60, 60, "beyond the current results")]
@@ -211,7 +211,7 @@ public sealed class CampaignClosedRecordTests : BunitContext
         cut.Markup.ShouldNotContain("Summer · Season");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
     public void MatchingPersistedSuccessOrFailureSkipsDuplicateStartupReads(bool failure)

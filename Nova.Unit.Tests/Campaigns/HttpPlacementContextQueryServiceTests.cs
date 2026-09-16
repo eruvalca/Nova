@@ -11,7 +11,7 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed class HttpPlacementContextQueryServiceTests
 {
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     public async Task ClosedHistoryUsesExplicitGuardAndRejectsAnotherCampaignAsync(bool requireClosed, bool accepted)

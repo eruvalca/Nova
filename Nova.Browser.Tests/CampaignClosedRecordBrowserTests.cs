@@ -13,7 +13,7 @@ namespace Nova.Browser.Tests;
 [Collection(BrowserSuiteCollection.Name)]
 public sealed partial class CampaignClosedRecordBrowserTests(BrowserSuiteFixture fixture)
 {
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(true)]
     [InlineData(false)]
     public async Task EvaluationRoundTripPreservesPlaceContextThroughSearchPagingAndSelectionAsync(bool javaScriptEnabled)

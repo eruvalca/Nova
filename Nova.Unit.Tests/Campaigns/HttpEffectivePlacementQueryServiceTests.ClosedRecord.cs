@@ -8,7 +8,7 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class HttpEffectivePlacementQueryServiceTests
 {
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, true)]
     [InlineData(1, false)]
     public async Task ClosedRecordBoundsUndecidedTotalEvenOnEmptyOutOfRangePageAsync(int filteredTotal, bool valid)
@@ -36,7 +36,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         else { result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError); }
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned)]
     [InlineData(PlacementOutcome.NotSelected)]
     [InlineData(PlacementOutcome.Withdrawn)]
@@ -46,7 +46,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         (await ReadPayloadAsync(2, payload.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, 3, false)]
     [InlineData(PlacementOutcome.NotSelected, 3, false)]
     [InlineData(PlacementOutcome.Withdrawn, 3, false)]
@@ -104,7 +104,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         return payload;
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("summary")]
     [InlineData("closingEvent")]
     [InlineData("playerLifecycleStatus")]
@@ -117,7 +117,7 @@ public sealed partial class HttpEffectivePlacementQueryServiceTests
         (await ReadPayloadAsync(2, payload.ToJsonString())).Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("totals")]
     [InlineData("undecided")]
     [InlineData("reopened")]
