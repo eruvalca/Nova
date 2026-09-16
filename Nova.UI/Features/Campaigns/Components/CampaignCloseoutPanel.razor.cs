@@ -28,6 +28,8 @@ public partial class CampaignCloseoutPanel
     [Parameter, EditorRequired] public Func<CampaignWorkspaceCloseState, string> BuildCloseUrl { get; set; } = null!;
     /// <summary>Builds a participant's existing Place editor correction link.</summary>
     [Parameter, EditorRequired] public Func<long, string> BuildParticipantUrl { get; set; } = null!;
+    /// <summary>Builds an existing evaluation handoff retaining the Closed record's return context.</summary>
+    [Parameter] public Func<long, string>? BuildEvaluationUrl { get; set; }
     /// <summary>Applies search and blocker discovery changes to history.</summary>
     [Parameter] public EventCallback<CampaignWorkspaceCloseState> OnStateChanged { get; set; }
     /// <summary>Refreshes the campaign when roster evidence observes a lifecycle transition.</summary>

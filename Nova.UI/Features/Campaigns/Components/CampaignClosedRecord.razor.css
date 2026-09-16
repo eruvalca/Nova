@@ -1,0 +1,29 @@
+.closed-record, .lifecycle-history { padding: 1.25rem; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); background: var(--bs-white); overflow-wrap: anywhere; }
+h2 { font-size: 1.25rem; margin-bottom: .75rem; }
+h3 { font-size: 1rem; font-weight: 650; }
+h4 { font-size: 1rem; }
+.record-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, .8fr); gap: 1.5rem; margin-block: 1.5rem; }
+.record-summary p { margin-bottom: .5rem; }
+.record-filters { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; }
+.record-filters label { display: block; margin-bottom: .375rem; font-size: .875rem; font-weight: 650; }
+.search-field { flex: 1; min-width: 12rem; }
+.result-count { margin-block: 1rem .75rem; font-size: .875rem; color: var(--bs-secondary-color); }
+.table-responsive { max-height: 24rem; overflow: auto; }
+.table { margin-bottom: 0; font-variant-numeric: tabular-nums; font-size: .875rem; }
+.table td, .table th { padding-block: .375rem; }
+.table thead { --bs-table-bg: var(--bs-tertiary-bg); }
+.table thead th { white-space: nowrap; }
+.group-row, .selected-row { --bs-table-bg: var(--bs-primary-bg-subtle); }
+.row-context { display: block; font-weight: 400; color: var(--bs-secondary-color); }
+a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+button, input, select { min-height: 2.75rem; }
+a:focus-visible, [tabindex]:focus-visible { outline: .125rem solid var(--bs-primary); outline-offset: .1875rem; }
+.record-paging, .history-actions, .section-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; }
+.participant-history { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--bs-border-color); }
+.participant-history h3 { margin: 0; }
+.history-list { list-style: none; padding: 0; margin: .75rem 0; max-height: 20rem; overflow-y: auto; }
+.history-list li { border-bottom: 1px solid var(--bs-border-color); padding-block: .75rem; }
+.history-list p { margin-bottom: .25rem; }
+.lifecycle-history { margin-top: 1.5rem; }
+@media (max-width: 767.98px) { .record-summary { grid-template-columns: minmax(0, 1fr); gap: .75rem; } }
+@media (max-width: 575.98px) { .closed-record, .lifecycle-history { padding: 1rem; } .record-filters > div { flex: 1 1 100%; } .record-filters button { width: 100%; } .table { min-width: 44rem; } }

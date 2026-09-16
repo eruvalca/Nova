@@ -98,7 +98,7 @@ FORM: Roster beside participant context, seed 16fb136e; Close compact review abo
                                aria-current="@(_activeTab == CloseTabName ? "page" : null)">
                                 <span class="route-marker-stop" aria-hidden="true"></span>
                                 <span class="route-marker-label">Close</span>
-                                <span class="route-marker-state">Readiness</span>
+                                <span class="route-marker-state">@(_detail.Status == CampaignStatus.Closed ? "Final record" : "Readiness")</span>
                             </a>
                         </li>
                     </ul>
@@ -259,7 +259,7 @@ FORM: Roster beside participant context, seed 16fb136e; Close compact review abo
                         else if (_activeTab == CloseTabName)
                         {
                             <CampaignCloseoutPanel Detail="_detail" Owner="@CloseOwner" RefreshGeneration="_closeGeneration" Evidence="_closeEvidence" Loading="_closeLoading" Error="@(_closeError ?? _pageError)"
-                                State="CloseState" BuildCloseUrl="BuildCloseUrl" BuildParticipantUrl="BuildCloseParticipantUrl" OnStateChanged="OnCloseStateChangedAsync"
+                                State="CloseState" BuildCloseUrl="BuildCloseUrl" BuildParticipantUrl="BuildCloseParticipantUrl" BuildEvaluationUrl="BuildClosedEvaluationUrl" OnStateChanged="OnCloseStateChangedAsync"
                                 RefreshEvidence="RefreshCloseEvidenceAsync" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
 

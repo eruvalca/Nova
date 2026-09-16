@@ -574,6 +574,20 @@ public sealed partial class EffectivePlacementQueryServiceTests : IDisposable
             Campaign(ActiveCampaignId, CampaignStatus.Active, 3),
             Campaign(70, CampaignStatus.Draft, null));
         db.SaveChanges();
+        foreach (var campaignId in new[] { PriorCampaignId, LaterCampaignId })
+        {
+            db.ActivityEvents.Add(new ActivityEventEntity
+            {
+                ClubId = ClubId,
+                CampaignId = campaignId,
+                EventKind = ActivityEventKind.CampaignClosed,
+                ActorUserId = MemberId,
+                ActorDisplayName = "Original closer",
+                PayloadJson = "{}",
+                CreatedById = MemberId,
+            });
+        }
+        db.SaveChanges();
     }
 
     private static CampaignEntity Campaign(long id, CampaignStatus status, long? sequence) => new()

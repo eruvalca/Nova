@@ -1,0 +1,60 @@
+{
+  "issue": 257,
+  "baseRevision": "199b58b35e26fdf44b65e5a3773e88bdc1cc391b",
+  "testedRevision": "Base plus issue-257 working-tree application/test changes; final committed comparison is in docs/issue-257-validation.md",
+  "inputInventory": {
+    "sha256": "1151abba52a0ad7547a61bc6e4a7d8f441e6870e1fa5dc09e0960f2985709146",
+    "count": 1225
+  },
+  "provenance": "Real Playwright Chromium captures from CampaignClosedRecordBrowserTests, second and final self-review round, NOVA_CLOSED_RECORD_EVIDENCE enabled; synthetic club data; full-page images at device scale factor 1",
+  "brief": "../../surfaces/issue-257-closed-record.md",
+  "finishReview": "finish-review.md",
+  "validationRecord": "../../../docs/issue-257-validation.md",
+  "captures": [
+    {
+      "height": 1000,
+      "javaScript": true,
+      "sha256": "5a29905080cdad1c73572e4307ac808fe3c474c20e2126b36338c9809182f58b",
+      "path": "captures/desktop.png",
+      "imageHeight": 1438,
+      "state": "Member final record with whole totals, grouped first page and lifecycle activity",
+      "name": "desktop",
+      "width": 1440
+    },
+    {
+      "height": 844,
+      "javaScript": true,
+      "sha256": "128bd968505de6e5a63709f1a66e70a31dc1d0f8ff941216e4c466a2678b1ddc",
+      "path": "captures/phone-history.png",
+      "imageHeight": 2551,
+      "state": "Inline selected participant history after read-only evaluation return",
+      "name": "phone-history",
+      "width": 390
+    },
+    {
+      "height": 844,
+      "javaScript": true,
+      "sha256": "058cfcb037f93c8398a36af52fa051903b0ebda0ab984b3e733a819f8503641d",
+      "path": "captures/phone-filtered.png",
+      "imageHeight": 1707,
+      "state": "Withdrawn discovery with unchanged whole-campaign totals",
+      "name": "phone-filtered",
+      "width": 390
+    },
+    {
+      "height": 844,
+      "javaScript": false,
+      "sha256": "551a87fe716eba9d97743c208531cf2d56a1cdfd97400a4f0a556f109aceb821",
+      "path": "captures/phone-native-empty.png",
+      "imageHeight": 1685,
+      "state": "Script-disabled native filtered-empty state",
+      "name": "phone-native-empty",
+      "width": 390
+    }
+  ],
+  "notes": [
+    "No new comp or shipping raster assets; incumbent #256 comparison disposition unchanged.",
+    "Fixed phone navigation appears at the original viewport bottom inside full-page captures.",
+    "Later evaluation-test diagnostics do not alter the application or these captured scenarios; final full browser evidence is recorded separately."
+  ]
+}

@@ -91,6 +91,14 @@ public sealed record ClosedCampaignRosterItem(
     long PlayerCampaignAssignmentId, long PlayerId, string FirstName, string LastName,
     int GraduationYear, int? TryoutNumber, PlacementDecisionSource Source)
 {
+    /// <summary>The player's present archive context; archival never removes the saved outcome.</summary>
+    [JsonRequired]
+    public LifecycleStatus PlayerLifecycleStatus { get; init; }
+
+    /// <summary>The saved team's present archive context, or null for non-assignment outcomes.</summary>
+    [JsonRequired]
+    public LifecycleStatus? TeamLifecycleStatus { get; init; }
+
     /// <summary>Campaign-applied tags enriched within the response snapshot.</summary>
     [JsonRequired]
     public IReadOnlyList<CampaignParticipantTagSummaryDto> AppliedTags { get; init; } = [];
@@ -101,6 +109,14 @@ public sealed record ClosedCampaignRosterResult(
     PlacementCampaignIdentity Campaign,
     PagedResult<ClosedCampaignRosterItem> Participants)
 {
+    /// <summary>Unfiltered local outcome totals from the same snapshot as the page.</summary>
+    [JsonRequired]
+    public CampaignPlacementSummaryDto Summary { get; init; } = null!;
+
+    /// <summary>The latest durable close event, including the original actor name after departure.</summary>
+    [JsonRequired]
+    public CampaignActivityItemDto ClosingEvent { get; init; } = null!;
+
     /// <summary>The whole campaign's participant count before discovery filters or paging.</summary>
     [JsonRequired]
     public int ParticipantCount { get; init; }

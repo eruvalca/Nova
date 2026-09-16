@@ -152,11 +152,19 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
     private static bool ValidClosed(ClosedCampaignRosterResult result, GetClosedCampaignRosterInput input)
         => result is not null && ValidCampaign(result.Campaign, input.CampaignId, CampaignStatus.Closed)
             && ValidPage(result.Participants, input)
+            && result.Summary is { AssignedCount: >= 0, NotSelectedCount: >= 0, WithdrawnCount: >= 0, UndecidedCount: 0 }
+            && (long)result.Summary.AssignedCount + result.Summary.NotSelectedCount + result.Summary.WithdrawnCount == result.ParticipantCount
+            && result.Summary.TotalCount == result.ParticipantCount
+            && result.ClosingEvent is { CampaignLifecycleEventId: > 0, EventType: CampaignLifecycleEventType.Closed, ActorUserId: > 0 } closure
+            && closure.CreatedAt != default && !string.IsNullOrWhiteSpace(closure.ActorDisplayName)
             && result.ParticipantCount >= result.Participants.TotalCount
             && result.Participants.Items.All(row => row is not null && row.PlayerCampaignAssignmentId > 0
                 && row.TryoutNumber is null or > 0
-                && ValidPlayer(row.PlayerId, row.FirstName, row.LastName, row.GraduationYear)
                 && ValidSource(row.Source, row.PlayerId, result.Campaign.Season.SeasonId, allowUnavailableTeam: false)
+                && Enum.IsDefined(row.PlayerLifecycleStatus)
+                && (row.Source.Decision.Outcome == PlacementOutcome.Assigned
+                    ? row.TeamLifecycleStatus is { } teamStatus && Enum.IsDefined(teamStatus) : row.TeamLifecycleStatus is null)
+                && ValidPlayer(row.PlayerId, row.FirstName, row.LastName, row.GraduationYear)
                 && row.Source.Decision.CampaignId == input.CampaignId
                 && row.Source.Decision.PlayerCampaignAssignmentId == row.PlayerCampaignAssignmentId
                 && ValidDiscovery(input, row.PlayerCampaignAssignmentId, row.GraduationYear,

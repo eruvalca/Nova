@@ -403,6 +403,16 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
             campaign.Status = CampaignStatus.Closed;
             campaign.ClosedAt = DateTimeOffset.UtcNow;
             campaign.ClosedById = campaign.CreatedById;
+            db.ActivityEvents.Add(new ActivityEventEntity
+            {
+                ClubId = member.ClubId,
+                CampaignId = campaign.CampaignId,
+                EventKind = ActivityEventKind.CampaignClosed,
+                ActorUserId = campaign.CreatedById,
+                ActorDisplayName = "Original closer",
+                CreatedById = campaign.CreatedById,
+                PayloadJson = "{}",
+            });
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         return new(seed.CampaignId, campaign.SeasonId, teamId, seed.AssignmentIds[0]);

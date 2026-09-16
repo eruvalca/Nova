@@ -841,6 +841,9 @@ public partial class Campaigns(
         _ => "View record"
     };
 
+    private static string CampaignDestination(long campaignId, CampaignStatus status)
+        => $"/campaigns/{campaignId}" + (status == CampaignStatus.Closed ? "?tab=close" : string.Empty);
+
 }
 
 

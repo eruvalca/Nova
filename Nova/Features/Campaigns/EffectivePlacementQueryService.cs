@@ -6,6 +6,7 @@ using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Common;
 using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Validation;
@@ -167,9 +168,28 @@ internal sealed partial class EffectivePlacementQueryService(
             || a.DecisionRecordedById == null || a.DecisionActorDisplayName == null
             || a.PlacementOutcome == PlacementOutcome.Assigned && (a.Team == null || a.Team.ClubId != clubId), token))
         {
-            return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.");
+            return ServiceProblem.Conflict("The Closed campaign contains an incomplete decision record.",
+                new Dictionary<string, string[]>(StringComparer.Ordinal) { [ClosedCampaignRecordErrors.Integrity] = ["Incomplete decision record."] });
         }
-        var participantCount = await query.CountAsync(token);
+        // Lifecycle writers serialize this campaign; event identity therefore orders its close cycles.
+        // Names come from immutable events, never a current-membership join.
+        var closingEvent = await db.ActivityEvents.Where(e => e.ClubId == clubId
+                && e.CampaignId == input.CampaignId && e.EventKind == ActivityEventKind.CampaignClosed)
+            .OrderByDescending(e => e.ActivityEventId)
+            .Select(e => new CampaignActivityItemDto(e.ActivityEventId, CampaignLifecycleEventType.Closed,
+                e.CreatedAt, e.ActorUserId, e.ActorDisplayName)).FirstOrDefaultAsync(token);
+        if (closingEvent is null || string.IsNullOrWhiteSpace(closingEvent.ActorDisplayName))
+        {
+            return ServiceProblem.Conflict("The Closed campaign contains an incomplete closure record.",
+                new Dictionary<string, string[]>(StringComparer.Ordinal) { [ClosedCampaignRecordErrors.Integrity] = ["Incomplete closure record."] });
+        }
+        var totals = await query.GroupBy(a => a.PlacementOutcome)
+            .Select(group => new { Outcome = group.Key, Count = group.Count() }).ToListAsync(token);
+        var participantCount = totals.Sum(row => row.Count);
+        var summary = new CampaignPlacementSummaryDto(
+            totals.Where(row => row.Outcome == PlacementOutcome.Assigned).Sum(row => row.Count),
+            totals.Where(row => row.Outcome == PlacementOutcome.NotSelected).Sum(row => row.Count),
+            totals.Where(row => row.Outcome == PlacementOutcome.Withdrawn).Sum(row => row.Count), 0, participantCount);
         if (!await DiscoveryIdentifiersExistAsync(db, clubId, input, token))
         {
             return ServiceProblem.NotFound();
@@ -185,6 +205,8 @@ internal sealed partial class EffectivePlacementQueryService(
         return new ClosedCampaignRosterResult(campaign, new(rows.AsReadOnly(), input.Page ?? 1, Size(input), count))
         {
             ParticipantCount = participantCount,
+            Summary = summary,
+            ClosingEvent = closingEvent,
         };
     }
 

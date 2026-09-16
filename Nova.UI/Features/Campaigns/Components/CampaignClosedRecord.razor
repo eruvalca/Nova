@@ -1,0 +1,139 @@
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
+
+@* THESIS: The final campaign outcomes remain readable beside their original attribution.
+   OWN-WORLD: Flat Fieldhouse boards and compact, ruled team groups.
+   STORY: Read closure, find a participant, inspect history, then review lifecycle authority.
+   FIRST VIEWPORT: Closure and whole-campaign totals lead the bounded roster.
+   FORM: One full-width record with inline selected history and a separate activity region. *@
+<section class="close-review closed-record" aria-labelledby="closeout-region-heading" aria-busy="@(_loading ? "true" : "false")">
+    <h2 id="closeout-region-heading">Closed campaign record</h2>
+    <p>This campaign is closed and read-only. Later campaigns do not change these outcomes.</p>
+    @if (_loading)
+    {
+        <p role="status">Loading final campaign record…</p>
+    }
+    else if (RecordError is not null)
+    {
+        <div role="alert"><p>@RecordError</p><button type="button" class="btn btn-outline-secondary" @onclick="RetryRecordAsync">Retry record</button></div>
+    }
+    else if (Record is { } record)
+    {
+        <div class="record-summary">
+            <div>
+                <h3>@record.Campaign.Name · @record.Campaign.Season.Name</h3>
+                <p>Closed <time datetime="@record.ClosingEvent.CreatedAt.ToString("O")">@Timestamp(record.ClosingEvent.CreatedAt)</time> by @record.ClosingEvent.ActorDisplayName</p>
+            </div>
+            <div>
+                <p><strong>@record.ParticipantCount participants</strong></p>
+                <p aria-label="Final outcome summary">Assigned @record.Summary.AssignedCount · Not selected @record.Summary.NotSelectedCount · Withdrawn @record.Summary.WithdrawnCount</p>
+                <p class="text-body-secondary">Whole-campaign outcomes</p>
+            </div>
+        </div>
+    }
+    <form class="record-filters" method="get" action="@($"/campaigns/{CampaignId}")" autocomplete="off" @onsubmit="SearchAsync" @onsubmit:preventDefault>
+        <input type="hidden" name="tab" value="close" />
+        @foreach (var field in NativeQueryFields) { <input type="hidden" name="@field.Key" value="@field.Value" /> }
+        <div class="search-field"><label for="closed-search">Name or tryout number</label><input id="closed-search" name="closeSearch" class="form-control" type="search" maxlength="@CampaignRosterDiscoveryInput.MaximumSearchLength" @bind="_search" /></div>
+        <div><label for="closed-outcome">Campaign outcome</label><select id="closed-outcome" name="closeOutcome" class="form-select" @bind="_outcome">
+            <option value="" selected="@(State.Outcome is null)">All outcomes</option>
+            <option value="assigned" selected="@(State.Outcome == "assigned")">Assigned</option>
+            <option value="notselected" selected="@(State.Outcome == "notselected")">Not selected</option>
+            <option value="withdrawn" selected="@(State.Outcome == "withdrawn")">Withdrawn</option>
+        </select></div>
+        <button class="btn btn-outline-primary" type="submit">Apply filters</button>
+        @if (State.Search is not null || State.Outcome is not null) { <a href="@BuildCloseUrl(new())">Clear filters</a> }
+    </form>
+    @if (!_loading && RecordError is null && Record is { Participants: var page } current)
+    {
+        <p class="result-count" role="status">@(page.Items.Count) of @(page.TotalCount) matching participants · Page @(page.Page) · Groups on this page only</p>
+        @if (page.Items.Count == 0)
+        {
+            @if (page.TotalCount > 0)
+            {
+                <p>This page is beyond the current results.</p><a href="@PageUrl(LastAvailablePage)">Go to last available page</a>
+            }
+            else if (current.ParticipantCount == 0)
+            {
+                <p>This Closed campaign has no participants.</p>
+            }
+            else
+            {
+                <p>No participants match these filters.</p><a href="@BuildCloseUrl(new())">Show all campaign participants</a>
+            }
+        }
+        else
+        {
+            <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable final campaign roster">
+                <table class="table align-middle">
+                    <caption class="visually-hidden">Campaign-local final outcomes. Team groups may continue on another page.</caption>
+                    <thead><tr><th scope="col">Player</th><th scope="col">Tryout</th><th scope="col">Graduation</th><th scope="col">Outcome / team</th><th scope="col">Decision recorded</th></tr></thead>
+                    @foreach (var group in page.Items.GroupBy(row => (row.Source.Decision.Outcome, row.Source.Decision.TeamId)))
+                    {
+                        <tbody>
+                            <tr class="group-row"><th scope="rowgroup" colspan="5">@GroupLabel(group.First()) <span class="fw-normal">· @group.Count() on this page</span></th></tr>
+                            @foreach (var row in group)
+                            {
+                                <tr @key="row.PlayerCampaignAssignmentId" class="@(State.ParticipantId == row.PlayerCampaignAssignmentId ? "selected-row" : null)">
+                                    <th scope="row"><a href="@ParticipantUrl(row.PlayerCampaignAssignmentId)" aria-current="@(State.ParticipantId == row.PlayerCampaignAssignmentId ? "true" : null)">@row.FirstName @row.LastName</a>@if (row.PlayerLifecycleStatus == LifecycleStatus.Archived) { <span class="row-context">Archived player</span> }</th>
+                                    <td>@(row.TryoutNumber?.ToString(System.Globalization.CultureInfo.CurrentCulture) ?? "—")</td><td>@row.GraduationYear</td>
+                                    <td>@OutcomeLabel(row.Source.Decision.Outcome)@if (row.Source.Team is { } team) { <span class="row-context">@team.TeamName</span> }@if (row.TeamLifecycleStatus == LifecycleStatus.Archived) { <span class="row-context">Archived team</span> }</td>
+                                    <td>@row.Source.Decision.ActorDisplayName<time class="row-context" datetime="@row.Source.Decision.RecordedAt.ToString("O")">@Timestamp(row.Source.Decision.RecordedAt)</time></td>
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+        }
+        <nav class="record-paging" aria-label="Closed roster pages">
+            @if (State.Page > 1) { <a href="@PageUrl(State.Page - 1)">Previous page</a> }
+            @if ((long)page.Page * page.PageSize < page.TotalCount) { <a href="@PageUrl(State.Page + 1)">Next page</a> }
+        </nav>
+        @if (State.ParticipantId is not null)
+        {
+            <section class="participant-history" aria-labelledby="closed-history-heading" aria-busy="@(_historyLoading ? "true" : "false")">
+                <div class="section-heading"><h3 id="closed-history-heading" tabindex="-1" @ref="_historyHeading">Participant decision history</h3><a href="@BuildCloseUrl(State with { ParticipantId = null, BeforeEventId = null })">Close history</a></div>
+                @if (_historyLoading) { <p role="status">Loading participant history…</p> }
+                else if (HistoryError is not null) { <div role="alert"><p>@HistoryError</p><button class="btn btn-outline-secondary" type="button" @onclick="RetryHistoryAsync">Retry history</button></div> }
+                else if (SelectedParticipant is { } selected && History is { } history)
+                {
+                    <h4>@selected.FirstName @selected.LastName</h4>
+                    <p>@OutcomeLabel(selected.Source.Decision.Outcome)@(selected.Source.Team is { } selectedTeam ? $" · {selectedTeam.TeamName}" : string.Empty) · Graduation @selected.GraduationYear</p>
+                    <p class="text-body-secondary">Changes recorded in this campaign only.</p>
+                    @if (history.History.Count == 0) { <p>@(history.NextEventId is null ? "No decision changes on this history page." : "No readable decision changes on this page. Earlier changes are available.")</p> }
+                    else
+                    {
+                        <ol class="history-list" tabindex="0" aria-label="Scrollable participant decision changes">
+                            @foreach (var change in history.History)
+                            {
+                                <li><p><strong>@change.ActorDisplayName</strong> · <time datetime="@change.OccurredAt.ToString("O")">@Timestamp(change.OccurredAt)</time></p><p>@HistoryDescription(change)</p></li>
+                            }
+                        </ol>
+                    }
+                    <nav class="history-actions" aria-label="Participant history pages">
+                        @if (history.NextEventId is { } cursor) { <a href="@HistoryUrl(cursor)">Earlier changes</a> }
+                        @if (State.BeforeEventId is not null) { <a href="@HistoryUrl(null)">Latest changes</a> }
+                        @if (BuildEvaluationUrl is not null) { <a href="@BuildEvaluationUrl(selected.PlayerCampaignAssignmentId)">Read evaluation</a> }
+                    </nav>
+                }
+            </section>
+        }
+    }
+</section>
+<section class="lifecycle-history" aria-labelledby="closed-activity-heading" aria-busy="@(_activityLoading ? "true" : "false")">
+    <h2 id="closed-activity-heading">Recent lifecycle activity</h2>
+    <p class="text-body-secondary">Up to @GetCampaignActivityInput.MaxEventCount latest close and reopen events.</p>
+    @if (_activityLoading) { <p role="status">Loading lifecycle activity…</p> }
+    else if (ActivityError is not null) { <div role="alert"><p>@ActivityError</p><button type="button" class="btn btn-outline-secondary" @onclick="RetryActivityAsync">Retry activity</button></div> }
+    else if (Activity is not { Events.Count: > 0 }) { <p>No recent lifecycle activity.</p> }
+    else
+    {
+        <ol class="history-list" tabindex="0" aria-label="Scrollable lifecycle activity">
+            @foreach (var item in Activity.Events)
+            {
+                <li><strong>@item.ActorDisplayName</strong> @(item.EventType == CampaignLifecycleEventType.Closed ? "closed" : "reopened") the campaign · <time datetime="@item.CreatedAt.ToString("O")">@Timestamp(item.CreatedAt)</time></li>
+            }
+        </ol>
+    }
+</section>

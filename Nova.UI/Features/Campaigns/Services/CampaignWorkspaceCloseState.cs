@@ -11,6 +11,12 @@ public sealed record CampaignWorkspaceCloseState
     public string? Search { get; init; }
     /// <summary>The selected authoritative blocker condition.</summary>
     public string? Blocker { get; init; }
+    /// <summary>The Closed record's campaign-local terminal outcome filter.</summary>
+    public string? Outcome { get; init; }
+    /// <summary>The Closed participant whose inline history is selected.</summary>
+    public long? ParticipantId { get; init; }
+    /// <summary>The selected history's exclusive event cursor.</summary>
+    public long? BeforeEventId { get; init; }
     /// <summary>The one-based 50-participant page.</summary>
     public int Page { get; init; } = 1;
 
@@ -34,6 +40,15 @@ public sealed record CampaignWorkspaceCloseState
         _ => null,
     };
 
+    /// <summary>Normalizes Closed discovery without exposing an Undecided final outcome.</summary>
+    public static string? NormalizeOutcome(string? value) => value?.Trim().ToUpperInvariant() switch
+    {
+        "ASSIGNED" => "assigned",
+        "NOTSELECTED" => "notselected",
+        "WITHDRAWN" => "withdrawn",
+        _ => null,
+    };
+
     /// <summary>Preserves Close context through a correction journey.</summary>
     /// <param name="destination">The existing destination and other workspace state.</param>
     /// <param name="returnToClose">Whether to show the explicit correction return link.</param>
@@ -51,6 +66,12 @@ public sealed record CampaignWorkspaceCloseState
         if (NormalizeBlocker(Blocker) is { } blocker)
         {
             parts.Add($"closeBlocker={Uri.EscapeDataString(blocker)}");
+        }
+        if (NormalizeOutcome(Outcome) is { } outcome) { parts.Add($"closeOutcome={outcome}"); }
+        if (ParticipantId is > 0 and long participant)
+        {
+            parts.Add($"closeParticipant={participant.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            if (BeforeEventId is > 0 and long cursor) { parts.Add($"closeBeforeEventId={cursor.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); }
         }
         if (returnToClose)
         {

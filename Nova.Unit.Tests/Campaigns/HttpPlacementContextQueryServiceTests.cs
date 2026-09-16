@@ -11,6 +11,25 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed class HttpPlacementContextQueryServiceTests
 {
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task ClosedHistoryUsesExplicitGuardAndRejectsAnotherCampaignAsync(bool requireClosed, bool accepted)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new PlacementContextResult(301, null,
+                [new(20, 11, "Other campaign", null, null, PlacementOutcome.NotSelected, null, "Member", DateTimeOffset.UnixEpoch.AddDays(1))], null, false)),
+        };
+        using var handler = new ContextHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlacementContextQueryService(http).GetContextAsync(new()
+        { CampaignId = 10, PlayerCampaignAssignmentId = 301, RequireClosed = requireClosed, BeforeEventId = 30 }, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBe(accepted);
+        handler.RequestUri!.Query.ShouldBe(requireClosed ? "?beforeEventId=30&requireClosed=true" : "?beforeEventId=30");
+        if (!accepted) { result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError); }
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]

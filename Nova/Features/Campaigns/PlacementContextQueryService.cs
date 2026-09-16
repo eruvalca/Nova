@@ -65,6 +65,10 @@ internal sealed partial class PlacementContextQueryService(IDbContextFactory<Nov
         {
             return ServiceProblem.NotFound();
         }
+        if (input.RequireClosed is true && participant.Campaign.Status != CampaignStatus.Closed)
+        {
+            return ServiceProblem.Conflict("The campaign has reopened. Refresh to read its current state.");
+        }
         var seasonId = participant.Campaign.SeasonId;
         var latest = await db.PlayerCampaignAssignments.Where(a => a.PlayerId == participant.PlayerId
                 && a.Campaign.SeasonId == seasonId && a.Campaign.Status != CampaignStatus.Draft

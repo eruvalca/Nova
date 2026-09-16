@@ -485,6 +485,8 @@ public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture f
         snapshot.Participants.Items.ShouldHaveSingleItem().ShouldBe(original.Participants.Items.ShouldHaveSingleItem());
         snapshot.Participants.Items[0].Source.Decision.Outcome.ShouldBe(PlacementOutcome.Assigned);
         snapshot.Participants.Items[0].Source.Decision.TeamId.ShouldBe(seed.LatestTeamId);
+        snapshot.Summary.ShouldBe(original.Summary);
+        snapshot.ClosingEvent.ShouldBe(original.ClosingEvent);
     }
 
     private async Task<long> AdvanceSeasonAsync(long clubId)
@@ -516,6 +518,7 @@ public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture f
         assignment.Campaign.Status = CampaignStatus.Closed;
         assignment.Campaign.ClosedAt = DateTimeOffset.UtcNow;
         assignment.Campaign.ClosedById = 1;
+        db.ActivityEvents.Add(ClosingEvent(assignment.Campaign));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
@@ -582,6 +585,7 @@ public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture f
             db.Campaigns.Add(campaign);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             campaigns.Add(campaign);
+            if (campaign.Status == CampaignStatus.Closed) { db.ActivityEvents.Add(ClosingEvent(campaign)); }
             var savedTeamId = sequence == 2 ? latestTeam.TeamId : oldTeam.TeamId;
             var recordedAt = new DateTimeOffset(2026, sequence == 2 ? 1 : 2, 1, 0, 0, 0, TimeSpan.Zero);
             db.PlayerCampaignAssignments.AddRange(players.Select((player, index) => new PlayerCampaignAssignmentEntity
@@ -602,6 +606,17 @@ public sealed partial class EffectivePlacementPostgresTests(NovaAppHostFixture f
         return new(club.ClubId, season.SeasonId, campaigns[0].CampaignId, campaigns[1].CampaignId, oldTeam.TeamId, latestTeam.TeamId,
             players.Select(p => p.PlayerId).Order().ToArray());
     }
+
+    private static ActivityEventEntity ClosingEvent(CampaignEntity campaign) => new()
+    {
+        ClubId = campaign.ClubId,
+        CampaignId = campaign.CampaignId,
+        EventKind = ActivityEventKind.CampaignClosed,
+        ActorUserId = 1,
+        ActorDisplayName = "Original closer",
+        PayloadJson = "{}",
+        CreatedById = 1,
+    };
 
     private static PlayerEntity[] CreatePlayers(long clubId, int count)
         => Enumerable.Range(0, count).Select(_ => new PlayerEntity
