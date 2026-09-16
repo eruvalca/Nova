@@ -11,7 +11,7 @@ namespace Nova.Browser.Tests;
 
 /// <summary>The bounded final record on the real campaign shell, including native navigation.</summary>
 [Collection(BrowserSuiteCollection.Name)]
-public sealed class CampaignClosedRecordBrowserTests(BrowserSuiteFixture fixture)
+public sealed partial class CampaignClosedRecordBrowserTests(BrowserSuiteFixture fixture)
 {
     [Theory]
     [InlineData(true)]

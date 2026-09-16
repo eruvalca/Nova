@@ -138,6 +138,64 @@ public sealed class CampaignClosedRecordTests : BunitContext
         reloads.ShouldBe(1);
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RefreshFailureDefersHistoryFocusUntilRecordRetryRendersHeadingAsync(bool delayed)
+    {
+        var cut = RenderRecord(new() { ParticipantId = 101 });
+        cut.Find("#closed-history-heading").TextContent.ShouldBe("Participant decision history");
+        var pending = new TaskCompletionSource<ServiceResult<ClosedCampaignRosterResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failure = new ServiceResult<ClosedCampaignRosterResult>(ServiceProblem.ServerError("Unavailable"));
+        _roster.GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(x => x.ParticipantId == null), Arg.Any<CancellationToken>())
+            .Returns(delayed ? pending.Task : Task.FromResult(failure));
+        try
+        {
+            cut.Render(p => p.Add(x => x.RefreshGeneration, 1));
+            if (delayed)
+            {
+                cut.Markup.ShouldContain("Loading final campaign record");
+                cut.FindAll("#closed-history-heading").ShouldBeEmpty();
+                JSInterop.Invocations.ShouldNotContain(call => string.Equals(call.Identifier, "Blazor._internal.domWrapper.focus", StringComparison.Ordinal));
+                pending.SetResult(failure);
+            }
+            await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Retry record"));
+            cut.FindAll("#closed-history-heading").ShouldBeEmpty();
+            JSInterop.Invocations.ShouldNotContain(call => string.Equals(call.Identifier, "Blazor._internal.domWrapper.focus", StringComparison.Ordinal));
+
+            _roster.GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(x => x.ParticipantId == null), Arg.Any<CancellationToken>())
+                .Returns(new ServiceResult<ClosedCampaignRosterResult>(Record()));
+            await cut.FindAll("button").Single(b => string.Equals(b.TextContent, "Retry record", StringComparison.Ordinal)).ClickAsync(new());
+            cut.Find(".participant-history").TextContent.ShouldContain("Original member");
+            await cut.WaitForAssertionAsync(() => JSInterop.Invocations.Count(call => string.Equals(call.Identifier, "Blazor._internal.domWrapper.focus", StringComparison.Ordinal)).ShouldBe(1));
+            _ = _history.Received(2).GetContextAsync(Arg.Any<GetPlacementContextInput>(), Arg.Any<CancellationToken>());
+        }
+        finally { pending.TrySetResult(failure); }
+    }
+
+    [Fact]
+    public async Task RemovingSelectionDuringRefreshDiscardsPendingHistoryFocusAsync()
+    {
+        var cut = RenderRecord(new() { ParticipantId = 101 });
+        cut.Find("#closed-history-heading").TextContent.ShouldBe("Participant decision history");
+        var pending = new TaskCompletionSource<ServiceResult<ClosedCampaignRosterResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _roster.GetClosedCampaignRosterAsync(Arg.Is<GetClosedCampaignRosterInput>(x => x.ParticipantId == null), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+        try
+        {
+            cut.Render(p => p.Add(x => x.RefreshGeneration, 1));
+            cut.Render(p => p.Add(x => x.State, new CampaignWorkspaceCloseState()));
+            pending.SetResult(new ServiceResult<ClosedCampaignRosterResult>(Record()));
+            await cut.WaitForAssertionAsync(() => cut.Find(".record-summary").TextContent.ShouldContain("Departed closer"));
+            cut.FindAll("#closed-history-heading").ShouldBeEmpty();
+            JSInterop.Invocations.ShouldNotContain(call => string.Equals(call.Identifier, "Blazor._internal.domWrapper.focus", StringComparison.Ordinal));
+            cut.Render(p => p.Add(x => x.State, new CampaignWorkspaceCloseState { ParticipantId = 101 }));
+            cut.Find(".participant-history").TextContent.ShouldContain("Original member");
+            await cut.WaitForAssertionAsync(() => JSInterop.Invocations.Count(call => string.Equals(call.Identifier, "Blazor._internal.domWrapper.focus", StringComparison.Ordinal)).ShouldBe(1));
+        }
+        finally { pending.TrySetResult(new ServiceResult<ClosedCampaignRosterResult>(Record())); }
+    }
+
     [Fact]
     public async Task LateRecordFromPreviousOwnerCannotReplaceNewOwnerAsync()
     {

@@ -108,6 +108,13 @@ public partial class CampaignClosedRecord(IEffectivePlacementQueryService querie
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // ElementReference retains its context after a conditional render removes the heading.
+        if (_loading || RecordError is not null || Record is null || State.ParticipantId is null)
+        {
+            _historyHeading = default;
+            if (State.ParticipantId is null) { _focusHistory = false; }
+            return;
+        }
         if (_focusHistory && !_historyLoading && _historyHeading.Context is not null)
         {
             _focusHistory = false;
