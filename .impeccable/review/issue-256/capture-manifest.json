@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "c2a71e84b8ce6f1e408c6eb8d97c7c55b3ea75de plus complete round-two working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "84ed0efb6ce29e71f542f43bb9a2f726122fbd9d plus complete round-three working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "b1712b2b265cd8ba9500111f57a0ddef54af34c79b5f0dfb3f5ca795c9afc848",
-  "testFingerprint": "d9e98cb7746ea5ca3079f41df2a7a8582fc6f889803c69ffd9bfeae366a98477",
+  "productionFingerprint": "f9e1cffa86d614110adf8c954d2acaacc3f988847f953774d7760a308efbfc37",
+  "testFingerprint": "8060653a2f14fb1a035230c461721f69d2d6b62ea63dba0071c86d7e1ca1988c",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -40,7 +40,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor",
-      "sha256": "d5192243155ac65874681a9cd438fe6ecf184b127629a3dea782811add606270"
+      "sha256": "183f9d7bf116a398dad7f961535f6579857d069a946e8dba8d16c4a0b3383dbe"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor.cs",
@@ -52,7 +52,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor",
-      "sha256": "56e9bf3096f1888e5c5e141de8cfb43a625230e4e0cee60e84f61e7b4392dd61"
+      "sha256": "1dbc950967dc3d827b079bb4c0775868888f0c0d6e10b5524e3bd7ac14b7b4a5"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
@@ -68,11 +68,11 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor",
-      "sha256": "cc02da23d7ec65629c1ed083d96c3f8ed601e3e5e6d82e0176fb07917967d076"
+      "sha256": "3d2896aaf083608fe6d80e09f67deafd01b149afb9e552692d293a20cddfc17a"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.cs",
-      "sha256": "2d1a99a1c60a5b52d6397bdd6b3f094e9de78ec1e9a1a07db6df31ab599b1fc4"
+      "sha256": "757a648054ff8b986b7611e0e7a351a81cf1a5ddb1380ebea23cabe6ff0b3b38"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.css",
@@ -92,7 +92,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Close.cs",
-      "sha256": "bcab0cf06173cc1dff7ff04940ed65b7c45517757c03200b195e6626aa4ea834"
+      "sha256": "62e6206987ac1e22b14ce40f3a1ecd2e73ec091ec31719a65da9b68032b02b42"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Evaluation.cs",
@@ -120,11 +120,11 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Services/CampaignWorkspaceCloseState.cs",
-      "sha256": "6ad4bef965c7a69c4e4761383ff50671e0705a2e6f27d112eed8c607bcd0c79e"
+      "sha256": "dfe42149791b10fd64aeff4adc0f65b0bc961d631801b7b0deb925186ba20fa9"
     },
     {
       "path": "Nova/Features/Campaigns/CampaignCloseoutQueryService.cs",
-      "sha256": "c4a90d2a103b0cc021ad0bd3f6d7f1edbd2e090ccda8cb64ad5e908f97700360"
+      "sha256": "8274e368c1ea2b46a744d3985affa57037254da550ae38129d0dbbd7788a59a6"
     },
     {
       "path": "Nova/Features/Campaigns/CampaignLifecycleEndpointRouteBuilderExtensions.cs",
@@ -132,7 +132,7 @@
     },
     {
       "path": "Nova/Features/Campaigns/CampaignLifecycleService.cs",
-      "sha256": "ef081973df3024139a559dc9534a98bca39729a12d904de7dc60bf7bf9fca3b0"
+      "sha256": "bb86548e2522c3797f046f79ecbfc88b8f0b9c7d41b0ebe2e314f689fd668e1a"
     },
     {
       "path": "Nova/Features/Campaigns/CampaignReopenPolicy.cs",
@@ -206,7 +206,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutPanelTests.cs",
-      "sha256": "145065e2798ee54c526869a817bed6aeb336ec79a23e7faad93368e6e03a0ed8"
+      "sha256": "9a3708128195d534985735489ee552d9a18e4c54a959dac12b409381f77e44ba"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutPanelTests.Refresh.cs",
@@ -214,7 +214,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutQueryServiceTests.cs",
-      "sha256": "8607424f6c23e349e1d1b492628c2af0bc86927b0f12e9d8765fcf94f262e62b"
+      "sha256": "720d302791cc53544a19daed05a20156037e0fe1c1c19b9aca1e49ae009c99dd"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseReviewQueryTests.cs",
@@ -230,23 +230,23 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignLifecycleEndpointTests.cs",
-      "sha256": "141b202550f96d13c522c6b99d0cfda895157794c42c16de92f58c80204f5ec5"
+      "sha256": "7c42dbede28e557aaa2e354ab6da9b79d53eff3d1964b0c66d6ed9fca616d465"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignLifecycleServiceTests.cs",
-      "sha256": "75cef101a83ffc6c0a0030a997185192cd9177a0cd6ba092292814affc801728"
+      "sha256": "d6da86c0b2c70449395d3534014f40a0dba6c00b99c041cdc995b6c0b0b707f3"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignReopenPolicyTests.cs",
-      "sha256": "a6607925e386d5debb267a12a568efdd277319a057489516b48aa45f01983456"
+      "sha256": "a664cf2cd3acce2694e19d6c872e78c127ba78f8ecc8741167d24cb1b25b8446"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceCloseStateTests.cs",
-      "sha256": "fc69f932e6e8fb01bdaeee3efb66d3d84f403ab4e9e6962b40945b8b946e1432"
+      "sha256": "453298e9ad04fefc60a3d249091fdc76858415dbb15c273f2c314fea33cec4a3"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.Close.cs",
-      "sha256": "88cbfb048a174ed43d6d47eab7618d0cbed6f7422dcdb301a64a95a6d450f317"
+      "sha256": "53c08558ecba2c5fbc085d4a36c5b6524ff0aecc1fa1d4ddee01c78da50e6955"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs",
@@ -266,7 +266,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/HttpCampaignCloseoutQueryServiceTests.cs",
-      "sha256": "bcd8bfdaf4ed502988b0136d3949689570d271df6d7708ac59b2667739b70450"
+      "sha256": "6247fa5215655eaaa943f675786f7c3c040e9efaf373c3f0402598246a209f06"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/HttpCampaignLifecycleServiceTests.cs",
@@ -282,15 +282,15 @@
       "file": "captures/admin-confirmation.png",
       "width": 1280,
       "height": 1455,
-      "sha256": "2d5076e0d96d40f0d47dc58414bf56633b1b984d6aa405c35e080fe4082ce47f",
-      "capturedAtUtc": "2026-09-16T06:09:48.6512000Z"
+      "sha256": "746b53d892db2eccfc99d67e3d5c488c58e483f22171a68f684c6e959761b391",
+      "capturedAtUtc": "2026-09-16T06:56:32.2302420Z"
     },
     {
       "file": "captures/closed.png",
       "width": 1280,
       "height": 800,
-      "sha256": "a3198e4f9c3102e2ad5f1b2936393551837cbce1626115d247a17ee3d883ebd1",
-      "capturedAtUtc": "2026-09-16T06:09:49.6421229Z"
+      "sha256": "892f6af320421762ad22cc5a218b499db1674d5fdbf0d3ae8a2aff27f35910ef",
+      "capturedAtUtc": "2026-09-16T06:56:33.2432422Z"
     },
     {
       "file": "captures/comparison.png",
@@ -303,48 +303,48 @@
       "file": "captures/desktop.png",
       "width": 1440,
       "height": 1192,
-      "sha256": "4245af7ae8e132caa5505916f2217c57d15d33dcf1590fc970ffdb9e0419d917",
-      "capturedAtUtc": "2026-09-16T06:09:51.0588596Z"
+      "sha256": "41d5abcd1cb6c35d4e9db6eab5466912cde862db1750f248071c214ceae609c8",
+      "capturedAtUtc": "2026-09-16T06:56:34.8189348Z"
     },
     {
       "file": "captures/hero-repro.png",
       "width": 1536,
       "height": 1024,
-      "sha256": "f3e96db0b4da6b5ec4ff1d52c8f2269150c41aba543af262ef58aa80d2cc6886",
-      "capturedAtUtc": "2026-09-16T06:09:50.7862240Z"
+      "sha256": "be7248fcf87e61e013552edff484cb562404dc04f8f10145080f0bc49a08a6ee",
+      "capturedAtUtc": "2026-09-16T06:56:34.4656665Z"
     },
     {
       "file": "captures/mobile.png",
       "width": 390,
       "height": 1680,
       "sha256": "8415e3af10ce339b357ddf116d9613124bb2d63459bc79577ff273452144b0b6",
-      "capturedAtUtc": "2026-09-16T06:09:51.2131455Z"
+      "capturedAtUtc": "2026-09-16T06:56:34.9915878Z"
     },
     {
       "file": "captures/phone-empty.png",
       "width": 390,
       "height": 1432,
       "sha256": "11301ce7414ebdebfed738c0ac05bc1e53ae5bba03ea5bed3a26ee0b0c678cf7",
-      "capturedAtUtc": "2026-09-16T06:09:49.3715587Z"
+      "capturedAtUtc": "2026-09-16T06:56:32.9252221Z"
     },
     {
       "file": "captures/phone-return.png",
       "width": 390,
       "height": 1505,
-      "sha256": "82e99d801295f502a5a91a706815970f9141ccd650d33fe5c147e148859a417a",
-      "capturedAtUtc": "2026-09-16T06:09:53.3699488Z"
+      "sha256": "bfd7eb4d48c7df95e9d510d2dadce97b2207caca86816900fabd774a233bcc41",
+      "capturedAtUtc": "2026-09-16T06:56:37.1897226Z"
     },
     {
       "file": "captures/phone-roster-error.png",
       "width": 390,
       "height": 1533,
-      "sha256": "b896313188e59416c53d7b98d373063594b6e9b1fce74367a98d2fe6e3bab0e4",
-      "capturedAtUtc": "2026-09-16T06:10:22.3068858Z"
+      "sha256": "280ab790719d4c9a2e0a36bf7984e2a2f85e351573ce3dfc573b279b9e4adaeb",
+      "capturedAtUtc": "2026-09-16T06:57:05.3315885Z"
     }
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-two settled browser captures.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-three settled browser captures.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]

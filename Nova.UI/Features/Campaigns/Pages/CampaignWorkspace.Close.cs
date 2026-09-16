@@ -14,7 +14,7 @@ public partial class CampaignWorkspace
     private CampaignWorkspaceCloseState CloseState => new()
     {
         Search = CampaignWorkspaceCloseState.NormalizeSearch(CloseSearchQuery),
-        Page = Math.Max(1, ClosePageQuery ?? 1),
+        Page = CampaignWorkspaceCloseState.NormalizePage(ClosePageQuery),
         Blocker = CampaignWorkspaceCloseState.NormalizeBlocker(CloseBlockerQuery),
     };
     /// <summary>The authoritative snapshot persisted across prerender and interactive attachment.</summary>

@@ -78,7 +78,8 @@ internal sealed partial class CampaignLifecycleService(
     /// </summary>
     /// <param name="campaignId">The campaign identifier to close.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, blocker, or conflict information.</returns>
+    /// <returns>Success, not found, forbidden, blocker, conflict, or unknown commit acknowledgement.
+    /// An unknown result may have committed; never replay it or infer success from mutable state.</returns>
     public async Task<CampaignCloseResult> CloseAsync(
         long campaignId,
         CancellationToken cancellationToken = default)
@@ -237,7 +238,8 @@ internal sealed partial class CampaignLifecycleService(
     /// </summary>
     /// <param name="campaignId">The campaign identifier to reopen.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
+    /// <returns>Success, not found, forbidden, conflict, or unknown commit acknowledgement.
+    /// An unknown result may have committed; never replay it or infer success from mutable state.</returns>
     public async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown>> ReopenAsync(
         long campaignId,
         CancellationToken cancellationToken = default)
@@ -372,13 +374,8 @@ internal sealed partial class CampaignLifecycleService(
         LogCampaignLifecycleChanged(campaignId, CampaignStatus.Active, actorUserId);
         return new Success();
     }
-
-
-
-    /// <summary>
-    /// Determines whether a persistence failure came from the one-Active-campaign unique index.
-    /// </summary>
-    /// <returns><see langword="true"/> when PostgreSQL reports the named unique-index violation.</returns>
+    /// <summary>Rechecks persisted club membership and administrator authority within the mutation locks.</summary>
+    /// <returns>Whether the actor still belongs to this club and retains the administrator role.</returns>
     private static async Task<bool> IsCurrentAdministratorAsync(NovaDbContext db, long actor, long club, CancellationToken token)
         => await db.Users.AnyAsync(user => user.Id == actor && user.ClubId == club, token)
             && await PlacementMutationExecutor.IsAdministratorAsync(db, actor, token);
@@ -386,6 +383,8 @@ internal sealed partial class CampaignLifecycleService(
     [LoggerMessage(Level = LogLevel.Error, Message = "Campaign lifecycle outcome unknown for CampaignId={CampaignId} by UserId={ActorUserId}; no automatic replay.")]
     private partial void LogCampaignLifecycleOutcomeUnknown(Exception exception, long campaignId, long actorUserId);
 
+    /// <summary>Determines whether persistence failed on the one-Active-campaign unique index.</summary>
+    /// <returns>Whether PostgreSQL reports the named unique-index violation.</returns>
     private static bool IsOneActiveCampaignViolation(DbUpdateException exception)
         => exception.InnerException is PostgresException
         {

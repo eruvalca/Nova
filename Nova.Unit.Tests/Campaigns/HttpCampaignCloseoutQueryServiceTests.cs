@@ -97,8 +97,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
 
     /// <summary>
     /// Verifies a not-ready payload whose outcomes blocker count differs from the summary undecided
-    /// count — a momentary cross-read disagreement the server does not guarantee atomically — is
-    /// accepted rather than surfaced as a server error.
+    /// count is rejected as a server error because the response must describe one coherent snapshot.
     /// </summary>
     [Fact]
     public async Task GetCloseoutReadinessAsyncRejectsMismatchedOutcomesCountAsync()

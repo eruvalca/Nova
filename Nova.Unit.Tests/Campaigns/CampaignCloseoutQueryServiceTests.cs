@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -47,6 +48,27 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <inheritdoc />
     public void Dispose() => _harness.Dispose();
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(CampaignReopenUnavailableReason.HistoricalSeason)]
+    [InlineData(CampaignReopenUnavailableReason.LaterCampaignOpened)]
+    [InlineData(CampaignReopenUnavailableReason.AnotherActiveCampaign)]
+    public async Task ReopenRelatedCampaignMatchesTheActualRestrictionAsync(CampaignReopenUnavailableReason reason)
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            (await db.Clubs.SingleAsync(club => club.ClubId == ClubAId, TestContext.Current.CancellationToken)).CurrentSeasonId = reason == CampaignReopenUnavailableReason.HistoricalSeason ? null : 500;
+            (await db.Campaigns.SingleAsync(campaign => campaign.CampaignId == _closedCampaignId, TestContext.Current.CancellationToken)).SeasonOpeningSequence = 2;
+            (await db.Campaigns.SingleAsync(campaign => campaign.CampaignId == _readyCampaignId, TestContext.Current.CancellationToken)).SeasonOpeningSequence = reason == CampaignReopenUnavailableReason.LaterCampaignOpened ? 3 : 1;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var result = await CreateService().GetCloseoutReadinessAsync(new() { CampaignId = _closedCampaignId }, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Lifecycle.ReopenUnavailableReason.ShouldBe(reason);
+        result.Value.Lifecycle.RelatedCampaignId.ShouldBe(reason is CampaignReopenUnavailableReason.LaterCampaignOpened or CampaignReopenUnavailableReason.AnotherActiveCampaign ? _readyCampaignId : null);
+    }
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(true)]

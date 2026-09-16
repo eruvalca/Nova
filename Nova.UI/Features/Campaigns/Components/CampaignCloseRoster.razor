@@ -1,6 +1,6 @@
 @using Nova.SharedKernel.Enums
 @using Nova.SharedKernel.Features.Campaigns
-<section class="close-roster" aria-labelledby="close-roster-heading" aria-busy="@_loading">
+<section class="close-roster" aria-labelledby="close-roster-heading" aria-busy="@(_loading ? "true" : "false")">
     <h2 class="h5" id="close-roster-heading">Campaign roster</h2>
     <div class="roster-toolbar">
         <form @onsubmit="SearchAsync" @onsubmit:preventDefault>

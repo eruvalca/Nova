@@ -6,6 +6,21 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class CampaignWorkspaceCloseStateTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, 1)]
+    [InlineData(int.MinValue, 1)]
+    [InlineData(0, 1)]
+    [InlineData(2, 2)]
+    [InlineData(42_949_673, 42_949_673)]
+    [InlineData(42_949_674, 1)]
+    [InlineData(int.MaxValue, 1)]
+    public void ClosePageUrlsRespectTheDiscoveryOffsetBoundary(int? raw, int expected)
+    {
+        CampaignWorkspaceCloseState.NormalizePage(raw).ShouldBe(expected);
+        new CampaignWorkspaceCloseState { Page = raw ?? 1 }.Apply("/campaigns/10?tab=close")
+            .ShouldBe(expected == 1 ? "/campaigns/10?tab=close" : $"/campaigns/10?tab=close&closePage={expected}");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, false)]
     [InlineData(200, true)]
     [InlineData(201, false)]

@@ -56,3 +56,9 @@ The same independent reviewer examined seven refreshed Close captures and the af
 The final shipping run refreshed these captures after the sibling focus-rule correction. The reviewer reinspected all seven: “All three focus rules use `.125rem` outlines and `.1875rem` offsets, equivalent to the previous dimensions at a 16px root. Closed-heading focus remains visible and unclipped. No material regression in the seven refreshed captures.” Final bounded disposition: **ship**.
 
 Enlarged-root-font rendering, individual link-focus states and the specific inherited NotSelected label are not captured; source/component-test evidence supplies the latter claim. The first browser failure, passive readiness-wait correction and passing final full suite are recorded in the authoritative validation record. The failed 71.3% comparison and approved override are unchanged; this verdict does not broaden the original full-surface scope.
+
+# Round-three bounded finish verdict
+
+The independent reviewer inspected the seven refreshed shipping captures and affected UI source. **Disposition: ship**, limited to these changes: no material visual regression; lifecycle actions/retry are suppressed during required loading, confirmation is cleared and all three Close regions emit explicit ARIA busy values. Restriction copy names the club.
+
+Loading, transient restriction states and related-link eligibility remain uncaptured. The visual reviewer did not establish server-side link filtering; the reason-specific query mapping and its persisted tests were separately verified in local code review. Full browser results are recorded in the validation record rather than inferred from captures. The failed 71.3% comparison and user-approved B/shell decision remain unchanged; this bounded verdict does not broaden the original full-surface review.

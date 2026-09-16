@@ -1,12 +1,15 @@
 @using Nova.SharedKernel.Enums
-<section class="lifecycle-checkpoint" aria-labelledby="lifecycle-heading" aria-busy="@_busy">
+<section class="lifecycle-checkpoint" aria-labelledby="lifecycle-heading" aria-busy="@(IsBusy ? "true" : "false")">
     <h2 id="lifecycle-heading" class="h5" tabindex="-1" @ref="_heading">@(Evidence?.Detail.Status == CampaignStatus.Closed ? "Closed campaign" : "Lifecycle checkpoint")</h2>
     @if (_feedback is not null) { <p role="status" aria-live="polite">@_feedback</p> }
-    @if (_busy) { <p role="status">Refreshing or saving the campaign…</p> }
-    @if (Evidence is null || _unavailable)
+    @if (IsBusy) { <p role="status">Refreshing or saving the campaign…</p> }
+    @if (Loading || Evidence is null || _unavailable)
     {
         <p>Lifecycle actions require a current authorized review.</p>
-        <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="RetryReadAsync">Retry lifecycle read</button>
+        @if (!Loading)
+        {
+            <button type="button" class="btn btn-outline-secondary" disabled="@IsBusy" @onclick="RetryReadAsync">Retry lifecycle read</button>
+        }
     }
     else
     {

@@ -1,7 +1,7 @@
 @using Nova.SharedKernel.Enums
 @using Nova.SharedKernel.Features.Campaigns
 
-<section class="close-review" aria-labelledby="closeout-region-heading" aria-busy="@Loading">
+<section class="close-review" aria-labelledby="closeout-region-heading" aria-busy="@(Loading ? "true" : "false")">
     @if (Detail.Status == CampaignStatus.Closed)
     {
         <div>
@@ -54,4 +54,4 @@
 {
     <CampaignCloseRoster CampaignId="Detail.CampaignId" Owner="@($"{Owner}:{RefreshGeneration}")" State="State" BuildCloseUrl="BuildCloseUrl" BuildParticipantUrl="BuildParticipantUrl" OnStateChanged="OnStateChanged" OnLifecycleChanged="OnLifecycleChanged" />
 }
-<CampaignLifecycleActions Owner="@Owner" Evidence="Evidence" RefreshEvidence="RefreshEvidence" />
+<CampaignLifecycleActions Owner="@Owner" Evidence="Evidence" Loading="@(Loading || (Evidence is null && Error is null))" RefreshEvidence="RefreshEvidence" />

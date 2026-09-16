@@ -109,6 +109,12 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     public async Task ReopenAsyncClearsClosureMetadataAndAppendsReopenedEventAsync()
     {
         await SetOnlyActiveCampaignAsync(null);
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            var otherClub = await arrange.Campaigns.SingleAsync(campaign => campaign.CampaignId == ClubBCampaignId, TestContext.Current.CancellationToken);
+            otherClub.Status = CampaignStatus.Active;
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
 
@@ -122,6 +128,8 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         campaign.Status.ShouldBe(CampaignStatus.Active);
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
+
+        (await verify.Campaigns.SingleAsync(candidate => candidate.CampaignId == ClubBCampaignId, TestContext.Current.CancellationToken)).Status.ShouldBe(CampaignStatus.Active);
 
         var events = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == ClosedCampaignId)

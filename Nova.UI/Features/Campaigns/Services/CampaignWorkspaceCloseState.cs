@@ -14,6 +14,10 @@ public sealed record CampaignWorkspaceCloseState
     /// <summary>The one-based 50-participant page.</summary>
     public int Page { get; init; } = 1;
 
+    /// <summary>Normalizes a 50-row page to the shared discovery offset bound.</summary>
+    public static int NormalizePage(int? page)
+        => page is > 0 && (long)(page.Value - 1) * PlacementPageInput.DefaultPageSize <= int.MaxValue ? page.Value : 1;
+
     /// <summary>Normalizes bookmarked search text; invalid lengths show the unfiltered roster.</summary>
     public static string? NormalizeSearch(string? value)
     {
@@ -38,7 +42,8 @@ public sealed record CampaignWorkspaceCloseState
     {
         ArgumentNullException.ThrowIfNull(destination);
         var parts = new List<string>();
-        if (Page > 1) { parts.Add($"closePage={Page.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); }
+        var page = NormalizePage(Page);
+        if (page > 1) { parts.Add($"closePage={page.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); }
         if (NormalizeSearch(Search) is { } search)
         {
             parts.Add($"closeSearch={Uri.EscapeDataString(search)}");

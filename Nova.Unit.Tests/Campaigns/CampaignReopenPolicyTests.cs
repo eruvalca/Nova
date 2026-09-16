@@ -11,6 +11,7 @@ public sealed class CampaignReopenPolicyTests
     [InlineData(CampaignStatus.Active, 1L, 1L, 1L, false, CampaignReopenUnavailableReason.NotClosed)]
     [InlineData(CampaignStatus.Closed, 2L, 1L, 1L, false, CampaignReopenUnavailableReason.HistoricalSeason)]
     [InlineData(CampaignStatus.Closed, 1L, null, 1L, false, CampaignReopenUnavailableReason.MissingOpening)]
+    [InlineData(CampaignStatus.Closed, 1L, null, 1L, true, CampaignReopenUnavailableReason.MissingOpening)]
     [InlineData(CampaignStatus.Closed, 1L, 1L, 2L, false, CampaignReopenUnavailableReason.LaterCampaignOpened)]
     [InlineData(CampaignStatus.Closed, 1L, 1L, 1L, true, CampaignReopenUnavailableReason.AnotherActiveCampaign)]
     public void ReopenRestrictionsUseSeasonIdentityAndAuthoritativeOpeningOrder(CampaignStatus status, long currentSeason, long? opening, long latest, bool anotherActive, CampaignReopenUnavailableReason reason)

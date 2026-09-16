@@ -15,6 +15,48 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed partial class CampaignWorkspaceTests
 {
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(42_949_673, 42_949_673)]
+    [InlineData(int.MaxValue, 1)]
+    public void CloseBookmarkPageIsBoundedBeforeQuerying(int page, int expected)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10?tab=close&closePage={page}");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        _ = Services.GetRequiredService<IEffectivePlacementQueryService>().Received(1)
+            .GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.SortBy == "closeout" && x.Page == expected), Arg.Any<CancellationToken>());
+        cut.Find("#close-roster-heading").TextContent.ShouldBe("Campaign roster");
+    }
+
+    [Fact]
+    public async Task CloseLifecycleWaitsForInitialReadAndDetailRetryBeforeOfferingActionsAsync()
+    {
+        RegisterServices();
+        var queries = Services.GetRequiredService<ICampaignCloseoutQueryService>();
+        var pending = new TaskCompletionSource<ServiceResult<CampaignCloseoutReadinessDto>>();
+        queries.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?tab=close");
+        var cut = Render<CampaignWorkspacePage>(p => p.Add(x => x.CampaignId, 10));
+        await cut.WaitForAssertionAsync(() => cut.Find(".lifecycle-checkpoint").GetAttribute("aria-busy").ShouldBe("true"));
+        cut.FindAll(".lifecycle-checkpoint button").ShouldBeEmpty();
+        _ = queries.Received(1).GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
+        pending.SetResult(new ServiceResult<CampaignCloseoutReadinessDto>(ServiceProblem.ServerError("Read unavailable")));
+        await cut.WaitForAssertionAsync(() => cut.Find(".lifecycle-checkpoint button").TextContent.ShouldBe("Retry lifecycle read"));
+        var detail = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        Services.GetRequiredService<ICampaignQueryService>().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>()).Returns(detail.Task);
+        queries.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness() with { Lifecycle = new(true, true, false, CampaignReopenUnavailableReason.NotClosed, null) }));
+        var retry = cut.Find(".lifecycle-checkpoint button").ClickAsync(new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => cut.Find(".lifecycle-checkpoint").GetAttribute("aria-busy").ShouldBe("true"));
+        cut.FindAll(".lifecycle-checkpoint button:not([disabled])").ShouldBeEmpty();
+        _ = queries.Received(1).GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
+        detail.SetResult(new ServiceResult<CampaignDetailResult>(CreateDetail()));
+        await retry;
+        await cut.WaitForAssertionAsync(() => cut.Find(".lifecycle-checkpoint button").TextContent.ShouldBe("Review close"));
+        _ = queries.Received(2).GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
+        Services.GetRequiredService<ICampaignLifecycleService>().ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(200)]
     [InlineData(201)]
     public void CloseBookmarkSearchIsBoundedBeforeQuerying(int length)

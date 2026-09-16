@@ -117,9 +117,16 @@ internal sealed partial class CampaignCloseoutQueryService(
                 .CountAsync(assignment => assignment.CampaignId == campaignId, cancellationToken),
             Lifecycle = new(administrator, administrator && campaign.Status == CampaignStatus.Active && readiness.IsReady,
                 administrator && reason == CampaignReopenUnavailableReason.None, reason,
-                reason == CampaignReopenUnavailableReason.LaterCampaignOpened ? latest?.CampaignId : activeId)
+                RelatedCampaign(reason, latest?.CampaignId, activeId))
         };
     }
+
+    private static long? RelatedCampaign(CampaignReopenUnavailableReason reason, long? latestId, long? activeId) => reason switch
+    {
+        CampaignReopenUnavailableReason.LaterCampaignOpened => latestId,
+        CampaignReopenUnavailableReason.AnotherActiveCampaign => activeId,
+        _ => null,
+    };
 
     private static Task<bool> IsAdministratorAsync(NovaReadDbContext db, long actorId, CancellationToken cancellationToken)
     {

@@ -15,6 +15,8 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
     [Parameter, EditorRequired] public string Owner { get; set; } = string.Empty;
     /// <summary>The current workspace-owned evidence; null removes mutation authority.</summary>
     [Parameter] public CampaignLifecycleEvidence? Evidence { get; set; }
+    /// <summary>Whether the workspace is still obtaining required detail or readiness evidence.</summary>
+    [Parameter] public bool Loading { get; set; }
     /// <summary>Refreshes authorized detail and readiness, returning null on required read failure.</summary>
     [Parameter, EditorRequired] public Func<Task<CampaignLifecycleEvidence?>> RefreshEvidence { get; set; } = null!;
 
@@ -27,6 +29,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
     private bool _focusPending;
     private string? _feedback;
     private ElementReference _heading;
+    private bool IsBusy => _busy || Loading;
     private bool Eligible => !_unavailable && Evidence is { } evidence && (evidence.Readiness.Lifecycle.CanClose || evidence.Readiness.Lifecycle.CanReopen);
     private string Action => Evidence?.Detail.Status == CampaignStatus.Closed ? "Reopen" : "Close";
 
@@ -42,7 +45,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
             _feedback = null;
             _unavailable = false;
         }
-        if (!ReferenceEquals(_confirmation, Evidence))
+        if (Loading || !ReferenceEquals(_confirmation, Evidence))
         {
             _confirmation = null;
         }
@@ -67,7 +70,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
 
     private async Task ReviewAsync()
     {
-        if (_busy || !Eligible)
+        if (IsBusy || !Eligible)
         {
             return;
         }
@@ -102,7 +105,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
 
     private async Task CommitAsync()
     {
-        if (_busy || _confirmation is not { } confirmed || !ReferenceEquals(confirmed, Evidence) || !Eligible)
+        if (IsBusy || _confirmation is not { } confirmed || !ReferenceEquals(confirmed, Evidence) || !Eligible)
         {
             return;
         }
@@ -178,7 +181,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
 
     private async Task RetryReadAsync()
     {
-        if (_busy)
+        if (IsBusy)
         {
             return;
         }
@@ -199,7 +202,7 @@ public partial class CampaignLifecycleActions(ICampaignLifecycleService lifecycl
     {
         CampaignReopenUnavailableReason.HistoricalSeason => "Only a campaign in the club’s current season can reopen.",
         CampaignReopenUnavailableReason.LaterCampaignOpened => "A later campaign has opened. This campaign can no longer reopen.",
-        CampaignReopenUnavailableReason.AnotherActiveCampaign => "Another campaign is Active. Only one campaign can be Active in a season.",
+        CampaignReopenUnavailableReason.AnotherActiveCampaign => "Another campaign is Active. Only one campaign can be Active for this club.",
         CampaignReopenUnavailableReason.MissingOpening => "This campaign has no authoritative opening sequence and cannot reopen.",
         _ => "Reopening is not available for the current campaign state.",
     };

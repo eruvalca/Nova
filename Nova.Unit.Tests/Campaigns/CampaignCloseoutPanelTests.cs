@@ -27,6 +27,33 @@ public sealed partial class CampaignCloseoutPanelTests : BunitContext
         _lifecycle.ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(new ServiceResult<Success>(new Success()));
     }
 
+    [Fact]
+    public void ParentReadRemovesConfirmationAndRetryUntilEvidenceSettles()
+    {
+        var cut = Actions();
+        Button(cut, "Review close").Click();
+        cut.Find(".confirmation").ShouldNotBeNull();
+        cut.Render(p => p.Add(x => x.Loading, true));
+        cut.FindAll("button").ShouldBeEmpty();
+        cut.Find("section").GetAttribute("aria-busy").ShouldBe("true");
+        cut.Render(p => p.Add(x => x.Loading, false));
+        cut.FindAll(".confirmation").ShouldBeEmpty();
+        Button(cut, "Review close").HasAttribute("disabled").ShouldBeFalse();
+        _refreshes.ShouldBe(1);
+        _lifecycle.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void AnotherActiveRestrictionNamesTheClubAndLinksItsCampaign()
+    {
+        _evidence = Evidence(status: CampaignStatus.Closed);
+        _evidence = _evidence with { Readiness = _evidence.Readiness with { Lifecycle = new(true, false, false, CampaignReopenUnavailableReason.AnotherActiveCampaign, 11) } };
+        var cut = Actions();
+        cut.Markup.ShouldContain("Only one campaign can be Active for this club.");
+        cut.Find("a").GetAttribute("href").ShouldBe("/campaigns/11");
+        cut.FindAll("button").ShouldBeEmpty();
+    }
+
     [Theory]
     [InlineData(CampaignStatus.Active, "Close campaign")]
     [InlineData(CampaignStatus.Closed, "Reopen campaign")]

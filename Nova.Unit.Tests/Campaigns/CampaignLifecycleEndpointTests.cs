@@ -26,6 +26,25 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignLifecycleEndpointTests
 {
+    /// <summary>Both unknown-commit variants preserve uncertainty in the HTTP status, detail and trace.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnknownCommitMapsToServerProblemWithTraceAsync(bool reopen)
+    {
+        using var activity = new System.Diagnostics.Activity("lifecycle-unknown");
+        activity.SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C);
+        activity.Start();
+        CampaignCloseResult closeResult = new LifecycleOutcomeUnknown();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> reopenResult = new LifecycleOutcomeUnknown();
+        var (statusCode, body) = await ExecuteAsync(reopen ? reopenResult.ToHttpResult() : closeResult.ToHttpResult());
+        statusCode.ShouldBe(StatusCodes.Status500InternalServerError);
+        using var document = JsonDocument.Parse(body);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe(500);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.");
+        document.RootElement.GetProperty("traceId").GetString().ShouldBe(activity.TraceId.ToString());
+    }
+
     /// <summary>
     /// Verifies every lifecycle route is registered with club-administrator authorization,
     /// disabled antiforgery, the intended verb, and the shared route name.
