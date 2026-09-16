@@ -1,8 +1,8 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "aefe6f15c2bd95c597b4b0a823752e712bc53422 plus complete round-seven working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "aa18cc1ba7f47cf5a84136375c38ceee84d6708e plus complete round-eight working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "44b17b9473fc123ccc74cc474cf67844709d762b27ed8d4fcbfd83d759b2b303",
+  "productionFingerprint": "604d1d9b273d7a8019b5dee73e0bb16170b0b49d72ff57739f612ec43e9d7ead",
   "testFingerprint": "2ee861df942dd4bb65a6823e48871746a2adb8d131e1a4c44150b08f5bec2a4d",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
@@ -60,7 +60,7 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
-      "sha256": "6486c37b846a3ce330ff0a50d14a6355cce2721d2a9475142b1d6bfe0bfd78db"
+      "sha256": "76bb7d42224bcb311698c02123cdf1bdbda4c3e7d7ef9ff911a7555e2d749ad1"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.css",
@@ -371,7 +371,7 @@
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, reused for round seven because no UI markup, CSS, copy or composition changed; round seven has fresh full browser behavior validation.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, reused for round eight because no UI markup, CSS, copy or composition changed; round eight has fresh full browser behavior validation.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]

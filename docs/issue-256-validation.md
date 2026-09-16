@@ -1,10 +1,10 @@
 # Issue #256 validation
 
-Status: round-seven public URL normalization is implemented and all required local checks pass. The working tree is `aefe6f15c2bd95c597b4b0a823752e712bc53422` plus the round-seven diff. Actual PR base: `3486196375e01fc870ce4fba0ac918f3a317773d`. Fresh CI and automatic review remain required after this push.
+Status: round-eight shared Close page-size reference is implemented and all required local checks pass. The working tree is `aa18cc1ba7f47cf5a84136375c38ceee84d6708e` plus the round-eight diff. Actual PR base: `3486196375e01fc870ce4fba0ac918f3a317773d`. Fresh CI and automatic review remain required after this push.
 
-Round-seven production fingerprint: `44b17b9473fc123ccc74cc474cf67844709d762b27ed8d4fcbfd83d759b2b303`; test fingerprint: `2ee861df942dd4bb65a6823e48871746a2adb8d131e1a4c44150b08f5bec2a4d`. The manifest covers 37 changed production files, 35 test files and ten curated captures. Normalized hashes identify the tested tree without requiring an extra evidence-only commit. All 1,214 frozen application/test/build input hashes matched after the final browser run. Later record/review metadata edits do not change application or browser inputs.
+Round-eight production fingerprint: `604d1d9b273d7a8019b5dee73e0bb16170b0b49d72ff57739f612ec43e9d7ead`; test fingerprint: `2ee861df942dd4bb65a6823e48871746a2adb8d131e1a4c44150b08f5bec2a4d`. The manifest covers 37 changed production files, 35 test files and ten curated captures. Normalized hashes identify the tested tree without requiring an extra evidence-only commit. All 1,214 frozen application/test/build input hashes matched after the final browser run. Later record/review metadata edits do not change application or browser inputs.
 
-The original implementation `542e28eccb81637208740fa8a813b0abf67eec33` passed 3,449 unit, 628 integration and 193 browser behavior tests. Round one, committed as `c2a71e84`, passed 3,481 unit, 628 integration and 195 browser behavior tests plus build/format; its CI also passed. Eight existing opt-in capture jobs were skipped in each full browser run. Round two, committed as `84ed0efb`, passed 3,498 unit, 628 integration and 195 browser behavior tests plus build/format and CI. Round three, committed as `31c7f29c`, passed 3,516 unit, 628 integration and 195 browser behavior tests plus build/format and CI. Round four, committed as `971e1d4b`, passed 3,520 unit, 630 integration and 195 browser behavior tests plus build/format and CI. Round five, committed as `f7fb95b6`, passed 3,530 unit, 630 integration and 195 browser behavior tests plus build/format and CI. Round six, committed as `aefe6f15`, passed 3,538 unit, 630 integration and 196 browser behavior tests plus build/format and CI. Those results remain historical evidence; the current table and dispositions below identify round-seven results. Fresh automatic review and passing CI are required after every push.
+The original implementation `542e28eccb81637208740fa8a813b0abf67eec33` passed 3,449 unit, 628 integration and 193 browser behavior tests. Round one, committed as `c2a71e84`, passed 3,481 unit, 628 integration and 195 browser behavior tests plus build/format; its CI also passed. Eight existing opt-in capture jobs were skipped in each full browser run. Round two, committed as `84ed0efb`, passed 3,498 unit, 628 integration and 195 browser behavior tests plus build/format and CI. Round three, committed as `31c7f29c`, passed 3,516 unit, 628 integration and 195 browser behavior tests plus build/format and CI. Round four, committed as `971e1d4b`, passed 3,520 unit, 630 integration and 195 browser behavior tests plus build/format and CI. Round five, committed as `f7fb95b6`, passed 3,530 unit, 630 integration and 195 browser behavior tests plus build/format and CI. Round six, committed as `aefe6f15`, passed 3,538 unit, 630 integration and 196 browser behavior tests plus build/format and CI. Round seven, committed as `aa18cc1b`, passed 3,547 unit, 630 integration and 196 browser behavior tests plus build/format and CI. Those results remain historical evidence; the current table and dispositions below identify round-eight results. Fresh automatic review and passing CI are required after every push.
 
 ## Scope and handoff
 
@@ -55,18 +55,28 @@ Primary test files: [query cases](../Nova.Unit.Tests/Campaigns/CampaignCloseRevi
 | Check | Exact command | Current result |
 | --- | --- | --- |
 | Build | `dotnet build Nova.slnx` | Passed, 0 warnings/errors |
-| Format | `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` | Passed, 0/1,029 files require changes, final round-seven inputs |
-| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed 3,547/3,547, no skips, 53s, final round-seven inputs; focused client/URL suite also passed 124/124 |
-| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed 630/630, no skips, 3m32s, final round-seven inputs |
-| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed 196 behavior tests, eight existing opt-in capture skips, 6m27s, final round-seven inputs |
+| Format | `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` | Passed, 0/1,029 files require changes, final round-eight inputs |
+| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | Passed 3,547/3,547, no skips, 53s, final round-eight inputs |
+| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | Passed 630/630, no skips, 3m28s, final round-eight inputs |
+| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Passed 196 behavior tests, eight existing opt-in capture skips, 6m27s, final round-eight inputs |
 | Diff hygiene | `git diff --check` | Passed on the complete round-six diff |
 | Migration model | No model/entity/configuration/migration change | Not applicable; PostgreSQL migration/schema regressions included in integration suite |
 
 Build-capable commands were serial. Integration and browser suites ran serially; both provisioned their own Aspire host. App source/generated assets were fixed throughout each browser run. No Sass/package change; theme rebuild/contrast-specific gate is not newly applicable.
 
-The eight browser skips are existing environment-gated screenshot jobs, not skipped behavior tests. Nine representative captures were refreshed at 09:05 UTC in the final round-six run with `NOVA_CLOSE_EVIDENCE` set, including the new phone stale-page recovery. The tenth capture retains the original comparison input. Independent bounded reinspection of all nine refreshed captures returned ship with no material regression. Round seven reuses these visual captures because no markup, CSS, copy or composition changed; its full browser suite separately validates the shared URL change. Documentation/evidence curation after the tests does not change application or test source.
+The eight browser skips are existing environment-gated screenshot jobs, not skipped behavior tests. Nine representative captures were refreshed at 09:05 UTC in the final round-six run with `NOVA_CLOSE_EVIDENCE` set, including the new phone stale-page recovery. The tenth capture retains the original comparison input. Independent bounded reinspection of all nine refreshed captures returned ship with no material regression. Rounds seven and eight reuse these visual captures because no markup, CSS, copy or composition changed; each has fresh full browser behavior validation for its source inputs. Documentation/evidence curation after the tests does not change application or test source.
 
 ## Material failures and review dispositions
+
+### Review round eight
+
+The [automatic Copilot review on aa18cc1b](https://github.com/eruvalca/Nova/pull/281#pullrequestreview-5221119922) says “Needs a closer look” with one suppressed page-size finding; the completed workflow classifies one moderate finding. CI Build and Unit Tests passed. This is not a clean-review stop.
+
+Replaced the Close request's literal 50 with `PlacementPageInput.DefaultPageSize`, the same constant used by `CampaignWorkspaceCloseState.NormalizePage`. The constant remains 50 and the API maximum remains 100, preserving the approved paging choice while preventing future disagreement between request and URL bounds. Sibling Place request/defaults and the Roster pager already consume their shared constants; the search found no other literal `PageSize = 50` in campaign UI code.
+
+Focused self-review is appropriate for this isolated mechanical reference change under AGENTS.md. The emitted page size remains identical; request ownership, cancellation, paging recovery and rendered composition are unchanged. Existing Close roster, URL-boundary and 51-to-50 correction browser cases exercise the affected path. No new test merely mirrors the one-line implementation. Earlier independent review of the complete feature remains recorded; all required suites passed on the final inputs. Build, format and all three suites passed on their first round-eight run; no new failure, suppression or skipped behavior test was introduced.
+
+Guidance applied: C#, Blazor architecture and testing instructions; `add-blazor-ui` lifecycle/state recipe, `nova-testing` and .NET run-tests guidance. No markup/CSS/copy/composition change, so the approved visual captures and bounded finish verdict are reused.
 
 ### Review round seven
 

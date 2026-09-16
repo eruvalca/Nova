@@ -77,7 +77,7 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
                 Search = State.Search,
                 CloseoutBlocker = State.Blocker,
                 Page = State.Page,
-                PageSize = 50,
+                PageSize = PlacementPageInput.DefaultPageSize,
                 SortBy = "closeout",
                 SortDirection = "asc",
             }, ComponentCancellationToken);
