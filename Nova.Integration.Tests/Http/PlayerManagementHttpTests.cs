@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
+public sealed partial class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 
@@ -34,25 +34,25 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var email = UniqueEmail("create-admin");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "Pat", "PlayerAdmin", clubId: null, cancellationToken);
-        _ = await CreateClubAsync(client, "Test Club Create", "Austin", "TX", cancellationToken);
+        var club = await CreateClubAsync(client, "Test Club Create", "Austin", "TX", cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(), cancellationToken);
+        using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(club.ClubId), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        var dto = await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
+        var dto = await response.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken);
         dto.ShouldNotBeNull();
-        dto.PlayerId.ShouldBeGreaterThan(0);
-        dto.FirstName.ShouldBe("Alex");
-        dto.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+        dto.Player.PlayerId.ShouldBeGreaterThan(0);
+        dto.Player.FirstName.ShouldBe("Alex");
+        dto.Player.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
     }
 
     /// <summary>
-    /// Verifies that a non-admin club member receives 403 Forbidden when attempting to create
+    /// Verifies that an approved club member can create
     /// a player.
     /// </summary>
     [Fact]
-    public async Task CreateReturnsForbiddenForClubMemberAsync()
+    public async Task CreateReturnsCreatedForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -69,9 +69,9 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(memberEmail, "Morgan", "Member", club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
-        using var response = await memberClient.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(), cancellationToken);
+        using var response = await memberClient.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(club.ClubId), cancellationToken);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
     /// <summary>
@@ -87,11 +87,13 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var email = UniqueEmail("create-invalid");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "Dana", "Admin", clubId: null, cancellationToken);
-        _ = await CreateClubAsync(client, "Test Club Invalid", "Chicago", "IL", cancellationToken);
+        var club = await CreateClubAsync(client, "Test Club Invalid", "Chicago", "IL", cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         var invalid = new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = club.ClubId,
             FirstName = "",
             LastName = "",
             DateOfBirth = new DateOnly(2010, 1, 1),
@@ -112,7 +114,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
 
-        using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(), cancellationToken);
+        using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(1), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -131,10 +133,10 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var email = UniqueEmail("update-admin");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "River", "Admin", clubId: null, cancellationToken);
-        _ = await CreateClubAsync(client, "Test Club Update", "Seattle", "WA", cancellationToken);
+        var club = await CreateClubAsync(client, "Test Club Update", "Seattle", "WA", cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        var created = await CreatePlayerAsync(client, ValidCreateInput(), cancellationToken);
+        var created = await CreatePlayerAsync(client, ValidCreateInput(club.ClubId), cancellationToken);
 
         var updateInput = new UpdatePlayerInput
         {
@@ -168,9 +170,9 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var adminAEmail = UniqueEmail("update-xclub-admin-a");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminAClient, adminAEmail, Password, cancellationToken);
         await UpdateUserAsync(adminAEmail, "Alex", "AdminA", clubId: null, cancellationToken);
-        _ = await CreateClubAsync(adminAClient, "Club A CrossTenant", "Portland", "OR", cancellationToken);
+        var clubA = await CreateClubAsync(adminAClient, "Club A CrossTenant", "Portland", "OR", cancellationToken);
         await RefreshClubMembershipCookieAsync(adminAClient, cancellationToken);
-        var playerA = await CreatePlayerAsync(adminAClient, ValidCreateInput(), cancellationToken);
+        var playerA = await CreatePlayerAsync(adminAClient, ValidCreateInput(clubA.ClubId), cancellationToken);
 
         // Club B: register a different admin.
         var adminBEmail = UniqueEmail("update-xclub-admin-b");
@@ -184,7 +186,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         {
             PlayerId = playerA.PlayerId,
             FirstName = "CrossTenantAttack",
-            LastName = "ShouldFail",
+            LastName = "ByMember",
             DateOfBirth = new DateOnly(2012, 1, 1),
             GraduationYear = 2030
         };
@@ -195,11 +197,11 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies that a non-admin club member receives 403 Forbidden when attempting to update
+    /// Verifies that an approved club member can update
     /// a player in their own club.
     /// </summary>
     [Fact]
-    public async Task UpdateReturnsForbiddenForClubMemberAsync()
+    public async Task UpdateReturnsOkForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -210,7 +212,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(adminEmail, "Sam", "Admin", clubId: null, cancellationToken);
         var club = await CreateClubAsync(adminClient, "Update Forbidden Club", "Denver", "CO", cancellationToken);
         await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
-        var player = await CreatePlayerAsync(adminClient, ValidCreateInput(), cancellationToken);
+        var player = await CreatePlayerAsync(adminClient, ValidCreateInput(club.ClubId), cancellationToken);
 
         var memberEmail = UniqueEmail("update-forbidden-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
@@ -220,15 +222,15 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         var updateInput = new UpdatePlayerInput
         {
             PlayerId = player.PlayerId,
-            FirstName = "Hijacked",
-            LastName = "ShouldFail",
+            FirstName = "Corrected",
+            LastName = "ByMember",
             DateOfBirth = new DateOnly(2012, 6, 15),
             GraduationYear = 2030
         };
 
         using var response = await memberClient.PutAsJsonAsync(PlayerEndpoints.UpdateUrl(player.PlayerId), updateInput, cancellationToken);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>
@@ -248,7 +250,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         // Create a player with GraduationYear = 2030 so they're eligible.
-        var player = await CreatePlayerAsync(client, ValidCreateInput() with { GraduationYear = 2030 }, cancellationToken);
+        var player = await CreatePlayerAsync(client, ValidCreateInput(club.ClubId) with { GraduationYear = 2030 }, cancellationToken);
 
         // Directly seed an Assigned placement to a team with GraduationYear = 2031 via admin db context.
         // We need an Active campaign first — if there are none (no campaigns exist), skip or seed one.
@@ -276,8 +278,10 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private static CreatePlayerInput ValidCreateInput() => new()
+    private static CreatePlayerInput ValidCreateInput(long clubId) => new()
     {
+        OperationId = Guid.CreateVersion7(),
+        ClubId = clubId,
         FirstName = "Alex",
         LastName = "Player",
         DateOfBirth = new DateOnly(2012, 6, 15),
@@ -291,9 +295,9 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     {
         using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        var dto = await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
+        var dto = await response.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken);
         dto.ShouldNotBeNull();
-        return dto;
+        return dto.Player;
     }
 
     /// <summary>

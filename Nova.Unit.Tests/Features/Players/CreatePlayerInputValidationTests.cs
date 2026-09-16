@@ -12,6 +12,8 @@ public sealed class CreatePlayerInputValidationTests
 {
     private static CreatePlayerInput ValidInput() => new()
     {
+        OperationId = Guid.CreateVersion7(),
+        ClubId = 1,
         FirstName = "Jordan",
         LastName = "Smith",
         DateOfBirth = new DateOnly(2010, 5, 15),

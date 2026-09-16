@@ -38,15 +38,14 @@ public sealed class PlayerLifecycleServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task ArchiveAsyncReturnsForbiddenWhenActorIsNotClubAdminAsync()
+    public async Task ArchiveAsyncSucceedsForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isClubAdmin: false);
         var service = CreateService();
 
         var result = await service.ArchiveAsync(ActivePlayerId, TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact]

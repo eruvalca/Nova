@@ -36,6 +36,14 @@ public partial class PlayerForm
     [Parameter]
     public bool IsSubmitting { get; set; }
 
+    /// <summary>Freezes profile fields while an original creation awaits a definitive outcome.</summary>
+    [Parameter]
+    public bool IsReadOnly { get; set; }
+
+    /// <summary>A server-confirmed possible duplicate that staff can inspect.</summary>
+    [Parameter]
+    public PlayerCreationDuplicate? Duplicate { get; set; }
+
     /// <summary>
     /// Gets or sets a server-side error message to display.
     /// </summary>
@@ -142,8 +150,21 @@ public sealed class PlayerFormState : IValidatableObject
     /// Converts this form state to a create-player input payload.
     /// </summary>
     /// <returns>A create-player input payload.</returns>
-    public CreatePlayerInput ToCreateInput() => new()
+    public PlayerProfileInput ToProfileInput() => new()
     {
+        FirstName = FirstName,
+        LastName = LastName,
+        DateOfBirth = DateOfBirth,
+        GraduationYear = GraduationYear,
+        Gender = Gender,
+        JerseyNumber = JerseyNumber
+    };
+
+    /// <summary>Freezes one logical manual creation; validation never generates its operation identity.</summary>
+    public CreatePlayerInput ToCreateInput(Guid operationId, long clubId) => new()
+    {
+        OperationId = operationId,
+        ClubId = clubId,
         FirstName = FirstName,
         LastName = LastName,
         DateOfBirth = DateOfBirth,
@@ -172,7 +193,7 @@ public sealed class PlayerFormState : IValidatableObject
     {
         var errors = IsEdit
             ? InputValidator.Validate(ToUpdateInput())
-            : InputValidator.Validate(ToCreateInput());
+            : InputValidator.Validate(ToProfileInput());
 
         foreach (var (field, messages) in errors)
         {

@@ -138,7 +138,8 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Draft, ct);
-        ActAs(seed);
+        var importingActor = await SeedAdditionalAdministratorAsync(seed.ClubId, ct);
+        ActAs(seed with { ActorUserId = importingActor });
         var service = CreateService(new NoOpInterceptor());
         var input = await PreviewAsync(service, Upload("Shared"), ct);
         long playerId = 0;
@@ -159,20 +160,22 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
             await db.SaveChangesAsync(ct);
             playerId = player.PlayerId;
         }
-        var gate = new AdvisoryLockGateInterceptor();
+        ActAs(seed);
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 1);
         var manual = new PlayerManagementService(
             new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
-            fixture.CurrentUser, NullLogger<PlayerManagementService>.Instance);
+            fixture.CurrentUser, NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
         var mutation = update
             ? CompleteManualUpdateAsync(manual, playerId, ct)
-            : CompleteManualCreateAsync(manual, ct);
+            : CompleteManualCreateAsync(manual, seed.ClubId, ct);
         await gate.WaitForAcquiredAsync(ct);
+        ActAs(seed with { ActorUserId = importingActor });
         var commit = service.CommitAsync(input, ct);
         try
         {
             await using var probe = fixture.CreateAdminContext();
             await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
-                probe, (long.MinValue / 4) + seed.ClubId, ct);
+                probe, (long.MinValue / 32) + seed.ClubId, ct);
         }
         finally
         {
@@ -475,10 +478,12 @@ transition switch { "close" => 0, "open" => 3, _ => 2 }, 1, ct);
     }
 
     /// <summary>Creates the identity that a racing import must discover as a new duplicate.</summary>
-    private static async Task CompleteManualCreateAsync(PlayerManagementService service, CancellationToken ct)
+    private static async Task CompleteManualCreateAsync(PlayerManagementService service, long clubId, CancellationToken ct)
     {
         (await service.CreateAsync(new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = clubId,
             FirstName = "Shared",
             LastName = "Import",
             DateOfBirth = new DateOnly(2012, 1, 1),

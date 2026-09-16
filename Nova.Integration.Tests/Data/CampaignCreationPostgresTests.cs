@@ -374,6 +374,8 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
         var playerInput = new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = seed.ClubId,
             FirstName = "Concurrent",
             LastName = "Player",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -394,7 +396,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         await using var verify = fixture.CreateAdminContext();
         var assignments = await verify.PlayerCampaignAssignments
             .Where(assignment => assignment.CampaignId == campaignResult.Value.CampaignId
-                && assignment.PlayerId == playerResult.Value.PlayerId)
+                && assignment.PlayerId == playerResult.Value.Player.PlayerId)
             .ToListAsync(cancellationToken);
         assignments.ShouldBeEmpty();
     }
@@ -419,7 +421,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         => new(
             factory ?? new FixtureDbContextFactory(fixture),
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
     /// <summary>
     /// Sets the current tenant identity used by newly created contexts.
@@ -532,6 +534,8 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Campaign", LastName = "Member" });
             await db.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

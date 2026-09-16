@@ -44,6 +44,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
             };
             seed.Clubs.Add(club);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var player = new PlayerEntity
             {
@@ -199,6 +201,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var player = new PlayerEntity

@@ -73,6 +73,8 @@ public partial class Players(
     /// Indicates whether the current user can create/edit/archive/restore players.
     /// </summary>
     private bool _canManagePlayers;
+    private CreatePlayerInput? _pendingCreate;
+    private PlayerCreationDuplicate? _creationDuplicate;
 
     /// <summary>
     /// Stores the current user's club identifier from claims.
@@ -326,6 +328,10 @@ public partial class Players(
 
             ++_identityVersion;
             ++_rosterVersion;
+            // A role change invalidates rendered authority, but the same caller and club still own unresolved work.
+            var retainedCreation = _identityApplied && clubId == _clubId && string.Equals(userId, _userId, StringComparison.Ordinal)
+                ? _pendingCreate : null;
+            var retainedForm = _createForm;
             var discardReturnContext = _identityApplied
                 || (Initialized && !string.Equals(SnapshotScope, $"{userId}:{clubId}:{canManagePlayers}", StringComparison.Ordinal));
             _identityApplied = true;
@@ -333,6 +339,11 @@ public partial class Players(
             _userId = userId;
             _canManagePlayers = canManagePlayers;
             ResetIdentityState();
+            if (retainedCreation is not null)
+            {
+                _pendingCreate = retainedCreation;
+                _createForm = retainedForm;
+            }
             if (!discardReturnContext)
             {
                 _queryFiltersApplied = false;
@@ -359,6 +370,8 @@ public partial class Players(
     /// <summary>Clears all visible, derived, pending, and persisted state owned by the previous identity.</summary>
     private void ResetIdentityState()
     {
+        _pendingCreate = null;
+        _creationDuplicate = null;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
@@ -644,19 +657,37 @@ public partial class Players(
         _mutationError = null;
         _graduationYearBlockers = [];
 
-        var result = await ReceiveAsync(playerManagementService.CreateAsync(_createForm.ToCreateInput(), ComponentCancellationToken));
+        if (_clubId is not long clubId) { _isMutating = false; return; }
+        _pendingCreate ??= _createForm.ToCreateInput(Guid.CreateVersion7(), clubId);
+        _creationDuplicate = null;
+        var result = await ReceiveAsync(playerManagementService.CreateAsync(_pendingCreate, ComponentCancellationToken));
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         result.Switch(
-            _ =>
+            completion =>
             {
+                _pendingCreate = null;
                 _showCreateForm = false;
                 _createForm = PlayerFormState.CreateDefault();
-                _statusMessage = "Player created successfully.";
+                _statusMessage = completion.Enrollment is { } enrollment
+                    ? $"Player created successfully. Enrolled in {enrollment.CampaignName}."
+                    : "Player created successfully. Ready for the next campaign opening.";
             },
-            problem => _mutationError = problem.Detail ?? "Could not create player.");
+            problem =>
+            {
+                _mutationError = problem.Detail ?? "Could not create player.";
+                if (problem.Kind == ServiceProblemKind.Validation || PlayerCreationProblems.IsNotCommitted(problem, _pendingCreate.OperationId))
+                {
+                    _pendingCreate = null;
+                    PlayerCreationProblems.TryGetDuplicate(problem, out _creationDuplicate);
+                }
+                else
+                {
+                    _mutationError += " The original addition is still retained; retry it unchanged to recover its result.";
+                }
+            });
 
         _isMutating = false;
         if (result.IsSuccess)

@@ -1,4 +1,5 @@
-﻿using Nova.SharedKernel.Enums;
+﻿using System.Text.Json.Serialization;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.SharedKernel.Features.Players;
 
@@ -29,9 +30,11 @@ public sealed record PlayerDto
     public required int GraduationYear { get; init; }
 
     /// <summary>The player's gender, if recorded.</summary>
+    [JsonRequired]
     public Gender? Gender { get; init; }
 
     /// <summary>The player's jersey number, if assigned.</summary>
+    [JsonRequired]
     public int? JerseyNumber { get; init; }
 
     /// <summary>The player's current lifecycle status.</summary>

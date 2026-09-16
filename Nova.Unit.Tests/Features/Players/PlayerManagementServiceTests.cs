@@ -26,7 +26,7 @@ file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbConte
 /// Unit tests for <see cref="PlayerManagementService"/> covering create/update authorization,
 /// campaign enrollment, graduation-year blocking, tenancy, and validation short-circuit.
 /// </summary>
-public sealed class PlayerManagementServiceTests : IDisposable
+public sealed partial class PlayerManagementServiceTests : IDisposable
 {
     private const long ClubAId = 100;
     private const long ClubBId = 200;
@@ -55,9 +55,9 @@ public sealed class PlayerManagementServiceTests : IDisposable
         var result = await sut.CreateAsync(ValidCreateInput(), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.PlayerId.ShouldBeGreaterThan(0);
-        result.Value.ClubId.ShouldBe(ClubAId);
-        result.Value.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+        result.Value.Player.PlayerId.ShouldBeGreaterThan(0);
+        result.Value.Player.ClubId.ShouldBe(ClubAId);
+        result.Value.Player.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         var result = await sut.CreateAsync(ValidCreateInput(), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        var playerId = result.Value.PlayerId;
+        var playerId = result.Value.Player.PlayerId;
 
         using var db = _harness.CreateAdminContext();
         var assignments = (await db.PlayerCampaignAssignments
@@ -91,7 +91,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
         (await db.PlayerCampaignAssignments
-            .AnyAsync(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == _closedCampaignId, TestContext.Current.CancellationToken))
+            .AnyAsync(a => a.PlayerId == result.Value.Player.PlayerId && a.CampaignId == _closedCampaignId, TestContext.Current.CancellationToken))
             .ShouldBeFalse();
     }
 
@@ -136,20 +136,19 @@ public sealed class PlayerManagementServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         using var verifyDb = _harness.CreateAdminContext();
         (await verifyDb.PlayerCampaignAssignments
-            .AnyAsync(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == clubBActiveCampaignId, TestContext.Current.CancellationToken))
+            .AnyAsync(a => a.PlayerId == result.Value.Player.PlayerId && a.CampaignId == clubBActiveCampaignId, TestContext.Current.CancellationToken))
             .ShouldBeFalse("a player created in Club A must not be enrolled in Club B's active campaign");
     }
 
     [Fact]
-    public async Task CreateReturnsForbiddenForNonAdminAsync()
+    public async Task CreateSucceedsForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
         var sut = CreateService();
 
         var result = await sut.CreateAsync(ValidCreateInput(), TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
@@ -172,6 +171,8 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         var invalid = new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = ClubAId,
             FirstName = "",
             LastName = "",
             DateOfBirth = new DateOnly(2010, 1, 1),
@@ -194,7 +195,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateTenantContext(); // already scoped to ClubA via harness
-        var player = await db.Players.FindAsync([result.Value.PlayerId], TestContext.Current.CancellationToken);
+        var player = await db.Players.FindAsync([result.Value.Player.PlayerId], TestContext.Current.CancellationToken);
         player.ShouldNotBeNull();
     }
 
@@ -205,7 +206,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         var sut = CreateService();
         var result = await sut.CreateAsync(ValidCreateInput(), TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
-        var newPlayerId = result.Value.PlayerId;
+        var newPlayerId = result.Value.Player.PlayerId;
 
         // Switch to Club B — query filter should hide Club A's player.
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
@@ -229,15 +230,14 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateReturnsForbiddenForNonAdminAsync()
+    public async Task UpdateSucceedsForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
         var sut = CreateService();
 
         var result = await sut.UpdateAsync(ValidUpdateInput(_existingPlayerId), TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
@@ -394,11 +394,13 @@ public sealed class PlayerManagementServiceTests : IDisposable
         _harness.CurrentUser.IsClubAdmin = isAdmin;
     }
 
-    private PlayerManagementService CreateService() =>
-        new(new HarnessDbContextFactory(_harness), _harness.CurrentUser, NullLogger<PlayerManagementService>.Instance);
+    private PlayerManagementService CreateService(TimeProvider? clock = null) =>
+        new(new HarnessDbContextFactory(_harness), _harness.CurrentUser, NullLogger<PlayerManagementService>.Instance, clock ?? TimeProvider.System);
 
     private static CreatePlayerInput ValidCreateInput() => new()
     {
+        OperationId = Guid.CreateVersion7(),
+        ClubId = ClubAId,
         FirstName = "Alex",
         LastName = "Test",
         DateOfBirth = new DateOnly(2010, 3, 20),

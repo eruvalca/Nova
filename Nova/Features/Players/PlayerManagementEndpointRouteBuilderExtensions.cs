@@ -13,7 +13,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
     extension(IEndpointRouteBuilder endpoints)
     {
         /// <summary>
-        /// Maps the player management endpoints under the players group with ClubAdmin authorization.
+        /// Maps the player management endpoints under the players group with club-member authorization.
         /// </summary>
         /// <returns>The endpoint route builder, for chaining.</returns>
         public IEndpointRouteBuilder MapPlayerManagementEndpoints()
@@ -22,12 +22,13 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
 
             var group = endpoints
                 .MapGroup(PlayerEndpoints.GroupPrefix)
-                .RequireAuthorization(Policies.RequireClubAdmin);
+                .RequireAuthorization(Policies.RequireClubMember);
 
             // Create a new player and enroll them in all Active campaigns atomically.
             group.MapPost(PlayerEndpoints.CreateRelative, CreatePlayerHandlerAsync)
-                .Produces<PlayerDto>(StatusCodes.Status201Created)
+                .Produces<PlayerCreationCompletion>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
@@ -38,6 +39,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
             group.MapPut(PlayerEndpoints.UpdateRelative, UpdatePlayerHandlerAsync)
                 .Produces<PlayerDto>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict)

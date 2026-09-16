@@ -118,9 +118,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             var players = new PlayerManagementService(
                 fixture.AppHost.CreateTenantContextFactory(),
                 fixture.AppHost.CurrentUser,
-                NullLogger<PlayerManagementService>.Instance);
+                NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
             var created = await players.CreateAsync(new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = seed.ClubId,
                 FirstName = "Late",
                 LastName = $"Arrival {Guid.NewGuid():N}",
                 DateOfBirth = new DateOnly(2012, 1, 1),

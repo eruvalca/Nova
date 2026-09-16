@@ -354,7 +354,7 @@ internal sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerIm
     /// <param name="values">The original CSV cell values.</param>
     /// <param name="candidate">The typed candidate returned by the server.</param>
     /// <returns><see langword="true" /> when the candidate matches a valid strict parse.</returns>
-    private static bool IsValidCandidate(PlayerImportRowValues values, CreatePlayerInput? candidate) =>
+    private static bool IsValidCandidate(PlayerImportRowValues values, PlayerProfileInput? candidate) =>
         candidate is not null
         && TryParseCandidate(values, out var parsedCandidate)
         && candidate == parsedCandidate;
@@ -363,7 +363,7 @@ internal sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerIm
     /// <param name="values">The original CSV cell values.</param>
     /// <param name="candidate">The parsed candidate, or <see langword="null" /> on failure.</param>
     /// <returns><see langword="true" /> when every cell parses and validates.</returns>
-    private static bool TryParseCandidate(PlayerImportRowValues values, out CreatePlayerInput? candidate)
+    private static bool TryParseCandidate(PlayerImportRowValues values, out PlayerProfileInput? candidate)
     {
         candidate = null;
         if (!IsValidValues(values)
@@ -381,7 +381,7 @@ internal sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerIm
             return false;
         }
 
-        var parsedCandidate = new CreatePlayerInput
+        var parsedCandidate = new PlayerProfileInput
         {
             FirstName = values.FirstName,
             LastName = values.LastName,
@@ -484,7 +484,7 @@ internal sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerIm
     /// <param name="candidate">The later candidate.</param>
     /// <param name="earlierCandidate">The earlier candidate referenced by the duplicate.</param>
     /// <returns><see langword="true" /> when the normalized name and birth-date key matches.</returns>
-    private static bool HasSameDuplicateKey(CreatePlayerInput candidate, CreatePlayerInput earlierCandidate) =>
+    private static bool HasSameDuplicateKey(PlayerProfileInput candidate, PlayerProfileInput earlierCandidate) =>
         string.Equals(
             candidate.FirstName.Trim().ToUpperInvariant(),
             earlierCandidate.FirstName.Trim().ToUpperInvariant(),

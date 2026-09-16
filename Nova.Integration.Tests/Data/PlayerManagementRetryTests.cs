@@ -42,6 +42,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
+        db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+        await db.SaveChangesAsync(cancellationToken);
 
         db.Players.AddRange(
             CreatePlayer("First", club.ClubId, actorUserId, creationOperationId),
@@ -80,6 +82,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity
@@ -120,11 +124,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId!.Value,
                 FirstName = "Ambiguous",
                 LastName = "Commit",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -143,10 +149,10 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 && player.LastName == "Commit")
             .Select(player => player.PlayerId)
             .ToListAsync(cancellationToken);
-        players.ShouldBe([result.Value.PlayerId]);
+        players.ShouldBe([result.Value.Player.PlayerId]);
 
         var assignments = await verify.PlayerCampaignAssignments
-            .Where(assignment => assignment.PlayerId == result.Value.PlayerId)
+            .Where(assignment => assignment.PlayerId == result.Value.Player.PlayerId)
             .Select(assignment => assignment.CampaignId)
             .ToListAsync(cancellationToken);
         assignments.ShouldBe([activeCampaignId]);
@@ -182,6 +188,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity
@@ -222,11 +230,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId!.Value,
                 FirstName = "Retry",
                 LastName = "Create",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -244,11 +254,11 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
             .Select(player => new { player.PlayerId, player.ClubId, player.LifecycleStatus })
             .ToListAsync(cancellationToken);
         createdPlayers.Count.ShouldBe(1);
-        createdPlayers[0].PlayerId.ShouldBe(result.Value.PlayerId);
+        createdPlayers[0].PlayerId.ShouldBe(result.Value.Player.PlayerId);
         createdPlayers[0].LifecycleStatus.ShouldBe(LifecycleStatus.Active);
 
         var assignments = await verify.PlayerCampaignAssignments
-            .Where(assignment => assignment.PlayerId == result.Value.PlayerId)
+            .Where(assignment => assignment.PlayerId == result.Value.Player.PlayerId)
             .Select(assignment => assignment.CampaignId)
             .ToListAsync(cancellationToken);
         assignments.ShouldBe([activeCampaignId]);
@@ -285,6 +295,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
             };
             seed.Clubs.Add(club);
             await seed.SaveChangesAsync(cancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
+            await seed.SaveChangesAsync(cancellationToken);
 
             var player = new PlayerEntity
             {
@@ -313,7 +325,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.UpdateAsync(
             new UpdatePlayerInput

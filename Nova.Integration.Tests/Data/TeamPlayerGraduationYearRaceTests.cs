@@ -93,7 +93,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         var playerService = new PlayerManagementService(
             new RaceTestDbContextFactory(fixture),
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         // Raising the team's minimum to 2030 is valid against the player's current 2030, and lowering
         // the player to 2029 is valid against the team's current 2029. Applying both leaves the
@@ -284,6 +284,8 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

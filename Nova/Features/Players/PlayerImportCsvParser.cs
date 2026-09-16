@@ -214,7 +214,7 @@ internal sealed class PlayerImportCsvParser
             errors.Add(new(PlayerImportField.GraduationYear, "Graduation year must contain digits only."));
         }
 
-        var candidate = new CreatePlayerInput
+        var candidate = new PlayerProfileInput
         {
             FirstName = values.FirstName,
             LastName = values.LastName,
@@ -300,20 +300,20 @@ internal sealed class PlayerImportCsvParser
     {
         field = memberName switch
         {
-            nameof(CreatePlayerInput.FirstName) => PlayerImportField.FirstName,
-            nameof(CreatePlayerInput.LastName) => PlayerImportField.LastName,
-            nameof(CreatePlayerInput.DateOfBirth) => PlayerImportField.DateOfBirth,
-            nameof(CreatePlayerInput.Gender) => PlayerImportField.Gender,
-            nameof(CreatePlayerInput.JerseyNumber) => PlayerImportField.JerseyNumber,
-            nameof(CreatePlayerInput.GraduationYear) => PlayerImportField.GraduationYear,
+            nameof(PlayerProfileInput.FirstName) => PlayerImportField.FirstName,
+            nameof(PlayerProfileInput.LastName) => PlayerImportField.LastName,
+            nameof(PlayerProfileInput.DateOfBirth) => PlayerImportField.DateOfBirth,
+            nameof(PlayerProfileInput.Gender) => PlayerImportField.Gender,
+            nameof(PlayerProfileInput.JerseyNumber) => PlayerImportField.JerseyNumber,
+            nameof(PlayerProfileInput.GraduationYear) => PlayerImportField.GraduationYear,
             _ => default
         };
 
-        return memberName is nameof(CreatePlayerInput.FirstName)
-            or nameof(CreatePlayerInput.LastName)
-            or nameof(CreatePlayerInput.DateOfBirth)
-            or nameof(CreatePlayerInput.Gender)
-            or nameof(CreatePlayerInput.JerseyNumber)
-            or nameof(CreatePlayerInput.GraduationYear);
+        return memberName is nameof(PlayerProfileInput.FirstName)
+            or nameof(PlayerProfileInput.LastName)
+            or nameof(PlayerProfileInput.DateOfBirth)
+            or nameof(PlayerProfileInput.Gender)
+            or nameof(PlayerProfileInput.JerseyNumber)
+            or nameof(PlayerProfileInput.GraduationYear);
     }
 }

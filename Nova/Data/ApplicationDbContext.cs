@@ -67,6 +67,9 @@ internal abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity,
     public DbSet<PlayerEntity> Players => Set<PlayerEntity>();
     /// <summary>Gets immutable player-import completion receipts.</summary>
     public DbSet<PlayerImportReceiptEntity> PlayerImportReceipts => Set<PlayerImportReceiptEntity>();
+
+    /// <summary>Gets immutable manual creation receipts.</summary>
+    public DbSet<PlayerCreationReceiptEntity> PlayerCreationReceipts => Set<PlayerCreationReceiptEntity>();
     /// <summary>
     /// Gets the Player Tags.
     /// </summary>

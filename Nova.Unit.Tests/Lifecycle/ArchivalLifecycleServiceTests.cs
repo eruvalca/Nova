@@ -279,17 +279,16 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies player archive is forbidden for a signed-in non-admin club member.
+    /// Verifies an approved club member can archive a resolved player.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycleReturnsForbiddenWhenCallerIsNotClubAdminAsync()
+    public async Task PlayerLifecycleAllowsApprovedClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var result = await CreatePlayerService().ArchiveAsync(
             ResolvedPlayerId,
             TestContext.Current.CancellationToken);
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     /// <summary>
@@ -487,6 +486,11 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 State = "MA",
                 CreatedById = ClubBAdminId
             });
+
+        db.Users.AddRange(
+            new NovaUserEntity { Id = ClubAAdminId, ClubId = ClubAId, FirstName = "Club A", LastName = "Admin" },
+            new NovaUserEntity { Id = ClubAMemberId, ClubId = ClubAId, FirstName = "Club A", LastName = "Member" },
+            new NovaUserEntity { Id = ClubBAdminId, ClubId = ClubBId, FirstName = "Club B", LastName = "Admin" });
 
         db.Seasons.AddRange(
             new SeasonEntity

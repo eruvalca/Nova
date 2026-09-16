@@ -1,34 +1,17 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Validation;
 
 namespace Nova.SharedKernel.Features.Players;
 
-/// <summary>
-/// Input model for creating a new player in the current club.
-/// </summary>
-public sealed record CreatePlayerInput
+/// <summary>One logical player creation. Retain the exact input and identity until its outcome is settled.</summary>
+/// <remarks>Cancellation, denial, expiry and transport failures do not prove rollback. Recovery uses this same input.</remarks>
+public sealed record CreatePlayerInput : PlayerProfileInput
 {
-    /// <summary>The player's first name.</summary>
-    [Required, NotWhitespace, MaxLength(100)]
-    public required string FirstName { get; init; }
+    /// <summary>The UUIDv7 generated once before dispatch; executable and recoverable for 24 hours.</summary>
+    [Required, NotEmptyGuid]
+    public required Guid OperationId { get; init; }
 
-    /// <summary>The player's last name.</summary>
-    [Required, NotWhitespace, MaxLength(100)]
-    public required string LastName { get; init; }
-
-    /// <summary>The player's date of birth.</summary>
-    [Required]
-    public required DateOnly DateOfBirth { get; init; }
-
-    /// <summary>The player's expected graduation year.</summary>
-    [Required, Range(2000, 2100)]
-    public required int GraduationYear { get; init; }
-
-    /// <summary>The player's gender. Optional.</summary>
-    public Gender? Gender { get; init; }
-
-    /// <summary>The player's jersey number. Optional.</summary>
-    [Range(0, 9999)]
-    public int? JerseyNumber { get; init; }
+    /// <summary>The original club scope, compared with authenticated membership before any execution or disclosure.</summary>
+    [Required, Range(1, long.MaxValue)]
+    public required long ClubId { get; init; }
 }

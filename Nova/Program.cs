@@ -144,6 +144,7 @@ builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, CampaignParticipantQueryService>();
 builder.Services.AddScoped<ICampaignEvaluationQueryService, CampaignEvaluationQueryService>();
 builder.Services.AddHostedService<EvaluationReceiptCleanupService>();
+builder.Services.AddHostedService<PlayerCreationReceiptCleanupService>();
 builder.Services.AddHostedService<PlacementReceiptCleanupService>();
 builder.Services.AddScoped<ICampaignPlacementQueryService, CampaignPlacementQueryService>();
 builder.Services.AddScoped<IEffectivePlacementQueryService, EffectivePlacementQueryService>();

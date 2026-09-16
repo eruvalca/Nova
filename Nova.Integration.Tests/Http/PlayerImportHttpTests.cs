@@ -113,7 +113,7 @@ new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute),
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         var club = await CreateAdministratorClubAsync(client, "preview", cancellationToken);
-        var existing = await CreatePlayerAsync(client, cancellationToken);
+        var existing = await CreatePlayerAsync(client, club.ClubId, cancellationToken);
         var before = await CountsAsync(club.ClubId, cancellationToken);
         using var form = CsvForm(
             " Alex ,ARCHER,2012-01-01,,,2030\r\n"
@@ -250,17 +250,19 @@ new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute),
         return form;
     }
 
-    private static async Task<PlayerDto> CreatePlayerAsync(HttpClient client, CancellationToken cancellationToken)
+    private static async Task<PlayerDto> CreatePlayerAsync(HttpClient client, long clubId, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = clubId,
             FirstName = "Alex",
             LastName = "Archer",
             DateOfBirth = new DateOnly(2012, 1, 1),
             GraduationYear = 2030
         }, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        return (await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken))!;
+        return (await response.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken))!.Player;
     }
 
     private async Task<(int Players, int Assignments)> CountsAsync(long clubId, CancellationToken cancellationToken)

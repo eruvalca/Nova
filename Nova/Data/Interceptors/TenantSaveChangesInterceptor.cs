@@ -59,7 +59,7 @@ internal sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
 
             // Commit proof must survive later saves unchanged. Expired receipts may be deleted
             // by retention, but neither tenant nor administrative contexts may rewrite them.
-            if (entry.State == EntityState.Modified && entry.Entity is PlacementMutationReceiptEntity or EvaluationMutationReceiptEntity)
+            if (entry.State == EntityState.Modified && entry.Entity is PlacementMutationReceiptEntity or EvaluationMutationReceiptEntity or PlayerCreationReceiptEntity)
             {
                 throw new InvalidOperationException("Mutation receipts cannot be modified.");
             }

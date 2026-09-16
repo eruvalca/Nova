@@ -25,11 +25,11 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 1, cancellationToken);
         ActAsAdmin(seed.ActorUserId, seed.ClubId);
-        var gate = new AdvisoryLockGateInterceptor();
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 2);
         var playerService = new PlayerManagementService(
             new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
         var campaignService = CreateCampaignService(new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
@@ -38,6 +38,8 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         var playerTask = playerService.CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = seed.ClubId,
                 FirstName = "Concurrent",
                 LastName = "Creation",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -53,7 +55,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         await using var probe = fixture.CreateAdminContext();
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
             probe,
-            (long.MinValue / 4) + seed.ClubId,
+            (long.MinValue / 16) + seed.ClubId,
             cancellationToken);
         gate.Release();
 
@@ -74,7 +76,7 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedDraftAsync(activePlayerCount: 2, cancellationToken);
         ActAsAdmin(seed.ActorUserId, seed.ClubId);
-        var gate = new AdvisoryLockGateInterceptor();
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 2);
         var playerService = new PlayerLifecycleService(
             new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, gate),
             fixture.CurrentUser,
@@ -252,6 +254,8 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             context.Add(club);
+            await context.SaveChangesAsync(cancellationToken);
+            context.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Fixture", LastName = "Member" });
             await context.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

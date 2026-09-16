@@ -39,10 +39,10 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
-        _ = await RegisterClubAdminAsync(adminClient, "journey-creation", cancellationToken);
+        var admin = await RegisterClubAdminAsync(adminClient, "journey-creation", cancellationToken);
 
-        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"First {Guid.CreateVersion7():N}"), cancellationToken);
-        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Second {Guid.CreateVersion7():N}"), cancellationToken);
+        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"First {Guid.CreateVersion7():N}"), cancellationToken);
+        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Second {Guid.CreateVersion7():N}"), cancellationToken);
 
         var created = await CreateDraftCampaignViaHttpAsync(adminClient, cancellationToken);
         created.Status.ShouldBe(CampaignStatus.Draft);
@@ -70,11 +70,11 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
-        _ = await RegisterClubAdminAsync(adminClient, "journey-late-enrollment", cancellationToken);
+        var admin = await RegisterClubAdminAsync(adminClient, "journey-late-enrollment", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
 
-        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Late {Guid.CreateVersion7():N}"), cancellationToken);
+        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Late {Guid.CreateVersion7():N}"), cancellationToken);
 
         var roster = await GetParticipantRosterAsync(adminClient, created.CampaignId, cancellationToken);
         var rosterItem = roster.Items.ShouldHaveSingleItem();
@@ -108,7 +108,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-eval", admin.Club.ClubId, "Eva", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
-        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Eval {Guid.CreateVersion7():N}"), cancellationToken);
+        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Eval {Guid.CreateVersion7():N}"), cancellationToken);
         var assignmentId = await GetSingleAssignmentIdAsync(created.CampaignId, player.PlayerId, cancellationToken);
 
         using (var addResponse = await evaluatorClient.PostAsJsonAsync(
@@ -150,11 +150,11 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
-        _ = await RegisterClubAdminAsync(adminClient, "journey-placement", cancellationToken);
+        var admin = await RegisterClubAdminAsync(adminClient, "journey-placement", cancellationToken);
 
         var team = await CreateTeamViaHttpAsync(adminClient, graduationYear: 2029, cancellationToken);
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
-        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Placement {Guid.CreateVersion7():N}"), cancellationToken);
+        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Placement {Guid.CreateVersion7():N}"), cancellationToken);
         var assignmentId = await GetSingleAssignmentIdAsync(created.CampaignId, player.PlayerId, cancellationToken);
 
         var initialRoster = await GetPlacementRosterAsync(adminClient, created.CampaignId, cancellationToken);
@@ -232,7 +232,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-close", admin.Club.ClubId, "Casey", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
-        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Close {Guid.CreateVersion7():N}"), cancellationToken);
+        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Close {Guid.CreateVersion7():N}"), cancellationToken);
         var assignmentId = await GetSingleAssignmentIdAsync(created.CampaignId, player.PlayerId, cancellationToken);
 
         var blocked = await GetCloseoutReadinessAsync(adminClient, created.CampaignId, cancellationToken);
@@ -328,7 +328,7 @@ new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, as
         using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-reopen", admin.Club.ClubId, "Reese", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
-        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Reopen {Guid.CreateVersion7():N}"), cancellationToken);
+        var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput(admin.Club.ClubId, $"Reopen {Guid.CreateVersion7():N}"), cancellationToken);
         var assignmentId = await GetSingleAssignmentIdAsync(created.CampaignId, player.PlayerId, cancellationToken);
 
         var placementToken = (await GetPlacementRosterAsync(adminClient, created.CampaignId, cancellationToken))
@@ -397,16 +397,10 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
             .ShouldBe([CampaignLifecycleEventType.Reopened, CampaignLifecycleEventType.Closed]);
     }
 
-    /// <summary>
-    /// Two concurrent player creates with the identical payload while an Active campaign exists both
-    /// succeed as distinct players, each with exactly one durable participation row. There is no
-    /// HTTP-level idempotency key for player creation (the operation id is generated server-side per
-    /// request), so concurrent duplicate creates do not collapse into a single row and do not
-    /// double-enroll.
-    /// </summary>
+    /// <summary>Concurrent replays of one client operation create one player and one participation.</summary>
     [Fact]
 #pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
-    public async Task LateEnrollmentConcurrentCreatesBothPersistWithSingleDurableRowAsync()
+    public async Task LateEnrollmentConcurrentReplaysPersistSinglePlayerAndParticipationAsync()
 #pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -415,7 +409,7 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
 
-        var input = ValidCreatePlayerInput($"Concurrent {Guid.CreateVersion7():N}");
+        var input = ValidCreatePlayerInput(admin.Club.ClubId, $"Concurrent {Guid.CreateVersion7():N}");
 
 #pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var task1 = adminClient.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
@@ -448,11 +442,11 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
         response1.StatusCode.ShouldBe(HttpStatusCode.Created);
         response2.StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        var player1 = await response1.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
-        var player2 = await response2.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
+        var player1 = (await response1.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken))?.Player;
+        var player2 = (await response2.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken))?.Player;
         player1.ShouldNotBeNull();
         player2.ShouldNotBeNull();
-        player1.PlayerId.ShouldNotBe(player2.PlayerId);
+        player1.PlayerId.ShouldBe(player2.PlayerId);
 
         await using var context = fixture.CreateAdminContext();
         var persistedPlayerIds = await context.Players
@@ -461,7 +455,7 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
                 && player.LastName == input.LastName)
             .Select(player => player.PlayerId)
             .ToListAsync(cancellationToken);
-        persistedPlayerIds.Count.ShouldBe(2);
+        persistedPlayerIds.Count.ShouldBe(1);
         persistedPlayerIds.ShouldContain(player1.PlayerId);
         persistedPlayerIds.ShouldContain(player2.PlayerId);
 
@@ -562,7 +556,7 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
     {
         using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        var player = await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
+        var player = (await response.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken))?.Player;
         player.ShouldNotBeNull();
         return player;
     }
@@ -579,8 +573,10 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { 
         return team;
     }
 
-    private static CreatePlayerInput ValidCreatePlayerInput(string firstName) => new()
+    private static CreatePlayerInput ValidCreatePlayerInput(long clubId, string firstName) => new()
     {
+        OperationId = Guid.CreateVersion7(),
+        ClubId = clubId,
         FirstName = firstName,
         LastName = "Player",
         DateOfBirth = new DateOnly(2012, 6, 15),

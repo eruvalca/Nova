@@ -98,10 +98,10 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies non-admin callers are forbidden and cross-tenant ids are not disclosed.
+    /// Verifies approved members may archive and cross-tenant ids are not disclosed.
     /// </summary>
     [Fact]
-    public async Task ArchiveEndpointReturnsForbiddenForNonAdminAndNotFoundForCrossTenantAsync()
+    public async Task ArchiveEndpointAllowsMemberAndReturnsNotFoundForCrossTenantAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAAdminClient = fixture.CreateNovaHttpClient();
@@ -130,7 +130,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         using (var forbidden = await clubAMemberClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(clubAPlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
-            forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            forbidden.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         using var notFound = await clubAAdminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(clubBPlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
