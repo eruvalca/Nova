@@ -45,6 +45,10 @@ internal static class PlacementQueryUrls
             Add("participantId", discovery.ParticipantId?.ToString(CultureInfo.InvariantCulture));
             Add("sortBy", discovery.SortBy);
             Add("sortDirection", discovery.SortDirection);
+            if (input is GetCampaignEffectivePlacementsInput working)
+            {
+                Add("closeoutBlocker", working.CloseoutBlocker);
+            }
         }
         return path + "?" + string.Join('&', values);
 

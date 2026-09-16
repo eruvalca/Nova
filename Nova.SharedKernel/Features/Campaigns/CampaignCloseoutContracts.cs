@@ -17,9 +17,8 @@ public sealed record CampaignCloseoutBlockerDto(
     string Message);
 
 /// <summary>
-/// Authoritative closeout readiness for a campaign: the placement summary from the placement query
-/// service plus the foundation policy verdict and its condition-keyed blockers. Counts and blockers
-/// are never recomputed here.
+/// Authoritative closeout readiness for a campaign: local outcome totals, the foundation policy verdict,
+/// condition-keyed blockers, effective placement work and lifecycle capabilities from one read snapshot.
 /// </summary>
 /// <param name="CampaignId">The campaign identifier.</param>
 /// <param name="Status">The campaign lifecycle status at the time of the read.</param>
@@ -36,4 +35,8 @@ public sealed record CampaignCloseoutReadinessDto(
     /// <summary>Gets actionable current-season placement work. Zero does not waive missing campaign-local outcomes or other close blockers.</summary>
     [System.Text.Json.Serialization.JsonRequired]
     public int NeedsPlacementCount { get; init; }
+
+    /// <summary>Gets the actions permitted by the read's authority and lifecycle snapshot.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public CampaignLifecycleCapabilities Lifecycle { get; init; } = new(false, false, false, CampaignReopenUnavailableReason.NotClosed, null);
 }

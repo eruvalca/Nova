@@ -275,10 +275,6 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         => new(
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _harness.CurrentUser,
-            new CampaignPlacementQueryService(
-                new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
-                _harness.CurrentUser,
-                NullLogger<CampaignPlacementQueryService>.Instance),
             NullLogger<CampaignCloseoutQueryService>.Instance);
 
     /// <summary>Seeds lifecycle events and returns the persisted entities for ordering assertions.</summary>

@@ -1362,11 +1362,13 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         await cut.WaitForAssertionAsync(() => cut.Find("#roster-row-301").TextContent.ShouldContain("No campaign decision"));
         Services.GetRequiredService<ICampaignQueryService>().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(CreateDetail(status: CampaignStatus.Closed))));
+        Services.GetRequiredService<ICampaignCloseoutQueryService>().GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness() with { Status = CampaignStatus.Closed }));
         var effective = Services.GetRequiredService<IEffectivePlacementQueryService>();
         effective.GetClosedCampaignRosterAsync(Arg.Any<GetClosedCampaignRosterInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClosedCampaignRosterResult>(ServiceProblem.ServerError("Closed history unavailable"))));
 
-        await cut.InvokeAsync(() => cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>().Instance.OnLifecycleChanged.InvokeAsync());
+        await cut.InvokeAsync(() => cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>().Instance.OnRetry.InvokeAsync());
 
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Closed history unavailable"));
         cut.Markup.ShouldContain("Campaign record is read-only");
@@ -2399,7 +2401,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         reads.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(ToEffectiveRoster(CreateRoster())));
         reads.ClearReceivedCalls();
-        await cut.InvokeAsync(() => cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>().Instance.OnLifecycleChanged.InvokeAsync());
+        await cut.InvokeAsync(() => cut.FindComponent<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>().Instance.OnRetry.InvokeAsync());
 
         await cut.WaitForAssertionAsync(() => ((AngleSharp.Html.Dom.IHtmlSelectElement)cut.Find("#roster-eligibility")).Value.ShouldBeNullOrEmpty());
         _ = reads.Received().GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(input => input.Eligibility == null && input.Page == 1 && input.Search == "updated"), Arg.Any<CancellationToken>());
@@ -2522,58 +2524,14 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     }
 
     [Fact]
-    public void ReadinessIgnoresObsoleteFailureAfterClosedLifecycleReplacesActiveRequest()
+    public void SharedReadinessRendersClosedWithoutStaleActiveFailure()
     {
-        var pending = new TaskCompletionSource<ServiceResult<CampaignCloseoutReadinessDto>>();
-        var query = Substitute.For<ICampaignCloseoutQueryService>();
-        query.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
-        Services.AddSingleton(query);
-        var cut = Render<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>(parameters => parameters
-            .Add(component => component.CampaignId, 10).Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42"));
-        cut.Markup.ShouldContain("Checking Close readiness");
-        cut.Render(parameters => parameters.Add(component => component.Status, CampaignStatus.Closed));
-        pending.SetResult(new ServiceResult<CampaignCloseoutReadinessDto>(ServiceProblem.ServerError("Late error")));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign record is read-only"));
+        var cut = Render<Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness>(p => p
+            .Add(x => x.Status, CampaignStatus.Closed).Add(x => x.Error, true));
+        cut.Markup.ShouldContain("Campaign record is read-only");
         cut.Markup.ShouldNotContain("unavailable");
-        cut.FindAll("button").ShouldBeEmpty();
     }
 
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ReadinessRestoresMatchingSnapshotWithoutDuplicateRead(bool failed)
-    {
-        var query = Substitute.For<ICampaignCloseoutQueryService>();
-        Services.AddSingleton(query);
-        var cut = Render<RestoredReadiness>(parameters => parameters.Add(component => component.CampaignId, 10)
-            .Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42:False:1")
-            .Add(component => component.SeedError, failed));
-        cut.Markup.ShouldContain(failed ? "Close readiness unavailable" : "Ready to close");
-        _ = query.DidNotReceive().GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
-    }
-
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("102:42:False:1:10:Active")]
-    [InlineData("101:43:False:1:10:Active")]
-    [InlineData("101:42:True:1:10:Active")]
-    [InlineData("101:42:False:2:10:Active")]
-    [InlineData("101:42:False:1:11:Active")]
-    [InlineData("101:42:False:1:10:Closed")]
-    public void ReadinessReloadsSnapshotOwnedByAnotherAuthorityCampaignLifecycleOrRevision(string owner)
-    {
-        var query = Substitute.For<ICampaignCloseoutQueryService>();
-        query.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness())));
-        Services.AddSingleton(query);
-        var cut = Render<RestoredReadiness>(parameters => parameters.Add(component => component.CampaignId, 10)
-            .Add(component => component.Status, CampaignStatus.Active).Add(component => component.Owner, "101:42:False:1")
-            .Add(component => component.SeedOwner, owner).Add(component => component.SeedError, true));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Ready to close"));
-        cut.Markup.ShouldNotContain("Close readiness unavailable");
-        _ = query.Received(1).GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
-    }
-
-#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     [Fact]
     public void ApprovedMemberEvaluationHandoffCanSavePlacementThroughWorkspaceAdapter()
     {
@@ -2592,6 +2550,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
             .GetAttribute("href")!.ShouldContain("evalParticipant=301");
     }
 
+#pragma warning disable MA0051 // Keep the existing fixture service setup together.
     private void RegisterServices(
 #pragma warning restore MA0051
         ICampaignQueryService? campaignQueryService = null,
@@ -2687,7 +2646,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
 
         var closeoutQueryService = Substitute.For<ICampaignCloseoutQueryService>();
         closeoutQueryService.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness())));
+            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness() with { Status = detailResult?.IsSuccess == true ? detailResult.Value.Status : CampaignStatus.Active })));
         closeoutQueryService.GetActivityAsync(Arg.Any<GetCampaignActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<CampaignActivityResult>(new CampaignActivityResult([]))));
         var lifecycleService = Substitute.For<ICampaignLifecycleService>();
@@ -3045,24 +3004,6 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         }
     }
 
-#pragma warning disable CA1812 // bUnit constructs the test-only restored component through reflection.
-    private sealed class RestoredReadiness(ICampaignCloseoutQueryService queries)
-        : Nova.UI.Features.Campaigns.Components.CampaignWorkspaceReadiness(queries)
-#pragma warning restore CA1812
-    {
-        [Parameter] public string? SeedOwner { get; set; }
-        [Parameter] public bool SeedError { get; set; }
-
-        protected override void OnInitialized()
-        {
-            Initialized = true;
-            PersistedOwner = SeedOwner ?? $"{Owner}:{CampaignId}:{Status}";
-            PersistedError = SeedError;
-            PersistedReadiness = SeedError ? null : CreateReadiness();
-            base.OnInitialized();
-        }
-    }
-
     /// <summary>
     /// A test-only <see cref="CampaignWorkspacePage"/> subclass that seeds persisted prerender state.
     /// </summary>
@@ -3070,6 +3011,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
     private sealed class PersistedStateCampaignWorkspace(
 #pragma warning restore CA1812
         ICampaignQueryService campaignQueryService,
+        ICampaignCloseoutQueryService closeoutQueryService,
         ICampaignParticipantQueryService participantQueryService,
         IEffectivePlacementQueryService effectivePlacementQueryService,
         ITagDefinitionQueryService tagDefinitionQueryService,
@@ -3078,7 +3020,7 @@ string.Equals(kind, "wrong-campaign", StringComparison.Ordinal) ? 11 : 10, DateT
         AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager,
         IJSRuntime jsRuntime)
-        : CampaignWorkspacePage(campaignQueryService, participantQueryService, effectivePlacementQueryService, tagDefinitionQueryService, teamRosterService, campaignMetadataService, authenticationStateProvider, navigationManager, jsRuntime)
+        : CampaignWorkspacePage(campaignQueryService, closeoutQueryService, participantQueryService, effectivePlacementQueryService, tagDefinitionQueryService, teamRosterService, campaignMetadataService, authenticationStateProvider, navigationManager, jsRuntime)
     {
         [Parameter]
         public bool StartInitialized { get; set; }

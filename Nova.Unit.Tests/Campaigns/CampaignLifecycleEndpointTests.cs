@@ -172,7 +172,7 @@ public sealed class CampaignLifecycleEndpointTests
     [Fact]
     public async Task ReopenToHttpResultReturnsNoContentForSuccessAsync()
     {
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new Success();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result = new Success();
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
@@ -186,7 +186,7 @@ public sealed class CampaignLifecycleEndpointTests
     [Fact]
     public async Task ReopenToHttpResultReturnsNotFoundWithoutDisclosureAsync()
     {
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new NotFound();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result = new NotFound();
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
@@ -202,7 +202,7 @@ public sealed class CampaignLifecycleEndpointTests
     public async Task ReopenToHttpResultReturnsForbiddenWithServiceDetailAsync()
     {
         const string Detail = "You must be a club administrator to reopen a campaign.";
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result =
             new LifecycleForbidden(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
@@ -219,7 +219,7 @@ public sealed class CampaignLifecycleEndpointTests
     public async Task ReopenToHttpResultReturnsConflictWithServiceDetailAsync()
     {
         const string Detail = "The campaign is already active.";
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result =
             new LifecycleConflict(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());

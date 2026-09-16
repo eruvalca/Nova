@@ -84,17 +84,20 @@ public partial class CampaignEvaluationPanel(ICampaignParticipantQueryService pa
     private bool Protected => HasDraft || _pending is not null || _captureRestoreFailed;
     private bool NavigationProtected => Protected && !(_navigationPermit is { } permit && Owns(permit.Owner)
         && permit.Request == _departureSequence && permit.Restore == _captureRestoreSequence && !HasDraft && _pending is null);
-    private string LookupUrl(CampaignWorkspaceEvaluationState state) => CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId);
+    /// <summary>Preserves the Close correction handoff through evaluation navigation.</summary>
+    [Parameter] public Func<string, string> PreserveCloseContext { get; set; } = static url => url;
+    private string LookupUrl(CampaignWorkspaceEvaluationState state) => PreserveCloseContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId, state, RosterState, RosterParticipantId));
     private string PlayerUrl(long id) => LookupUrl(State with { ParticipantId = id });
-    private string PlacePlayerUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
+    private string PlacePlayerUrl => PreserveCloseContext(CampaignWorkspaceUrlState.WithEvaluationContext(
         CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
-            CampaignId, new(), RosterState, RosterParticipantId, State.ParticipantId, returnToEvaluation: true), State);
+            CampaignId, new(), RosterState, RosterParticipantId, State.ParticipantId, returnToEvaluation: true), State));
 
     private IEnumerable<KeyValuePair<string, string>> RosterQueryFields
     {
         get
         {
-            foreach (var queryField in CampaignWorkspaceUrlState.BuildQueryString(RosterState).Split('&', StringSplitOptions.RemoveEmptyEntries))
+            var query = PreserveCloseContext("?" + CampaignWorkspaceUrlState.BuildQueryString(RosterState)).TrimStart('?');
+            foreach (var queryField in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
             {
                 var pair = queryField.Split('=', 2);
                 yield return new(Uri.UnescapeDataString(pair[0]), Uri.UnescapeDataString(pair[1]));

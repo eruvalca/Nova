@@ -35,7 +35,7 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
     public long? ParticipantId { get; init; }
 
     /// <summary>The roster sort; a direction alone uses display name. Omitting both fields preserves the read's default.</summary>
-    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName|searchRelevance)$")]
+    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName|searchRelevance|closeout)$")]
     public string? SortBy { get; init; }
 
     /// <summary>Ascending or descending primary order; ties remain deterministic.</summary>
@@ -48,6 +48,11 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
         foreach (var error in base.Validate(validationContext))
         {
             yield return error;
+        }
+        if (string.Equals(SortBy, "closeout", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(SortDirection, "desc", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return new ValidationResult("Closeout groups use ascending review order.", [nameof(SortDirection)]);
         }
         if (GraduationYears?.Any(year => year <= 0) == true)
         {

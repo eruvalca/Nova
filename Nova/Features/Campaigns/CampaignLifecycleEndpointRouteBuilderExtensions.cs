@@ -87,11 +87,12 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 _ => ServiceProblem.NotFound().ToHttpResult(),
                 forbidden => ServiceProblem.Forbidden(forbidden.Detail).ToHttpResult(),
                 blocked => ServiceProblem.Conflict(blocked.Detail, blocked.Errors).ToHttpResult(),
-                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult());
+                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult(),
+                _ => ServiceProblem.ServerError("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.").ToHttpResult());
         }
     }
 
-    extension(OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result)
+    extension(OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result)
     {
         /// <summary>
         /// Converts a campaign-reopen result to an ASP.NET Core response.
@@ -105,7 +106,8 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 _ => TypedResults.NoContent(),
                 _ => ServiceProblem.NotFound().ToHttpResult(),
                 forbidden => ServiceProblem.Forbidden(forbidden.Detail).ToHttpResult(),
-                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult());
+                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult(),
+                _ => ServiceProblem.ServerError("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.").ToHttpResult());
         }
     }
 

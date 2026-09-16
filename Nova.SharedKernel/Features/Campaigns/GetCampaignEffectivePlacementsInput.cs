@@ -1,10 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.SharedKernel.Features.Campaigns;
 
 /// <summary>Filters the Active campaign working set without changing its unfiltered section totals.</summary>
 public sealed record GetCampaignEffectivePlacementsInput : CampaignRosterDiscoveryInput
 {
+    /// <summary>Filters campaign-local close blockers independently of effective placement eligibility.</summary>
+    [NotWhitespace]
+    [RegularExpression("(?i)^(outcomes|eligibility|archivedTeams)$")]
+    public string? CloseoutBlocker { get; init; }
+
     /// <summary>An optional effective team filter.</summary>
     [Range(1, long.MaxValue)]
     public long? TeamId { get; init; }

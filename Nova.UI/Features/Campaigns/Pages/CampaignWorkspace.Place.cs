@@ -99,8 +99,8 @@ public partial class CampaignWorkspace
     /// <param name="placementParticipantId">The participant Place has selected.</param>
     /// <returns>The relative Place workspace URL with evaluation context applied.</returns>
     private string BuildPlaceUrl(CampaignWorkspacePlacementState state, long? placementParticipantId)
-        => CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
-            CampaignId, state, _filters, _selectedParticipantId, placementParticipantId, ReturnToEvaluationQuery == true);
+        => WithCloseContext(CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(
+            CampaignId, state, _filters, _selectedParticipantId, placementParticipantId, ReturnToEvaluationQuery == true));
 
     /// <summary>
     /// Applies a Place discovery or page change raised by the Place surface and pushes the matching canonical URL.
@@ -130,21 +130,6 @@ public partial class CampaignWorkspace
             navigationManager.NavigateTo(composed);
         }
 
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Navigates to the Place route in response to a closeout blocker drill-down, optionally filtered to
-    /// participants still missing a campaign-local decision.
-    /// </summary>
-    /// <param name="unresolvedOnly">Whether the target Place URL should filter to participants without a campaign-local decision.</param>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnReviewUnresolvedAsync(bool unresolvedOnly)
-    {
-        var url = unresolvedOnly
-            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId, _filters, _selectedParticipantId)
-            : CampaignWorkspaceUrlState.BuildPlaceWorkspaceUrl(CampaignId, new(), _filters, _selectedParticipantId);
-        navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
 

@@ -33,6 +33,8 @@ public sealed partial class CampaignWorkspaceTests
                 : new ServiceResult<CampaignDetailResult>(ServiceProblem.ServerError("Unbounded lifecycle reconciliation"));
         });
         RegisterServices(campaignQueryService: campaigns, participantQueryService: participants, effectivePlacementQueryService: reads);
+        Services.GetRequiredService<ICampaignCloseoutQueryService>().GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness() with { Status = CampaignStatus.Closed }));
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster?participant=301");
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));

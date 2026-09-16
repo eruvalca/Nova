@@ -1,4 +1,4 @@
-@rendermode InteractiveAuto
+﻿@rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.SharedKernel.Enums
@@ -8,13 +8,7 @@
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
 
-<!--
-THESIS: A searchable participant field and adjacent context keep club staff oriented while working.
-OWN-WORLD: Fieldhouse semantic teal, sea-glass navigation, white boards, system typography and hairlines.
-STORY: Confirm campaign authority, find a participant, distinguish local outcomes from effective placement, capture observations, continue.
-FIRST VIEWPORT: Compact identity and complete route precede readiness; a broad roster sits beside narrower participant context.
-FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
--->
+
 <div class="campaign-field" @ref="_workspaceElement" data-workspace-owner="@_jsOwner">
     <a class="campaign-back-link" href="/campaigns"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13 8H3m4-4L3 8l4 4" /></svg> Back to campaigns</a>
 
@@ -37,7 +31,7 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
             </div>
         </div>
     }
-    else if (!string.IsNullOrWhiteSpace(_pageError))
+    else if (!string.IsNullOrWhiteSpace(_pageError) && (_detail is null || _activeTab != CloseTabName))
     {
         <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
             <span>@_pageError</span>
@@ -103,9 +97,14 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         </li>
                     </ul>
                 </nav></div>
-        <CampaignWorkspaceReadiness CampaignId="CampaignId" Status="_detail.Status" Owner="@($"{_authorityScope}:{_detailSequence}")"
-            CloseDestination="@CloseUrl"
-            OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
+        @if (_activeTab != CloseTabName)
+        {
+            <CampaignWorkspaceReadiness Status="_detail.Status" Readiness="_closeEvidence?.Readiness" Loading="_closeLoading" Error="@(_closeError is not null)" CloseDestination="@CloseUrl" OnRetry="RetryCloseReadinessAsync" />
+        }
+        @if (ReturnToCloseQuery == true && _activeTab != CloseTabName)
+        {
+            <a class="btn btn-outline-primary mb-3" href="@CloseUrl">Return to Close</a>
+        }
 
         @if (!string.IsNullOrWhiteSpace(_statusMessage))
         {
@@ -249,13 +248,13 @@ FORM: Roster beside participant context, ranked fifth; seed 16fb136e.
                         }
                         else if (_activeTab == EvaluateTabName)
                         {
-                            <CampaignEvaluationPanel CaptureScope="@_captureScope" CampaignId="CampaignId" Status="_detail.Status" AuthorityScope="@_authorityScope" State="EvaluationState" RosterState="_filters" RosterParticipantId="_selectedParticipantId" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
+                            <CampaignEvaluationPanel PreserveCloseContext="WithCloseContext" CaptureScope="@_captureScope" CampaignId="CampaignId" Status="_detail.Status" AuthorityScope="@_authorityScope" State="EvaluationState" RosterState="_filters" RosterParticipantId="_selectedParticipantId" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
                         else if (_activeTab == CloseTabName)
                         {
-                            <CampaignCloseoutPanel CampaignId="@CampaignId" Detail="@_detail" IsClubAdmin="@_isClubAdmin"
-                                                   OnReviewUnresolved="OnReviewUnresolvedAsync" OnCancel="OnCancelCloseoutAsync"
-                                                   OnReloadRequested="OnCampaignReloadRequestedAsync" />
+                            <CampaignCloseoutPanel Detail="_detail" Owner="@CloseOwner" Evidence="_closeEvidence" Loading="_closeLoading" Error="@(_closeError ?? _pageError)"
+                                State="CloseState" BuildCloseUrl="BuildCloseUrl" BuildParticipantUrl="BuildCloseParticipantUrl" OnStateChanged="OnCloseStateChangedAsync"
+                                RefreshEvidence="RefreshCloseEvidenceAsync" OnLifecycleChanged="OnCampaignReloadRequestedAsync" />
                         }
 
 

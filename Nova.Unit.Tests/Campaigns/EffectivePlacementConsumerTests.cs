@@ -55,7 +55,6 @@ public sealed class EffectivePlacementConsumerTests : IDisposable
     public async Task ZeroNeedsPlacementDoesNotWaiveMissingCampaignLocalCloseOutcomeAsync()
     {
         var service = new CampaignCloseoutQueryService(Factory(), _harness.CurrentUser,
-            new CampaignPlacementQueryService(Factory(), _harness.CurrentUser, NullLogger<CampaignPlacementQueryService>.Instance),
             NullLogger<CampaignCloseoutQueryService>.Instance);
         var result = await service.GetCloseoutReadinessAsync(new() { CampaignId = 7 }, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();

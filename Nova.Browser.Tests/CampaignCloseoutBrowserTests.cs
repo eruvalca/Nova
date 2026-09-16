@@ -32,29 +32,30 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await OpenCloseoutFromEvaluationAsync(page);
 
         // Closeout shows authoritative counts and the three blocker rows with Count + Message.
-        var blockerRows = page.Locator("li.list-group-item.list-group-item-warning");
+        var blockerRows = page.Locator(".close-blocker");
         await Expect(blockerRows).ToHaveCountAsync(3);
-        await Expect(blockerRows.Nth(0)).ToContainTextAsync("Undecided");
+        await Expect(blockerRows.Nth(0)).ToContainTextAsync("missing campaign outcomes");
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("1");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("Eligibility");
-        await Expect(blockerRows.Nth(2)).ToContainTextAsync("Archived teams");
-        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" })).ToBeDisabledAsync();
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("incompatible assignments");
+        await Expect(blockerRows.Nth(2)).ToContainTextAsync("archived team");
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review close" })).ToHaveCountAsync(0);
 
         // Resolve the outcomes blocker through the unresolved drill-down, then the eligibility and
         // archived-team blockers through their no-filter drill-downs.
-        await ResolveBlockerAsync(page, "Undecided", seed.BlockedAssignmentIds[0]);
-        await ResolveBlockerAsync(page, "Eligibility", seed.BlockedAssignmentIds[1]);
-        await ResolveBlockerAsync(page, "Archived teams", seed.BlockedAssignmentIds[2]);
+        await ResolveBlockerAsync(page, "missing campaign outcomes", seed.BlockedAssignmentIds[0]);
+        await ResolveBlockerAsync(page, "incompatible assignments", seed.BlockedAssignmentIds[1]);
+        await ResolveBlockerAsync(page, "archived team", seed.BlockedAssignmentIds[2]);
 
-        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(0);
-        await Expect(page.Locator("span.text-success")).ToHaveCountAsync(3);
+        await Expect(page.Locator(".close-blocker")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".close-verdict")).ToHaveTextAsync("Ready to close");
+        await ReviewCloseAsync(page);
         var closeButton = page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
         await Expect(closeButton).ToBeEnabledAsync();
         await InteractionHelpers.ClickUntilAsync(page, closeButton, () => page.GetByText("Campaign closed.").IsVisibleAsync());
 
         // The panel switches to the closed read-only view and announces the close.
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign closed.");
-        await Expect(page.Locator("div.alert-secondary[role=note]")).ToContainTextAsync("This campaign is closed and read-only.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign closed.");
+        await Expect(page.Locator(".close-review")).ToContainTextAsync("This campaign is closed and read-only.");
         await Expect(page.Locator("[aria-label='Final outcome summary']")).ToBeVisibleAsync();
 
         // The canonical club activity surface retains the closed transition.
@@ -62,7 +63,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task AdminBlockedCloseShowsBlockerDetailsCloseDisabledAndNothingFrozenAsync()
+    public async Task AdminBlockedCloseShowsBlockerDetailsWithoutActionAndNothingFrozenAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -71,16 +72,13 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await OpenCloseoutAsync(page, seed.BlockedCampaignId);
 
-        var blockerRows = page.Locator("li.list-group-item.list-group-item-warning");
+        var blockerRows = page.Locator(".close-blocker");
         await Expect(blockerRows).ToHaveCountAsync(3);
         // Blocker detail is text (Count + Message), not color-only.
-        await Expect(blockerRows.Nth(0)).ToContainTextAsync("Undecided");
-        await Expect(blockerRows.Nth(0)).ToContainTextAsync("undecided participation record");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("Eligibility");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("Ineligible assignment ids");
-        await Expect(blockerRows.Nth(2)).ToContainTextAsync("Archived teams");
-        await Expect(blockerRows.Nth(2)).ToContainTextAsync("Blocked assignment ids");
-        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" })).ToBeDisabledAsync();
+        await Expect(blockerRows.Nth(0)).ToContainTextAsync("1 missing campaign outcomes");
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("1 incompatible assignments");
+        await Expect(blockerRows.Nth(2)).ToContainTextAsync("1 assignments use an archived team");
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review close" })).ToHaveCountAsync(0);
 
         // Nothing is frozen: an administrator placement save still succeeds.
         await OpenPlacementsAsync(page, seed.BlockedCampaignId);
@@ -109,6 +107,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Admin A loads the ready campaign's closeout, which reports ready.
         await OpenCloseoutAsync(adminPage, seed.ReadyCampaignId);
+        await ReviewCloseAsync(adminPage);
         var closeButton = adminPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
         await Expect(closeButton).ToBeEnabledAsync();
 
@@ -135,11 +134,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(secondPage.Locator("button.place-section.leads")).ToContainTextAsync("1");
 
         // Admin A's stale close is rejected with an actionable conflict and refetches the blockers.
-        var conflictAlert = adminPage.Locator("div.alert-warning[role=alert]");
+        var conflictAlert = adminPage.Locator(".lifecycle-checkpoint [role=status]");
         await InteractionHelpers.ClickUntilAsync(adminPage, closeButton, () => conflictAlert.IsVisibleAsync());
         await Expect(conflictAlert).ToContainTextAsync("Resolve all campaign close blockers before closing this campaign.");
-        await Expect(adminPage.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(1);
-        await Expect(adminPage.Locator("li.list-group-item.list-group-item-warning")).ToContainTextAsync("Undecided");
+        await Expect(adminPage.Locator(".close-blocker")).ToHaveCountAsync(1);
+        await Expect(adminPage.Locator(".close-blocker")).ToContainTextAsync("missing campaign outcomes");
 
         // The campaign is still active and editable for Admin B.
         await InteractionHelpers.ClickUntilAsync(
@@ -163,21 +162,21 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
-        await Expect(page.Locator("div.alert-secondary[role=note]")).ToContainTextAsync("This campaign is closed and read-only.");
+        await Expect(page.Locator(".close-review")).ToContainTextAsync("This campaign is closed and read-only.");
 
         // Reopen requires an inline confirmation; Cancel hides it without effect.
-        var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" });
-        var confirmGroup = page.Locator("[role=group][aria-label='Reopen confirmation']");
+        var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Review reopen" });
+        var confirmGroup = page.Locator("[role=group][aria-label='Lifecycle confirmation']");
         await InteractionHelpers.ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
-        await Expect(confirmGroup).ToContainTextAsync("Reopening restores editing without discarding outcomes and is recorded for audit.");
+        await Expect(confirmGroup).ToContainTextAsync("Existing outcomes remain in place.");
         await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel" }), () => confirmGroup.IsHiddenAsync());
 
         await InteractionHelpers.ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign reopened.");
 
         // The panel returns to the active checklist.
-        await Expect(page.Locator("section[aria-labelledby='closeout-region-heading']")).ToContainTextAsync("Enrolled");
+        await Expect(page.Locator("section[aria-labelledby='closeout-region-heading']")).ToContainTextAsync("3 local outcomes");
 
         // The canonical activity surface retains both lifecycle transitions.
         await AssertDashboardActivityAsync(page, seed.ClosedCampaignId, "closed", "reopened");
@@ -210,10 +209,13 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
-        await Expect(page.Locator("div.alert-secondary[role=note]")).ToContainTextAsync("This campaign is closed and read-only.");
+        await Expect(page.Locator(".close-review")).ToContainTextAsync("This campaign is closed and read-only.");
         await Expect(page.Locator("[aria-label='Final outcome summary']")).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" })).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review close", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review reopen", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page.Locator(".lifecycle-checkpoint")).ToContainTextAsync("A club administrator closes or reopens campaigns.");
 
         // Evaluation retains shared readiness orientation without administrator commands.
         await OpenEvaluationAsync(page, seed.ClosedCampaignId);
@@ -253,24 +255,25 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#evaluation-finder-heading")).ToBeVisibleAsync();
 
-        // From the closeout tab, a blocker drill-down pushes a placements entry; Back returns to closeout.
+        // A blocker narrows Close to the exact affected set, then the participant link opens Place.
         await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
-        var outcomesRow = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = "Undecided" });
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            outcomesRow.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
-            () => Task.FromResult(page.Url.Contains("placementOutcome=undecided", StringComparison.Ordinal)));
+        var outcomesRow = page.Locator(".close-blocker").Filter(new() { HasText = "missing campaign outcomes" });
+        await outcomesRow.GetByRole(AriaRole.Link).ClickAsync();
+        await Expect(page.Locator(".close-roster tbody a")).ToHaveCountAsync(1);
+        page.Url.ShouldContain("closeBlocker=outcomes");
+        await page.Locator(".close-roster tbody a").ClickAsync();
         await Expect(page.Locator("#placements-region-heading")).ToBeVisibleAsync();
         // The drill-down targets participants still missing a campaign-local outcome across every section,
         // which is deliberately not the Needs-placement queue: a zero queue never stands in for close
         // readiness.
-        page.Url.ShouldContain("placementOutcome=undecided");
+        page.Url.ShouldContain("closeBlocker=outcomes");
         page.Url.ShouldContain("placementEligibility=all");
 
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
         page.Url.ShouldContain("tab=close");
+        page.Url.ShouldContain("closeBlocker=outcomes");
     }
 
     [Fact]
@@ -411,6 +414,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
 
         var closeButton = page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
+        await ReviewCloseAsync(page);
         await Expect(closeButton).ToBeEnabledAsync();
         await InteractionHelpers.ActUntilAsync(
             page,
@@ -420,11 +424,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await page.Keyboard.PressAsync("Enter");
             },
             () => page.GetByText("Campaign closed.").IsVisibleAsync());
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign closed.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign closed.");
 
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
-        var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" });
-        var confirmGroup = page.Locator("[role=group][aria-label='Reopen confirmation']");
+        var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Review reopen" });
+        var confirmGroup = page.Locator("[role=group][aria-label='Lifecycle confirmation']");
         await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
@@ -446,8 +450,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await page.Keyboard.PressAsync("Enter");
             },
             () => confirmGroup.IsVisibleAsync());
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign reopened.");
 
         await CloseoutSeed.ActivateCampaignAsync(
             fixture.AppHost,
@@ -460,16 +464,37 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var narrowPage = narrowContext.Pages[0];
 
         await OpenCloseoutAsync(narrowPage, seed.BlockedCampaignId);
-        var blockerRows = narrowPage.Locator("li.list-group-item.list-group-item-warning");
+        var blockerRows = narrowPage.Locator(".close-blocker");
         await Expect(blockerRows).ToHaveCountAsync(3);
-        await Expect(blockerRows.Nth(0)).ToContainTextAsync("Undecided");
-        await Expect(blockerRows.Nth(1)).ToContainTextAsync("Eligibility");
-        await Expect(blockerRows.Nth(2)).ToContainTextAsync("Archived teams");
-        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" }), "Close campaign");
+        await Expect(blockerRows.Nth(0)).ToContainTextAsync("missing campaign outcomes");
+        await Expect(blockerRows.Nth(1)).ToContainTextAsync("incompatible assignments");
+        await Expect(blockerRows.Nth(2)).ToContainTextAsync("archived team");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, blockerRows.First.GetByRole(AriaRole.Link), "Review players");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.Locator("#close-search"), "Close search");
 
-        // The wide-viewport pass closed the ready campaign, so its closeout now shows "Reopen campaign".
+        // A later opened campaign prevents reopening this earlier Closed campaign.
         await OpenCloseoutAsync(narrowPage, seed.ReadyCampaignId);
-        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), "Reopen campaign");
+        await Expect(narrowPage.Locator(".lifecycle-checkpoint")).ToContainTextAsync("A later campaign has opened");
+        await Expect(narrowPage.GetByRole(AriaRole.Button, new() { Name = "Review reopen" })).ToHaveCountAsync(0);
+        await CloseoutSeed.CloseActiveCampaignAsync(fixture.AppHost, seed.ClubId, seed.AdminUserId, cancellationToken);
+        await OpenCloseoutAsync(narrowPage, seed.ClosedCampaignId);
+        await AssertNarrowLifecycleTargetsAsync(narrowPage);
+    }
+
+    private static async Task AssertNarrowLifecycleTargetsAsync(IPage page)
+    {
+        var reviewReopen = page.GetByRole(AriaRole.Button, new() { Name = "Review reopen", Exact = true });
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, reviewReopen, "Review reopen");
+        await InteractionHelpers.ClickUntilAsync(page, reviewReopen, () => page.Locator(".confirmation").IsVisibleAsync());
+        var reopen = page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign", Exact = true });
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, reopen, "Reopen campaign");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }), "Cancel");
+        await reopen.ClickAsync();
+        await Expect(page.Locator(".lifecycle-checkpoint")).ToContainTextAsync("Campaign reopened.");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Review close", Exact = true }), "Review close");
+        await ReviewCloseAsync(page);
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Close campaign", Exact = true }), "Close campaign");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
     }
 
     [Fact]
@@ -664,10 +689,10 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
             await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
             await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-            await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
+            await Expect(page.GetByText("Checking Close readiness…")).ToBeVisibleAsync();
 
             release.TrySetResult(null);
-            await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+            await Expect(page.Locator(".close-blocker")).ToHaveCountAsync(3);
         }
         finally
         {
@@ -695,14 +720,14 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             intercepted.TrySetResult();
         });
 
-        var errorAlert = page.Locator("div.alert-danger[role=alert]");
-        var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
+        var errorAlert = page.Locator(".close-review [role=alert]");
+        var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry readiness" });
         try
         {
             await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
             await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
             await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
-            await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
+            await Expect(errorAlert).ToContainTextAsync("Close readiness could not be verified");
             await Expect(retry).ToBeVisibleAsync();
         }
         finally
@@ -711,8 +736,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         }
         await retry.ClickAsync();
 
-        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
-        await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".close-blocker")).ToHaveCountAsync(3);
+        await Expect(page.Locator(".close-review [role=alert]")).ToHaveCountAsync(0);
     }
 
     private static async Task AssertCampaignMenuAttachedAsync(IPage page)
@@ -781,36 +806,18 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     /// </summary>
     private static async Task ResolveBlockerAsync(IPage page, string rowLabel, long assignmentId)
     {
-        var row = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = rowLabel });
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            row.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
-            () => page.Locator("#placements-region-heading").IsVisibleAsync());
-
-        await SavePlacementOutcomeAsync(page, assignmentId, PlacementOutcome.NotSelected);
-
-        await page.GetByRole(AriaRole.Link, new() { Name = "Close" }).ClickAsync();
+        var row = page.Locator(".close-blocker").Filter(new() { HasText = rowLabel });
+        await row.GetByRole(AriaRole.Link).ClickAsync();
+        await page.Locator($".close-roster a[href*='placementParticipant={assignmentId}']").ClickAsync();
+        await Expect(page.Locator("#place-outcome")).ToBeEnabledAsync();
+        await SaveSelectedPlacementOutcomeAsync(page, PlacementOutcome.NotSelected);
+        await page.GetByRole(AriaRole.Link, new() { Name = "Return to Close", Exact = true }).ClickAsync();
         await Expect(page.Locator("#closeout-region-heading")).ToBeVisibleAsync();
     }
 
-    /// <summary>Records an outcome for one assignment by selecting its queue row first.</summary>
-    /// <param name="page">The page to drive.</param>
-    /// <param name="assignmentId">The participant-assignment identifier of the queue row to select.</param>
-    /// <param name="outcome">The outcome to record.</param>
-    /// <param name="teamId">The team to assign, required for <see cref="PlacementOutcome.Assigned"/>.</param>
-    /// <returns>A task that completes once the save is announced.</returns>
-    private static async Task SavePlacementOutcomeAsync(
-        IPage page,
-        long assignmentId,
-        PlacementOutcome outcome,
-        long? teamId = null)
-    {
-        await InteractionHelpers.ClickUntilAsync(
-            page,
-            page.Locator($"a[id='placement-row-{assignmentId}']"),
-            () => OutcomeEnabledAsync(page));
-        await SaveSelectedPlacementOutcomeAsync(page, outcome, teamId);
-    }
+    private static Task ReviewCloseAsync(IPage page)
+        => InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Review close", Exact = true }),
+            () => page.GetByRole(AriaRole.Group, new() { Name = "Lifecycle confirmation" }).IsVisibleAsync());
 
     /// <summary>Records an outcome for whichever queue row is currently selected.</summary>
     /// <param name="page">The page to drive.</param>

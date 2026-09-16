@@ -99,6 +99,10 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         readiness.Status.ShouldBe(CampaignStatus.Active);
         readiness.Summary.UndecidedCount.ShouldBe(3);
         readiness.Summary.TotalCount.ShouldBe(3);
+        readiness.Lifecycle.IsAdministrator.ShouldBeFalse();
+        readiness.Lifecycle.CanClose.ShouldBeFalse();
+        readiness.Lifecycle.CanReopen.ShouldBeFalse();
+        readiness.Lifecycle.ReopenUnavailableReason.ShouldBe(CampaignReopenUnavailableReason.NotClosed);
 
         var blocker = readiness.Blockers.ShouldHaveSingleItem();
         blocker.Condition.ShouldBe(CloseoutBlockerConditions.Outcomes);

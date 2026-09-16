@@ -59,6 +59,18 @@ public sealed partial class CampaignEvaluationPanelTests : BunitContext
     }
 
     [Fact]
+    public void NativeFinderFormPreservesCloseCorrectionContext()
+    {
+        var close = new CampaignWorkspaceCloseState { Search = "A & B", Blocker = "outcomes", Page = 3 };
+        var cut = Panel(new());
+        cut.Render(parameters => parameters.Add(component => component.PreserveCloseContext, url => close.Apply(url, returnToClose: true)));
+        cut.Find("input[name=closeSearch]").GetAttribute("value").ShouldBe("A & B");
+        cut.Find("input[name=closeBlocker]").GetAttribute("value").ShouldBe("outcomes");
+        cut.Find("input[name=closePage]").GetAttribute("value").ShouldBe("3");
+        cut.Find("input[name=returnToClose]").GetAttribute("value").ShouldBe("true");
+    }
+
+    [Fact]
     public void BlankLookupDoesNotDiscoverOrSelectPlayer()
     {
         var cut = Panel(new());

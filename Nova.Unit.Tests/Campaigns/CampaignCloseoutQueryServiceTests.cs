@@ -283,7 +283,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
         => new(
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _harness.CurrentUser,
-            CreatePlacementQueryService(),
             NullLogger<CampaignCloseoutQueryService>.Instance);
 
     /// <summary>Creates the composed placement query service over the same harness.</summary>

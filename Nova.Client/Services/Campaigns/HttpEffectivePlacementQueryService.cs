@@ -114,6 +114,8 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         }
         var expectedState = ExpectedEligibility(row, validTeam);
         return row.Eligibility == expectedState
+            && (input.CloseoutBlocker is null || (string.Equals(input.CloseoutBlocker, CloseoutBlockerConditions.Outcomes, StringComparison.OrdinalIgnoreCase)
+                ? row.LocalDecision is null : row.LocalDecision?.Outcome == PlacementOutcome.Assigned))
             && (input.TeamId is null || row.EffectiveTeam?.TeamId == input.TeamId)
             && (!Enum.TryParse<EffectivePlacementEligibility>(input.Eligibility, true, out var requested)
                 || !Enum.IsDefined(requested) || row.Eligibility == requested);
@@ -171,6 +173,7 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         int year, int? tryout, PlacementOutcome outcome, CampaignParticipantTeamSummaryDto? team)
         => input.SortBy?.ToUpperInvariant() switch
         {
+            "CLOSEOUT" => new(outcome switch { PlacementOutcome.Assigned => 0, PlacementOutcome.NotSelected => 1, PlacementOutcome.Withdrawn => 2, _ => 3 }, $"{team?.TeamName}\0{team?.TeamId}\0{last}", first, id),
             "SEARCHRELEVANCE" => new(int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out var number) && tryout == number ? 0 : 1, last, first, id),
             "ASSIGNMENTID" => new(id, null, null, id),

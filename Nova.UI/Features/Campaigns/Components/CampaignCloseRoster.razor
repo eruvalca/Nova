@@ -1,0 +1,64 @@
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Campaigns
+<section class="close-roster" aria-labelledby="close-roster-heading" aria-busy="@_loading">
+    <h2 class="h5" id="close-roster-heading">Campaign roster</h2>
+    <div class="roster-toolbar">
+        <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
+            <label for="close-search" class="visually-hidden">Name or tryout number</label>
+            <input id="close-search" class="form-control" type="search" placeholder="Name or tryout number" maxlength="100" @bind="_search" />
+            <button class="btn btn-outline-primary" type="submit">Search</button>
+        </form>
+        <label for="close-blocker">Show players with this blocker</label>
+        <select id="close-blocker" class="form-select" value="@State.Blocker" @onchange="BlockerChangedAsync">
+            <option value="">All players</option>
+            <option value="outcomes">Missing campaign outcomes</option>
+            <option value="eligibility">Incompatible assignments</option>
+            <option value="archivedTeams">Archived team assignments</option>
+        </select>
+    </div>
+    @if (_loading)
+    {
+        <p role="status">Loading campaign roster…</p>
+    }
+    else if (_error is not null)
+    {
+        <div role="alert"><p>@_error</p><button type="button" class="btn btn-outline-secondary" @onclick="LoadAsync">Retry roster</button></div>
+    }
+    else if (_page is not null)
+    {
+        <p class="text-body-secondary small" role="status">@_page.Items.Count of @_page.TotalCount matching participants · Page @_page.Page · Groups on this page only</p>
+        @if (_page.Items.Count == 0)
+        {
+            <p>No participants match this review.</p>
+            <a href="@BuildCloseUrl(new())">Show all campaign participants</a>
+        }
+        else
+        {
+            <div class="table-responsive" tabindex="0" role="region" aria-label="Scrollable campaign roster">
+                <table class="table align-middle">
+                    <caption class="visually-hidden">Campaign-local outcomes. Team groups may continue on another page.</caption>
+                    <thead><tr><th scope="col">Player</th><th scope="col">Tryout</th><th scope="col">Graduation</th><th scope="col">Campaign outcome</th><th scope="col">Team</th></tr></thead>
+                    @foreach (var group in _page.Items.GroupBy(GroupKey))
+                    {
+                        <tbody>
+                            <tr class="group-row"><th scope="rowgroup" colspan="5">@GroupLabel(group.First()) <span class="fw-normal">· @group.Count() on this page</span></th></tr>
+                            @foreach (var row in group)
+                            {
+                                <tr @key="row.PlayerCampaignAssignmentId">
+                                    <th scope="row"><a href="@BuildParticipantUrl(row.PlayerCampaignAssignmentId)">@row.FirstName @row.LastName</a>@if (row.PlayerLifecycleStatus == LifecycleStatus.Archived) { <span class="d-block small fw-normal">Archived player</span> }</th>
+                                    <td>@(row.TryoutNumber?.ToString(System.Globalization.CultureInfo.CurrentCulture) ?? "—")</td><td>@row.GraduationYear</td>
+                                    <td>@Outcome(row)@if (row.LocalDecision is null && row.EffectiveDecision is not null) { <span class="d-block small text-body-secondary">Inherited @row.EffectiveDecision.Decision.Outcome.ToString().ToLowerInvariant(); still needs a local outcome</span> }</td>
+                                    <td>@(row.LocalTeam?.TeamName ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+        }
+        <nav class="roster-paging" aria-label="Close roster pages">
+            @if (State.Page > 1) { <a href="@BuildCloseUrl(State with { Page = State.Page - 1 })">Previous page</a> }
+            @if ((long)_page.Page * _page.PageSize < _page.TotalCount) { <a href="@BuildCloseUrl(State with { Page = State.Page + 1 })">Next page</a> }
+        </nav>
+    }
+</section>

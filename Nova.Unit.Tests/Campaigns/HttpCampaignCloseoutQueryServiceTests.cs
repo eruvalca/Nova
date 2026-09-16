@@ -14,6 +14,26 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class HttpCampaignCloseoutQueryServiceTests
 {
+    [Theory]
+    [InlineData("isAdministrator")]
+    [InlineData("canClose")]
+    [InlineData("canReopen")]
+    [InlineData("reopenUnavailableReason")]
+    [InlineData("relatedCampaignId")]
+    public async Task MissingCapabilityFieldFailsClosedAsync(string field)
+    {
+        var payload = new CampaignCloseoutReadinessDto(42, CampaignStatus.Active, true, new(1, 0, 0, 0, 1), []);
+        var json = System.Text.Json.JsonSerializer.SerializeToNode(payload, System.Text.Json.JsonSerializerOptions.Web)!;
+        json["lifecycle"]!.AsObject().Remove(field).ShouldBeTrue();
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json.ToJsonString(), Encoding.UTF8, "application/json"),
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var result = await new HttpCampaignCloseoutQueryService(http).GetCloseoutReadinessAsync(new() { CampaignId = 42 }, TestContext.Current.CancellationToken);
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies readiness requests use the shared route and accept a populated ready payload.</summary>
     [Fact]
     public async Task GetCloseoutReadinessAsyncRequestsSharedRouteAndReadsReadyPayloadAsync()
@@ -81,7 +101,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
     /// accepted rather than surfaced as a server error.
     /// </summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsyncAcceptsMismatchedOutcomesCountAsync()
+    public async Task GetCloseoutReadinessAsyncRejectsMismatchedOutcomesCountAsync()
     {
         var payload = new CampaignCloseoutReadinessDto(
             42,
@@ -104,9 +124,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
             new GetCampaignCloseoutReadinessInput { CampaignId = 42 },
             TestContext.Current.CancellationToken);
 
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.Blockers.ShouldHaveSingleItem();
-        result.Value.Blockers[0].Count.ShouldBe(1);
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>Verifies invalid caller input is rejected before any HTTP request is made.</summary>

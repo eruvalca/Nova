@@ -1,0 +1,41 @@
+@using Nova.SharedKernel.Enums
+<section class="lifecycle-checkpoint" aria-labelledby="lifecycle-heading" aria-busy="@_busy">
+    <h2 id="lifecycle-heading" class="h5" tabindex="-1" @ref="_heading">@(Evidence?.Detail.Status == CampaignStatus.Closed ? "Closed campaign" : "Lifecycle checkpoint")</h2>
+    @if (_feedback is not null) { <p role="status" aria-live="polite">@_feedback</p> }
+    @if (_busy) { <p role="status">Refreshing or saving the campaign…</p> }
+    @if (Evidence is null || _unavailable)
+    {
+        <p>Lifecycle actions require a current authorized review.</p>
+        <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="RetryReadAsync">Retry lifecycle read</button>
+    }
+    else
+    {
+        <p>Current state: <strong>@Evidence.Detail.Status</strong>.</p>
+        <p>@(Evidence.Detail.Status == CampaignStatus.Active ? "Closing makes evaluation and placement read-only." : "Reopening restores editing without discarding outcomes and is recorded in campaign history.")</p>
+        @if (!Evidence.Readiness.Lifecycle.IsAdministrator)
+        {
+            <p>A club administrator closes or reopens campaigns.</p>
+        }
+        else if (!Eligible)
+        {
+            <p>@(Evidence.Detail.Status == CampaignStatus.Active ? "Resolve the blockers to review closing." : Restriction)</p>
+            @if (Evidence.Readiness.Lifecycle.RelatedCampaignId is { } related)
+            {
+                <a href="@($"/campaigns/{related}")">Review the relevant campaign</a>
+            }
+        }
+        else if (_confirmation is null)
+        {
+            <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="ReviewAsync">Review @Action.ToLowerInvariant()</button>
+        }
+        @if (_confirmation is { } confirmation)
+        {
+            <div class="confirmation" role="group" aria-label="Lifecycle confirmation">
+                <h3 class="h6">@Action @confirmation.Detail.Name · @confirmation.Detail.SeasonName</h3>
+                <p>@confirmation.Readiness.Summary.TotalCount participants · Assigned @confirmation.Readiness.Summary.AssignedCount · Not selected @confirmation.Readiness.Summary.NotSelectedCount · Withdrawn @confirmation.Readiness.Summary.WithdrawnCount · No campaign decision @confirmation.Readiness.Summary.UndecidedCount</p>
+                <p>@(confirmation.Detail.Status == CampaignStatus.Active ? "Evaluation, notes, tags and placement become read-only. Later changes require an eligible reopen or a supplemental campaign." : "Evaluation and placement editing will resume. Existing outcomes remain in place.")</p>
+                <div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-primary" disabled="@_busy" @onclick="CommitAsync">@Action campaign</button><button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="Cancel">Cancel</button></div>
+            </div>
+        }
+    }
+</section>

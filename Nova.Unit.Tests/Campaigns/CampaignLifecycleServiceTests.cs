@@ -654,6 +654,15 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 CreatedById = ClubBAdminId
             });
 
+        db.Users.AddRange(
+            new NovaUserEntity { Id = ClubAAdminId, ClubId = ClubAId, FirstName = "Admin", LastName = "A" },
+            new NovaUserEntity { Id = ClubAMemberId, ClubId = ClubAId, FirstName = "Member", LastName = "A" },
+            new NovaUserEntity { Id = ClubBAdminId, ClubId = ClubBId, FirstName = "Admin", LastName = "B" });
+        db.Roles.Add(new Microsoft.AspNetCore.Identity.IdentityRole<long> { Id = 10, Name = Nova.SharedKernel.Security.Roles.ClubAdmin, NormalizedName = Nova.SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant() });
+        db.UserRoles.AddRange(
+            new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 10 },
+            new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = ClubBAdminId, RoleId = 10 });
+
         db.Seasons.AddRange(
             new SeasonEntity
             {

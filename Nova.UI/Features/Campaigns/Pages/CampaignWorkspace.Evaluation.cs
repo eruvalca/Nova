@@ -38,10 +38,9 @@ public partial class CampaignWorkspace
 
     private long? LegacyEvaluationParticipant => EvaluationQuery != true && string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal) ? _selectedParticipantId : null;
 
-    private string EvaluationUrl => CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
+    private string EvaluationUrl => WithCloseContext(CampaignWorkspaceUrlState.BuildEvaluationLookupUrl(CampaignId,
         string.Equals(_activeTab, RosterTabName, StringComparison.Ordinal) && _selectedParticipantId is not null
-            ? EvaluationState with { ParticipantId = _selectedParticipantId } : EvaluationState, _filters, _selectedParticipantId);
+            ? EvaluationState with { ParticipantId = _selectedParticipantId } : EvaluationState, _filters, _selectedParticipantId));
 
-    private string CloseUrl => CampaignWorkspaceUrlState.WithEvaluationContext(
-        CampaignWorkspaceUrlState.BuildCloseWorkspaceUrl(CampaignId, _filters, _selectedParticipantId), EvaluationState);
+    private string CloseUrl => BuildCloseUrl(CloseState);
 }

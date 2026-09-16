@@ -1,370 +1,210 @@
-﻿using System.Text.RegularExpressions;
-using Bunit;
-using Microsoft.AspNetCore.Components;
+﻿using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.UI.Features.Campaigns.Components;
+using Nova.UI.Features.Campaigns.Services;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
-using CampaignCloseoutPanel = Nova.UI.Features.Campaigns.Components.CampaignCloseoutPanel;
 
 namespace Nova.Unit.Tests.Campaigns;
 
-/// <summary>
-/// Component-level tests for the campaign closeout panel: the readiness checklist, close gating and
-/// flow, closed-state metadata/summary/banner, the reopen confirm flow, and the unresolved-review
-/// drill-down callbacks.
-/// </summary>
+/// <summary>Close evidence, explicit confirmation, authority replacement and unknown-result recovery.</summary>
 public sealed class CampaignCloseoutPanelTests : BunitContext
 {
-    // ── Checklist rendering ────────────────────────────────────────────────────
+    private readonly ICampaignLifecycleService _lifecycle = Substitute.For<ICampaignLifecycleService>();
+    private CampaignLifecycleEvidence? _evidence = Evidence();
+    private Action<CampaignLifecycleEvidence?>? _renderEvidence;
+    private int _refreshes;
 
-    [Fact]
-    public void PanelRendersChecklistRowsWithExactCountsAndMessagesWhenBlocked()
+    public CampaignCloseoutPanelTests()
     {
-        var summary = CreateSummary(assigned: 5, notSelected: 2, withdrawn: 2, undecided: 3);
-        var readiness = CreateReadiness(
-            summary,
-            isReady: false,
-            [
-                CreateBlocker(CloseoutBlockerConditions.Outcomes, 3, "Every participant must have a final outcome before closing. Found 3 undecided participation record(s)."),
-                CreateBlocker(CloseoutBlockerConditions.Eligibility, 2, "Every assigned participant must remain eligible for their team. Ineligible assignment ids: 301, 302."),
-                CreateBlocker(CloseoutBlockerConditions.ArchivedTeams, 1, "Assigned participants cannot reference archived teams. Blocked assignment ids: 303.")
-            ]);
+        Services.AddSingleton(_lifecycle);
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        _lifecycle.CloseAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(new ServiceResult<Success>(new Success()));
+        _lifecycle.ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(new ServiceResult<Success>(new Success()));
+    }
 
-        RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(readiness));
+    [Theory]
+    [InlineData(CampaignStatus.Active, "Close campaign")]
+    [InlineData(CampaignStatus.Closed, "Reopen campaign")]
+    public void ReviewRefreshesAndCancelSendsNoMutation(CampaignStatus status, string commitment)
+    {
+        _evidence = Evidence(status: status);
+        var cut = Actions();
+        Button(cut, status == CampaignStatus.Active ? "Review close" : "Review reopen").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain(commitment));
+        _refreshes.ShouldBe(1);
+        cut.Markup.ShouldContain("Summer Tryouts");
+        cut.Markup.ShouldContain("2026 season");
+        Button(cut, "Cancel").Click();
+        cut.Markup.ShouldContain("No lifecycle request was sent");
+        _lifecycle.ReceivedCalls().ShouldBeEmpty();
+    }
 
-        var cut = RenderPanel();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Enrolled"));
-
-        var rows = cut.FindAll("ul.list-group > li").Select(element => Collapse(element.TextContent)).ToList();
-        rows[0].ShouldBe("Enrolled 12");
-        rows[1].ShouldBe("Final outcomes 9");
-        rows[2].ShouldContain("Undecided 3");
-        rows[2].ShouldContain("Every participant must have a final outcome before closing. Found 3 undecided participation record(s).");
-        rows[3].ShouldContain("Eligibility 2");
-        rows[3].ShouldContain("Every assigned participant must remain eligible for their team. Ineligible assignment ids: 301, 302.");
-        rows[4].ShouldContain("Archived teams 1");
-        rows[4].ShouldContain("Assigned participants cannot reference archived teams. Blocked assignment ids: 303.");
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void MembersAndBlockedAdministratorsGetExplanationsWithoutMutationControls(bool admin, bool ready)
+    {
+        _evidence = Evidence(admin: admin, ready: ready);
+        var cut = Actions();
+        cut.FindAll("button").ShouldBeEmpty();
+        cut.Markup.ShouldContain(admin ? "Resolve the blockers" : "A club administrator");
     }
 
     [Fact]
-    public void PanelRendersSatisfiedRowsWhenAllClear()
+    public void ExplicitCommitSendsOneRequestAndAnnouncesSuccess()
     {
-        RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
-            CreateReadiness(CreateSummary(assigned: 6, notSelected: 3, withdrawn: 3, undecided: 0))));
-
-        var cut = RenderPanel();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Enrolled"));
-
-        var rows = cut.FindAll("ul.list-group > li").Select(element => Collapse(element.TextContent)).ToList();
-        rows[0].ShouldBe("Enrolled 12");
-        rows[1].ShouldBe("Final outcomes 12");
-        rows[2].ShouldBe("Undecided Satisfied");
-        rows[3].ShouldBe("Eligibility Satisfied");
-        rows[4].ShouldBe("Archived teams Satisfied");
-
-        cut.FindAll("button").Any(button => string.Equals(button.TextContent.Trim(), "Review unresolved", StringComparison.Ordinal)).ShouldBeFalse();
-    }
-
-    // ── Close gating ───────────────────────────────────────────────────────────
-
-    [Fact]
-    public void PanelDisablesCloseWhenReadinessIsNotReady()
-    {
-        RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
-            CreateReadiness(CreateSummary(undecided: 3), isReady: false)));
-
-        var cut = RenderPanel(isClubAdmin: true);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close campaign"));
-
-        cut.Find("button.btn-primary").HasAttribute("disabled").ShouldBeTrue();
-    }
-
-    [Fact]
-    public void PanelDisablesCloseForNonAdmin()
-    {
-        RegisterServices();
-
-        var cut = RenderPanel(isClubAdmin: false);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close campaign"));
-
-        cut.Find("button.btn-primary").HasAttribute("disabled").ShouldBeTrue();
-    }
-
-    // ── Close flow ─────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void PanelCloseSuccessShowsMessageAndFiresReload()
-    {
-        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
-        lifecycleService.CloseAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
-        var reloaded = false;
-        var onReloadRequested = EventCallback.Factory.Create(this, () => reloaded = true);
-
-        RegisterServices(lifecycleService: lifecycleService);
-
-        var cut = RenderPanel(isClubAdmin: true, onReloadRequested: onReloadRequested);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close campaign"));
-
-        cut.Find("button.btn-primary").Click();
-
+        var cut = Actions();
+        Button(cut, "Review close").Click();
+        Button(cut, "Close campaign").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign closed."));
-        reloaded.ShouldBeTrue();
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
+        _refreshes.ShouldBe(2);
     }
 
     [Fact]
-    public void PanelCloseConflictShowsWarningAndRefetchesReadiness()
-    {
-        var ready = CreateReadiness(CreateSummary(undecided: 0));
-        var blocked = CreateReadiness(
-            CreateSummary(undecided: 3),
-            isReady: false,
-            [CreateBlocker(CloseoutBlockerConditions.Outcomes, 3, "Every participant must have a final outcome before closing. Found 3 undecided participation record(s).")]);
-
-        var queryService = Substitute.For<ICampaignCloseoutQueryService>();
-        queryService.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
-            .Returns(
-                Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(ready)),
-                Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(blocked)));
-
-        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
-        lifecycleService.CloseAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(
-                ServiceProblem.Conflict("Resolve all campaign close blockers before closing this campaign."))));
-
-        RegisterServices(closeoutQueryService: queryService, lifecycleService: lifecycleService);
-
-        var cut = RenderPanel(isClubAdmin: true);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close campaign"));
-
-        cut.Find("button.btn-primary").Click();
-
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Resolve all campaign close blockers before closing this campaign."));
-        cut.Markup.ShouldContain("alert-warning");
-        _ = queryService.Received(2).GetCloseoutReadinessAsync(
-            Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>());
-        cut.Markup.ShouldContain("Found 3 undecided participation record(s).");
-    }
-
-    [Fact]
-    public void PanelPendingCloseDisablesButtonsWhileInFlight()
+    public async Task DuplicateCommitAndDelayedAuthorityResponseCannotReappearAsync()
     {
         var pending = new TaskCompletionSource<ServiceResult<Success>>();
-        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
-        lifecycleService.CloseAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
-            .Returns(pending.Task);
-
-        RegisterServices(lifecycleService: lifecycleService);
-
-        var cut = RenderPanel(isClubAdmin: true);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close campaign"));
-
-        cut.Find("button.btn-primary").Click();
-
-        cut.Find("button.btn-primary").HasAttribute("disabled").ShouldBeTrue();
-
+        _lifecycle.CloseAsync(10, Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var cut = Actions();
+        await Button(cut, "Review close").ClickAsync(new());
+        var saving = Button(cut, "Close campaign").ClickAsync(new());
+        cut.FindAll("button").ShouldAllBe(button => button.HasAttribute("disabled"));
+        cut.Render(parameters => parameters.Add(component => component.Owner, "different-user:club:campaign:2").Add(component => component.Evidence, Evidence(admin: false)));
         pending.SetResult(new ServiceResult<Success>(new Success()));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign closed."));
-    }
-
-    // ── Closed view ────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void PanelClosedViewShowsClosureMetadataSummaryAndReadOnlyBanner()
-    {
-        RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(
-            CreateReadiness(CreateSummary(assigned: 6, notSelected: 3, withdrawn: 3, undecided: 0))));
-
-        var cut = RenderPanel(
-            isClubAdmin: true,
-            status: CampaignStatus.Closed,
-            closedAt: new DateTimeOffset(2026, 6, 20, 12, 0, 0, TimeSpan.Zero),
-            closedByDisplayName: "Coach Rivera");
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Reopen campaign"));
-
-        cut.Markup.ShouldContain("This campaign is closed and read-only.");
-        cut.Markup.ShouldContain($"Closed {new DateTimeOffset(2026, 6, 20, 12, 0, 0, TimeSpan.Zero):MMM d, yyyy} by Coach Rivera");
-        cut.Markup.ShouldContain("Final outcome summary");
-        cut.FindAll("div[aria-label=\"Final outcome summary\"] .fs-4.fw-semibold")
-            .Select(element => element.TextContent.Trim())
-            .ShouldBe(["6", "3", "3", "0"]);
+        await saving;
+        cut.Markup.ShouldNotContain("Campaign closed.");
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
+        _refreshes.ShouldBe(1);
     }
 
     [Fact]
-    public void PanelReopenButtonHiddenForNonAdmin()
+    public async Task DisposedLifecycleAttemptCannotRefreshOrPublishLateSuccessAsync()
     {
-        RegisterServices();
-
-        var cut = RenderPanel(isClubAdmin: false, status: CampaignStatus.Closed);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("This campaign is closed and read-only."));
-
-        cut.FindAll("button").Any(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).ShouldBeFalse();
-    }
-
-    // ── Reopen confirm flow ────────────────────────────────────────────────────
-
-    [Fact]
-    public void PanelReopenConfirmCancelIsNoOp()
-    {
-        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
-        RegisterServices(lifecycleService: lifecycleService);
-
-        var cut = RenderPanel(isClubAdmin: true, status: CampaignStatus.Closed);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Reopen campaign"));
-
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).Click();
-        cut.Markup.ShouldContain("Reopening restores editing without discarding outcomes and is recorded for audit.");
-
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Cancel", StringComparison.Ordinal)).Click();
-        cut.Markup.ShouldNotContain("Reopening restores editing without discarding outcomes and is recorded for audit.");
-        _ = lifecycleService.DidNotReceive().ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public void PanelReopenSuccessFiresReload()
-    {
-        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
-        lifecycleService.ReopenAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
-        var reloaded = false;
-        var onReloadRequested = EventCallback.Factory.Create(this, () => reloaded = true);
-
-        RegisterServices(lifecycleService: lifecycleService);
-
-        var cut = RenderPanel(isClubAdmin: true, status: CampaignStatus.Closed, onReloadRequested: onReloadRequested);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Reopen campaign"));
-
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Reopen campaign", StringComparison.Ordinal)).Click();
-        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm reopen", StringComparison.Ordinal)).Click();
-
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign reopened."));
-        reloaded.ShouldBeTrue();
-    }
-
-    // ── Unresolved-review drill-down ───────────────────────────────────────────
-
-    [Fact]
-    public void PanelReviewUnresolvedReceivesTrueForOutcomesAndFalseOtherwise()
-    {
-        var readiness = CreateReadiness(
-            CreateSummary(undecided: 3),
-            isReady: false,
-            [
-                CreateBlocker(CloseoutBlockerConditions.Outcomes, 3, "Every participant must have a final outcome before closing. Found 3 undecided participation record(s)."),
-                CreateBlocker(CloseoutBlockerConditions.Eligibility, 2, "Every assigned participant must remain eligible for their team. Ineligible assignment ids: 301, 302."),
-                CreateBlocker(CloseoutBlockerConditions.ArchivedTeams, 1, "Assigned participants cannot reference archived teams. Blocked assignment ids: 303.")
-            ]);
-        var received = new List<bool>();
-        var onReviewUnresolved = EventCallback.Factory.Create<bool>(this, value => received.Add(value));
-
-        RegisterServices(readinessResult: new ServiceResult<CampaignCloseoutReadinessDto>(readiness));
-
-        var cut = RenderPanel(onReviewUnresolved: onReviewUnresolved);
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review unresolved"));
-
-        var buttons = cut.FindAll("button")
-            .Where(button => string.Equals(button.TextContent.Trim(), "Review unresolved", StringComparison.Ordinal))
-            .ToList();
-        buttons.Count.ShouldBe(3);
-        foreach (var button in buttons)
+        var pending = new TaskCompletionSource<ServiceResult<Success>>();
+        CancellationToken dispatchedToken = default;
+        _lifecycle.CloseAsync(10, Arg.Any<CancellationToken>()).Returns(call =>
         {
-            button.Click();
-        }
-
-        received.ShouldBe([true, false, false]);
-    }
-
-    // ── Helpers ────────────────────────────────────────────────────────────────
-
-    private void RegisterServices(
-        ICampaignCloseoutQueryService? closeoutQueryService = null,
-        ICampaignLifecycleService? lifecycleService = null,
-        ServiceResult<CampaignCloseoutReadinessDto>? readinessResult = null)
-    {
-        if (closeoutQueryService is null)
-        {
-            closeoutQueryService = Substitute.For<ICampaignCloseoutQueryService>();
-            closeoutQueryService.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(readinessResult ?? new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness())));
-        }
-
-        lifecycleService ??= Substitute.For<ICampaignLifecycleService>();
-
-        Services.AddSingleton(closeoutQueryService);
-        Services.AddSingleton(lifecycleService);
-    }
-
-    private IRenderedComponent<CampaignCloseoutPanel> RenderPanel(
-        bool isClubAdmin = true,
-        CampaignStatus status = CampaignStatus.Active,
-        DateTimeOffset? closedAt = null,
-        string? closedByDisplayName = null,
-        EventCallback? onReloadRequested = null,
-        EventCallback<bool>? onReviewUnresolved = null)
-        => Render<CampaignCloseoutPanel>(parameters =>
-        {
-            parameters.Add(component => component.CampaignId, 10);
-            parameters.Add(component => component.Detail, CreateDetail(status, closedAt, closedByDisplayName));
-            parameters.Add(component => component.IsClubAdmin, isClubAdmin);
-            if (onReloadRequested is not null)
-            {
-                parameters.Add(component => component.OnReloadRequested, onReloadRequested.Value);
-            }
-
-            if (onReviewUnresolved is not null)
-            {
-                parameters.Add(component => component.OnReviewUnresolved, onReviewUnresolved.Value);
-            }
+            dispatchedToken = call.Arg<CancellationToken>();
+            return pending.Task;
         });
+        var cut = Actions();
+        await Button(cut, "Review close").ClickAsync(new());
+        var saving = Button(cut, "Close campaign").ClickAsync(new());
+        dispatchedToken.CanBeCanceled.ShouldBeTrue();
+        await DisposeComponentsAsync();
+        dispatchedToken.IsCancellationRequested.ShouldBeTrue();
+        pending.SetResult(new ServiceResult<Success>(new Success()));
+        await saving;
+        _refreshes.ShouldBe(1);
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
+    }
 
-    private static CampaignDetailResult CreateDetail(
-        CampaignStatus status = CampaignStatus.Active,
-        DateTimeOffset? closedAt = null,
-        string? closedByDisplayName = null) => new()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TransportFailureOrUnrelatedTimeoutDiscardsConfirmationAndRequiresNewReviewAsync(bool timeout)
+    {
+        _lifecycle.CloseAsync(10, Arg.Any<CancellationToken>()).Returns(Task.FromException<ServiceResult<Success>>(
+            timeout ? new OperationCanceledException("Unrelated timeout") : new HttpRequestException("Lost response")));
+        var cut = Actions();
+        await Button(cut, "Review close").ClickAsync(new());
+        await Button(cut, "Close campaign").ClickAsync(new());
+        cut.Markup.ShouldContain("request outcome is unknown");
+        cut.Markup.ShouldNotContain("Lifecycle confirmation");
+        cut.Markup.ShouldNotContain("Campaign closed.");
+        Button(cut, "Review close").HasAttribute("disabled").ShouldBeFalse();
+        _refreshes.ShouldBe(2);
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void NewEvidenceInvalidatesAnOpenConfirmation()
+    {
+        var cut = Actions();
+        Button(cut, "Review close").Click();
+        cut.Render(parameters => parameters.Add(component => component.Evidence, Evidence(ready: false)));
+        cut.Markup.ShouldNotContain("Lifecycle confirmation");
+        _lifecycle.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void UnknownServerResultRefreshesStateWithoutReplayOrFalseSuccess()
+    {
+        _lifecycle.CloseAsync(10, Arg.Any<CancellationToken>()).Returns(new ServiceResult<Success>(ServiceProblem.ServerError("Lost acknowledgement")));
+        var cut = Actions();
+        Button(cut, "Review close").Click();
+        _evidence = Evidence(status: CampaignStatus.Closed);
+        Button(cut, "Close campaign").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("request outcome is unknown"));
+        cut.Markup.ShouldContain("Current state:");
+        cut.Markup.ShouldContain("Closed");
+        cut.Markup.ShouldNotContain("Campaign closed.");
+        cut.Markup.ShouldNotContain("Lifecycle confirmation");
+        _ = _lifecycle.Received(1).CloseAsync(10, Arg.Any<CancellationToken>());
+        _refreshes.ShouldBe(2);
+    }
+
+    [Fact]
+    public void FailedPreflightLeavesActionsUnavailableUntilReadRetry()
+    {
+        var cut = Actions();
+        _evidence = null;
+        Button(cut, "Review close").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Retry lifecycle read"));
+        cut.Markup.ShouldNotContain("Lifecycle confirmation");
+        _lifecycle.ReceivedCalls().ShouldBeEmpty();
+        _evidence = Evidence();
+        Button(cut, "Retry lifecycle read").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review close"));
+    }
+
+    [Fact]
+    public void BoardKeepsZeroNeedsPlacementSeparateFromLocalOutcomesAndExactBlockerLinks()
+    {
+        var evidence = Evidence(ready: false);
+        var queries = Substitute.For<IEffectivePlacementQueryService>();
+        queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(ServiceProblem.ServerError("Roster unavailable")));
+        Services.AddSingleton(queries);
+        var cut = Render<CampaignCloseoutPanel>(p => p.Add(x => x.Detail, evidence.Detail).Add(x => x.Evidence, evidence)
+            .Add(x => x.Owner, "member:club:10").Add(x => x.RefreshEvidence, () => Task.FromResult<CampaignLifecycleEvidence?>(evidence))
+            .Add(x => x.BuildCloseUrl, state => state.Apply("/campaigns/10?tab=close"))
+            .Add(x => x.BuildParticipantUrl, id => $"/campaigns/10?tab=place&placementParticipant={id}"));
+        cut.Markup.ShouldContain("0 need placement");
+        cut.Markup.ShouldContain("No campaign decision 1");
+        cut.Find(".close-blocker a").GetAttribute("href")!.ShouldContain("closeBlocker=outcomes");
+        cut.Markup.ShouldContain("Retry roster");
+        cut.Markup.ShouldContain("Work remains");
+        _ = queries.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Is<GetCampaignEffectivePlacementsInput>(x => x.PageSize == 50 && x.SortBy == "closeout" && x.Eligibility == null), Arg.Any<CancellationToken>());
+    }
+
+    private IRenderedComponent<CampaignLifecycleActions> Actions()
+    {
+        var cut = Render<CampaignLifecycleActions>(p => p.Add(x => x.Owner, "user:club:10:1").Add(x => x.Evidence, _evidence).Add(x => x.RefreshEvidence, RefreshAsync));
+        _renderEvidence = evidence => cut.Render(p => p.Add(x => x.Evidence, evidence));
+        return cut;
+    }
+    private Task<CampaignLifecycleEvidence?> RefreshAsync()
+    {
+        ++_refreshes;
+        _renderEvidence!(_evidence);
+        return Task.FromResult(_evidence);
+    }
+    private static AngleSharp.Dom.IElement Button(IRenderedComponent<CampaignLifecycleActions> cut, string text)
+        => cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), text, StringComparison.Ordinal));
+    private static CampaignLifecycleEvidence Evidence(bool admin = true, bool ready = true, CampaignStatus status = CampaignStatus.Active)
+    {
+        var detail = new CampaignDetailResult { CampaignId = 10, Name = "Summer Tryouts", SeasonId = 20, SeasonName = "2026 season", Status = status, StartDate = new(2026, 6, 1), ParticipantCount = 3 };
+        var readiness = new CampaignCloseoutReadinessDto(10, status, ready, new(1, 1, ready ? 1 : 0, ready ? 0 : 1, 3), ready ? [] : [new(CloseoutBlockerConditions.Outcomes, 1, [301], "Missing outcome")])
         {
-            CampaignId = 10,
-            Name = "Summer Tryouts",
-            Status = status,
-            StartDate = new DateOnly(2026, 6, 15),
-            PlannedEndDate = new DateOnly(2026, 6, 20),
-            ParticipantCount = 12,
-            SeasonId = 5,
-            SeasonName = "Summer 2026",
-            ClosedAt = closedAt,
-            ClosedByUserId = closedAt is null ? null : 101,
-            ClosedByDisplayName = closedByDisplayName
+            Lifecycle = new(admin, admin && ready && status == CampaignStatus.Active, admin && status == CampaignStatus.Closed, status == CampaignStatus.Closed ? CampaignReopenUnavailableReason.None : CampaignReopenUnavailableReason.NotClosed, null),
         };
-
-    private static CampaignCloseoutReadinessDto CreateReadiness(
-        CampaignPlacementSummaryDto? summary = null,
-        bool isReady = true,
-        IReadOnlyList<CampaignCloseoutBlockerDto>? blockers = null)
-        => new(
-            CampaignId: 10,
-            Status: CampaignStatus.Active,
-            IsReady: isReady,
-            Summary: summary ?? CreateSummary(),
-            Blockers: blockers ?? []);
-
-    private static CampaignPlacementSummaryDto CreateSummary(
-        int assigned = 1,
-        int notSelected = 1,
-        int withdrawn = 1,
-        int undecided = 0)
-        => new(
-            AssignedCount: assigned,
-            NotSelectedCount: notSelected,
-            WithdrawnCount: withdrawn,
-            UndecidedCount: undecided,
-            TotalCount: assigned + notSelected + withdrawn + undecided);
-
-    private static CampaignCloseoutBlockerDto CreateBlocker(string condition, int count, string message)
-        => new(condition, count, [301, 302, 303], message);
-
-    private static string Collapse(string text)
-        => Regex.Replace(text, @"\s+", " ", RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
+        return new("user:club:10:1", 1, detail, readiness);
+    }
 }

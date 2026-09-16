@@ -1,0 +1,43 @@
+# Issue 256 independent finish review
+
+Reviewer: fresh `impeccable_finish_reviewer` context, 2026-09-15. Disposition: **ship**, scoped to the captured blocked-member surface. No implementation edits or browser execution by the reviewer.
+
+## persistence
+
+PRODUCT.md, DESIGN.md, surface contract, approved comp/provenance, spec, build state and valid document-top captures were inspected. Captures: 1536×1024, 1440×1192 and 390×1680. No raster plates are owed. FORM `issue-256-approved-plan` is the user-directed Operate surface within the existing world.
+
+The hero comparison remains **71.3%, a failed numerical comparison**. The recorded override quotes the user's explicit scope decision: “Yes — preserve B and the actual Nova shell.” It does not reclassify the score as a pass.
+
+## fidelity
+
+The composition preserves the sea-glass rail, campaign identity beside Route Markers, split readiness board, amber written verdict, global totals, correction links, full-width grouped roster and quiet lifecycle checkpoint. Paired crops show most reported missing elements at different vertical positions; some crops compare a heading to its adjacent field.
+
+| Inventory | Assessment |
+| --- | --- |
+| Rail, review/roster titles, global totals, Needs placement, filter, column headers, assigned group | Match; visible inventory is present. |
+| Back link, campaign heading, Route Markers, typography | Adaptation expressly covered by the preserved actual shell/type. |
+| Metadata | Adaptation: actual metadata replaces acknowledged duplicate season text. |
+| Verdict, blockers, search and paging | Adaptation: real one-blocker state, explicit search submission, actual counts/page and page-local qualification. |
+| Assigned rows, terminal group/rows | Adaptation: 44px native links, actual 50-item paging and bounded scroll replace the shortened illustrative roster. Terminal outcomes use the shared grouping path. |
+| Lifecycle checkpoint | Adaptation: follows evidence; member-specific authority explanation implements the role model. |
+| Material and ground | Match: flat operational boards and semantic fields. Sampled build ground matches DESIGN.md; no physical imitation effects. |
+
+THESIS and FIRST VIEWPORT hold on desktop. STORY preserves verdict → local evidence → correction → deliberate lifecycle action. Mobile stacks review and retains incumbent scrolling conventions. The fixed mobile rail crosses search in the full-page capture; this alone does not demonstrate persistent obstruction.
+
+## ceiling
+
+Reached for the captured member state: restrained boards, route geometry, written status, native links, page-local grouping and separate global totals. Detector findings were empty. No new decorative stripe, shadow, gradient text or glyph-icon substitution was found.
+
+## material_fixes
+
+None supported by the supplied visual evidence. No separate QUALITY BAR card was supplied; DESIGN.md supplied Fieldhouse authority. Workspace integration and lifecycle backing code were not inspected by this visual reviewer. Admin confirmation, recovery, inherited rows and horizontally scrolled mobile columns were uncaptured at review time; subsequent browser assertions/captures are separate evidence, not an expanded review verdict.
+
+## keep
+
+Preserve B, the actual shell/type, written readiness, separate local outcomes, 44px native controls and lifecycle actions after the roster. Validation and review dispositions are authoritative in [the validation record](../../../docs/issue-256-validation.md).
+
+## Supplemental evidence and fix verdict
+
+Final member captures reproduced the approved composition without visible regression. Added settled `admin-confirmation.png` (long names, whole counts and explicit Close/Cancel) and `closed.png` (read-only status, attribution, success, heading focus and Review reopen) were inspected by the same reviewer.
+
+One newly evidenced Ready-state copy defect changed the supplemental disposition to **fix**: “Every participant still needs a campaign outcome” contradicted “Ready to close” and 60 local outcomes. Replaced it with “Every participant requires a campaign-local outcome.” After recapture the reviewer scored this sole finding **resolved**, with no visible regression from the copy change; final fix-verdict disposition **ship**. This verdict scores the listed fix; prior full-review scope and uncaptured-state limitations remain unchanged. The documenter rechecked DESIGN/sidecar and found no documentation change necessary after the copy correction.

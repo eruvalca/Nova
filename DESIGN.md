@@ -197,6 +197,10 @@ Evaluation applies this model as a finder beside a flat player sheet when space 
 
 **The Board, Not Cards Rule.** Group operational work into purposeful fields, directories, and bounded boards instead of repeating generic summary cards.
 
+### Active Close Review Layout
+
+The Active Close review keeps verdict and campaign totals beside blocker links in one flat board, followed by a full-width roster and the shared lifecycle checkpoint. Below `768px`, the review becomes one column and the blocker divider disappears. The roster toolbar wraps; below `576px`, its search form takes the available width while the table scrolls within its own region. Bound the roster vertically so its paging and the following checkpoint remain reachable without traversing the entire page of rows.
+
 ## Elevation & Depth
 
 Application surfaces are flat by default. Foam Mist, Paper White, Sea Glass, one-pixel hairlines, and compact spacing create depth without ambient shadow. Marketing compositions may use crisp, zero-blur offset layers in the palette to suggest stacked field sheets or printed boards; this is structural illustration, not a general card treatment.
@@ -278,6 +282,21 @@ A flat, attributable working record extends the existing board language for eval
 The evaluation composition and locked comp remain in the [evaluation surface brief](.impeccable/surfaces/evaluation.md) and [approved Shared evidence notebook image](.impeccable/mocks/decision/issue-198-shared-notebook.png). The [issue #198 finish record](.impeccable/review/issue-198/finish-review.md) records the independent reviewer's scoped ship verdict: all eight fixes resolved with no material regressions. The user approved sheet-relative Evaluate measurement with a separate preserved-shell review. The [measurement manifest](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/manifest.json) and [report](https://github.com/eruvalca/Nova/blob/b577001319b3302da723d93de60356852b3ba00b/.impeccable/review/issue-198/sheet-relative/report.json) record **76.11% against the unchanged 72% threshold**, using one border-based translation of 113 native pixels, with no resizing or additional regional shift. The original full-frame **73.43%** report and raw regional missing/drift labels remain preserved; the scoped approval does not convert them into an unqualified mechanical pass. The reviewer resolved those regional findings through visible-content inspection and the accepted touch-context and system-typography adaptations. The [separate shell and coverage review](.impeccable/review/issue-198/sheet-relative/shell-review.md) preserves incumbent navigation and campaign context; older history is evidenced in mobile/desktop full-page captures, outside the hero's quantitative coverage. This records visual acceptance for source `381d5019`, not publication or an independent rerun of its behavioral validation.
 
 No new palette, type, spacing, radius, or acceptance-threshold token is introduced by this surface. The observed score is not a design rule. Existing system-display, eyebrow, and marketing-offset guidance is preserved as incumbent authority under the explicit preservation scope; this merge does not extend those devices into new evaluation rules or erase their craft-floor conflicts.
+
+### Active Close Review
+
+- **Readiness:** written verdicts use the existing warning or success subtle field, emphasis text, and border. Whole-campaign totals remain above the roster; blocker rows pair a written condition with a Review players link. Loading and failed reads retain explicit status and retry text.
+- **Roster:** search and blocker controls precede one semantic table. Quiet column headings and Sea Glass group bands separate structure from participant rows. Group counts explicitly describe the current page; campaign-local outcomes remain distinct from subordinate inherited-decision context. Participant and paging links retain `44px` minimum heights and visible teal focus outlines.
+
+**The Scoped Totals Rule.** In Close review, distinguish whole-campaign outcome totals from filtered participant counts and page-local group counts in visible text.
+
+### Shared Lifecycle Checkpoint
+
+A hairline separates lifecycle action from the evidence above it. Current state and the consequence of changing it precede the available action; members see an administrator explanation, and unavailable actions carry a written reason. Eligible review reveals an inline Paper White confirmation containing campaign and season identity, outcome totals, consequences, and separate commit and Cancel controls. Busy, unavailable, and request-result feedback remain written beside the checkpoint; an unavailable read offers a read retry. After a successful change and refreshed evidence, focus returns to the checkpoint heading.
+
+**The Review Before Commit Rule.** The shared lifecycle checkpoint presents refreshed evidence in a separate inline confirmation before exposing the final lifecycle commit.
+
+These additions document the implemented Active Close review and shared checkpoint only. The [Close surface brief](.impeccable/surfaces/issue-256-closeout.md) retains the approved reference and comparison disposition; #257 owns the full Closed record and broader product-document reconciliation. No new palette, type, spacing, radius, or acceptance-threshold token is introduced. Source-defined ready, confirmation, and recovery states are recorded as component behavior, not as a claim of captured visual acceptance. Existing system-display, eyebrow, and marketing-offset guidance remains preserved incumbent authority, not a new Close convention.
 
 ## Do's and Don'ts
 
