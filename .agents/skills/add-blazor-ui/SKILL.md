@@ -16,13 +16,14 @@ placement, render mode, lifecycle, and state ownership for the affected behavior
 For existing UI, inspect its current composition and sibling paths; apply the relevant checklist
 steps without recreating unrelated structure.
 
-Always-on rules live in `.github/instructions/blazor-architecture.instructions.md`. This skill is the
-procedure; that file is the rulebook. Where both apply, they agree — do not contradict either.
+Read [Blazor architecture rules](../../../.github/instructions/blazor-architecture.instructions.md)
+for the constraints. Before implementation, select the affected
+[transitions](../nova-testing/references/transition-evidence.md) and expected visible outcomes.
 
 ## Scoped implementation examples
 
 Examples establish the named pattern only. Inspect their relevant regression before copying
-behavior; the [transition coverage reference](../nova-testing/references/blazor-component-tests.md#transition-coverage)
+behavior; the [component-test reference](../nova-testing/references/blazor-component-tests.md#transition-coverage)
 pairs forms, identity, recovery, and URL patterns with tests. No entire page is a universal template.
 
 | Pattern | File |
@@ -80,25 +81,6 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
    effective interactivity through the actual page/host and call sites, including inherited or
    per-instance render modes. A local attribute assertion covers only a mode owned by that component;
    bUnit callback success does not prove deployed interaction.
-11. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
-    sibling forms/loads/mutations for the same invariant, and record the outcomes actually proved.
-    Apply the separate-review requirement in root `AGENTS.md` before PR creation.
-
-## Self-check before finishing
-
-- Placement and effective render mode follow the [placement rules](references/placement-and-page-vs-component.md)
-  and [render-mode decision](references/render-mode-decision.md), including static form-post binding,
-  the Auto/WebAssembly project limits, and inherited or per-instance interactivity.
-- Nova's cancellable APIs receive `ComponentCancellationToken`; framework calls use their supported
-  overloads, including Identity operations without a token parameter.
-- Data comes from a feature service; no direct `DbContext`. `HttpContext` stays within server-host
-  static SSR request/response behavior, as defined by the architecture rules.
-- No `@code` block; markup and logic are in the `.razor` / `.razor.cs` pair.
-- JS follows the [interop reference](references/js-interop.md): C# interop uses the interactive
-  component lifecycle; browser-native static SSR enhancements retain explicit loading and element
-  cleanup. Both use collocated modules, scoped listeners, and no arbitrary `window.*` globals.
-- If it loads data and is interactive, prerender double-loading is handled and derived state is
-  rebuilt on restore.
-- URL-backed navigation has canonical destinations, a valid anchor fallback, and active-state
-  semantics that follow the current URL rather than visit history.
-- `StateHasChanged` is present only where genuinely required (see the lifecycle reference).
+11. **Record the selected transition evidence** — link named tests and, for applicable design
+    checks, curated desktop/mobile captures in the single validation record. Follow
+    [AGENTS.md](../../../AGENTS.md#completion-and-review) for completion and review triage.

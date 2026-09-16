@@ -17,8 +17,7 @@ relevant reference before editing tests or assessing what their outcomes prove:
 - [Unit SQLite tenancy harness](references/unit-sqlite-harness.md) for `Nova.Unit.Tests`, shared in-memory SQLite, `TenancyTestHarness`, `FakeCurrentUserProvider`, and `ActAs`.
 - [Blazor component tests](references/blazor-component-tests.md) for bUnit + NSubstitute component
   rendering, `EventCallback` assertions, the required render-mode assertion, and persisted-state
-  restore coverage. Its [transition matrix](references/blazor-component-tests.md#transition-coverage)
-  selects evidence for changed forms, identity, async ownership, recovery, URLs, and consumed contracts.
+  restore coverage.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
 - [Browser suite](references/browser-suite.md) for `Nova.Browser.Tests` — Playwright against the
   Aspire-hosted app, the browser fixture and seed, Blazor attachment/navigation pitfalls, and the
@@ -27,86 +26,22 @@ relevant reference before editing tests or assessing what their outcomes prove:
   browser acceptance passes; for committed regression coverage, add a `Nova.Browser.Tests`
   scenario instead.
 
-## Choose the harness
+## Select evidence
 
-| Test shape    | Project                  | Database                                    | Use for                                                                                                                        |
-| ------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Pure policy   | `Nova.Unit.Tests`        | None                                        | Deterministic decisions over constructed immutable facts; no harness, DI, mocks, or logger                                     |
-| Service shell | `Nova.Unit.Tests`        | Shared in-memory SQLite (`EnsureCreated()`) | Query filters, interceptors, authorization, tenancy, effects, and OneOf state                                                  |
-| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via Aspire AppHost       | Migrations, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, and SQL translation |
-| Browser flow  | `Nova.Browser.Tests`     | Real app via the Aspire AppHost + Playwright Chromium | Interactive UI flows crossing the server boundary: multi-user/role behavior, lifecycle conflicts, URL/history state, responsive layouts, keyboard/focus, contrast/touch targets |
+Read [Testing Rules](../../../.github/instructions/testing.instructions.md) for project/harness
+selection and shared conventions. Before adding tests, use the
+[transition evidence guide](references/transition-evidence.md) to select the changed behavior,
+expected outcome, and boundary that proves it. Reuse existing tests where they already prove the
+claim. Keep this small list and its results in the single validation record required by
+[AGENTS.md](../../../AGENTS.md#completion-and-review).
 
-Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
-on the real provider (type mappings, migrations, database constraints, advisory locks,
-transaction races, execution-strategy retries, ambiguous commits, SQL translation, collation).
-Add a browser test when the behavior is a real UI flow that bUnit cannot prove (interactive
-attach, focus/keyboard, history/URL state, real HTTP/Identity, multi-user sessions).
+## Run tests
 
-## Run commands
+[AGENTS.md](../../../AGENTS.md#build--validation) owns the full commands, build order, serialization,
+and opening/intermediate/final PR gates. All three projects use xUnit v4 on MTP; use the explicit
+`--project` form after building, with `--no-build`. Bare positional csproj invocation can fail discovery.
 
-All three test projects use xUnit v4 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
-Build first as directed by `AGENTS.md`, then use `--no-build` with the explicit `--project` form.
-Avoid bare csproj invocation, which has been observed to fail MTP discovery in this repo:
-
-```powershell
-dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build
-dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build
-dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build
-dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class "*Name"
-dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-class "*CampaignParticipantHttpTests"
-```
-
-Do not pass VSTest-only flags (`--nologo`, `--collect`, `--logger`); MTP rejects them.
-Filter by class with `--filter-class "*Name"`.
-The browser suite needs a one-time browser download per machine before its first run:
-`Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`. CI runs build and unit
-tests only; run the integration and browser suites locally before opening a PR, before merge, and on intermediate pushes that affect them. Browser tests locate
-controls by role/label (see `references/browser-suite.md`); when a redesign changes markup, update
-the locators — never weaken the assertion to make it pass.
-
-All three projects run xUnit v4 `ParallelMode.All` via per-project
-`TestAssemblyParallelization.cs`. Unit tests use the Aggressive algorithm at the CPU-thread default;
-they have per-test in-memory SQLite connections and no shared collection fixture. Integration tests
-use Conservative at the CPU-thread default, and browser tests use Conservative capped at 4 threads,
-because both share the AppHost/database. Keep integration/browser data per-test unique and the
-simulated user flow-local: direct `fixture.CurrentUser.X = ...` assignment is parallel-safe
-(AsyncLocal-backed); use `fixture.UseUser(...)` only when restore-on-dispose semantics are needed.
-Never introduce static mutable test state.
-
-Broad test-generation workflows may create `.testagent/` as disposable local scratch state. The
-directory is gitignored and must not be committed; keep durable evidence in the tests and the PR
-validation summary.
-
-## Checklist
-
-1. Pick `Nova.Unit.Tests` unless the behavior is provider-specific.
-2. Follow existing sibling tests for arrangement and naming (`SubjectOutcomeCondition`, with an `Async` suffix for async methods).
-   Select the transitions affected by the change before writing assertions. Read production rules
-   by behavior as well as test path (especially tenancy rules for EF-backed tests).
-3. Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
-4. Test pure policies directly using the real policy and constructed values. Do not mock the policy
-   or use the SQLite harness for deterministic logic; use `[Theory]` for tabular combinations.
-   Assert the domain case by type (for example, `result.Value.ShouldBeOfType<CampaignMayClose>()`)
-   rather than positional `IsTn`/`AsTn` checks.
-5. Use `TestContext.Current.CancellationToken` when an async API accepts a token.
-6. For tenant data, set the simulated user before creating the context, seed through the admin context, then assert through the appropriate tenant/read/admin context.
-7. If production behavior relies on `LifecycleMutationLock`, database constraints, or competing transactions, add a focused PostgreSQL integration test; SQLite cannot verify them.
-8. For retrying mutations, test both a failure before commit and a lost commit acknowledgement.
-   Assert that fault injection ran, retries use fresh context state, and exactly one complete
-   aggregate persisted.
-9. For a probe-then-write uniqueness check, inject a conflicting write through an independent
-   PostgreSQL context after the probe and assert the database violation maps to `Conflict`.
-10. For `CreatedAtRoute`, assert `201`, exact `Location`, and a successful GET after following it.
-11. For strict HTTP clients, test a populated valid body and table-driven malformed/invalid 2xx
-    payloads, including missing required fields, nested nulls, invalid relationships, bounds, and
-    portable ordering. Use the [producer-to-UI contract check](../add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check)
-    to pair those assertions with actual server guarantees and rendered consequences.
-12. Exercise each endpoint and query-validation path independently, using the least-privileged
-    permitted role and exact counts for lifecycle or tenancy exclusions.
-13. When a query contract promises an exact asynchronous relational reader count or no N+1 reader
-    queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory
-    invocations are not reader-command evidence. The interceptor does not observe synchronous,
-    scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
-14. Run the smallest targeted command with `dotnet test --project <project> --no-build --filter-class "*Name"`.
-    Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
-15. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.
+For a targeted run, append `--filter-class "*Name"` to the relevant command. Repeat
+`--filter-class` for multiple classes; do not join them with `|`. Do not pass VSTest-only flags
+(`--nologo`, `--collect`, `--logger`); MTP rejects them. A targeted pass is development feedback,
+not a replacement for the PR-stage suites.

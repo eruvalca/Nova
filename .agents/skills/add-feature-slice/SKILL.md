@@ -18,12 +18,11 @@ Structural examples: Clubs for mutations and
 `Nova\Features\Campaigns\CampaignQueryService.cs` /
 `Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs` for a bounded read-only slice.
 
-## When to use
+## Bound the change
 
-- Add a new feature end to end: shared DTO/input, server service, API endpoint, WASM client service, and tests.
-- Add a tenant-safe, bounded read-only query across the server and WebAssembly boundary.
-- Add a new service contract that must be callable server-side and from WebAssembly.
-- Scaffold a new feature folder by following the Clubs pattern.
+Before implementation, select the affected [transitions and boundaries](../nova-testing/references/transition-evidence.md).
+State the expected outcome and where it must be proved; reuse that short list in the validation
+record. A read-only slice does not acquire mutation/recovery work from this checklist.
 
 ## Ordered checklist
 
@@ -47,8 +46,7 @@ Structural examples: Clubs for mutations and
    placement, the render-mode decision, lifecycle/persisted state, callbacks, and form wiring. Do not
    duplicate that skill's details here.
 8. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
-9. **Complete the behavior across tiers** — use the
-   [contract check](references/wasm-client.md#producer-to-ui-contract-check) and applicable
-   [transition coverage](../nova-testing/references/blazor-component-tests.md#transition-coverage).
-   Inspect sibling implementations for the fixed invariant and verify each affected path. Record
-   behavioral evidence and apply root `AGENTS.md`'s separate-review requirement before PR creation.
+9. **Verify the selected behavior across tiers** — use the
+   [contract check](references/wasm-client.md#producer-to-ui-contract-check) for changed responses.
+   Link the selected transition evidence in the single validation record. Completion, sibling-path
+   review, review triage, and test gates are defined in [AGENTS.md](../../../AGENTS.md#completion-and-review).

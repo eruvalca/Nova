@@ -15,14 +15,9 @@ description: "Testing rules: project and harness selection, HTTP/UI boundary cov
   match their globs. Tests using EF, a context factory, or `TenancyTestHarness` must read
   `ef-core-tenancy.instructions.md`; database-free bUnit and pure-policy tests do not need it.
   HTTP/serialization tests need API rules; component tests need the applicable Blazor rules.
-- Select relevant transitions from
-  `.agents/skills/nova-testing/references/blazor-component-tests.md#transition-coverage` when
-  modifying forms, async UI, identity/permissions, recovery, URL state, or consumed HTTP contracts.
-  Verify the observable outcome the test claims. Calling a callback directly does not prove form
-  resubmission, and showing an initial error does not prove a corrected retry succeeds.
-- Use controlled delayed tasks to exercise ordering; assert obsolete successes, failures, and
-  cleanup cannot affect newer work. Demonstrate a regression fails before the fix when practical,
-  and record any limitation rather than claiming unobserved behavior.
+- Use the [transition evidence guide](../../.agents/skills/nova-testing/references/transition-evidence.md)
+  for the changed behavior. Keep its results in the single validation record defined by
+  [AGENTS.md](../../AGENTS.md#completion-and-review); the recipes provide boundary-specific mechanics.
 
 ## Which project
 
@@ -35,26 +30,18 @@ All three test projects use **xUnit v4 on Microsoft.Testing.Platform (MTP)** wit
 | Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost   | Production migrations, mappings, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, filter SQL translation |
 | Browser flow  | `Nova.Browser.Tests`     | Real app via the Aspire AppHost + Playwright Chromium | Interactive UI flows that cross the server boundary: multi-user/role behavior, lifecycle conflicts, URL/history state, responsive layouts, keyboard/focus, and contrast/touch-target checks |
 
-**Default new tests to `Nova.Unit.Tests`.** Add an integration test only when behavior depends on the
-real provider (type mappings, migrations, constraints, advisory locks, transaction races,
-execution-strategy retries, ambiguous commits, SQL translation, collation). SQLite will not catch
+**Default new tests to `Nova.Unit.Tests`.** Use integration tests for real HTTP-boundary coverage or
+behavior that depends on the provider (type mappings, migrations, constraints, advisory locks,
+transaction races, execution-strategy retries, ambiguous commits, SQL translation, collation). SQLite will not catch
 `timestamptz` offsets, identity-column semantics, collation, advisory-lock behavior, provider retry
 semantics, or SQL-translation limits.
 
-## Run commands
+## Execution
 
-- Build first as directed by `AGENTS.md`, then use the explicit MTP form: `dotnet test --project <project> --no-build`.
-- Prefer the project path form that includes `--project`, for example:
-    - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`
-    - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-class "*CampaignParticipantHttpTests"`
-    - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`
-- Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v4/MTP setup, so avoid it in repo instructions and scripts.
-- **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
-- Filter by class with `--filter-class "*Name"`.
-- **CI runs build and unit tests only.** Run the integration and browser suites locally before opening a PR and again before merge; on intermediate pushes, re-run them only when the change affects the provider/HTTP boundary or interactive UI. A green CI run is not proof the full suite is green.
-- Broad test-generation workflows may create `.testagent/` as temporary local state. The directory is
-  gitignored and must not be committed; durable evidence belongs in the tests and the PR validation
-  summary.
+[AGENTS.md](../../AGENTS.md#build--validation) owns build order, machine-wide suite serialization,
+commands, and PR gates. The [nova-testing recipe](../../.agents/skills/nova-testing/SKILL.md#run-tests)
+owns MTP filtering syntax. Broad test-generation workflows may create gitignored `.testagent/`
+scratch state; it is not durable evidence.
 
 ## Local Aspire workflow
 
@@ -138,9 +125,6 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - For interactive pages with event handlers, include a render-mode assertion or a focused Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as static SSR.
 - Build culture-sensitive expected display strings (dates, numbers, currencies) with the same explicit culture the component uses. Do not hard-code an English rendering unless the product contract fixes that culture.
 - bunit and NSubstitute are available in the unit and integration test projects for component/service tests; the browser suite does not use them.
-- xUnit v4 additions available for future tests: `Assert.All`/`Assert.AllAsync(strict: true)` (fail on
-  empty collections), per-test `Assert.OverrideMax*` message-formatting overrides, and fixture
-  lifecycle notification interfaces (`INotifyTestCollectionLifecycle` and friends).
 - **Parallel execution**: all three test projects run `ParallelMode.All` via per-project
   `TestAssemblyParallelization.cs`. Unit uses `ParallelAlgorithm.Aggressive` at the CPU-thread
   default; integration and browser use `ParallelAlgorithm.Conservative` (integration at the
@@ -154,9 +138,8 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
   - **Do NOT switch integration or browser to Aggressive.** Every test in those suites seeds the
     shared PostgreSQL via a DbContext before its first await, and Aggressive *starts* every test
     case up front, so the shared connection pool is exhausted regardless of the `MaxThreads` cap
-    (`Npgsql.PostgresException 53300 "sorry, too many clients already"`; ~63 integration / ~12-22
-    browser failures). Conservative bounds how many tests START, keeping concurrent seeding within
-    the pool. Unit has no database and is safe under Aggressive (in-memory SQLite).
+    (`Npgsql.PostgresException 53300 "sorry, too many clients already"`). Conservative bounds how many
+    tests start. Unit tests use per-test in-memory SQLite connections and can use Aggressive.
 - Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related

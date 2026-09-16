@@ -18,7 +18,7 @@ Canonical files:
 - Use endpoint route constants/builders from the shared `{Feature}Endpoints` type so client and server routes stay synchronized.
 - Validate shared input before calling a URL builder that normalizes or omits invalid values; invalid
   caller input must not silently become a default request.
-- Use `PostAsJsonAsync` / `GetAsync` and pass the `CancellationToken`.
+- Use the endpoint's JSON or multipart encoding and pass the `CancellationToken`.
 - On non-success status codes, call `response.ToServiceProblemAsync(cancellationToken)`.
 - On success, use `ReadRequiredJsonAsync` to deserialize and validate the required body. A
   successfully deserialized empty collection (`[]`) is valid when the contract permits it. The
@@ -67,58 +67,9 @@ singleton, and capped client bounds, and
 `CampaignEntryTests.CampaignEntryUsesCountAwareReadinessLabels` for rendered count wording.
 These tests prove their named contracts; add the missing boundary evidence for the current change.
 
-## Canonical example
+## Implementation references
 
-```csharp
-using System.Net.Http.Json;
-using Nova.SharedKernel.Features.Clubs;
-using Nova.SharedKernel.Results;
-
-namespace Nova.Client.Services;
-
-/// <summary>
-/// WebAssembly client implementation of <see cref="IClubService"/> that calls the server's
-/// minimal API endpoints over HTTP.
-/// </summary>
-/// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubService(HttpClient http) : IClubService
-{
-    /// <inheritdoc />
-    public async Task<ServiceResult<ClubDto>> CreateClubAsync(
-        CreateClubInput input,
-        CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PostAsJsonAsync(ClubEndpoints.Create, input, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return await response.ToServiceProblemAsync(cancellationToken);
-        }
-
-        return await response.Content.ReadRequiredJsonAsync<ClubDto>(
-            "The server returned an invalid club response.",
-            club => club.ClubId > 0 && !string.IsNullOrWhiteSpace(club.Name),
-            cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<ServiceResult<IReadOnlyList<ClubDto>>> SearchClubsAsync(
-        string? query,
-        CancellationToken cancellationToken = default)
-    {
-        var url = ClubEndpoints.SearchUrl(query);
-        using var response = await http.GetAsync(url, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return await response.ToServiceProblemAsync(cancellationToken);
-        }
-
-        var result = await response.Content.ReadRequiredJsonAsync<List<ClubDto>>(
-            "The server returned an invalid club list response.",
-            clubs => clubs.All(club => club is not null && club.ClubId > 0),
-            cancellationToken);
-        return result.Match<ServiceResult<IReadOnlyList<ClubDto>>>(
-            clubs => clubs.AsReadOnly(),
-            problem => problem);
-    }
-}
-```
+Use the current files above for JSON and bounded-query patterns. For uploads, inspect
+`Nova.Client/Services/Players/HttpPlayerImportService.cs` or
+`Nova.Client/Services/Clubs/HttpClubService.cs`: club creation uses multipart data for the required
+crest. Copy only the relevant transport pattern and validate the current feature's complete contract.

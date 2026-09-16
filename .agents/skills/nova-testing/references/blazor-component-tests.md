@@ -76,21 +76,9 @@ instead of the backing-field value. Use
 
 ## Transition coverage
 
-Select the rows affected by the changed behavior; do not add unrelated cases to every edit. Follow
-the implementation rules in the Blazor lifecycle/form references rather than copying an entire
-page. Test through the boundary the claim depends on: a rendered form for resubmission, real HTTP
-for serialization, and the browser for composed DOM/focus. Directly calling a submit callback or
-seeing the first validation error does not prove a corrected retry succeeds.
-
-| Changed behavior | Required evidence when applicable |
-| --- | --- |
-| Server validation | Submit through the form → contextual error → edit → unchanged parent rerender → successful second submission with corrected payload. |
-| Identity/permissions | Initial identity, same-role club change, role-only change, and the first clubless notification. Clear old rows, derived state, panels, confirmation, and feedback before replacement work finishes. |
-| Async ownership | Complete an old success, failure, and cleanup after newer work or disposal. They cannot publish data/feedback, navigate, or clear the newer operation's busy state. |
-| Recoverable mutations | Failed storage on every dispatch path prevents mutation; uncertain result → retained ID/payload → reload/replay; partial cleanup cannot conceal committed effects or authorize stale context. |
-| URL-backed state | Rendered state and query agree after reset, permission change, reload/history, and return navigation. |
-| HTTP contracts | Producer guarantees, required JSON fields, nested relationships/bounds, client validation, and rendered consequences agree; use the [contract check](../../add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check). |
-| Composed UI | Semantics, focus, and the design system's applicable touch targets hold in the actual browser DOM, including nested forms and responsive tables. |
+Use the shared [transition evidence guide](transition-evidence.md) to select relevant cases and
+record their outcomes. The examples below show bUnit arrangements for those cases; they do not
+make every transition mandatory for every edit.
 
 Examples prove specific invariants, not complete pages:
 
@@ -213,7 +201,7 @@ cancellation and a recoverable transport failure.
 
 ## Testing authentication changes
 
-Use the identity and ownership cases in the transition matrix. Seed a persisted error with its
+Use the identity and ownership cases in the [transition evidence guide](transition-evidence.md). Seed a persisted error with its
 original club id as well as a successful snapshot; a null payload still has tenant ownership.
 `ClubOverviewComponentTests.RenderInvalidatesPersistedStateWhenClubMembershipChanges` is the
 scoped example. Browser focus and DOM replacement behavior belongs in the
