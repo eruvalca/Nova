@@ -32,6 +32,21 @@ four maintained agents and hook installers, with only explicit provider substitu
 Hook tests use the existing Node runtime and temporary fixtures. Neither command proves
 that an agent loaded the files or that a user's tool trusted the hooks.
 
+## Stacked PRs
+
+The shared `nova-stacked-prs` recipe in `.agents/skills/` adds Nova's ownership,
+publication, validation, and review constraints. Upstream `gh-stack` is a
+user-installed prerequisite, not a repository copy. Read the Nova recipe even
+when invoking `gh-stack` directly. Machine setup, reviewed versions, examples,
+and the first experiment are in [the stacked-PR runbook](stacked-prs.md).
+
+Start a fresh session and use the discovery checks below from both the root and
+a subdirectory. Verify the source path and version actually read for each skill.
+A Codex personal installation does not establish availability in Copilot; use
+the runbook's user-scope setup for whichever agent lacks it. Reuse existing
+installations rather than overwriting them or adding a project copy. No new
+provider-specific repository copy or hook is needed.
+
 ## Build diagnostics and limits
 
 Normal `dotnet build Nova.slnx` uses [Directory.Build.props](../Directory.Build.props) to enable
@@ -63,7 +78,7 @@ a representative subdirectory; do not assume a root-only check covers nested lau
    exercises. Permission to run a tool in a disposable copy does not prove its instructions
    or hooks were trusted; do not grant or persist trust merely to make a probe pass.
 2. In Copilot CLI, inspect /env, /instructions, /skills list, /skills info, and /agent. The
-   non-interactive inventory command below also checks repository discovery. Path-specific
+   non-interactive inventory commands below also check repository discovery. Path-specific
    instructions may be loaded only when a matching file is worked on.
 3. In Codex, ask it to identify active instruction sources, inspect /skills and available
    custom-agent roles, and verify the sources it actually reads when working on a named file.
@@ -75,8 +90,12 @@ a representative subdirectory; do not assume a root-only check covers nested lau
    do not silently edit global skills, model preferences, or personal configuration.
 
 ~~~powershell
-copilot plugins list --kind skill --kind instruction --scope repository --json
+copilot skill list --json
+copilot instruction list --json
 ~~~
+
+These commands were verified with Copilot CLI 1.0.84-5. Check the installed CLI's
+help when flags change; plugin inventory alone does not establish skill discovery.
 
 Use existing task recipes for both additions and modifications. Keep shared references as
 ordinary Markdown links plus explicit read instructions. Do not rely on provider-specific

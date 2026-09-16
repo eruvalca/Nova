@@ -116,6 +116,7 @@ change does not by itself require a visual-design workflow.
 | Tests and behavioral verification                         | `testing.instructions.md`                                      | `nova-testing`; `aspire-playwright-validation` for one-off browser acceptance |
 | Telemetry and correlation                                 | `observability.instructions.md`                                | Relevant feature recipe                                                       |
 | Epic issue roadmaps (GitHub issues)                       | — (repo-wide rule in Repository decisions)                     | `sync-epic-roadmap`                                                           |
+| Stacked PR planning, navigation, publication, and review | — (Delivery shape below)                                      | `nova-stacked-prs` (uses the user-installed `gh-stack` skill)                   |
 
 Before implementation or review recommendations, read the selected recipe's `SKILL.md` and its
 applicable references, including for existing behavior. Record the sources actually read with
@@ -124,6 +125,15 @@ were applied. Generic Aspire, .NET inspection, and Playwright recipes also live 
 `.agents/skills/`; choose them by the actual operation.
 
 ## Completion and review
+
+### Delivery shape
+
+Use one PR for a coherent change. For substantial work with independently valid,
+dependent review boundaries, consider a short stack; keep unrelated work separate.
+For any stack operation, including an existing checkout or direct `gh-stack` invocation,
+read [.agents/skills/nova-stacked-prs/SKILL.md](.agents/skills/nova-stacked-prs/SKILL.md).
+Its Nova publishing rules apply alongside the upstream skill. Stacking preserves the
+validation and review gates below for every layer.
 
 ### One validation record
 

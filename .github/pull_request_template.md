@@ -2,6 +2,11 @@
 
 <!-- Describe the concrete problem and resulting behavior. Link the issue. -->
 
+<!-- For a stack: state this layer's purpose, parent PR/base branch, and work still
+     needed for the issue. Link the native stack once available. Use Refs #N for
+     partial delivery; reserve issue closure for completed acceptance criteria.
+     Link this layer's section of the validation record below. Omit for one PR. -->
+
 ## Validation
 
 - Validation record: <!-- Link the single durable record required by AGENTS.md.
