@@ -1029,12 +1029,14 @@ public partial class Teams(
 
         var roleChanged = canManageTeams != _canManageTeams;
         var clubChanged = !_identityApplied || clubId != _clubId;
+        var discardReturnContext = (_identityApplied && (clubChanged || roleChanged))
+            || (Initialized && PersistedClubId != clubId);
 
         _identityApplied = true;
         _canManageTeams = canManageTeams;
         _clubId = clubId;
 
-        if (clubChanged || roleChanged)
+        if (discardReturnContext)
         {
             ReturnToDraft = null;
             var uri = navigationManager.GetUriWithQueryParameter("returnToDraft", (string?)null);

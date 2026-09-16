@@ -45,6 +45,10 @@ internal static class PlacementQueryUrls
             Add("participantId", discovery.ParticipantId?.ToString(CultureInfo.InvariantCulture));
             Add("sortBy", discovery.SortBy);
             Add("sortDirection", discovery.SortDirection);
+            if (input is GetCampaignEffectivePlacementsInput working)
+            {
+                Add("closeoutBlocker", NormalizeCloseoutBlocker(working.CloseoutBlocker));
+            }
         }
         return path + "?" + string.Join('&', values);
 
@@ -55,5 +59,14 @@ internal static class PlacementQueryUrls
                 values.Add(name + "=" + Uri.EscapeDataString(value));
             }
         }
+    }
+
+    private static string? NormalizeCloseoutBlocker(string? value)
+    {
+        var token = value?.Trim();
+        if (string.Equals(token, CloseoutBlockerConditions.Outcomes, StringComparison.OrdinalIgnoreCase)) { return CloseoutBlockerConditions.Outcomes; }
+        if (string.Equals(token, CloseoutBlockerConditions.Eligibility, StringComparison.OrdinalIgnoreCase)) { return CloseoutBlockerConditions.Eligibility; }
+        if (string.Equals(token, CloseoutBlockerConditions.ArchivedTeams, StringComparison.OrdinalIgnoreCase)) { return CloseoutBlockerConditions.ArchivedTeams; }
+        return null;
     }
 }

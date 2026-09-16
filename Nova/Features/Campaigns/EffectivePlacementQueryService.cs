@@ -116,6 +116,7 @@ internal sealed partial class EffectivePlacementQueryService(
         var playerFilter = FilterDiscovery(db, db.PlayerCampaignAssignments.Where(a => a.ClubId == clubId
             && a.Player.ClubId == clubId && a.CampaignId == input.CampaignId), input);
         playerFilter = FilterPlayers(db, playerFilter, input.GraduationYear, null, tryoutSearch: true);
+        playerFilter = FilterCloseoutBlocker(playerFilter, input.CloseoutBlocker);
         // Apply local discovery before the effective-decision join. An EXISTS over the same
         // participation root duplicates its tenant/navigation joins in every count and page.
         var pageBeforeEnrichment = input.TeamId is null && input.Eligibility is null

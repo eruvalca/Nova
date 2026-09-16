@@ -78,6 +78,8 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
         /// Success converts to a 204 no-content response; not-found, forbidden, close-blocked, and
         /// conflict cases become the matching ProblemDetails responses with their service-provided
         /// details and, for close-blocked, the condition-keyed error groups.
+        /// An unknown commit acknowledgement maps to HTTP 500; callers must refresh state and
+        /// require a new deliberate confirmation instead of automatically replaying the mutation.
         /// </summary>
         /// <returns>The HTTP response for the campaign-close result.</returns>
         public IResult ToHttpResult()
@@ -87,16 +89,19 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 _ => ServiceProblem.NotFound().ToHttpResult(),
                 forbidden => ServiceProblem.Forbidden(forbidden.Detail).ToHttpResult(),
                 blocked => ServiceProblem.Conflict(blocked.Detail, blocked.Errors).ToHttpResult(),
-                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult());
+                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult(),
+                _ => ServiceProblem.ServerError("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.").ToHttpResult());
         }
     }
 
-    extension(OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result)
+    extension(OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result)
     {
         /// <summary>
         /// Converts a campaign-reopen result to an ASP.NET Core response.
         /// Success converts to a 204 no-content response; not-found, forbidden, and conflict cases
         /// become the matching ProblemDetails responses with their service-provided details.
+        /// An unknown commit acknowledgement maps to HTTP 500; callers must refresh state and
+        /// require a new deliberate confirmation instead of automatically replaying the mutation.
         /// </summary>
         /// <returns>The HTTP response for the campaign-reopen result.</returns>
         public IResult ToHttpResult()
@@ -105,7 +110,8 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 _ => TypedResults.NoContent(),
                 _ => ServiceProblem.NotFound().ToHttpResult(),
                 forbidden => ServiceProblem.Forbidden(forbidden.Detail).ToHttpResult(),
-                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult());
+                conflict => ServiceProblem.Conflict(conflict.Detail).ToHttpResult(),
+                _ => ServiceProblem.ServerError("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.").ToHttpResult());
         }
     }
 

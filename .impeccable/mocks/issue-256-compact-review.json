@@ -1,0 +1,17 @@
+{
+  "prompt": "Design a precise high-fidelity desktop browser UI mockup, 1536 by 1024 CSS pixels, DPR1, for Nova campaign Close, using attached actual campaign-shell screenshot as reference. Preserve the 240px sea-glass left navigation rail, brand and complete labels Dashboard, Club, Campaigns, Players, Teams, Manage, Logout. Preserve campaign header and horizontal native Route Markers Roster / Participant field, Evaluate / Observations, Place / Assignments, Close / Readiness; Close selected in teal. Replace synthetic long campaign title with \"Fall tryouts\", season \"2026 season\", Active, Starts Sep 1, 2026, 60 participants. Preserve established Fieldhouse Wayfinding: system sans, compact operational typography, white flat boards with hairline borders and 6px corners, no shadows, teal #0E7C7B primary, paper #F4F8F3 ground, sea-glass rail #DDF2EC, ink #142F2E, amber attention. NEW CONTENT under header: one broad final roster board. Option B: a compact two-column upper review field: written readiness verdict and inline outcome counts on the left, two blocker correction links stacked on the right. Beneath that upper field, a single broad full-width grouped roster table. Lifecycle checkpoint is a quiet text-only footer below the roster. Verdict \"Work remains\", \"60 participants · 56 local outcomes\". Outcome line \"Assigned 48 · Not selected 6 · Withdrawn 2 · No campaign decision 4\". Blocker rows \"4 missing campaign outcomes\" and \"2 assignments use an archived team\", each with \"Review players\" text link. Distinguish separate \"0 need placement\" text and explanation \"Every participant still needs a campaign outcome.\" Search \"Name or tryout number\". Roster section label \"Campaign roster\", \"Showing 1–50 of 60 · Groups on this page\". Table column headers Player, Tryout, Graduation, Campaign outcome, Team. Group \"U16 North\"; rows Maya Patel / 12 / 2028 / Assigned / U16 North; Jordan Lee / 18 / 2028 / Assigned / U16 North; Avery Chen / 26 / 2029 / Assigned / U16 North. Group \"Not selected\"; rows Sam Rivera / 31 / 2028 / Not selected / —. Bottom lifecycle checkpoint \"Closing makes evaluation and placement read-only.\" \"Resolve the blockers to review closing.\" Do NOT render any close button while blocked. Show only the instruction text. No Filters button; search plus a labeled blocker select is enough. No charts, illustrations, initials-only people, card-grid totals or invented product features. Keep the complete shell and the top of roster within the first 1024px. This is a UI design reference with realistic readable text, no external device or browser frame.",
+  "approved": true,
+  "reference": ".impeccable/review/issue-255/captures/desktop.png",
+  "composition": "compact-review",
+  "intendedViewport": {
+    "width": 1536,
+    "height": 1024,
+    "devicePixelRatio": 1
+  },
+  "generatedSize": {
+    "width": 1536,
+    "height": 1024
+  },
+  "approval": "User selected B — Compact review above roster (recommended).",
+  "compositionCheck": "Complete campaign shell and Route Markers depicted. Duplicate season wording is a generated defect; existing shell typography and density remain authoritative."
+}

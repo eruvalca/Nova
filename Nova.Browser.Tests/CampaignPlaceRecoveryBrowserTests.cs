@@ -123,6 +123,8 @@ public sealed partial class CampaignPlaceBrowserTests
         finally { await page.UnrouteAsync(mutationUrl); }
         await page.ReloadAsync();
         var recover = page.GetByRole(AriaRole.Button, new() { Name = "Recover save", Exact = true });
+        // A full reload discards attachment proof; wait for the interactive session-storage read.
+        await InteractionHelpers.ActUntilAsync(page, () => Task.CompletedTask, () => IsEnabledAsync(recover));
         await Expect(recover).ToBeEnabledAsync();
         var replayed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         await page.RouteAsync(mutationUrl, async route => { replayed.TrySetResult(route.Request.PostData!); await route.ContinueAsync(); });

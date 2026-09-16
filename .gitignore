@@ -437,3 +437,22 @@ Nova/wwwroot/css/
 # Curated issue #254 Place confirmation/recovery evidence.
 !.impeccable/review/issue-254/captures/*.png
 !.impeccable/review/issue-254/captures/*.json
+
+# Issue #256 approved direction and representative validation evidence.
+.impeccable/build-before-256/
+!.impeccable/mocks/issue-256-compact-review.png
+!.impeccable/mocks/issue-256-compact-review.json
+!.impeccable/mocks/issue-256-compact-review.prompt.txt
+!.impeccable/review/issue-256/captures/hero-repro.png
+!.impeccable/review/issue-256/captures/desktop.png
+!.impeccable/review/issue-256/captures/mobile.png
+!.impeccable/review/issue-256/captures/admin-confirmation.png
+!.impeccable/review/issue-256/captures/closed.png
+!.impeccable/review/issue-256/captures/comparison.png
+!.impeccable/review/issue-256/captures/phone-return.png
+!.impeccable/review/issue-256/captures/phone-empty.png
+!.impeccable/review/issue-256/captures/phone-roster-error.png
+!.impeccable/review/issue-256/captures/phone-stale-page.png
+!.impeccable/review/issue-256/capture-manifest.json
+!.impeccable/review/issue-256/diff/final/report.json
+!.impeccable/review/issue-256/captures/phone-native-filters.png

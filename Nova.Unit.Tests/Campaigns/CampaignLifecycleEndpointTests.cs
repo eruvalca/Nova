@@ -26,6 +26,25 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignLifecycleEndpointTests
 {
+    /// <summary>Both unknown-commit variants preserve uncertainty in the HTTP status, detail and trace.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnknownCommitMapsToServerProblemWithTraceAsync(bool reopen)
+    {
+        using var activity = new System.Diagnostics.Activity("lifecycle-unknown");
+        activity.SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C);
+        activity.Start();
+        CampaignCloseResult closeResult = new LifecycleOutcomeUnknown();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> reopenResult = new LifecycleOutcomeUnknown();
+        var (statusCode, body) = await ExecuteAsync(reopen ? reopenResult.ToHttpResult() : closeResult.ToHttpResult());
+        statusCode.ShouldBe(StatusCodes.Status500InternalServerError);
+        using var document = JsonDocument.Parse(body);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe(500);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe("The lifecycle request outcome is unknown. Refresh the campaign before taking another action.");
+        document.RootElement.GetProperty("traceId").GetString().ShouldBe(activity.TraceId.ToString());
+    }
+
     /// <summary>
     /// Verifies every lifecycle route is registered with club-administrator authorization,
     /// disabled antiforgery, the intended verb, and the shared route name.
@@ -172,7 +191,7 @@ public sealed class CampaignLifecycleEndpointTests
     [Fact]
     public async Task ReopenToHttpResultReturnsNoContentForSuccessAsync()
     {
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new Success();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result = new Success();
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
@@ -186,7 +205,7 @@ public sealed class CampaignLifecycleEndpointTests
     [Fact]
     public async Task ReopenToHttpResultReturnsNotFoundWithoutDisclosureAsync()
     {
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new NotFound();
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result = new NotFound();
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
@@ -202,7 +221,7 @@ public sealed class CampaignLifecycleEndpointTests
     public async Task ReopenToHttpResultReturnsForbiddenWithServiceDetailAsync()
     {
         const string Detail = "You must be a club administrator to reopen a campaign.";
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result =
             new LifecycleForbidden(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
@@ -219,7 +238,7 @@ public sealed class CampaignLifecycleEndpointTests
     public async Task ReopenToHttpResultReturnsConflictWithServiceDetailAsync()
     {
         const string Detail = "The campaign is already active.";
-        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
+        OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, LifecycleOutcomeUnknown> result =
             new LifecycleConflict(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());

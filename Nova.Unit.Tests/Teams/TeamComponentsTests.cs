@@ -20,6 +20,27 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Retains the incoming Draft return when the first identity notification overtakes startup.</summary>
+    [Fact]
+    public async Task TeamsInitialIdentityNotificationPreservesIncomingDraftReturnAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/club/teams?returnToDraft=10&search=Blue");
+        var cut = Render<TeamsPage>();
+        var identity = new AuthenticationState(CreatePrincipal(true, false));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(identity)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("U16 Blue"));
+        navigation.Uri.ShouldContain("returnToDraft=10");
+        cut.Markup.ShouldContain("Return to draft");
+        await cut.InvokeAsync(() => pending.SetResult(identity));
+        navigation.Uri.ShouldContain("returnToDraft=10");
+        cut.Markup.ShouldContain("Return to draft");
+    }
+
     /// <summary>Verifies Draft return context is discarded on club or role changes while directory filters survive.</summary>
     /// <param name="clubChange">Whether authority changes by switching clubs instead of revoking the administrator role.</param>
     [Theory(IncludeTestCaseIndex = true)]

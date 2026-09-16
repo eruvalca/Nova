@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-10T19:09:12.525Z",
+  "generatedAt": "2026-09-16T04:02:36.273Z",
   "title": "Design System: Nova",
   "extensions": {
     "colorMeta": {
@@ -192,7 +192,9 @@
       { "name": "The Flat Operations Rule", "body": "Working boards, forms, directories, tables, and navigation rest without ambient shadows.", "section": "elevation" },
       { "name": "The Printed Layer Exception", "body": "Crisp offset layers belong only to marketing compositions that depict physical sheets or signs.", "section": "elevation" },
       { "name": "The Functional Circle Rule", "body": "Use circles only for people, status, route markers, or the brand dot—never as decoration.", "section": "shapes" },
-      { "name": "The Precise Edge Rule", "body": "Borders are one-pixel hairlines; the active navigation rail may grow to `0.25rem` because it carries route state.", "section": "shapes" }
+      { "name": "The Precise Edge Rule", "body": "Borders are one-pixel hairlines; the active navigation rail may grow to `0.25rem` because it carries route state.", "section": "shapes" },
+      { "name": "The Scoped Totals Rule", "body": "In Close review, distinguish whole-campaign outcome totals from filtered participant counts and page-local group counts in visible text.", "section": "components" },
+      { "name": "The Review Before Commit Rule", "body": "The shared lifecycle checkpoint presents refreshed evidence in a separate inline confirmation before exposing the final lifecycle commit.", "section": "components" }
     ],
     "dos": [
       "Do use Wayfinding Teal for the primary action, active route, or deliberate orientation cue.",

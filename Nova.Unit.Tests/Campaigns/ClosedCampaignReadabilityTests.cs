@@ -180,7 +180,6 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
         => new(
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _harness.CurrentUser,
-            CreatePlacementQueryService(),
             NullLogger<CampaignCloseoutQueryService>.Instance);
 
     /// <summary>Creates the player detail service over the shared harness.</summary>

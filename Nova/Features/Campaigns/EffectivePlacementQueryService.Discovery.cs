@@ -8,6 +8,18 @@ namespace Nova.Features.Campaigns;
 
 internal sealed partial class EffectivePlacementQueryService
 {
+    // These local predicates mirror CampaignClosurePolicy; parity tests protect every blocker.
+    private static IQueryable<PlayerCampaignAssignmentEntity> FilterCloseoutBlocker(
+        IQueryable<PlayerCampaignAssignmentEntity> query, string? condition) => condition?.ToUpperInvariant() switch
+        {
+            "OUTCOMES" => query.Where(a => a.PlacementOutcome == PlacementOutcome.Undecided),
+            "ELIGIBILITY" => query.Where(a => a.PlacementOutcome == PlacementOutcome.Assigned
+                && (a.TeamId == null || a.Team == null || a.Player.GraduationYear < a.Team.GraduationYear)),
+            "ARCHIVEDTEAMS" => query.Where(a => a.PlacementOutcome == PlacementOutcome.Assigned
+                && a.Team != null && a.Team.LifecycleStatus == LifecycleStatus.Archived),
+            _ => query,
+        };
+
     private static async Task<bool> DiscoveryIdentifiersExistAsync(NovaReadDbContext db, long clubId,
         CampaignRosterDiscoveryInput input, CancellationToken token)
     {
@@ -68,6 +80,14 @@ internal sealed partial class EffectivePlacementQueryService
 
     private static IOrderedQueryable<PlayerCampaignAssignmentEntity> OrderAssignments(IQueryable<PlayerCampaignAssignmentEntity> query, CampaignRosterDiscoveryInput input)
     {
+        if (string.Equals(input.SortBy, "closeout", StringComparison.OrdinalIgnoreCase))
+        {
+            return query.OrderBy(a => a.PlacementOutcome == PlacementOutcome.Undecided)
+                .ThenBy(a => a.PlacementOutcome == PlacementOutcome.Withdrawn)
+                .ThenBy(a => a.PlacementOutcome == PlacementOutcome.NotSelected)
+                .ThenBy(a => a.Team == null ? string.Empty : a.Team.Name).ThenBy(a => a.TeamId)
+                .ThenBy(a => a.Player.LastName).ThenBy(a => a.Player.FirstName).ThenBy(a => a.PlayerCampaignAssignmentId);
+        }
         if (string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase))
         {
             var number = int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
@@ -103,6 +123,15 @@ internal sealed partial class EffectivePlacementQueryService
 
     private static IOrderedQueryable<PlacementWorkingState> OrderWorking(IQueryable<PlacementWorkingState> query, CampaignRosterDiscoveryInput input)
     {
+        if (string.Equals(input.SortBy, "closeout", StringComparison.OrdinalIgnoreCase))
+        {
+            return query.OrderBy(a => a.Participation.PlacementOutcome == PlacementOutcome.Undecided)
+                .ThenBy(a => a.Participation.PlacementOutcome == PlacementOutcome.Withdrawn)
+                .ThenBy(a => a.Participation.PlacementOutcome == PlacementOutcome.NotSelected)
+                .ThenBy(a => a.Participation.Team == null ? string.Empty : a.Participation.Team.Name).ThenBy(a => a.Participation.TeamId)
+                .ThenBy(a => a.Participation.Player.LastName).ThenBy(a => a.Participation.Player.FirstName)
+                .ThenBy(a => a.Participation.PlayerCampaignAssignmentId);
+        }
         if (string.Equals(input.SortBy, "searchRelevance", StringComparison.OrdinalIgnoreCase))
         {
             var number = int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,

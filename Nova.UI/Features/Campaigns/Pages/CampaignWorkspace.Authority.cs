@@ -32,6 +32,7 @@ public partial class CampaignWorkspace
 
     private void ResetAuthorityEvidence()
     {
+        InvalidateCloseEvidence();
         ++_detailSequence;
         ++_requestSequence;
         ++_choiceSequence;

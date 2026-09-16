@@ -1,0 +1,782 @@
+{
+  "tool": "comp-diff",
+  "version": 1,
+  "createdAt": "2026-09-16T03:56:55.763Z",
+  "label": "hero-repro",
+  "comp": ".impeccable/mocks/issue-256-compact-review.png",
+  "build": ".impeccable/review/issue-256/captures/hero-repro.png",
+  "spec": ".impeccable/build/spec.json",
+  "compSize": "1536x1024",
+  "buildSize": "1536x1024",
+  "align": "top",
+  "overall": 0.713,
+  "verdict": "drift",
+  "scores": {
+    "overall": 0.713,
+    "structure": 0.6918,
+    "color": 0.9355,
+    "colorIntersection": 0.8689,
+    "paletteMatch": 0.9713,
+    "detail": 0.5023,
+    "detailRaw": 0.5804,
+    "detailAdded": 0.1563,
+    "bands": 0.7429
+  },
+  "palette": {
+    "comp": [
+      {
+        "hex": "#f6f8f8",
+        "coverage": 0.7727
+      },
+      {
+        "hex": "#dbf8e8",
+        "coverage": 0.2172
+      },
+      {
+        "hex": "#0a2230",
+        "coverage": 0.0044
+      },
+      {
+        "hex": "#516171",
+        "coverage": 0.0028
+      },
+      {
+        "hex": "#a9b9b9",
+        "coverage": 0.002
+      },
+      {
+        "hex": "#087878",
+        "coverage": 0.0009
+      }
+    ],
+    "build": [
+      {
+        "hex": "#f8f8f8",
+        "coverage": 0.8005
+      },
+      {
+        "hex": "#d8f8e8",
+        "coverage": 0.1917
+      },
+      {
+        "hex": "#182828",
+        "coverage": 0.0031
+      },
+      {
+        "hex": "#087878",
+        "coverage": 0.0028
+      },
+      {
+        "hex": "#080808",
+        "coverage": 0.0013
+      },
+      {
+        "hex": "#5888c8",
+        "coverage": 0.0005
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "rail",
+      "x": 0,
+      "y": 0,
+      "w": 0.166,
+      "h": 1,
+      "kind": "chrome",
+      "score": {
+        "overall": 0.8474,
+        "structure": 0.8946,
+        "color": 0.9618,
+        "colorIntersection": 0.9154,
+        "paletteMatch": 0.9867,
+        "detail": 0.6352,
+        "detailRaw": 0.6404,
+        "detailAdded": 0.0104,
+        "bands": 0.9
+      },
+      "verdict": "match",
+      "inkBox": {
+        "comp": {
+          "x": 20,
+          "y": 21,
+          "w": 205,
+          "h": 901
+        },
+        "build": {
+          "x": 18,
+          "y": 20,
+          "w": 189,
+          "h": 966
+        }
+      }
+    },
+    {
+      "id": "back",
+      "x": 0.1882,
+      "y": 0.0234,
+      "w": 0.1003,
+      "h": 0.0195,
+      "kind": "text",
+      "score": {
+        "overall": 0.7787,
+        "structure": 0.7575,
+        "color": 0.9224,
+        "colorIntersection": 0.8728,
+        "paletteMatch": 0.9491,
+        "detail": 0.5423,
+        "detailRaw": 0.5579,
+        "detailAdded": 0.0313,
+        "bands": 0.88
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 16,
+          "w": 147,
+          "h": 15
+        },
+        "build": {
+          "x": 4,
+          "y": 16,
+          "w": 118,
+          "h": 13
+        }
+      }
+    },
+    {
+      "id": "campaign",
+      "x": 0.1855,
+      "y": 0.0469,
+      "w": 0.1953,
+      "h": 0.0654,
+      "kind": "text",
+      "score": {
+        "overall": 0.6317,
+        "structure": 0.5503,
+        "color": 0.8375,
+        "colorIntersection": 0.7418,
+        "paletteMatch": 0.889,
+        "detail": 0.509,
+        "detailRaw": 0.5559,
+        "detailAdded": 0.0938,
+        "bands": 0.7083
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 8,
+          "y": 22,
+          "w": 233,
+          "h": 45
+        },
+        "build": {
+          "x": 0,
+          "y": 19,
+          "w": 205,
+          "h": 46
+        }
+      }
+    },
+    {
+      "id": "metadata",
+      "x": 0.1882,
+      "y": 0.1211,
+      "w": 0.2396,
+      "h": 0.083,
+      "kind": "text",
+      "score": {
+        "overall": 0.5735,
+        "structure": 0.5937,
+        "color": 0.8985,
+        "colorIntersection": 0.8272,
+        "paletteMatch": 0.9369,
+        "detail": 0.0938,
+        "detailRaw": 0.1615,
+        "detailAdded": 0.1354,
+        "bands": 0.38
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 2,
+          "w": 367,
+          "h": 83
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 222,
+          "h": 51
+        }
+      }
+    },
+    {
+      "id": "routes",
+      "x": 0.5065,
+      "y": 0.0781,
+      "w": 0.474,
+      "h": 0.1064,
+      "kind": "control",
+      "score": {
+        "overall": 0.7181,
+        "structure": 0.8,
+        "color": 0.9658,
+        "colorIntersection": 0.9144,
+        "paletteMatch": 0.9935,
+        "detail": 0.1002,
+        "detailRaw": 0.2356,
+        "detailAdded": 0.2708,
+        "bands": 0.1657
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 14,
+          "y": 18,
+          "w": 714,
+          "h": 85
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 728,
+          "h": 82
+        }
+      }
+    },
+    {
+      "id": "review-title",
+      "x": 0.1953,
+      "y": 0.2383,
+      "w": 0.1615,
+      "h": 0.0459,
+      "kind": "text",
+      "score": {
+        "overall": 0.5213,
+        "structure": 0.6821,
+        "color": 0.7209,
+        "colorIntersection": 0.6314,
+        "paletteMatch": 0.7691,
+        "detail": 0,
+        "detailRaw": 0.0675,
+        "detailAdded": 0.1771,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 10,
+          "y": 19,
+          "w": 169,
+          "h": 17
+        },
+        "build": {
+          "x": 2,
+          "y": 11,
+          "w": 101,
+          "h": 12
+        }
+      }
+    },
+    {
+      "id": "verdict",
+      "x": 0.2005,
+      "y": 0.29,
+      "w": 0.1276,
+      "h": 0.0449,
+      "kind": "control",
+      "score": {
+        "overall": 0.3144,
+        "structure": 0.3812,
+        "color": 0.3983,
+        "colorIntersection": 0.1178,
+        "paletteMatch": 0.5493,
+        "detail": 0.0171,
+        "detailRaw": 0.1317,
+        "detailAdded": 0.2292,
+        "bands": 0.3133
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 0,
+          "y": 1,
+          "w": 194,
+          "h": 45
+        },
+        "build": {
+          "x": 4,
+          "y": 4,
+          "w": 192,
+          "h": 44
+        }
+      }
+    },
+    {
+      "id": "totals",
+      "x": 0.1953,
+      "y": 0.3408,
+      "w": 0.4362,
+      "h": 0.0596,
+      "kind": "text",
+      "score": {
+        "overall": 0.6718,
+        "structure": 0.8001,
+        "color": 0.9269,
+        "colorIntersection": 0.9023,
+        "paletteMatch": 0.9401,
+        "detail": 0,
+        "detailRaw": 0.0521,
+        "detailAdded": 0.1771,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 8,
+          "y": 9,
+          "w": 526,
+          "h": 49
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 472,
+          "h": 61
+        }
+      }
+    },
+    {
+      "id": "needs-placement",
+      "x": 0.2005,
+      "y": 0.4316,
+      "w": 0.2546,
+      "h": 0.042,
+      "kind": "text",
+      "score": {
+        "overall": 0.5936,
+        "structure": 0.753,
+        "color": 0.8683,
+        "colorIntersection": 0.8352,
+        "paletteMatch": 0.8861,
+        "detail": 0,
+        "detailRaw": 0.0263,
+        "detailAdded": 0.1667,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 4,
+          "w": 334,
+          "h": 42
+        },
+        "build": {
+          "x": 45,
+          "y": 46,
+          "w": 3,
+          "h": 2
+        }
+      }
+    },
+    {
+      "id": "blockers",
+      "x": 0.6465,
+      "y": 0.2412,
+      "w": 0.3223,
+      "h": 0.1494,
+      "kind": "text",
+      "score": {
+        "overall": 0.5932,
+        "structure": 0.7201,
+        "color": 0.9325,
+        "colorIntersection": 0.9086,
+        "paletteMatch": 0.9453,
+        "detail": 0,
+        "detailRaw": 0.0158,
+        "detailAdded": 0.1667,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 20,
+          "y": 24,
+          "w": 465,
+          "h": 116
+        },
+        "build": {
+          "x": 30,
+          "y": 4,
+          "w": 464,
+          "h": 16
+        }
+      }
+    },
+    {
+      "id": "roster-title",
+      "x": 0.1953,
+      "y": 0.5117,
+      "w": 0.1693,
+      "h": 0.0498,
+      "kind": "text",
+      "score": {
+        "overall": 0.5648,
+        "structure": 0.6012,
+        "color": 0.8766,
+        "colorIntersection": 0.8527,
+        "paletteMatch": 0.8896,
+        "detail": 0.0082,
+        "detailRaw": 0.1123,
+        "detailAdded": 0.2083,
+        "bands": 0.4381
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 9,
+          "y": 14,
+          "w": 170,
+          "h": 22
+        },
+        "build": {
+          "x": 3,
+          "y": 0,
+          "w": 257,
+          "h": 31
+        }
+      }
+    },
+    {
+      "id": "search",
+      "x": 0.2005,
+      "y": 0.5576,
+      "w": 0.1829,
+      "h": 0.0439,
+      "kind": "control",
+      "score": {
+        "overall": 0.6333,
+        "structure": 0.6952,
+        "color": 0.9155,
+        "colorIntersection": 0.8915,
+        "paletteMatch": 0.9284,
+        "detail": 0,
+        "detailRaw": 0.1288,
+        "detailAdded": 0.2708,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 17,
+          "y": 18,
+          "w": 188,
+          "h": 17
+        },
+        "build": {
+          "x": 1,
+          "y": 9,
+          "w": 275,
+          "h": 13
+        }
+      }
+    },
+    {
+      "id": "filter",
+      "x": 0.4049,
+      "y": 0.5576,
+      "w": 0.3099,
+      "h": 0.0439,
+      "kind": "control",
+      "score": {
+        "overall": 0.7061,
+        "structure": 0.8409,
+        "color": 0.924,
+        "colorIntersection": 0.8794,
+        "paletteMatch": 0.948,
+        "detail": 0.0214,
+        "detailRaw": 0.0423,
+        "detailAdded": 0.0417,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 19,
+          "w": 457,
+          "h": 16
+        },
+        "build": {
+          "x": 0,
+          "y": 9,
+          "w": 74,
+          "h": 13
+        }
+      }
+    },
+    {
+      "id": "paging",
+      "x": 0.7747,
+      "y": 0.5732,
+      "w": 0.1914,
+      "h": 0.0195,
+      "kind": "text",
+      "score": {
+        "overall": 0.6089,
+        "structure": 0.691,
+        "color": 0.8936,
+        "colorIntersection": 0.894,
+        "paletteMatch": 0.8934,
+        "detail": 0,
+        "detailRaw": 0.002,
+        "detailAdded": 0.0208,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 2,
+          "y": 16,
+          "w": 288,
+          "h": 16
+        },
+        "build": {
+          "x": 116,
+          "y": 47,
+          "w": 9,
+          "h": 1
+        }
+      }
+    },
+    {
+      "id": "headers",
+      "x": 0.2005,
+      "y": 0.6152,
+      "w": 0.7676,
+      "h": 0.0439,
+      "kind": "chrome",
+      "score": {
+        "overall": 0.5024,
+        "structure": 0.8597,
+        "color": 0.6061,
+        "colorIntersection": 0.2329,
+        "paletteMatch": 0.807,
+        "detail": 0,
+        "detailRaw": 0.1136,
+        "detailAdded": 0.3438,
+        "bands": 0.3333
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 13,
+          "y": 17,
+          "w": 971,
+          "h": 15
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 1037,
+          "h": 40
+        }
+      }
+    },
+    {
+      "id": "assigned-group",
+      "x": 0.2005,
+      "y": 0.6582,
+      "w": 0.7676,
+      "h": 0.0332,
+      "kind": "chrome",
+      "score": {
+        "overall": 0.4903,
+        "structure": 0.9823,
+        "color": 0.5862,
+        "colorIntersection": 0.1966,
+        "paletteMatch": 0.796,
+        "detail": 0,
+        "detailRaw": 0.1579,
+        "detailAdded": 0.3229,
+        "bands": 0
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 13,
+          "y": 17,
+          "w": 71,
+          "h": 12
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 1071,
+          "h": 44
+        }
+      }
+    },
+    {
+      "id": "assigned-rows",
+      "x": 0.2077,
+      "y": 0.6992,
+      "w": 0.7559,
+      "h": 0.0918,
+      "kind": "text",
+      "score": {
+        "overall": 0.7514,
+        "structure": 0.9131,
+        "color": 0.96,
+        "colorIntersection": 0.9371,
+        "paletteMatch": 0.9723,
+        "detail": 0.1656,
+        "detailRaw": 0.2177,
+        "detailAdded": 0.1042,
+        "bands": 0.3
+      },
+      "verdict": "drift",
+      "inkBox": {
+        "comp": {
+          "x": 1,
+          "y": 3,
+          "w": 1004,
+          "h": 88
+        },
+        "build": {
+          "x": 0,
+          "y": 32,
+          "w": 1060,
+          "h": 62
+        }
+      }
+    },
+    {
+      "id": "terminal-group",
+      "x": 0.2005,
+      "y": 0.8008,
+      "w": 0.7676,
+      "h": 0.0391,
+      "kind": "chrome",
+      "score": {
+        "overall": 0.4462,
+        "structure": 0.9609,
+        "color": 0.4397,
+        "colorIntersection": 0.0873,
+        "paletteMatch": 0.6294,
+        "detail": 0,
+        "detailRaw": 0.1353,
+        "detailAdded": 0.3438,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 13,
+          "y": 18,
+          "w": 86,
+          "h": 12
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 1071,
+          "h": 48
+        }
+      }
+    },
+    {
+      "id": "terminal-row",
+      "x": 0.2083,
+      "y": 0.8486,
+      "w": 0.6263,
+      "h": 0.0205,
+      "kind": "text",
+      "score": {
+        "overall": 0.7267,
+        "structure": 0.9996,
+        "color": 0.8935,
+        "colorIntersection": 0.8344,
+        "paletteMatch": 0.9253,
+        "detail": 0.0237,
+        "detailRaw": 0.1331,
+        "detailAdded": 0.2188,
+        "bands": 0
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 2,
+          "y": 16,
+          "w": 949,
+          "h": 13
+        },
+        "build": {
+          "x": 0,
+          "y": 0,
+          "w": 707,
+          "h": 15
+        }
+      }
+    },
+    {
+      "id": "checkpoint",
+      "x": 0.1888,
+      "y": 0.9365,
+      "w": 0.3698,
+      "h": 0.0361,
+      "kind": "text",
+      "score": {
+        "overall": 0.6803,
+        "structure": 0.855,
+        "color": 0.8514,
+        "colorIntersection": 0.8179,
+        "paletteMatch": 0.8694,
+        "detail": 0,
+        "detailRaw": 0.0391,
+        "detailAdded": 0.1146,
+        "bands": 0.4
+      },
+      "verdict": "missing",
+      "inkBox": {
+        "comp": {
+          "x": 2,
+          "y": 8,
+          "w": 329,
+          "h": 36
+        },
+        "build": null
+      }
+    }
+  ],
+  "files": {
+    "sideBySide": ".impeccable\\review\\diff\\final\\side-by-side.png",
+    "heatmap": ".impeccable\\review\\diff\\final\\heatmap.png",
+    "regionFiles": [
+      ".impeccable\\review\\diff\\final\\regions\\rail.png",
+      ".impeccable\\review\\diff\\final\\regions\\back.png",
+      ".impeccable\\review\\diff\\final\\regions\\campaign.png",
+      ".impeccable\\review\\diff\\final\\regions\\metadata.png",
+      ".impeccable\\review\\diff\\final\\regions\\routes.png",
+      ".impeccable\\review\\diff\\final\\regions\\review-title.png",
+      ".impeccable\\review\\diff\\final\\regions\\verdict.png",
+      ".impeccable\\review\\diff\\final\\regions\\totals.png",
+      ".impeccable\\review\\diff\\final\\regions\\needs-placement.png",
+      ".impeccable\\review\\diff\\final\\regions\\blockers.png",
+      ".impeccable\\review\\diff\\final\\regions\\roster-title.png",
+      ".impeccable\\review\\diff\\final\\regions\\search.png",
+      ".impeccable\\review\\diff\\final\\regions\\filter.png",
+      ".impeccable\\review\\diff\\final\\regions\\paging.png",
+      ".impeccable\\review\\diff\\final\\regions\\headers.png",
+      ".impeccable\\review\\diff\\final\\regions\\assigned-group.png",
+      ".impeccable\\review\\diff\\final\\regions\\assigned-rows.png",
+      ".impeccable\\review\\diff\\final\\regions\\terminal-group.png",
+      ".impeccable\\review\\diff\\final\\regions\\terminal-row.png",
+      ".impeccable\\review\\diff\\final\\regions\\checkpoint.png"
+    ]
+  }
+}

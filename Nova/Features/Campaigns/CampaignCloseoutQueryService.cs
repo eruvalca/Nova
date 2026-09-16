@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Data;
+using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.SharedKernel.Validation;
 using OneOf;
 
@@ -14,12 +16,10 @@ namespace Nova.Features.Campaigns;
 /// </summary>
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization checks.</param>
-/// <param name="placementQueryService">The composed placement summary query service.</param>
 /// <param name="logger">The logger for expected authorization failures.</param>
 internal sealed partial class CampaignCloseoutQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ICampaignPlacementQueryService placementQueryService,
     ILogger<CampaignCloseoutQueryService> logger) : ICampaignCloseoutQueryService
 {
     /// <inheritdoc />
@@ -46,29 +46,37 @@ internal sealed partial class CampaignCloseoutQueryService(
             return ServiceProblem.Forbidden("You do not have permission to view this campaign's closeout readiness.");
         }
 
-        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var campaignStatus = await db.Campaigns
+        await using var strategyDb = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await strategyDb.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
+        {
+            await using var db = await readDbContextFactory.CreateDbContextAsync(token);
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                db.Database.IsNpgsql() ? IsolationLevel.RepeatableRead : IsolationLevel.Serializable, token);
+            var result = await ReadReadinessAsync(db, input.CampaignId, currentUserId, currentClubId, token);
+            await transaction.CommitAsync(token);
+            return result;
+        }, cancellationToken);
+    }
+
+    private static async Task<ServiceResult<CampaignCloseoutReadinessDto>> ReadReadinessAsync(
+        NovaReadDbContext db, long campaignId, long actorId, long clubId, CancellationToken cancellationToken)
+    {
+        if (!await db.Users.AnyAsync(user => user.Id == actorId && user.ClubId == clubId, cancellationToken))
+        {
+            return ServiceProblem.Forbidden("You must currently belong to this club to review closing.");
+        }
+        var campaign = await db.Campaigns
             .AsNoTracking()
-            .Where(campaign => campaign.ClubId == currentClubId && campaign.CampaignId == input.CampaignId)
-            .Select(campaign => (CampaignStatus?)campaign.Status)
+            .Where(candidate => candidate.ClubId == clubId && candidate.CampaignId == campaignId)
+            .Select(candidate => new { candidate.Status, candidate.SeasonId, candidate.SeasonOpeningSequence })
             .FirstOrDefaultAsync(cancellationToken);
-        if (campaignStatus is null)
+        if (campaign is null || campaign.Status == CampaignStatus.Draft)
         {
             return ServiceProblem.NotFound();
         }
-
-        // Compose #11's authoritative summary rather than re-deriving counts here.
-        var summaryResult = await placementQueryService.GetPlacementSummaryAsync(
-            new GetCampaignPlacementSummaryInput { CampaignId = input.CampaignId },
-            cancellationToken);
-        if (summaryResult.IsProblem)
-        {
-            return summaryResult.Problem;
-        }
-
         var assignmentStates = await db.PlayerCampaignAssignments
             .AsNoTracking()
-            .Where(assignment => assignment.ClubId == currentClubId && assignment.CampaignId == input.CampaignId)
+            .Where(assignment => assignment.ClubId == clubId && assignment.CampaignId == campaignId)
             .OrderBy(assignment => assignment.PlayerCampaignAssignmentId)
             .Select(assignment => new CampaignAssignmentClosureState(
                 assignment.PlayerCampaignAssignmentId,
@@ -79,21 +87,60 @@ internal sealed partial class CampaignCloseoutQueryService(
                 assignment.Team == null ? null : assignment.Team.LifecycleStatus))
             .ToListAsync(cancellationToken);
 
+        var summary = Summarize(assignmentStates);
         var decision = CampaignClosurePolicy.Evaluate(assignmentStates);
         var readiness = decision.Match(
             _ => new CampaignCloseoutReadinessDto(
-                input.CampaignId,
-                campaignStatus.Value,
+                campaignId,
+                campaign.Status,
                 IsReady: true,
-                summaryResult.Value,
+                summary,
                 Blockers: []),
-            blocked => MapBlocked(input.CampaignId, campaignStatus.Value, summaryResult.Value, blocked));
+            blocked => MapBlocked(campaignId, campaign.Status, summary, blocked));
+        var currentSeasonId = await db.Clubs.Where(club => club.ClubId == clubId)
+            .Select(club => club.CurrentSeasonId).SingleOrDefaultAsync(cancellationToken);
+        var latest = await db.Campaigns.Where(candidate => candidate.ClubId == clubId
+                && candidate.SeasonId == campaign.SeasonId && candidate.SeasonOpeningSequence != null)
+            .OrderByDescending(candidate => candidate.SeasonOpeningSequence)
+            .Select(candidate => new { candidate.CampaignId, candidate.SeasonOpeningSequence })
+            .FirstOrDefaultAsync(cancellationToken);
+        var activeId = await db.Campaigns.Where(candidate => candidate.ClubId == clubId
+                && candidate.CampaignId != campaignId && candidate.Status == CampaignStatus.Active)
+            .Select(candidate => (long?)candidate.CampaignId).FirstOrDefaultAsync(cancellationToken);
+        var administrator = await IsAdministratorAsync(db, actorId, cancellationToken);
+        var reopen = CampaignReopenPolicy.Evaluate(campaign.Status, campaign.SeasonId, currentSeasonId,
+            campaign.SeasonOpeningSequence, latest?.SeasonOpeningSequence, activeId.HasValue);
+        var reason = reopen.Match(_ => CampaignReopenUnavailableReason.None, blocked => blocked.Reason);
         return readiness with
         {
-            NeedsPlacementCount = await EffectivePlacementQueries.NeedsPlacement(db, currentClubId)
-                .CountAsync(assignment => assignment.CampaignId == input.CampaignId, cancellationToken)
+            NeedsPlacementCount = await EffectivePlacementQueries.NeedsPlacement(db, clubId)
+                .CountAsync(assignment => assignment.CampaignId == campaignId, cancellationToken),
+            Lifecycle = new(administrator, administrator && campaign.Status == CampaignStatus.Active && readiness.IsReady,
+                administrator && reason == CampaignReopenUnavailableReason.None, reason,
+                RelatedCampaign(reason, latest?.CampaignId, activeId))
         };
     }
+
+    private static long? RelatedCampaign(CampaignReopenUnavailableReason reason, long? latestId, long? activeId) => reason switch
+    {
+        CampaignReopenUnavailableReason.LaterCampaignOpened => latestId,
+        CampaignReopenUnavailableReason.AnotherActiveCampaign => activeId,
+        _ => null,
+    };
+
+    private static Task<bool> IsAdministratorAsync(NovaReadDbContext db, long actorId, CancellationToken cancellationToken)
+    {
+        var administratorRole = Roles.ClubAdmin.ToUpperInvariant();
+        return db.UserRoles.AnyAsync(role => role.UserId == actorId
+            && db.Roles.Any(definition => definition.Id == role.RoleId && definition.NormalizedName == administratorRole), cancellationToken);
+    }
+
+    /// <summary>Totals and blockers use the same local facts, never a separately queried roster page.</summary>
+    private static CampaignPlacementSummaryDto Summarize(List<CampaignAssignmentClosureState> states)
+        => new(states.Count(state => state.Outcome == PlacementOutcome.Assigned),
+            states.Count(state => state.Outcome == PlacementOutcome.NotSelected),
+            states.Count(state => state.Outcome == PlacementOutcome.Withdrawn),
+            states.Count(state => state.Outcome == PlacementOutcome.Undecided), states.Count);
 
     /// <inheritdoc />
 #pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.

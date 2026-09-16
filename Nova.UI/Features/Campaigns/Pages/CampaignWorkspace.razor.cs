@@ -18,6 +18,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// Renders the campaign workspace: header, Route Markers, and the bounded Roster region.
 /// </summary>
 /// <param name="campaignQueryService">The campaign detail query service.</param>
+/// <param name="closeoutQueryService">The workspace-owned closeout snapshot service.</param>
 /// <param name="participantQueryService">The campaign roster query service.</param>
 /// <param name="effectivePlacementQueryService">The authoritative Active and Closed roster reads.</param>
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
@@ -28,6 +29,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// <param name="jsRuntime">The JavaScript runtime used to import the collocated workspace module.</param>
 public partial class CampaignWorkspace(
     ICampaignQueryService campaignQueryService,
+    ICampaignCloseoutQueryService closeoutQueryService,
     ICampaignParticipantQueryService participantQueryService,
     IEffectivePlacementQueryService effectivePlacementQueryService,
     ITagDefinitionQueryService tagDefinitionQueryService,
@@ -56,7 +58,7 @@ public partial class CampaignWorkspace(
     /// <returns>The local workspace or focused Roster URL.</returns>
     private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null, bool useRosterLanding = false)
     {
-        var url = CampaignWorkspaceUrlState.WithEvaluationContext(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId), EvaluationState);
+        var url = WithCloseContext(CampaignWorkspaceUrlState.WithEvaluationContext(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId), EvaluationState));
         // Intra-roster actions must keep the current path: CampaignEntry recreates this
         // component on a path change, discarding pending drawer moves and scroll restoration.
         return (IsRosterLanding || RosterLandingQuery == true || useRosterLanding) && string.Equals(tab, RosterTabName, StringComparison.Ordinal)
@@ -490,6 +492,7 @@ public partial class CampaignWorkspace(
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
         // The focused Roster route always owns the roster panel, regardless of workspace tab input.
         ApplyWorkspaceTab(previousTab);
+        _closeReturnPending |= !string.Equals(previousTab, CloseTabName, StringComparison.Ordinal) && string.Equals(_activeTab, CloseTabName, StringComparison.Ordinal);
 
         // The Place discovery state is independent of the roster state; re-derive it on every parameter
         // set so the Place surface receives the URL-backed discovery state regardless of roster state.
@@ -545,6 +548,17 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        if (_closeReturnPending)
+        {
+            _closeReturnPending = false;
+            // The full evidence refresh below owns this pending roster reload.
+            _reloadRosterPending = false;
+            await RefreshCloseEvidenceAsync();
+        }
+        else
+        {
+            await LoadCloseReadinessAsync();
+        }
         ReplaceClosedEligibilityUrl();
         if (_reloadRosterPending && _detail is not null && !string.Equals(_activeTab, EvaluateTabName, StringComparison.Ordinal))
         {
@@ -681,8 +695,10 @@ public partial class CampaignWorkspace(
     /// Loads campaign detail and, on success, the filter choices and initial roster page.
     /// </summary>
     /// <returns>A task that completes when all loads are finished.</returns>
-    private async Task LoadDetailAsync()
+    private async Task LoadDetailAsync(bool reloadRoster = true)
     {
+        var previousStatus = _detail?.Status;
+        InvalidateCloseEvidence();
         var detailRequest = ++_detailSequence;
         ++_requestSequence;
         _pageError = null;
@@ -733,7 +749,7 @@ public partial class CampaignWorkspace(
         if (detailLoaded)
         {
             StateHasChanged();
-            await LoadRosterRegionsAsync();
+            await Task.WhenAll(reloadRoster || previousStatus != _detail?.Status ? LoadRosterRegionsAsync() : Task.CompletedTask, LoadCloseReadinessAsync());
         }
     }
 
@@ -1068,20 +1084,6 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
-    /// Selects the focused Roster route.
-    /// </summary>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task SelectRosterTabAsync()
-    {
-        if (!IsRosterLanding)
-        {
-            navigationManager.NavigateTo(BuildRosterUrl(_filters, RosterTabName, _selectedParticipantId, useRosterLanding: true));
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
     /// Selects the Close route, pushing the close workspace URL.
     /// </summary>
     /// <returns>A task that completes when navigation is initiated.</returns>
@@ -1095,12 +1097,6 @@ public partial class CampaignWorkspace(
         return Task.CompletedTask;
     }
 
-
-    /// <summary>
-    /// Cancels the closeout view and returns to the roster route, preserving the current roster state.
-    /// </summary>
-    /// <returns>A task that completes when navigation is initiated.</returns>
-    private Task OnCancelCloseoutAsync() => SelectRosterTabAsync();
 
     /// <summary>
     /// Reloads the campaign detail after the placements panel requests a full recovery reload

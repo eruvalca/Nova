@@ -114,10 +114,26 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         }
         var expectedState = ExpectedEligibility(row, validTeam);
         return row.Eligibility == expectedState
+            && MatchesCloseoutBlocker(row, input.CloseoutBlocker)
             && (input.TeamId is null || row.EffectiveTeam?.TeamId == input.TeamId)
             && (!Enum.TryParse<EffectivePlacementEligibility>(input.Eligibility, true, out var requested)
                 || !Enum.IsDefined(requested) || row.Eligibility == requested);
     }
+
+    private static bool MatchesCloseoutBlocker(CampaignEffectivePlacementItem row, string? condition)
+        => condition?.ToUpperInvariant() switch
+        {
+            "OUTCOMES" => row.LocalDecision is null,
+            "ARCHIVEDTEAMS" => row.LocalDecision?.Outcome == PlacementOutcome.Assigned
+                && row.CorrectionReason == PlacementCorrectionReason.TeamArchived,
+            // Archived takes precedence in the projected reason and can overlap incompatibility.
+            // This DTO cannot distinguish those two archived-team cases; reject only disproven membership.
+            "ELIGIBILITY" => row.LocalDecision?.Outcome == PlacementOutcome.Assigned
+                && row.CorrectionReason is PlacementCorrectionReason.TeamUnavailable
+                    or PlacementCorrectionReason.TeamIncompatible or PlacementCorrectionReason.TeamArchived,
+            null => true,
+            _ => false,
+        };
 
     private static EffectivePlacementEligibility ExpectedEligibility(CampaignEffectivePlacementItem row, bool validTeam)
     {
@@ -171,6 +187,7 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         int year, int? tryout, PlacementOutcome outcome, CampaignParticipantTeamSummaryDto? team)
         => input.SortBy?.ToUpperInvariant() switch
         {
+            "CLOSEOUT" => new(outcome switch { PlacementOutcome.Assigned => 0, PlacementOutcome.NotSelected => 1, PlacementOutcome.Withdrawn => 2, _ => 3 }, team?.TeamName ?? string.Empty, first, id, team?.TeamId ?? 0, last),
             "SEARCHRELEVANCE" => new(int.TryParse(input.Search?.Trim(), System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out var number) && tryout == number ? 0 : 1, last, first, id),
             "ASSIGNMENTID" => new(id, null, null, id),
@@ -191,7 +208,9 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         {
             if (previous is not null && ((descending ? previous.Number < key.Number : previous.Number > key.Number)
                 || previous.Number == key.Number && string.Equals(previous.Text, key.Text, StringComparison.Ordinal)
-                    && string.Equals(previous.SecondText, key.SecondText, StringComparison.Ordinal) && previous.Id >= key.Id))
+                    && (previous.TeamId > key.TeamId
+                        || previous.TeamId == key.TeamId && string.Equals(previous.LastName, key.LastName, StringComparison.Ordinal)
+                            && string.Equals(previous.SecondText, key.SecondText, StringComparison.Ordinal) && previous.Id >= key.Id)))
             {
                 return false;
             }
@@ -200,7 +219,7 @@ internal sealed class HttpEffectivePlacementQueryService(HttpClient http) : IEff
         return true;
     }
 
-    private sealed record DiscoveryOrderKey(long Number, string? Text, string? SecondText, long Id);
+    private sealed record DiscoveryOrderKey(long Number, string? Text, string? SecondText, long Id, long TeamId = 0, string? LastName = null);
 
     private static bool ValidPage<T>(PagedResult<T> page, PlacementPageInput input)
         => page is not null && page.Items is not null && page.Items.All(row => row is not null)

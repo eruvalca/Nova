@@ -1,10 +1,13 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Campaigns;
 using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -45,6 +48,51 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <inheritdoc />
     public void Dispose() => _harness.Dispose();
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(CampaignReopenUnavailableReason.HistoricalSeason)]
+    [InlineData(CampaignReopenUnavailableReason.LaterCampaignOpened)]
+    [InlineData(CampaignReopenUnavailableReason.AnotherActiveCampaign)]
+    public async Task ReopenRelatedCampaignMatchesTheActualRestrictionAsync(CampaignReopenUnavailableReason reason)
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            (await db.Clubs.SingleAsync(club => club.ClubId == ClubAId, TestContext.Current.CancellationToken)).CurrentSeasonId = reason == CampaignReopenUnavailableReason.HistoricalSeason ? null : 500;
+            (await db.Campaigns.SingleAsync(campaign => campaign.CampaignId == _closedCampaignId, TestContext.Current.CancellationToken)).SeasonOpeningSequence = 2;
+            (await db.Campaigns.SingleAsync(campaign => campaign.CampaignId == _readyCampaignId, TestContext.Current.CancellationToken)).SeasonOpeningSequence = reason == CampaignReopenUnavailableReason.LaterCampaignOpened ? 3 : 1;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var result = await CreateService().GetCloseoutReadinessAsync(new() { CampaignId = _closedCampaignId }, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Lifecycle.ReopenUnavailableReason.ShouldBe(reason);
+        result.Value.Lifecycle.RelatedCampaignId.ShouldBe(reason is CampaignReopenUnavailableReason.LaterCampaignOpened or CampaignReopenUnavailableReason.AnotherActiveCampaign ? _readyCampaignId : null);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReadinessUsesPersistedNormalizedAdministratorIdentityAsync(bool normalizedAdministrator)
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            db.Roles.Add(new IdentityRole<long>
+            {
+                Id = 800,
+                Name = normalizedAdministrator ? "clubadmin" : Roles.ClubAdmin,
+                NormalizedName = normalizedAdministrator ? Roles.ClubAdmin.ToUpperInvariant() : "OTHER",
+            });
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = ClubAAdminId, RoleId = 800 });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        _harness.CurrentUser.UserId = ClubAAdminId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var result = await CreateService().GetCloseoutReadinessAsync(new() { CampaignId = _readyCampaignId }, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Lifecycle.IsAdministrator.ShouldBe(normalizedAdministrator);
+        result.Value.Lifecycle.CanClose.ShouldBe(normalizedAdministrator);
+    }
 
     /// <summary>Verifies an unsigned-in caller cannot read closeout readiness.</summary>
     [Fact]
@@ -283,7 +331,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
         => new(
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _harness.CurrentUser,
-            CreatePlacementQueryService(),
             NullLogger<CampaignCloseoutQueryService>.Instance);
 
     /// <summary>Creates the composed placement query service over the same harness.</summary>

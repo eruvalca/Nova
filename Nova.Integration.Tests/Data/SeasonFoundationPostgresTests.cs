@@ -299,7 +299,7 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedMutationRaceAsync(closedCampaign: true, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId);
-        var reopenGate = new AdvisoryLockGateInterceptor();
+        var reopenGate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 2);
         var reopenService = new CampaignLifecycleService(
             new RetryingTenantDbContextFactory(
                 fixture.ConnectionString,
@@ -381,6 +381,9 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             var club = NewClub($"Season Mutation Race {suffix}", actorUserId);
             db.Clubs.Add(club);
             await db.SaveChangesAsync(cancellationToken);
+            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Season", LastName = "Administrator" });
+            var roleId = await db.Roles.Where(role => role.Name == Nova.SharedKernel.Security.Roles.ClubAdmin).Select(role => role.Id).SingleAsync(cancellationToken);
+            db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = actorUserId, RoleId = roleId });
             var season = NewSeason($"Season {suffix}", club.ClubId, actorUserId);
             season.EndDate = new DateOnly(2026, 12, 31);
             db.Seasons.Add(season);

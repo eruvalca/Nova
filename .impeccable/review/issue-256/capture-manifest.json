@@ -1,0 +1,409 @@
+{
+  "issue": 256,
+  "testedImplementationRevision": "be6b5f05d80f966735ec1d9d1970e1d96fbcc48d plus complete round-nine working diff; fingerprints identify tested inputs",
+  "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
+  "productionFingerprint": "4dff22fe92ff34cb526f916be13d1b2ddb89ff2a1f6ee28d491acbdea23b8048",
+  "testFingerprint": "d52621cd567cd2f555bf7da26593c4267a2e3aa79ac1ae849225cc3e566efa59",
+  "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
+  "productionFiles": [
+    {
+      "path": "Nova.Client/Services/Campaigns/HttpCampaignCloseoutQueryService.cs",
+      "sha256": "97718202f4f113bb761f512d76758ec13a9b280fc8d082cbe586b63271dd694a"
+    },
+    {
+      "path": "Nova.Client/Services/Campaigns/HttpCampaignLifecycleService.cs",
+      "sha256": "c4f7cc87b09bd0b57caa94e98693a3863da22fe896559591eea1379493b20551"
+    },
+    {
+      "path": "Nova.Client/Services/Campaigns/HttpEffectivePlacementQueryService.cs",
+      "sha256": "d8841a2e3d93292c1a188c2fc697e256f918c475c7e33264e6d170e6d01ccbf6"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/CampaignCloseoutContracts.cs",
+      "sha256": "9e04f86b98a70863ad91aaa09dd7d55ed6bab1f0950c19d4b809108d2224d944"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/CampaignEndpoints.cs",
+      "sha256": "6fce4db4c578b358400338aee59de0b86d5724ec3faf6117f394c53f674abd63"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/CampaignLifecycleCapabilities.cs",
+      "sha256": "950d7f48d47a35dd9528958e50ff91cbb19a2324c1b4261b7bcb90ccec881a62"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/CampaignRosterDiscoveryInput.cs",
+      "sha256": "45f29fc960fdadf6b119cb20adf4d805140c8c2edf554014709b3c13df8821be"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/GetCampaignEffectivePlacementsInput.cs",
+      "sha256": "3faeb839018bf1b56b622c46d2c47da5d40eed8f4dce1b8bcaa8019f331ce668"
+    },
+    {
+      "path": "Nova.SharedKernel/Features/Campaigns/PlacementQueryUrls.cs",
+      "sha256": "513a571f960f87c0434dbc7203944fbecb2b9fb2c889cd1f3116949a676d6e2c"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor",
+      "sha256": "183f9d7bf116a398dad7f961535f6579857d069a946e8dba8d16c4a0b3383dbe"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor.cs",
+      "sha256": "942a0156efe48bc8bc48b56e1a571266e4c99273703f25ac692fd1ebf902f188"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseoutPanel.razor.css",
+      "sha256": "6cec75be821d79adf7058ab6020fd876d1aff88652ce6f3022e8235fbcb8675c"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor",
+      "sha256": "bbb5742abd54ca505f98e7188ab3b86bcb8195cc45aedbdb8ff7a07544195d4c"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
+      "sha256": "f7d1d0f419d9ac69b7b3fcebcb37dbbb5a0c1fcdae3d755c468566c6d33ac1d3"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.css",
+      "sha256": "99dbe1d8eff5a939ca56972839f073abfe4a6235aa4220b43f97c0c8c466ce65"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignEvaluationPanel.razor.cs",
+      "sha256": "51a32013984c51f45462632cd484086c868b8e5c3c3815c7aaa2842a2df63daa"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor",
+      "sha256": "469524c8a781b4b8dc9543a727637b5057da0730e11e19b160f1c6048430b31b"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.cs",
+      "sha256": "88ab3f0d98ffad982446b13ec957f4ccc53d7ea4bdc4c23c4e518e6056520bfe"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignLifecycleActions.razor.css",
+      "sha256": "e4bf7ebb522fbf88f1cb58ce4e2a7ca83d816030ba987cf219e10003139dec98"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignWorkspaceReadiness.razor",
+      "sha256": "694dacf1a816380c688dc8704c989f471bac1036007d975814d08334412b8d5a"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Components/CampaignWorkspaceReadiness.razor.cs",
+      "sha256": "4e5e94d1f53033b6a7e8a783b01b9fbfbdd6ad53b71aad11deec39e0236538bf"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Authority.cs",
+      "sha256": "0ed083dfe3e7e1bf278fba4be3b5bc7ce691bef68e672e15b28b1944c1422e72"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Close.cs",
+      "sha256": "944112edaccf8c8715fddb35062096e02b4a4c11318e54ac87ef022172263e3a"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Evaluation.cs",
+      "sha256": "9b25ea449028cffb63d414a2691f766d50ea031b96f3e7bde4783cef54ca43a2"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.Place.cs",
+      "sha256": "3a25b51d233402cea59c80b3fd4dce19421855acc70a02325fd16b34514105f8"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor",
+      "sha256": "29e3a1c9b95969970355caee16cc7d7bcdd015d133d70760d9da67aca720b4f9"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.cs",
+      "sha256": "02f066041bde455ecde08b27c8e200485561dfa8b8d5f393f3d24c44c4bc5cf4"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.css",
+      "sha256": "da0b80d7219260984c30dc44523bf136165a044fea75d8711ff09c172e81572a"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Services/CampaignCloseReadFailure.cs",
+      "sha256": "cc8689df93af4e5058ca40c76535af7c948f1262bd9d185914a59803ff4e30ff"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Services/CampaignLifecycleEvidence.cs",
+      "sha256": "4d4bf0625dd4286f9b01d99bf655a56bd1c26fe042838b5cb5cf1dfdaf712a7e"
+    },
+    {
+      "path": "Nova.UI/Features/Campaigns/Services/CampaignWorkspaceCloseState.cs",
+      "sha256": "dfe42149791b10fd64aeff4adc0f65b0bc961d631801b7b0deb925186ba20fa9"
+    },
+    {
+      "path": "Nova.UI/Features/Players/Pages/Players.razor.cs",
+      "sha256": "c32d9d1d72002c1832da1fb0959e84e488c6127ae01d0c66762aca02f291d7b0"
+    },
+    {
+      "path": "Nova.UI/Features/Teams/Pages/Teams.razor.cs",
+      "sha256": "1c408c5cb1bd3d222b82f6d3b294de586f5f0ff6490798331dc3a26c08f57c14"
+    },
+    {
+      "path": "Nova/Features/Campaigns/CampaignCloseoutQueryService.cs",
+      "sha256": "8274e368c1ea2b46a744d3985affa57037254da550ae38129d0dbbd7788a59a6"
+    },
+    {
+      "path": "Nova/Features/Campaigns/CampaignLifecycleEndpointRouteBuilderExtensions.cs",
+      "sha256": "4de616732f89927e0cee25dc1b7c5d1e7963478c53da97701a2759d138ea828c"
+    },
+    {
+      "path": "Nova/Features/Campaigns/CampaignLifecycleService.cs",
+      "sha256": "bb86548e2522c3797f046f79ecbfc88b8f0b9c7d41b0ebe2e314f689fd668e1a"
+    },
+    {
+      "path": "Nova/Features/Campaigns/CampaignReopenPolicy.cs",
+      "sha256": "bbd1a55ae91e26cdd55fd2a39000066f5ba06fd95702ad26fc57e91b0c16ea2f"
+    },
+    {
+      "path": "Nova/Features/Campaigns/EffectivePlacementQueryService.cs",
+      "sha256": "5ba530b734fa897ffa930512f59868bfef4c9858d40c7d1fa00924770cf4059e"
+    },
+    {
+      "path": "Nova/Features/Campaigns/EffectivePlacementQueryService.Discovery.cs",
+      "sha256": "0af9cfc6652bd165f970df1dffade81fb4dc19b7b762b90d6050fe3d9c978aa6"
+    }
+  ],
+  "testFiles": [
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.cs",
+      "sha256": "d2b90d1f66e7b0ae5ba9cae594fe2b66ee8fda25dcb89d46ff801b4c8be42809"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.Native.cs",
+      "sha256": "5bf075f9233855729b8968292a82e26f69c7400cf9bef32b8771a6c87644d0db"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.Paging.cs",
+      "sha256": "72817466b490de915856e648da28588829f317db06666c5ead9622e81311f3c7"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseoutBrowserTests.cs",
+      "sha256": "828fd9ed61426a7d4968c62793be95bc1676242e414d4f7f71d7bc99e5cdff37"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseRecoveryBrowserTests.cs",
+      "sha256": "60670e89289a49a2d938c67cb1cb6d45f328bc35b42fc1fb512d2bff1c90718f"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignCloseRegionalBrowserTests.cs",
+      "sha256": "417c8c048075fbb6d0a4f090ec0458f4f686f57c1ceeb158b89455bec0dff3ef"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignDraftBrowserTests.cs",
+      "sha256": "6d429aa3f5e5a2282119246785b825519f71eec23b3bb66f1777165534ec4476"
+    },
+    {
+      "path": "Nova.Browser.Tests/CampaignPlaceRecoveryBrowserTests.cs",
+      "sha256": "63d2abaf32c7f53274119231c63e1afd985d278fc20767c6da268d61105c4d99"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/CampaignCloseRecoveryTests.cs",
+      "sha256": "a65616d163de339e5db2a0f041b8d4870d2d3fc8aea2ec02ee3484bc0526a1cd"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/CampaignLifecycleAuthorityTests.cs",
+      "sha256": "415b3ccb500713c19c5d360415b4025a0e87b63fefafd6bfc86286dcb2560b77"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/CampaignLifecyclePostgresTests.cs",
+      "sha256": "b1e6d4ff8a3b327eaacfe2aaa1dd294d6ccf2122bcecbb686763bc92a238435b"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/CampaignLifecycleRetryTests.cs",
+      "sha256": "1bbb79cc24ea01e45d3e6e4b3f68aac7de49d8d07e25f7fc78b1576b45c3ce51"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/EffectivePlacementPostgresTests.Closeout.cs",
+      "sha256": "a7f17cb750eefaf4d9f26a4406a7535e6edb066caa475166adb059cfadc7fd26"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/PlayerImportCommitPostgresTests.cs",
+      "sha256": "07888d6f3da5367b6d584b5dc05b5ce05f505821dae7e62b0422b631ebcfcf91"
+    },
+    {
+      "path": "Nova.Integration.Tests/Data/SeasonFoundationPostgresTests.cs",
+      "sha256": "c0cfa1c597b514c890d69e0931b0f7bfae6f92a389870aa5b054ac6d81596682"
+    },
+    {
+      "path": "Nova.Integration.Tests/Http/CampaignCloseoutHttpTests.cs",
+      "sha256": "35f925bf2e71204db7a35bc97dfedea1d9c0ece337bd7fa24d94573a51956b69"
+    },
+    {
+      "path": "Nova.Integration.Tests/Http/EffectivePlacementHttpTests.cs",
+      "sha256": "da7bb071f351de139479f965e8b1be6d3efb6ea66c28dc6bc5086bb06bd3ea7c"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignActivityQueryServiceTests.cs",
+      "sha256": "f94a50a366786150e961264920dfbaa45082ffdf0664d958ad7174c7b3eac623"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutPanelTests.cs",
+      "sha256": "9a3708128195d534985735489ee552d9a18e4c54a959dac12b409381f77e44ba"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutPanelTests.Refresh.cs",
+      "sha256": "2cfbf3f973c165ec76b544af6d2d459a1f5624c8b3e588e2176dca6a77eb4dbd"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignCloseoutQueryServiceTests.cs",
+      "sha256": "720d302791cc53544a19daed05a20156037e0fe1c1c19b9aca1e49ae009c99dd"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignCloseReviewQueryTests.cs",
+      "sha256": "09539c0fa244e7a9081a7748cb0d600b4ef53a5a35cd79662ddffd2b5c514347"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignCloseRosterTests.cs",
+      "sha256": "a77504054e7e54f7f2d25a1d023f979493f871cdbbf2038db79caa79e67e9bf0"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignEvaluationPanelTests.cs",
+      "sha256": "7ea6ba9ef99e79c5fd1e58c6bdb8099cabe16752682eb634c07dacdb86fb263c"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignLifecycleEndpointTests.cs",
+      "sha256": "7c42dbede28e557aaa2e354ab6da9b79d53eff3d1964b0c66d6ed9fca616d465"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignLifecycleServiceTests.cs",
+      "sha256": "d6da86c0b2c70449395d3534014f40a0dba6c00b99c041cdc995b6c0b0b707f3"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignReopenPolicyTests.cs",
+      "sha256": "a664cf2cd3acce2694e19d6c872e78c127ba78f8ecc8741167d24cb1b25b8446"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceCloseStateTests.cs",
+      "sha256": "453298e9ad04fefc60a3d249091fdc76858415dbb15c273f2c314fea33cec4a3"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.Close.cs",
+      "sha256": "53c08558ecba2c5fbc085d4a36c5b6524ff0aecc1fa1d4ddee01c78da50e6955"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.CloseStartup.cs",
+      "sha256": "0094c06d2e608ba48dafa0914846d8bc1fa2c48e137629713d7741ba2d3766a3"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs",
+      "sha256": "aefae6a9d43a1b63a2b0eba29c1f73f0ce600c521158457459344c22d9ae5034"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.LifecycleConflict.cs",
+      "sha256": "042b6274a6a6a833ea10c07d8465c173e9f74454bd9083bb027d42e46ae0b78d"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/ClosedCampaignReadabilityTests.cs",
+      "sha256": "96f557c1eaae228b8fcf72e9655130861749bdbc7adc2acd624217f0aed2f27f"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/EffectivePlacementConsumerTests.cs",
+      "sha256": "1d587246d9c6b7d80eab283cee3112d7041794a90891445123ea0f4c46f99fe7"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/HttpCampaignCloseoutQueryServiceTests.cs",
+      "sha256": "6247fa5215655eaaa943f675786f7c3c040e9efaf373c3f0402598246a209f06"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/HttpCampaignLifecycleServiceTests.cs",
+      "sha256": "1474310d6c6cf0594698850b862ae7fd0e909c5e16e007ce665e73236e18b20d"
+    },
+    {
+      "path": "Nova.Unit.Tests/Campaigns/HttpEffectivePlacementQueryServiceTests.Close.cs",
+      "sha256": "d2c8cd5660448c644b7f3685dcec60a4aebf54ad53927719b0a0564509c5cd75"
+    },
+    {
+      "path": "Nova.Unit.Tests/Players/PlayerComponentsTests.cs",
+      "sha256": "1b69a2b5c7f5019e64d9c3df2c3532fad7fd1a5137e549ab5645cfa37d55e392"
+    },
+    {
+      "path": "Nova.Unit.Tests/Teams/TeamComponentsTests.cs",
+      "sha256": "c289cc8d4ca3db9235d9bf61bd5e5da6f851a326e52c96aef592dfd18e3ee618"
+    }
+  ],
+  "captures": [
+    {
+      "file": "captures/admin-confirmation.png",
+      "width": 1280,
+      "height": 1455,
+      "sha256": "893197a506f93a4c4ee72a730a2d6fa6bae4bb2999995278b69cad3f7aa53956",
+      "capturedAtUtc": "2026-09-16T11:27:27.7233458Z"
+    },
+    {
+      "file": "captures/closed.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "f68439d9f1de058573a1ada4e3e1a2c9e0bb853b0ae9a207f097ef56a51525a5",
+      "capturedAtUtc": "2026-09-16T11:27:28.2540212Z"
+    },
+    {
+      "file": "captures/comparison.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "313f40272cbdfad555d4fba4f220a895b559b2f9fb741ecac0587e2be20eb18f",
+      "capturedAtUtc": "2026-09-16T03:50:08.6323853Z"
+    },
+    {
+      "file": "captures/desktop.png",
+      "width": 1440,
+      "height": 1192,
+      "sha256": "19cbb82c07b388b774d89eada4d0be366e7bd87a892ab0d73c32cea201f6e7a3",
+      "capturedAtUtc": "2026-09-16T11:27:30.7712257Z"
+    },
+    {
+      "file": "captures/hero-repro.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "1e910ed63dc514630d44b1d5d1b0239f13e3f74d09711b96f40d8dcc442d257f",
+      "capturedAtUtc": "2026-09-16T11:27:30.4314366Z"
+    },
+    {
+      "file": "captures/mobile.png",
+      "width": 390,
+      "height": 1680,
+      "sha256": "8415e3af10ce339b357ddf116d9613124bb2d63459bc79577ff273452144b0b6",
+      "capturedAtUtc": "2026-09-16T11:27:31.0173619Z"
+    },
+    {
+      "file": "captures/phone-empty.png",
+      "width": 390,
+      "height": 1432,
+      "sha256": "11301ce7414ebdebfed738c0ac05bc1e53ae5bba03ea5bed3a26ee0b0c678cf7",
+      "capturedAtUtc": "2026-09-16T11:27:29.1693753Z"
+    },
+    {
+      "file": "captures/phone-native-filters.png",
+      "width": 390,
+      "height": 1484,
+      "sha256": "8c1aa598e524cf0d8adb16c1ac88176a74646471bf4117e8cbdd83a89bf2c6ca",
+      "capturedAtUtc": "2026-09-16T11:27:36.7132714Z"
+    },
+    {
+      "file": "captures/phone-return.png",
+      "width": 390,
+      "height": 1505,
+      "sha256": "1dda25af1682648a40438723ed074380e6e92a0c9eac8f61713556fbe1f83f5b",
+      "capturedAtUtc": "2026-09-16T11:27:33.3729404Z"
+    },
+    {
+      "file": "captures/phone-roster-error.png",
+      "width": 390,
+      "height": 1533,
+      "sha256": "87555db00a385554c1c4e3d401c9e809e6dad0e4a5aafe8dcc288f38a5e01bde",
+      "capturedAtUtc": "2026-09-16T11:28:04.3994706Z"
+    },
+    {
+      "file": "captures/phone-stale-page.png",
+      "width": 390,
+      "height": 1576,
+      "sha256": "8d73d3e8a6b010c7ee5f7f39d156119d8573a5dc6488ef4646045e0510a01989",
+      "capturedAtUtc": "2026-09-16T11:27:28.3452881Z"
+    }
+  ],
+  "notes": [
+    "Synthetic fixtures; no production data.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-nine settled browser captures, including phone stale-page recovery and script-disabled native filters.",
+    "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
+    "Validation and review dispositions live in docs/issue-256-validation.md."
+  ]
+}

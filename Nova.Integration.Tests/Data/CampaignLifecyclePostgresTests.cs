@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Data;
 /// Verifies campaign lifecycle migration application and PostgreSQL status/event integrity constraints.
 /// </summary>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 {
     /// <summary>
     /// Verifies the clean Aspire database applied the campaign lifecycle migration.
@@ -536,7 +536,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var db = fixture.CreateAdminContext();
         await using (db)
         {
-            db.Users.Add(new NovaUserEntity { Id = campaignSeed.ActorUserId, ClubId = campaignSeed.ClubId, FirstName = "Placement", LastName = "Member" });
+
             var suffix = Guid.NewGuid().ToString("N");
             var player = new PlayerEntity
             {
@@ -601,6 +601,11 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             };
             db.Clubs.Add(club);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            db.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Lifecycle", LastName = "Administrator" });
+            var administratorRoleId = await db.Roles.Where(role => role.Name == Nova.SharedKernel.Security.Roles.ClubAdmin)
+                .Select(role => role.Id).SingleAsync(TestContext.Current.CancellationToken);
+            db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = actorUserId, RoleId = administratorRoleId });
 
             var season = new SeasonEntity
             {

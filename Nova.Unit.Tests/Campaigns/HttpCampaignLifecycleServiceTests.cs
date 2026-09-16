@@ -143,6 +143,23 @@ public sealed class HttpCampaignLifecycleServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.CloseUrl(CampaignId));
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, HttpStatusCode.OK)]
+    [InlineData(false, HttpStatusCode.Accepted)]
+    [InlineData(true, HttpStatusCode.OK)]
+    [InlineData(true, HttpStatusCode.Accepted)]
+    public async Task UnexpectedLifecycleAcknowledgementIsUnknownAsync(bool reopen, HttpStatusCode status)
+    {
+        using var response = new HttpResponseMessage(status);
+        using var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpCampaignLifecycleService(http);
+        var result = reopen ? await service.ReopenAsync(CampaignId, TestContext.Current.CancellationToken)
+            : await service.CloseAsync(CampaignId, TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Verifies a successful reopen POSTs to the shared reopen URL and returns success on 204.
     /// </summary>

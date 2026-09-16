@@ -230,7 +230,7 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
         try
         {
             await using var probe = fixture.CreateAdminContext();
-            var lockKey = string.Equals(transition, "close", StringComparison.Ordinal) ? long.MinValue + seed.CampaignId : (long.MinValue / 16) + seed.ClubId;
+            var lockKey = string.Equals(transition, "open", StringComparison.Ordinal) ? (long.MinValue / 16) + seed.ClubId : (long.MinValue / 64) + seed.ActorUserId;
             await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(probe, lockKey, ct);
         }
         finally
@@ -271,7 +271,7 @@ transition switch { "close" => 0, "open" => 3, _ => 2 }, 1, ct);
         {
             await using var probe = fixture.CreateAdminContext();
             await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
-                probe, close ? long.MinValue + seed.CampaignId : (long.MinValue / 16) + seed.ClubId, ct);
+                probe, close ? (long.MinValue / 64) + seed.ActorUserId : (long.MinValue / 16) + seed.ClubId, ct);
         }
         finally
         {

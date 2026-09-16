@@ -6,12 +6,15 @@ namespace Nova.SharedKernel.Features.Campaigns;
 /// <summary>Campaign-local discovery shared by Active work and immutable Closed records.</summary>
 public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
 {
+    /// <summary>The shared bound for literal campaign discovery text.</summary>
+    public const int MaximumSearchLength = 200;
+
     /// <summary>The campaign to read.</summary>
     [Range(1, long.MaxValue)]
     public required long CampaignId { get; init; }
 
     /// <summary>A literal name substring or exact tryout number.</summary>
-    [MaxLength(200)]
+    [MaxLength(MaximumSearchLength)]
     public string? Search { get; init; }
 
 #pragma warning disable CA1819 // Minimal API binds repeated scalar query parameters as arrays.
@@ -35,7 +38,7 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
     public long? ParticipantId { get; init; }
 
     /// <summary>The roster sort; a direction alone uses display name. Omitting both fields preserves the read's default.</summary>
-    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName|searchRelevance)$")]
+    [NotWhitespace, RegularExpression("(?i)^(displayName|graduationYear|tryoutNumber|assignmentId|outcome|teamName|searchRelevance|closeout)$")]
     public string? SortBy { get; init; }
 
     /// <summary>Ascending or descending primary order; ties remain deterministic.</summary>
@@ -48,6 +51,11 @@ public abstract record CampaignRosterDiscoveryInput : PlacementPageInput
         foreach (var error in base.Validate(validationContext))
         {
             yield return error;
+        }
+        if (string.Equals(SortBy, "closeout", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(SortDirection, "desc", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return new ValidationResult("Closeout groups use ascending review order.", [nameof(SortDirection)]);
         }
         if (GraduationYears?.Any(year => year <= 0) == true)
         {

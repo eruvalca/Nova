@@ -34,12 +34,17 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         (await page.EvaluateAsync<bool>("document.documentElement.scrollWidth <= innerWidth")).ShouldBeTrue();
         await page.SetViewportSizeAsync(1505, 1045);
         await page.GetByRole(AriaRole.Link, new() { Name = "Prepare draft", Exact = true }).ClickAsync();
-        await page.GetByRole(AriaRole.Link, new() { Name = "View players", Exact = true }).ClickAsync();
+        var returnToDraft = page.GetByRole(AriaRole.Link, new() { Name = "Return to draft", Exact = true });
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "View players", Exact = true }),
+            async () => string.Equals(new Uri(page.Url).AbsolutePath, "/players", StringComparison.Ordinal) && await returnToDraft.IsVisibleAsync());
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Return to draft", Exact = true })).ToBeVisibleAsync();
-        await page.GetByRole(AriaRole.Link, new() { Name = "Return to draft", Exact = true }).ClickAsync();
+        await InteractionHelpers.ClickUntilAsync(page, returnToDraft,
+            () => page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview" }).IsVisibleAsync());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview" })).ToBeVisibleAsync();
-        await page.GetByRole(AriaRole.Link, new() { Name = "View teams", Exact = true }).ClickAsync();
-        await page.GetByRole(AriaRole.Link, new() { Name = "Return to draft", Exact = true }).ClickAsync();
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "View teams", Exact = true }),
+            async () => string.Equals(new Uri(page.Url).AbsolutePath, "/club/teams", StringComparison.Ordinal) && await returnToDraft.IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, returnToDraft,
+            () => page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview" }).IsVisibleAsync());
         await page.GetByRole(AriaRole.Link, new() { Name = "Review opening", Exact = true }).ClickAsync();
         var commit = page.GetByRole(AriaRole.Button, new() { Name = "Open campaign and enroll 24 players", Exact = true });
         await Expect(commit).ToBeEnabledAsync();

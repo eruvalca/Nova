@@ -32,7 +32,7 @@ new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(input.CampaignId), Uri
 
         return await response.Content.ReadRequiredJsonAsync<CampaignCloseoutReadinessDto>(
             "The server returned an invalid campaign closeout readiness response.",
-            IsValidReadiness,
+            result => result.CampaignId == input.CampaignId && IsValidReadiness(result),
             cancellationToken);
     }
 
@@ -73,12 +73,23 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(input), UriKind.RelativeOrAbsol
         => result is not null
             && result.NeedsPlacementCount >= 0
             && result.CampaignId > 0
+            && result.Status is CampaignStatus.Active or CampaignStatus.Closed
+            && result.Lifecycle is { } lifecycle
+            && Enum.IsDefined(lifecycle.ReopenUnavailableReason)
+            && lifecycle.RelatedCampaignId is null or > 0
+            && lifecycle.CanClose == (lifecycle.IsAdministrator && result.Status == CampaignStatus.Active && result.IsReady)
+            && lifecycle.CanReopen == (lifecycle.IsAdministrator && result.Status == CampaignStatus.Closed
+                && lifecycle.ReopenUnavailableReason == CampaignReopenUnavailableReason.None)
             && IsValidSummary(result.Summary)
             && result.Blockers is not null
             && result.Blockers.All(blocker => blocker is not null)
             && result.IsReady == (result.Blockers.Count == 0)
             && result.Blockers.Select(blocker => blocker.Condition).Distinct(StringComparer.Ordinal).Count() == result.Blockers.Count
-            && result.Blockers.All(IsValidBlocker);
+            && result.Blockers.All(IsValidBlocker)
+            && result.NeedsPlacementCount <= result.Summary.TotalCount
+            && (result.Status == CampaignStatus.Active) == (lifecycle.ReopenUnavailableReason == CampaignReopenUnavailableReason.NotClosed)
+            && (result.Blockers.SingleOrDefault(blocker => string.Equals(blocker.Condition, CloseoutBlockerConditions.Outcomes, StringComparison.Ordinal))?.Count ?? 0) == result.Summary.UndecidedCount
+            && result.Blockers.Where(blocker => !string.Equals(blocker.Condition, CloseoutBlockerConditions.Outcomes, StringComparison.Ordinal)).All(blocker => blocker.Count <= result.Summary.AssignedCount);
 
     /// <summary>
     /// Validates one condition-keyed blocker row.
@@ -86,7 +97,7 @@ new Uri(CampaignEndpoints.GetCampaignActivityUrl(input), UriKind.RelativeOrAbsol
     /// <param name="blocker">The blocker row to validate.</param>
     /// <returns><see langword="true"/> when the row is structurally valid.</returns>
     private static bool IsValidBlocker(CampaignCloseoutBlockerDto blocker)
-        => blocker.Count >= 0
+        => blocker.Count > 0
             && blocker.AssignmentIds is not null
             && blocker.AssignmentIds.Count == blocker.Count
             && blocker.AssignmentIds.All(id => id > 0)

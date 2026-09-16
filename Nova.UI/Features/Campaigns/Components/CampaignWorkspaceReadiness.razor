@@ -7,22 +7,22 @@
     {
         <span><strong>Closed</strong> · Campaign record is read-only.</span>
     }
-    else if (_loading)
+    else if (Loading)
     {
         <span role="status">Checking Close readiness…</span>
     }
-    else if (_error)
+    else if (Error)
     {
         <span role="status">Close readiness unavailable.</span>
-        <button class="btn btn-outline-secondary" type="button" @onclick="LoadAsync">Retry readiness</button>
+        <button class="btn btn-outline-secondary" type="button" @onclick="OnRetry">Retry readiness</button>
     }
-    else if (_readiness is not null)
+    else if (Readiness is not null)
     {
-        <span><strong>@(_readiness.IsReady ? "Ready to close" : "Not ready to close")</strong>
-            · @_readiness.NeedsPlacementCount need placement</span>
-        @if (!_readiness.IsReady)
+        <span><strong>@(Readiness.IsReady ? "Ready to close" : "Not ready to close")</strong>
+            · @Readiness.NeedsPlacementCount need placement</span>
+        @if (!Readiness.IsReady)
         {
-            @foreach (var blocker in _readiness.Blockers)
+            @foreach (var blocker in Readiness.Blockers)
             {
                 <span class="readiness-blocker">@BlockerLabel(blocker)</span>
             }

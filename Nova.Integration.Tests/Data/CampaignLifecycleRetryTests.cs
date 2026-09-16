@@ -14,7 +14,7 @@ namespace Nova.Integration.Tests.Data;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
+public sealed partial class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>
     /// Verifies opening lets a provider failure wrapped by EF in <see cref="DbUpdateException"/>
@@ -372,10 +372,10 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Verifies a close whose commit reached the database but surfaced a transient failure is
-    /// reported as success rather than replayed into a spurious "already closed" conflict.
+    /// reported as an unknown acknowledgement, without replay or state-based success inference.
     /// </summary>
     [Fact]
-    public async Task CampaignCloseReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
+    public async Task CampaignCloseReportsUnknownWhenCommitSucceedsButAcknowledgementIsLostAsync()
     {
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
@@ -399,7 +399,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var result = await service.CloseAsync(campaignId, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.Value.ShouldBeOfType<LifecycleOutcomeUnknown>();
         failureInterceptor.FailureCount.ShouldBe(1);
 
         await using var verify = fixture.CreateAdminContext();
@@ -415,7 +415,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
     /// Verifies the same ambiguous-commit protection applies to reopen.
     /// </summary>
     [Fact]
-    public async Task CampaignReopenReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
+    public async Task CampaignReopenReportsUnknownWhenCommitSucceedsButAcknowledgementIsLostAsync()
     {
 #pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
@@ -439,7 +439,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var result = await service.ReopenAsync(campaignId, TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.Value.ShouldBeOfType<LifecycleOutcomeUnknown>();
         failureInterceptor.FailureCount.ShouldBe(1);
 
         await using var verify = fixture.CreateAdminContext();
@@ -561,6 +561,11 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
             };
             seed.Clubs.Add(club);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            seed.Users.Add(new NovaUserEntity { Id = actorUserId, ClubId = club.ClubId, FirstName = "Lifecycle", LastName = "Administrator" });
+            var administratorRoleId = await seed.Roles.Where(role => role.Name == Nova.SharedKernel.Security.Roles.ClubAdmin)
+                .Select(role => role.Id).SingleAsync(TestContext.Current.CancellationToken);
+            seed.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<long> { UserId = actorUserId, RoleId = administratorRoleId });
 
             var season = new SeasonEntity
             {

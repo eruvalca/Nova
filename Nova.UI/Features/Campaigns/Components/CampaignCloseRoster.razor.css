@@ -1,0 +1,16 @@
+.close-roster { padding: 1.25rem; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); background: var(--bs-white); }
+.roster-toolbar, .roster-toolbar form { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.roster-toolbar { margin-bottom: 1rem; }
+.roster-toolbar input { width: 16rem; max-width: 100%; }
+.roster-toolbar select { width: auto; max-width: 100%; }
+.roster-toolbar input, .roster-toolbar select, button, a { min-height: 2.75rem; }
+a { display: inline-flex; align-items: center; }
+.table-responsive { max-height: 18rem; overflow: auto; }
+.table { margin-bottom: 0; font-variant-numeric: tabular-nums; }
+.table td, .table th { padding-block: .25rem; }
+.table thead { --bs-table-bg: var(--bs-tertiary-bg); }
+.group-row { --bs-table-bg: var(--bs-primary-bg-subtle); }
+.table a, .roster-paging a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.roster-paging { display: flex; justify-content: space-between; gap: 1rem; }
+a:focus-visible { outline: .125rem solid var(--bs-primary); outline-offset: .1875rem; }
+@media (max-width: 575.98px) { .close-roster { padding: 1rem; } .roster-toolbar form { width: 100%; } .roster-toolbar input { flex: 1; width: 10rem; } .table { min-width: 38rem; } }

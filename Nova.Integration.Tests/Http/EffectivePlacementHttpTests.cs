@@ -16,6 +16,47 @@ public sealed class EffectivePlacementHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 
+    [Fact]
+    public async Task CloseReviewBindsExactBlockersAndStableSqlPagesWithoutNarrowingCountsAsync()
+    {
+        var token = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var member = await RegisterMemberAsync(client);
+        var seed = await SeedAsync(member, closed: false);
+        long[] ids;
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var assignments = await db.PlayerCampaignAssignments.Include(row => row.Player)
+                .Where(row => row.CampaignId == seed.CampaignId).OrderBy(row => row.PlayerCampaignAssignmentId).ToListAsync(token);
+            foreach (var assignment in assignments)
+            {
+                assignment.Player.FirstName = "Literal_%";
+                assignment.Player.LastName = "Duplicate";
+            }
+            ids = assignments.Select(row => row.PlayerCampaignAssignmentId).ToArray();
+            await db.SaveChangesAsync(token);
+        }
+        for (var page = 1; page <= 3; page++)
+        {
+            using var response = await client.GetAsync(Route("working", seed.CampaignId, $"sortBy=closeout&pageSize=1&page={page}"), token);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var body = await response.Content.ReadFromJsonAsync<CampaignEffectivePlacementsResult>(token);
+            body!.Participants.Items.ShouldHaveSingleItem().PlayerCampaignAssignmentId.ShouldBe(ids[page - 1]);
+            body.Participants.TotalCount.ShouldBe(3);
+        }
+        using var filtered = await client.GetAsync(Route("working", seed.CampaignId, "sortBy=closeout&closeoutBlocker=outcomes&search=Literal_%25&pageSize=1"), token);
+        filtered.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await filtered.Content.ReadFromJsonAsync<CampaignEffectivePlacementsResult>(token);
+        result!.Participants.TotalCount.ShouldBe(2);
+        result.Participants.Items.ShouldHaveSingleItem().PlayerCampaignAssignmentId.ShouldBe(ids[1]);
+        result.Counts.ShouldBe(new EffectivePlacementCounts(2, 1, 0, 0));
+        foreach (var query in new[] { "closeoutBlocker=unknown", "closeoutBlocker=%20", "sortBy=closeout&sortDirection=desc", "pageSize=101" })
+        {
+            using var invalid = await client.GetAsync(Route("working", seed.CampaignId, query), token);
+            await AssertProblemAsync(invalid, HttpStatusCode.BadRequest);
+        }
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("current")]
     [InlineData("working")]
