@@ -29,8 +29,16 @@
         <p class="text-body-secondary small" role="status">@_page.Items.Count of @_page.TotalCount matching participants · Page @_page.Page · Groups on this page only</p>
         @if (_page.Items.Count == 0)
         {
-            <p>No participants match this review.</p>
-            <a href="@BuildCloseUrl(new())">Show all campaign participants</a>
+            @if (_page.TotalCount > 0)
+            {
+                <p>This page is beyond the current results.</p>
+                <a href="@BuildCloseUrl(State with { Page = LastAvailablePage })">Go to last available page</a>
+            }
+            else
+            {
+                <p>No participants match this review.</p>
+                <a href="@BuildCloseUrl(new())">Show all campaign participants</a>
+            }
         }
         else
         {

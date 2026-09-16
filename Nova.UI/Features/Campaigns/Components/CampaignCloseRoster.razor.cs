@@ -41,6 +41,7 @@ public partial class CampaignCloseRoster(IEffectivePlacementQueryService queries
     private string? _error;
     private string _search = string.Empty;
     private PagedResult<CampaignEffectivePlacementItem>? _page;
+    private int LastAvailablePage => _page is null ? 1 : Math.Max(1, (int)Math.Ceiling(_page.TotalCount / (double)Math.Max(1, _page.PageSize)));
     private string RequestKey => $"{Owner}:{CampaignId}:{State}";
 
     /// <inheritdoc />

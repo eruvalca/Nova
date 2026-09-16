@@ -54,7 +54,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(page, closeButton, () => page.GetByText("Campaign closed.").IsVisibleAsync());
 
         // The panel switches to the closed read-only view and announces the close.
-        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign closed.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]").Filter(new() { HasText = "Campaign closed." })).ToContainTextAsync("Campaign closed.");
         await Expect(page.Locator(".close-review")).ToContainTextAsync("This campaign is closed and read-only.");
         await Expect(page.Locator("[aria-label='Final outcome summary']")).ToBeVisibleAsync();
 
@@ -134,7 +134,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(secondPage.Locator("button.place-section.leads")).ToContainTextAsync("1");
 
         // Admin A's stale close is rejected with an actionable conflict and refetches the blockers.
-        var conflictAlert = adminPage.Locator(".lifecycle-checkpoint [role=status]");
+        var conflictAlert = adminPage.Locator(".lifecycle-checkpoint [role=status]").Filter(new() { HasText = "Resolve all campaign close blockers before closing this campaign." });
         await InteractionHelpers.ClickUntilAsync(adminPage, closeButton, () => conflictAlert.IsVisibleAsync());
         await Expect(conflictAlert).ToContainTextAsync("Resolve all campaign close blockers before closing this campaign.");
         await Expect(adminPage.Locator(".close-blocker")).ToHaveCountAsync(1);
@@ -173,7 +173,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await InteractionHelpers.ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
         await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
-        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign reopened.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]").Filter(new() { HasText = "Campaign reopened." })).ToContainTextAsync("Campaign reopened.");
 
         // The panel returns to the active checklist.
         await Expect(page.Locator("section[aria-labelledby='closeout-region-heading']")).ToContainTextAsync("3 local outcomes");
@@ -424,7 +424,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await page.Keyboard.PressAsync("Enter");
             },
             () => page.GetByText("Campaign closed.").IsVisibleAsync());
-        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign closed.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]").Filter(new() { HasText = "Campaign closed." })).ToContainTextAsync("Campaign closed.");
 
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
         var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Review reopen" });
@@ -451,7 +451,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             },
             () => confirmGroup.IsVisibleAsync());
         await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
-        await Expect(page.Locator(".lifecycle-checkpoint [role=status]")).ToContainTextAsync("Campaign reopened.");
+        await Expect(page.Locator(".lifecycle-checkpoint [role=status]").Filter(new() { HasText = "Campaign reopened." })).ToContainTextAsync("Campaign reopened.");
 
         await CloseoutSeed.ActivateCampaignAsync(
             fixture.AppHost,

@@ -55,6 +55,35 @@ public sealed class CampaignCloseRosterTests : BunitContext
         cut.Markup.ShouldNotContain("notselected");
     }
 
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(50, 1)]
+    [InlineData(51, 2)]
+    [InlineData(int.MaxValue - 50, 42_949_672)]
+    public void EmptyPageDistinguishesMatchesAndOffersLastPageWithoutLosingFilters(int total, int lastPage)
+    {
+        _queries.GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignEffectivePlacementsResult>(new CampaignEffectivePlacementsResult(
+                new(10, "Campaign", CampaignStatus.Active, new(20, "Season")), new(total, 0, 0, 0), new([], 42_949_673, 50, total))));
+        var cut = Render<CampaignCloseRoster>(p => p.Add(x => x.CampaignId, 10).Add(x => x.Owner, "owner")
+            .Add(x => x.State, new CampaignWorkspaceCloseState { Page = 42_949_673, Search = "A & B", Blocker = "outcomes" })
+            .Add(x => x.BuildCloseUrl, state => state.Apply("/campaigns/10?tab=close&placementSearch=retained"))
+            .Add(x => x.BuildParticipantUrl, _ => "/campaigns/10?tab=place"));
+        if (total == 0)
+        {
+            cut.Markup.ShouldContain("No participants match this review.");
+            cut.Markup.ShouldNotContain("Go to last available page");
+            return;
+        }
+        cut.Markup.ShouldNotContain("No participants match this review.");
+        cut.Markup.ShouldContain("This page is beyond the current results.");
+        var recovery = cut.FindAll("a").Single(x => string.Equals(x.TextContent, "Go to last available page", StringComparison.Ordinal));
+        var expected = new CampaignWorkspaceCloseState { Page = lastPage, Search = "A & B", Blocker = "outcomes" };
+        recovery.GetAttribute("href").ShouldBe(expected.Apply("/campaigns/10?tab=close&placementSearch=retained"));
+        _ = _queries.Received(1).GetCampaignEffectivePlacementsAsync(Arg.Any<GetCampaignEffectivePlacementsInput>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task DisposedRosterRetryDoesNotPublishAnUnavailableResultAsync()
     {

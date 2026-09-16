@@ -7,6 +7,25 @@ namespace Nova.Unit.Tests.Campaigns;
 
 public sealed partial class HttpEffectivePlacementQueryServiceTests
 {
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData(" ")]
+    [InlineData(" outcomes ")]
+    public async Task InvalidCloseBlockerIsRejectedWithoutSendingOrBroadeningRequestAsync(string blocker)
+    {
+        var requests = 0;
+        using var handler = new RecordingHandler(_ => { requests++; return Response(Payload(1).ToJsonString()); });
+        using var http = CreateHttp(handler);
+        var service = new HttpEffectivePlacementQueryService(http);
+        var input = new GetCampaignEffectivePlacementsInput { CampaignId = 42, CloseoutBlocker = blocker };
+        CampaignEndpoints.EffectivePlacementsUrl(input).ShouldContain("closeoutBlocker=" + Uri.EscapeDataString(blocker));
+        var result = await service.GetCampaignEffectivePlacementsAsync(input, TestContext.Current.CancellationToken);
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.ShouldContainKey(nameof(input.CloseoutBlocker));
+        requests.ShouldBe(0);
+    }
+
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, false, false)]
     [InlineData(1, true, false)]

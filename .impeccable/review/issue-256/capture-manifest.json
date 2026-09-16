@@ -1,9 +1,9 @@
 {
   "issue": 256,
-  "testedImplementationRevision": "971e1d4b186bc70d84cc1041daa3ac168bb9d836 plus complete round-five working diff; fingerprints identify tested inputs",
+  "testedImplementationRevision": "f7fb95b6d3c2918be290ad1fc21be30a888f32ff plus complete round-six working diff; fingerprints identify tested inputs",
   "baseRevision": "3486196375e01fc870ce4fba0ac918f3a317773d",
-  "productionFingerprint": "013a5b6d8ac05c22cf068e2e78fdd31b77a65a3f8052efabbd9595dc33519ac2",
-  "testFingerprint": "31394b692569fff5df6ccb604b0d0a2f1948ed2f54a989f8e802a4be1a5a393d",
+  "productionFingerprint": "8ef5197c68a8d3a30cfc8d8ae16863f906de92b620cc92d82b9af7d3a1e38d8c",
+  "testFingerprint": "857828b0acd8420e7ac487ab4f0038bce7a9fb7a2d22aa907de47e954cc44389",
   "normalization": "UTF-8 text with LF newlines; sorted changed source path:sha256 entries",
   "productionFiles": [
     {
@@ -52,11 +52,11 @@
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor",
-      "sha256": "03670574c1193239a6b8c109c2147676a13ac5dcfb69b1ead406aec0ee130f76"
+      "sha256": "1f0a95d88772abef5d194682176ed6afaab650f032fa8632b83bd0c13e85d5f6"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.cs",
-      "sha256": "30b798f75216b23d221e563a95bfda790bfdf07533ca035be04792795f7381bb"
+      "sha256": "6486c37b846a3ce330ff0a50d14a6355cce2721d2a9475142b1d6bfe0bfd78db"
     },
     {
       "path": "Nova.UI/Features/Campaigns/Components/CampaignCloseRoster.razor.css",
@@ -157,8 +157,12 @@
       "sha256": "a9e9e39b3d89eb1d487327e9cb40787fd16f86f364861cd2943ac4b591784124"
     },
     {
+      "path": "Nova.Browser.Tests/CampaignCloseBrowserTests.Paging.cs",
+      "sha256": "72817466b490de915856e648da28588829f317db06666c5ead9622e81311f3c7"
+    },
+    {
       "path": "Nova.Browser.Tests/CampaignCloseoutBrowserTests.cs",
-      "sha256": "546de539cc1707d8b9676413209082375eded64f16699b4238699db5375ae436"
+      "sha256": "828fd9ed61426a7d4968c62793be95bc1676242e414d4f7f71d7bc99e5cdff37"
     },
     {
       "path": "Nova.Browser.Tests/CampaignCloseRecoveryBrowserTests.cs",
@@ -230,7 +234,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignCloseRosterTests.cs",
-      "sha256": "de2741dc73acdb9ae76d21684c8fdb225cccae10ddbb055fe4d2f0f14eb64e1d"
+      "sha256": "3bd8e1f2e7e39ed7ef5ea292fc389f77f27939083862824e1785adca35b427f9"
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/CampaignEvaluationPanelTests.cs",
@@ -286,7 +290,7 @@
     },
     {
       "path": "Nova.Unit.Tests/Campaigns/HttpEffectivePlacementQueryServiceTests.Close.cs",
-      "sha256": "598ffe938f66d0edf3a87449cdc8b3d2dbd457136b9e94a9ae7256d8dbfca3c8"
+      "sha256": "0ba619c5102be3e9de438ea0a62923bd5ee1f45bcceeb8ad03f08d8bf7c97d2a"
     }
   ],
   "captures": [
@@ -294,15 +298,15 @@
       "file": "captures/admin-confirmation.png",
       "width": 1280,
       "height": 1455,
-      "sha256": "4bd6be1e36d22f0a48d8b161ef95045b0afb8e79aa8726a6047a89eb7837325c",
-      "capturedAtUtc": "2026-09-16T07:34:57.1776167Z"
+      "sha256": "e1eb9b5d4a9b27965608afc146b17463553f0501781a3c113e2cbb7f1fe94ed5",
+      "capturedAtUtc": "2026-09-16T09:05:17.0413354Z"
     },
     {
       "file": "captures/closed.png",
       "width": 1280,
       "height": 800,
-      "sha256": "da6acfdca71002e9f6a32105d00abb1e71b72f807ba20fd7151d469a98377392",
-      "capturedAtUtc": "2026-09-16T07:34:58.2106516Z"
+      "sha256": "81c9dfd0ff0f19e0938938e0c8fd844908333874eaeea136db6ded80c9e3dcc5",
+      "capturedAtUtc": "2026-09-16T09:05:17.5126279Z"
     },
     {
       "file": "captures/comparison.png",
@@ -315,48 +319,55 @@
       "file": "captures/desktop.png",
       "width": 1440,
       "height": 1192,
-      "sha256": "0ec6d9e4438766a7ad7ca0f97289ab05ab2cb30019ef2676a626e13ec444ed05",
-      "capturedAtUtc": "2026-09-16T07:34:59.8577940Z"
+      "sha256": "007aad91f84fa0b949b994e1985d248e56ac7fa2c7337ad6ad6a9bd05a88e927",
+      "capturedAtUtc": "2026-09-16T09:05:21.2776254Z"
     },
     {
       "file": "captures/hero-repro.png",
       "width": 1536,
       "height": 1024,
-      "sha256": "8562ef296f43fcc8a7cd74f04a8bb102fd4fb188d190ceb073c6b6b8819c8df3",
-      "capturedAtUtc": "2026-09-16T07:34:59.4870547Z"
+      "sha256": "dbbdb4052ba02901376f631def01c4f6f164634fe8463a1256bd2d29c8639bcd",
+      "capturedAtUtc": "2026-09-16T09:05:20.8880718Z"
     },
     {
       "file": "captures/mobile.png",
       "width": 390,
       "height": 1680,
       "sha256": "8415e3af10ce339b357ddf116d9613124bb2d63459bc79577ff273452144b0b6",
-      "capturedAtUtc": "2026-09-16T07:35:00.0551505Z"
+      "capturedAtUtc": "2026-09-16T09:05:21.4751920Z"
     },
     {
       "file": "captures/phone-empty.png",
       "width": 390,
       "height": 1432,
       "sha256": "11301ce7414ebdebfed738c0ac05bc1e53ae5bba03ea5bed3a26ee0b0c678cf7",
-      "capturedAtUtc": "2026-09-16T07:34:57.8867058Z"
+      "capturedAtUtc": "2026-09-16T09:05:19.6169702Z"
     },
     {
       "file": "captures/phone-return.png",
       "width": 390,
       "height": 1505,
-      "sha256": "f09a7cdc264325c982b2b2f66683675feca1dc08e513f6797579910a167d4d40",
-      "capturedAtUtc": "2026-09-16T07:35:01.8133000Z"
+      "sha256": "c282a85a8771ba2e252993a5ae49157d950238c5b86b368a15cac234101782c9",
+      "capturedAtUtc": "2026-09-16T09:05:24.5605228Z"
     },
     {
       "file": "captures/phone-roster-error.png",
       "width": 390,
       "height": 1533,
-      "sha256": "789458a499cb3cd9ffaab0352399c7a8dc3d84daf0b937d2d173f438c975f370",
-      "capturedAtUtc": "2026-09-16T07:35:29.7400795Z"
+      "sha256": "a0cb1d529a919509403ba3078837be76998985dc2352d0fd5cdc8343f52135ed",
+      "capturedAtUtc": "2026-09-16T09:05:51.6475016Z"
+    },
+    {
+      "file": "captures/phone-stale-page.png",
+      "width": 390,
+      "height": 1576,
+      "sha256": "77c5fe3766750ca5f2b885b5ae5ea50e6185171ac668952e53fba51c3ca47ee7",
+      "capturedAtUtc": "2026-09-16T09:05:17.2884310Z"
     }
   ],
   "notes": [
     "Synthetic fixtures; no production data.",
-    "comparison.png retains the original failed 71.3% comparison input; all other images are round-four settled browser captures reused for round five, which changes startup persistence only with no markup, CSS, copy or composition change.",
+    "comparison.png retains the original failed 71.3% comparison input; all other images are round-six settled browser captures, including phone stale-page recovery.",
     "Member hero1536x1024 DPR1; desktop1440x960; mobile and phone390x844; admin1280x800; full-page unless hero.",
     "Validation and review dispositions live in docs/issue-256-validation.md."
   ]
