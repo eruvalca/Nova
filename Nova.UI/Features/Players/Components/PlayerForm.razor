@@ -10,9 +10,9 @@
             <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
         }
 
-        @if (Duplicate is { } duplicate)
+        @if (Duplicate is { } duplicate && DuplicateDetailUrl is not null)
         {
-            <p><a href="@($"/players/{duplicate.PlayerId}")">View existing @(duplicate.LifecycleStatus == LifecycleStatus.Archived ? "archived " : string.Empty)player</a></p>
+            <p><a href="@DuplicateDetailUrl">View existing @(duplicate.LifecycleStatus == LifecycleStatus.Archived ? "archived " : string.Empty)player</a></p>
         }
 
         @if (GraduationYearBlockers.Count > 0)

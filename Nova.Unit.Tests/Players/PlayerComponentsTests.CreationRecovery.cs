@@ -1,4 +1,5 @@
 ﻿using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
@@ -147,11 +148,14 @@ public sealed partial class PlayerComponentsTests
                 : new ServiceResult<PlayerCreationCompletion>(CreationCompletion(input)));
         });
         RegisterServices(isClubAdmin: true, managementService: service);
+        const string RosterUrl = "/players?view=archived&returnUrl=%2Fcampaigns%2F10%3Ftab%3Dclose&returnToDraft=10&search=Avery&graduationYear=2032&tag=11";
+        Services.GetRequiredService<NavigationManager>().NavigateTo(RosterUrl);
         var cut = Render<PlayersPage>();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("View existing archived player"));
-        cut.Find("a[href='/players/21']").ShouldNotBeNull();
+        cut.Find("a[href^='/players/21?']").GetAttribute("href")
+            .ShouldBe($"/players/21?returnUrl={Uri.EscapeDataString(RosterUrl)}");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Corrected" });
         await cut.Find("button[type='submit']").ClickAsync(new());
@@ -159,6 +163,76 @@ public sealed partial class PlayerComponentsTests
         commands.Count.ShouldBe(2);
         commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
         commands[1].FirstName.ShouldBe("Corrected");
+        await cut.Find("button.btn-primary").ClickAsync(new());
+        cut.Markup.ShouldNotContain("View existing archived player");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>Closing a rejected form clears its duplicate feedback without retaining a settled operation.</summary>
+    [Fact]
+    public async Task PlayersClearsDuplicateWhenCancelledFormReopensAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                PlayerCreationProblems.Duplicate(input.OperationId, 21, LifecycleStatus.Active)));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = Render<PlayersPage>();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        cut.Markup.ShouldContain("View existing player");
+
+        await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
+        await cut.Find("button.btn-primary").ClickAsync(new());
+
+        cut.Markup.ShouldNotContain("View existing player");
+        cut.FindComponent<PlayerForm>().Instance.Duplicate.ShouldBeNull();
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Another" });
+        await cut.Find("button[type='submit']").ClickAsync(new());
+        commands.Count.ShouldBe(2);
+        commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
+        commands[1].FirstName.ShouldBe("Another");
+    }
+
+    /// <summary>Neither expiry nor denied recovery proves rollback; hiding the form cannot replace unresolved work.</summary>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PlayersRetainsUnresolvedCreationAfterDenialAndCancelAsync(bool expired)
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            var denial = expired ? PlayerCreationProblems.Expired() : ServiceProblem.Forbidden("Membership removed");
+            var problem = commands.Count == 1 ? ServiceProblem.ServerError("Lost response") : denial;
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(problem));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = Render<PlayersPage>();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.Find("button[type='submit']").ClickAsync(new());
+        cut.Markup.ShouldContain(expired ? "has expired" : "Membership removed");
+
+        await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
+        await cut.Find("button.btn-primary").ClickAsync(new());
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Replacement must not escape";
+        await cut.Find("button[type='submit']").ClickAsync(new());
+
+        commands.Count.ShouldBe(3);
+        commands[1].ShouldBeSameAs(commands[0]);
+        commands[2].ShouldBeSameAs(commands[0]);
+        commands[2].FirstName.ShouldBe("Taylor");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
     }
 
     private static async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)

@@ -80,12 +80,45 @@ public sealed partial class PlayerFormBrowserTests
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToBeVisibleAsync();
         await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+        await OpenCreationFormAsync(page);
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
         await page.Locator("#player-first-name").FillAsync("Corrected");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
         await Expect(page.GetByText("Corrected Recovery", new() { Exact = true })).ToBeVisibleAsync();
         await using var db = fixture.AppHost.CreateAdminContext();
         (await db.Players.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(2);
         (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(3);
+    }
+
+    /// <summary>The duplicate detail round trip restores the originating roster filters.</summary>
+    [Fact]
+    public async Task PlayerFormDuplicateDetailPreservesRosterReturnContextAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(ct);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenPlayersAsync(page);
+        await OpenCreationFormAsync(page);
+        await FillCreationFormAsync(page, "Original");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+
+        const string RosterUrl = "/players?view=archived&search=Original";
+        await page.GotoAsync(new Uri(fixture.BaseUri, RosterUrl).ToString());
+        await OpenCreationFormAsync(page);
+        await FillCreationFormAsync(page, "Original");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Original Recovery", Exact = true })).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        await OpenCreationFormAsync(page);
+        new Uri(page.Url).PathAndQuery.ShouldBe(RosterUrl);
+        await Expect(page.Locator("#players-search")).ToHaveValueAsync("Original");
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToHaveCountAsync(0);
     }
 
     private static async Task OpenCreationFormAsync(IPage page)

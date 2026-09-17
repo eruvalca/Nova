@@ -44,6 +44,10 @@ public partial class PlayerForm
     [Parameter]
     public PlayerCreationDuplicate? Duplicate { get; set; }
 
+    /// <summary>The parent-built duplicate detail destination, including the current roster return context.</summary>
+    [Parameter]
+    public Uri? DuplicateDetailUrl { get; set; }
+
     /// <summary>
     /// Gets or sets a server-side error message to display.
     /// </summary>

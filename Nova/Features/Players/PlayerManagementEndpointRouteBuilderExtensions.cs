@@ -24,7 +24,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
                 .MapGroup(PlayerEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            // Create a new player and enroll them in all Active campaigns atomically.
+            // Create or recover a player and their original optional Active-campaign enrollment.
             group.MapPost(PlayerEndpoints.CreateRelative, CreatePlayerHandlerAsync)
                 .Produces<PlayerCreationCompletion>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
@@ -52,7 +52,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Handles POST /api/players — creates a new player and enrolls them in all Active campaigns.
+    /// Handles POST /api/players — creates or recovers a player and their original optional Active-campaign enrollment.
     /// </summary>
     private static async Task<IResult> CreatePlayerHandlerAsync(
         CreatePlayerInput input,

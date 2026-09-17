@@ -6,19 +6,23 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current fix revision: `c3b99cd643934959df8da6775e2aeb7988625dcd` on
-`codex/279-player-command-recovery`, based on `fc2c0053`. This includes the original implementation
-`f25d19a2`, guidance follow-up `430010e0`, production-review fixes `c9c1d7e`, and the conformance fixes
-below. The latest build, format, unit, and integration checks ran against `d4c3fbc7` plus the exact six
-fixture changes and skill-reference correction committed as `c3b99cd6`; committing changed no tested
-source. The following validation-record commit changes only this document.
+Current review-round inputs: `1eff16154fd9eae0452e0d42f62fa11679ad3ab0` plus the exact changes in
+the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
+The delta comprises the player form/component and roster page, creation endpoint/route documentation,
+`PlayerComponentsTests.CreationRecovery`, `PlayerFormBrowserTests.Recovery`, evaluation-history
+test failure diagnostics, and this document.
+All changes for Copilot review `5229673163`, including this evidence, are committed together once.
+Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Application, shared harness, and browser-suite inputs still match `c9c1d7e`; its full browser and
-migration-model results remain applicable. No source, configuration, dependencies or generated assets
-changed during that browser run. All required checks in the current gate table pass, and both
-conformance findings have verified fixes below.
-
-Remote `main` was verified still at `fc2c0053` during the conformance-fix pass; no merge-input differences exist.
+Build, format, full unit/integration and the final full browser run pass on these inputs. The first
+browser run's unexplained evaluation-history timeout remains an open validation incident below;
+the green reruns do not establish a fix, so this record does not claim merge readiness.
+Only failure diagnostics in a browser test and documentation changed after the unit/integration
+runs; their application, fixture and suite inputs remain identical. Source diff and generated
+Bootstrap CSS hashes remained unchanged during the final browser run. Remote `main` still equals
+`fc2c0053`; there are no incoming merge-input differences. Migration-model evidence from `c9c1d7e`
+remains applicable because model, migration and provider configuration inputs are unchanged.
+Current remote checks and reviews are linked from [PR #283](https://github.com/eruvalca/Nova/pull/283).
 
 ## Guidance applied
 
@@ -44,6 +48,11 @@ Remote `main` was verified still at `fc2c0053` during the conformance-fix pass; 
   `nova-testing` and its integration/persisted-membership references; and the form/lifecycle recipe.
   Applied the installed `skill-creator` and `dotnet-test/run-tests` skills for the narrow guidance edit
   and repository-compatible MTP execution. Existing behavioral tests cover the fixture-only changes.
+- Copilot suppressed-comment pass: reused the applicable Blazor, validation, API, C#, tenancy and
+  testing rules; `add-blazor-ui` with lifecycle/state and form references; and `nova-testing` with
+  bUnit, transition and browser-suite references. Applied `dotnet-test/code-testing-agent`'s focused
+  existing-suite extension path and `dotnet-test/run-tests`; no runner overlay exists. No new
+  test project, generation pipeline, guidance rule or diagnostic suppression was needed.
 
 ## Behavior and evidence
 
@@ -89,12 +98,12 @@ Current gate evidence for the implementation revision above:
 
 | Check | Command | Current result | Tested revision |
 | --- | --- | --- | --- |
-| Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors | `c3b99cd6` inputs |
-| Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass | `c3b99cd6` inputs |
+| Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors | Current review-round inputs above |
+| Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass | Current review-round inputs above |
 | Migration model | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Pass: no pending changes (tool 10.0.8 emits an informational runtime 10.0.12 version warning) | `c9c1d7e`, unchanged model inputs |
-| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,672 passed, zero failed/skipped | `c3b99cd6` inputs |
-| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped | `c3b99cd6` inputs |
-| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 206 passed, zero failed, 8 existing opt-in captures skipped; full suite selected because authentication, recovery and HTTP behavior span flows. | `c9c1d7e`, unchanged application/browser inputs |
+| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,675 passed, zero failed/skipped | Current review-round inputs above |
+| Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped | Current review-round inputs above |
+| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Final run: 207 passed, zero failed, 8 existing opt-in captures skipped. Full suite selected because recovery and navigation span composed flows. Earlier unexplained timeout remains open below. | Current review-round inputs above |
 
 The incremental [receipt migration](../Nova/Data/Migrations/20260916204134_AddPlayerCreationReceipts.cs)
 was applied by the Aspire integration/browser fixtures. The browser skips were the existing accessibility
@@ -204,6 +213,50 @@ and size. Migration-model verification is reused because no model or migration i
 `git diff --check` and all 18 distinct relative file links pass. Both findings are addressed; no
 unresolved conformance finding remains.
 
+## Copilot suppressed-comment review
+
+Source: [Copilot review at `1eff1615`](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5229673163).
+Its "Needs a closer look" result contains four suppressed comments and no inline comments; suppression
+does not resolve a finding. All four are evaluated here. There are no new inline threads to resolve.
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| Duplicate link drops roster return context | Fixed: the parent supplies the existing `BuildPlayerDetailUrl` result to `PlayerForm`. `PlayersDuplicateRejectionAllowsCorrectionWithNewOperationAsync` checks lifecycle/search/year/tag and nested correction/draft return context. `PlayerFormDuplicateDetailPreservesRosterReturnContextAsync` exercises the composed browser journey into duplicate details and back to the filtered roster. |
+| Old duplicate evidence appears on a later form | Fixed for the demonstrated Cancel/reopen path: both form boundaries clear duplicate feedback. The review's correction/success example already cleared it before dispatch; that sibling remains covered. `PlayersClearsDuplicateWhenCancelledFormReopensAsync` proves the link clears and a corrected submission receives a new operation ID. The existing browser duplicate-correction scenario now includes Cancel/reopen; the component correction/success test also reopens a clean form. |
+| Expiry/denial plus Cancel should retire unresolved work or allow a parallel new command | Inapplicable **as proposed to #279's approved contract**. The accepted plan requires retaining the exact pending payload, preventing replacement while unresolved, and allocating a new ID only after success or definitive rejection. Expiry, authorization denial and cancellation do not prove an earlier creation rolled back. Clearing the pending slot or enabling a new one here would violate that invariant. `PlayersRetainsUnresolvedCreationAfterDenialAndCancelAsync` covers lost acknowledgement followed by expiry or forbidden recovery, Cancel/reopen, and exact-command retention despite attempted edits. Post-expiry reconciliation/explicit abandonment belongs to the intentionally deferred #264 recovery interaction design; the current in-session limitation is retained explicitly below. |
+| Creation docs promise enrollment in all Active campaigns | Fixed: endpoint registration, handler and shared route documentation describe the original optional enrollment in the single current Active campaign, including replay. Other plural lifecycle/blocker documentation remains valid and unchanged. |
+
+Focused self-review includes every `PlayerForm` caller, ordinary detail links, Cancel/reopen,
+correction/success, actor/club and role-change ownership, and endpoint/shared route documentation.
+No pending-command settlement rule or authorization behavior changed. This is a bounded follow-up
+to the existing separately reviewed recovery implementation.
+
+Failure dispositions: the first build reported `CA1056` for a string URL component parameter.
+The parameter now uses `Uri` with an explicitly relative parent-built destination; no diagnostic
+was suppressed. The next build caught local-constant casing and a nested test ternary; both were
+corrected to repository conventions. The confirming build passed with zero warnings/errors.
+Formatting verification then identified an indentation error in the edited endpoint comment;
+the corrected comment passes full solution formatting verification without changing behavior.
+`dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class
+'*PlayerComponentsTests'` passed all 42 cases. Full-suite evidence is recorded in the current gate table.
+
+The first full browser pass failed `ProtectedBackKeepsThenResumesExactHistoryEntriesAndForwardContextAsync`
+at the finder-URL wait after "Discard and leave" (30-second timeout), before Forward navigation.
+The changed player-form scenarios passed. The failure did not retain final browser URL/history/guard
+diagnostics, so its cause is unresolved; no contention attribution is made. Added failure-only
+diagnostics to that existing test without changing its actions, expectations, timeout or retry policy.
+The isolated `--filter-method '*ProtectedBackKeepsThenResumesExactHistoryEntriesAndForwardContextAsync'`
+run passed 1/1, and `--filter-class '*CampaignEvaluationCaptureBrowserTests'` passed 19/19, both using
+`dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`. These reruns do not
+resolve the original incident. Source inspection covers `DiscardAndLeaveAsync`, departure ownership,
+storage revision checks, `resumeHistory` and the native history guard; none changed in this review
+round, and no causal production defect has been established. The original timeout remains open and
+precludes claiming merge readiness without resolution or an explicit owner disposition.
+The final full browser run passed 207/207 executed cases with the same eight opt-in skips. This is
+current execution evidence, not a causal disposition of the first run. Diagnostic self-review confirms
+the wrapper delegates to the original wait and enriches only the exception; all history-key, URL,
+draft and selected-player assertions remain unchanged. No suppression or validation weakening was added.
+
 ## Guidance follow-up
 
 Reviewed at `0e88128dd59a8b1d11ada23bb481c422d1db170b` plus the documentation changes in this commit to
@@ -259,11 +312,17 @@ before the implementation's final gates.
   dispatch**, restore ownership on reload, replay unchanged within the deadline, and distinguish committed,
   definitively rejected and unresolved outcomes. Persisted storage, recovery interaction design, and photos
   are intentionally outside #279. Directory role affordances remain with #263.
+- #264's recovery interaction design must address reconciliation after expiry or denied recovery.
+  In #279, Cancel hides the form but retains unresolved work; reopening does not allocate a new ID.
+  Any future explicit abandonment/new-command flow must preserve the unresolved outcome and avoid
+  presenting expiry or cancellation as rollback evidence.
 
 ## Limitations
 
 This is a pre-release breaking contract with one incremental receipt-table migration and no compatibility
-bridge. Current browser recovery is in-memory only. Eight existing environment-gated screenshot/manual evidence captures were not requested (`NOVA_A11Y_SCREENSHOTS`
+bridge. The evaluation-history timeout in the Copilot-round browser run remains unexplained and
+merge-blocking despite successful focused/full reruns. Current browser recovery is in-memory only.
+Eight existing environment-gated screenshot/manual evidence captures were not requested (`NOVA_A11Y_SCREENSHOTS`
 and `NOVA_PLACE_EVIDENCE` unset); they are reported as skipped, not passed. Behavioral browser assertions,
 including creation validation, duplicate correction and lost-response retry, ran and passed. No new skip
 or suppression was introduced.

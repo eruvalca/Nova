@@ -599,17 +599,19 @@ public partial class Players(
         _showCreateForm = true;
         _editForm = null;
         _mutationError = null;
+        _creationDuplicate = null;
         _graduationYearBlockers = [];
     }
 
     /// <summary>
-    /// Cancels create/edit mode and clears mutation state.
+    /// Hides create/edit mode and clears feedback while retaining any unresolved creation command.
     /// </summary>
     private void CancelMutationForm()
     {
         _showCreateForm = false;
         _editForm = null;
         _mutationError = null;
+        _creationDuplicate = null;
         _graduationYearBlockers = [];
     }
 
