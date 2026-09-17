@@ -1,7 +1,202 @@
-.players-view-select {
-    min-width: 8rem;
+.players-directory {
+    padding: 3rem 0;
+    margin-inline: -1rem;
+    min-width: 0;
+}
+
+.players-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.players-heading h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.players-views {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--bs-border-color);
+    margin-bottom: 1.5rem;
+}
+
+.players-views a {
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem 1rem;
+    min-height: 2.75rem;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    border-bottom: .2rem solid transparent;
+}
+
+.players-views a[aria-current="page"] {
+    color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    font-weight: 700;
+}
+
+.players-count-label {
+    margin-left: auto;
+    color: var(--bs-secondary-color);
+    padding: .5rem 0;
+}
+
+.players-discovery {
+    display: grid;
+    grid-template-columns: minmax(12rem, 2.2fr) repeat(2, minmax(9rem, 1fr)) auto;
+    align-items: end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.players-discovery > div {
+    min-width: 0;
+}
+
+.players-directory .btn,
+.players-directory .form-control,
+.players-directory .form-select {
+    min-height: 2.75rem;
+}
+
+.players-directory .btn {
+    display: inline-flex;
+    min-width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.players-directory .btn-outline-warning {
+    --bs-btn-color: var(--bs-warning-text-emphasis);
+}
+
+.players-result-summary,
+.players-regional-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: .75rem;
+}
+
+.players-result-summary a,
+.players-saved-filter a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+}
+
+.players-regional-error {
+    padding: .75rem;
+    border: 1px solid var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+}
+
+.players-table-region {
+    max-height: 34rem;
+    overflow: auto;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+}
+
+.players-table {
+    min-width: 48rem;
+    table-layout: fixed;
+}
+
+.players-table th,
+.players-table td {
+    overflow-wrap: anywhere;
+    padding: .5rem .75rem;
+}
+
+.players-table th:first-child {
+    width: 22%;
+}
+
+.players-table th:last-child {
+    width: 22%;
+}
+
+.players-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.player-record-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+}
+
+.players-empty,
+.players-confirmation {
+    padding: 1.5rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+}
+
+.players-paging {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.players-lifecycle-note {
+    font-size: .875rem;
+    color: var(--bs-secondary-color);
+    margin-top: 1rem;
 }
 
 .tag-pill {
     font-weight: 500;
+    white-space: normal;
+    text-align: left;
+}
+
+@media (max-width: 61.99rem) {
+    .players-directory {
+        margin-inline: 0;
+    }
+
+    .players-discovery {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .players-search {
+        grid-column: 1 / -1;
+    }
+
+    .players-discovery > button {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 35.99rem) {
+    .players-directory {
+        padding: 1rem 0;
+    }
+
+    .players-count-label {
+        width: 100%;
+        margin-left: 1rem;
+    }
+
+    .players-discovery {
+        gap: .75rem;
+    }
 }

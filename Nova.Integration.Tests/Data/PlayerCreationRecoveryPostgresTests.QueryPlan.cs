@@ -19,16 +19,19 @@ public sealed partial class PlayerCreationRecoveryPostgresTests
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Draft, ct);
         var other = await SeedAsync(CampaignStatus.Draft, ct);
-        await SeedLookupRosterAsync(seed, ct);
-        await SeedLookupRosterAsync(other, ct);
+        // Keep this selective-index probe independent of common dates in the shared suite's
+        // table-wide statistics; both tenants still contain the exact same target identity.
+        var lookupBirthDate = new DateOnly(1951, 5, 12);
+        await SeedLookupRosterAsync(seed, lookupBirthDate, ct);
+        await SeedLookupRosterAsync(other, lookupBirthDate, ct);
         ActAs(other);
-        (await Service().CreateAsync(Input(other.ClubId), ct)).IsSuccess.ShouldBeTrue();
+        (await Service().CreateAsync(Input(other.ClubId) with { DateOfBirth = lookupBirthDate }, ct)).IsSuccess.ShouldBeTrue();
         ActAs(seed);
-        var original = (await Service().CreateAsync(Input(seed.ClubId), ct)).Value;
+        var original = (await Service().CreateAsync(Input(seed.ClubId) with { DateOfBirth = lookupBirthDate }, ct)).Value;
         await using var db = fixture.CreateAdminContext();
         await db.Database.ExecuteSqlRawAsync("ANALYZE \"Players\"", ct);
         var capture = new DuplicateQueryCapture();
-        var result = await Service(capture).CreateAsync(Input(seed.ClubId), ct);
+        var result = await Service(capture).CreateAsync(Input(seed.ClubId) with { DateOfBirth = lookupBirthDate }, ct);
         PlayerCreationProblems.TryGetDuplicate(result.Problem, out var duplicate).ShouldBeTrue();
         duplicate.ShouldNotBeNull().PlayerId.ShouldBe(original.Player.PlayerId);
         capture.CommandText.ShouldNotBeNull();
@@ -57,10 +60,9 @@ public sealed partial class PlayerCreationRecoveryPostgresTests
         index.TryGetProperty("Filter", out _).ShouldBeFalse();
     }
 
-    private async Task SeedLookupRosterAsync(Seed seed, CancellationToken ct)
+    private async Task SeedLookupRosterAsync(Seed seed, DateOnly birthDate, CancellationToken ct)
     {
         await using var db = fixture.CreateAdminContext();
-        var birthDate = Input(seed.ClubId).DateOfBirth;
         db.Players.AddRange(Enumerable.Range(1, 5000).Select(index => new PlayerEntity
         {
             ClubId = seed.ClubId,

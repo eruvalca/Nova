@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
 using NSubstitute;
@@ -33,7 +34,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/players?returnToDraft=10&returnUrl=%2Fcampaigns%2F10%3Ftab%3Dclose&view=archived&search=Avery&graduationYear=2032&tag=11");
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         var identity = new AuthenticationState(CreatePrincipal(true));
         if (notificationOvertakesStartup)
         {
@@ -67,7 +68,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         var pending = new TaskCompletionSource<AuthenticationState>();
         var authentication = new DeferredAuthentication(pending.Task);
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
 
         await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(new AuthenticationState(new ClaimsPrincipal()))));
 
@@ -87,7 +88,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 #pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button.btn-outline-warning").Click();
@@ -124,13 +125,22 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/players?returnToDraft=10&tag=11");
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 #pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
-        cut.Find("button.btn-outline-primary").Click();
+        FollowDirectoryLink(cut, "a.btn-outline-primary[href*='/edit']");
 #pragma warning restore CA1849, S6966
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Edit player"));
         cut.Instance.PersistedPageError = "Previous club error";
+        Services.GetRequiredService<ITagDefinitionQueryService>().GetChoicesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(Array.Empty<TagDefinitionDto>())));
+        roster.GetPlayerDirectorySummaryAsync(Arg.Is<GetPlayerDirectorySummaryInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDirectorySummary>(new PlayerDirectorySummary
+            {
+                ActiveCount = 1,
+                ArchivedCount = 0,
+                GraduationYears = []
+            })));
 
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
 
@@ -143,7 +153,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         navigation.Uri.ShouldBe("http://localhost/players");
         await roster.Received().GetPlayerRosterAsync(Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>());
         await cut.InvokeAsync(() => pending.SetResult(SuccessRosterResult([])));
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No players found"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No active players"));
         cut.Instance.SnapshotScope.ShouldBe("101:43:True");
     }
 
@@ -162,10 +172,10 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, rosterService: roster);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
 
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No players found"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No active players"));
         await cut.InvokeAsync(() => pending.SetResult(forbidden
             ? new ServiceResult<PagedResult<PlayerListItem>>(ServiceProblem.Forbidden("Previous club forbidden"))
             : SuccessRosterResult(CreateRosterItems())));
@@ -187,16 +197,16 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, detailService: details);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
-        var edit = cut.Find("button.btn-outline-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var edit = cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-outline-primary[href*='/edit']"));
 
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
         await edit;
 
         cut.Markup.ShouldNotContain("Edit player");
-        cut.FindAll("button[type='submit']").ShouldBeEmpty();
+        cut.FindAll("#player-first-name").ShouldBeEmpty();
     }
 
     /// <summary>Verifies old-club archive completion cannot publish feedback or refresh the new club's roster.</summary>
@@ -212,7 +222,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 #pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button.btn-outline-warning").Click();
@@ -249,6 +259,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, rosterService: roster);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(true, clubId: 43)));
 
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players");
         var cut = Render<SnapshotPlayers>(parameters => parameters.Add(component => component.RestoredScope, scope));
 
         if (reuse)
@@ -258,7 +269,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         }
         else
         {
-            await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No players found"));
+            await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No active players"));
             cut.Markup.ShouldNotContain("Avery Johnson");
             await roster.Received(1).GetPlayerRosterAsync(Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>());
         }
@@ -277,16 +288,16 @@ public sealed partial class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, rosterService: roster);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No players found"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("No active players"));
 
         await cut.InvokeAsync(() => pending.SetException(new HttpRequestException("Previous club transport failed")));
 
         await cut.WaitForAssertionAsync(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
         cut.Instance.PersistedPageError.ShouldBeNull();
         cut.Markup.ShouldNotContain("Previous club transport failed");
-        cut.Markup.ShouldContain("No players found");
+        cut.Markup.ShouldContain("No active players");
     }
 
     /// <summary>Verifies members cannot return to Drafts and role loss resets the URL together with roster filters.</summary>
@@ -301,7 +312,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/players?view=archived&search=Avery&graduationYear=2032&tag=11&returnToDraft=10");
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         if (startsAsAdmin)
@@ -309,15 +320,9 @@ public sealed partial class PlayerComponentsTests : BunitContext
             cut.FindAll("a").Single(link => string.Equals(link.TextContent.Trim(), "Return to draft", StringComparison.Ordinal))
                 .GetAttribute("href").ShouldBe("/campaigns/10");
             authentication.Change(CreatePrincipal(false));
-            cut.WaitForAssertion(() => navigation.Uri.ShouldBe("http://localhost/players"));
-            cut.Find("#players-view-filter").GetAttribute("value").ShouldBe("active");
-            var latestRequest = Services.GetRequiredService<IPlayerService>().ReceivedCalls()
-                .Last(call => string.Equals(call.GetMethodInfo().Name, nameof(IPlayerService.GetPlayerRosterAsync), StringComparison.Ordinal))
-                .GetArguments()[0].ShouldBeOfType<GetPlayerRosterInput>();
-            latestRequest.LifecycleStatus.ShouldBe("active");
-            latestRequest.Search.ShouldBe(string.Empty);
-            latestRequest.GraduationYear.ShouldBeNull();
-            latestRequest.PlayerTagId.ShouldBeNull();
+            cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));
+            navigation.Uri.ShouldContain("search=Avery");
+            cut.Find("a[aria-current='page']").TextContent.ShouldContain("Archived");
         }
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));
@@ -333,8 +338,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
-        cut.Markup.ShouldContain("Loading players...");
+        var cut = RenderPlayers();
+        cut.Markup.ShouldContain("Loading players…");
 
         pending.SetResult(SuccessRosterResult(CreateRosterItems()));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
@@ -349,8 +354,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
+        var cut = RenderPlayers();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No active players"));
     }
 
     [Fact]
@@ -364,7 +369,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Transport failed."));
         cut.Find("button.btn-outline-danger").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
@@ -375,8 +380,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
     {
         RegisterServices(isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
-        cut.WaitForState(() => !cut.Markup.Contains("Loading players...", StringComparison.Ordinal));
+        var cut = RenderPlayers();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading players…", StringComparison.Ordinal));
 
         cut.Markup.ShouldContain("Add player");
         cut.Markup.ShouldContain("Edit");
@@ -384,16 +389,16 @@ public sealed partial class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayersHidesMutationControlsForEvaluator()
+    public void PlayersShowsManualMutationControlsForOrdinaryMember()
     {
         RegisterServices(isClubAdmin: false);
 
-        var cut = Render<PlayersPage>();
-        cut.WaitForState(() => !cut.Markup.Contains("Loading players...", StringComparison.Ordinal));
+        var cut = RenderPlayers();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading players…", StringComparison.Ordinal));
 
-        cut.Markup.ShouldNotContain("Add player");
-        cut.Markup.ShouldNotContain("btn-outline-primary");
-        cut.Markup.ShouldNotContain("btn-outline-warning");
+        cut.Markup.ShouldContain("Add player");
+        cut.Markup.ShouldContain("btn-outline-primary");
+        cut.Markup.ShouldContain("btn-outline-warning");
     }
 
     [Fact]
@@ -405,10 +410,10 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        cut.Find("#players-view-filter").Change("archived");
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players?view=archived");
         cut.WaitForAssertion(() =>
             {
                 _ = rosterService.Received().GetPlayerRosterAsync(
@@ -445,7 +450,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         cut.Find("#players-search").Input("12");
@@ -462,7 +467,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayersRequestsMaxPageSizeOnInitialRosterLoad()
+    public void PlayersRequestsTwentyPlayersOnInitialRosterLoad()
     {
         var rosterService = Substitute.For<IPlayerService>();
         rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
@@ -470,19 +475,19 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         _ = rosterService.Received().GetPlayerRosterAsync(
             Arg.Is<GetPlayerRosterInput>(input =>
                 input != null
                 && input.Page == GetPlayerRosterInput.DefaultPage
-                && input.PageSize == GetPlayerRosterInput.MaxPageSize),
+                && input.PageSize == 20),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void PlayersShowsTruncationMessageWhenRosterIsLargerThanLoadedItems()
+    public void PlayersOffersPagingWhenRosterIsLargerThanLoadedItems()
     {
         var rosterService = Substitute.For<IPlayerService>();
         rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
@@ -493,9 +498,9 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() =>
-            cut.Markup.ShouldContain("Showing first 1 of 120 players. Refine filters to narrow the roster."));
+            cut.Markup.ShouldContain("Page 1 of 6"));
     }
 
     [Fact]
@@ -530,10 +535,10 @@ public sealed partial class PlayerComponentsTests : BunitContext
             managementService: managementService,
             isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        cut.Find("button.btn-primary").Click();
+        FollowDirectoryLink(cut, "a.btn-primary");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add player"));
         cut.Find("#player-first-name").Change("Taylor");
         cut.Find("#player-last-name").Change("Lane");
@@ -549,7 +554,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/players?view=archived&search=Avery&graduationYear=2032&tag=11");
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         var detailLink = cut.Find("tbody a");
@@ -579,10 +584,10 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(isClubAdmin: true, detailService: detailService, managementService: managementService);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        cut.Find("button.btn-outline-primary").Click();
+        FollowDirectoryLink(cut, "a.btn-outline-primary[href*='/edit']");
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit player"));
 
         cut.Find("button[type='submit']").Click();
@@ -613,7 +618,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(isClubAdmin: true, lifecycleService: lifecycleService);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         cut.Find("button.btn-outline-warning").Click();
@@ -698,7 +703,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
 
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         cut.Find(".tag-pill").GetAttribute("style").ShouldBe("background-color: #6C757D; color: #FFFFFF;");
@@ -741,6 +746,20 @@ public sealed partial class PlayerComponentsTests : BunitContext
                 .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
         }
 
+        rosterService.GetPlayerDirectorySummaryAsync(Arg.Any<GetPlayerDirectorySummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDirectorySummary>(new PlayerDirectorySummary
+            {
+                ActiveCount = 1,
+                ArchivedCount = 0,
+                GraduationYears = [2032]
+            })));
+        var tags = Substitute.For<ITagDefinitionQueryService>();
+        tags.GetChoicesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(
+            new ServiceResult<IReadOnlyList<TagDefinitionDto>>(new[]
+            {
+                new TagDefinitionDto { PlayerTagId = 11, Name = "Defender", Color = "#0055AA", LifecycleStatus = LifecycleStatus.Active }
+            })));
+        Services.AddSingleton(tags);
         managementService ??= Substitute.For<IPlayerManagementService>();
         lifecycleService ??= Substitute.For<IPlayerLifecycleService>();
         if (detailService is null)
@@ -755,6 +774,16 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton(detailService);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+    }
+
+    private void FollowDirectoryLink(IRenderedComponent<PlayersPage> cut, string selector)
+        => Services.GetRequiredService<NavigationManager>().NavigateTo(cut.Find(selector).GetAttribute("href")!);
+
+    private IRenderedComponent<PlayersPage> RenderPlayers()
+    {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        if (string.Equals(new Uri(navigation.Uri).AbsolutePath, "/", StringComparison.Ordinal)) { navigation.NavigateTo("/players"); }
+        return Render<PlayersPage>();
     }
 
     private static ServiceResult<PagedResult<PlayerListItem>> SuccessRosterResult(
@@ -825,8 +854,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
     private sealed class SnapshotPlayers(IPlayerService roster, IPlayerManagementService management,
 #pragma warning restore CA1812
         IPlayerLifecycleService lifecycle, IPlayerDetailService details,
-        AuthenticationStateProvider authentication, NavigationManager navigation)
-        : PlayersPage(roster, management, lifecycle, details, authentication, navigation)
+        ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation)
+        : PlayersPage(roster, management, lifecycle, details, tags, authentication, navigation)
     {
         /// <summary>Gets or sets the scope serialized with the old roster.</summary>
         [Parameter] public string? RestoredScope { get; set; }
@@ -836,6 +865,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
         {
             Initialized = true;
             SnapshotScope = RestoredScope;
+            SnapshotQuery = new Nova.UI.Features.Players.Services.PlayersUrlState().QueryFingerprint;
             PersistedRoster = new PagedResult<PlayerListItem>(CreateRosterItems(), 1, 50, 1);
             return base.OnInitializedAsync();
         }

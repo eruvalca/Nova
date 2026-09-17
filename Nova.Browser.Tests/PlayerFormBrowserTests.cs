@@ -26,7 +26,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -47,7 +47,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -72,7 +72,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -95,7 +95,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });

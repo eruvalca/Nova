@@ -109,8 +109,10 @@ Nova.UI/
   `Action<T>`, or `Func<Task>`. `EventCallback` re-renders the parent that supplied the handler;
   `Action` does not, so the parent's UI silently goes stale.
 - **Do not call `StateHasChanged` defensively**: `ComponentBase` re-renders after lifecycle methods
-  and component event handlers. Call it only when state changes outside those paths (timer, JS
-  callback, non-UI service event), and marshal with `await InvokeAsync(StateHasChanged)`.
+  and component event handlers. Request an intermediate render when an independently completed
+  region must appear before other awaited work finishes. For external notifications (timer, JS
+  callback, non-UI service event), marshal the owned state update and render together with
+  `InvokeAsync`; see the lifecycle recipe.
 - **Use properties where the framework requires them**: `[Parameter]` members must be `public` properties with `public` setters; `[PersistentState]` persists `public` properties. Prefer `private`/`protected` properties for computed values, normalization, or when getter/setter logic adds clarity.
 - **Don't mutate parameters directly for owned state**: if a child component needs to mutate parameter-derived state, do not write back to the `[Parameter]` property. Copy to private component state only on first load or when the incoming parameter value actually changes, then mutate that private state.
 - **Use fields for internal mutable UI state by default**: private fields are preferred for purely internal mutable state (`_loading`, `_error`, `_selectedId`, timers, `CancellationTokenSource`, etc.); Blazor doesn't gain reactivity from converting those values to properties.

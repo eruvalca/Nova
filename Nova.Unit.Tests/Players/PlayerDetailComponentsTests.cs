@@ -348,7 +348,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
         cut.WaitForAssertion(() =>
         {
-            cut.Markup.ShouldNotContain("btn-outline-primary");
+            cut.Find("a.btn-outline-primary").GetAttribute("href").ShouldBe("/players/7/edit");
             cut.Markup.ShouldNotContain("btn-outline-warning");
             cut.Markup.ShouldNotContain("btn-outline-success");
         });
@@ -357,31 +357,12 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     // ── Edit mutation with refresh ────────────────────────────────────────────
 
     [Fact]
-    public void PlayerDetailRefreshesDetailAfterSuccessfulEdit()
+    public void PlayerDetailLinksToSharedEditHost()
     {
-        var managementService = Substitute.For<IPlayerManagementService>();
-        managementService.UpdateAsync(Arg.Any<UpdatePlayerInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<PlayerDto>(new PlayerDto
-            {
-                PlayerId = 7,
-                ClubId = 42,
-                FirstName = "Avery",
-                LastName = "Johnson",
-                DateOfBirth = new DateOnly(2012, 4, 1),
-                GraduationYear = 2032,
-                LifecycleStatus = LifecycleStatus.Active
-            })));
-
-        RegisterServices(isClubAdmin: true, managementService: managementService);
-
+        RegisterServices(isClubAdmin: false);
         var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
-
-        cut.Find("button.btn-outline-primary").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit player"));
-        cut.Find("button[type='submit']").Click();
-
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Player updated successfully."));
+        cut.WaitForAssertion(() => cut.Find("a.btn-outline-primary").GetAttribute("href").ShouldBe("/players/7/edit"));
+        cut.FindAll("form").ShouldBeEmpty();
     }
 
     // ── Archive mutation with refresh ─────────────────────────────────────────

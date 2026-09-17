@@ -15,6 +15,52 @@ namespace Nova.Unit.Tests.Players;
 
 public sealed partial class PlayerComponentsTests
 {
+    [Theory]
+    [InlineData("uncertain")]
+    [InlineData("duplicate")]
+    [InlineData("success")]
+    public async Task ReopenedPendingCreationReceivesItsOwnCompletionAsync(string outcome)
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlayerCreationCompletion>>();
+        CreatePlayerInput? command = null;
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            command = call.Arg<CreatePlayerInput>();
+            return pending.Task;
+        });
+        RegisterServices(isClubAdmin: false, managementService: service);
+        var cut = RenderPlayers();
+        var save = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => command.ShouldNotBeNull());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a[href='/players']"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Taylor");
+        await cut.InvokeAsync(() => pending.SetResult(outcome switch
+        {
+            "success" => new(CreationCompletion(command!)),
+            "duplicate" => new(PlayerCreationProblems.Duplicate(command!.OperationId, 7, LifecycleStatus.Active)),
+            _ => new(ServiceProblem.ServerError("Lost acknowledgement"))
+        }));
+        await save;
+        if (string.Equals(outcome, "success", StringComparison.Ordinal))
+        {
+            cut.Markup.ShouldContain("Enrolled in Original campaign.");
+            Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players");
+        }
+        else if (string.Equals(outcome, "duplicate", StringComparison.Ordinal))
+        {
+            cut.Markup.ShouldContain("View existing player");
+            cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        }
+        else
+        {
+            cut.Markup.ShouldContain("Lost acknowledgement");
+            cut.Markup.ShouldContain("retry it unchanged");
+            cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        }
+    }
+
     /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("FirstName")]
@@ -46,7 +92,7 @@ public sealed partial class PlayerComponentsTests
             return Task.FromResult(result);
         });
         RegisterServices(isClubAdmin: true, managementService: service);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         await FillAndSubmitAsync(cut);
@@ -86,7 +132,7 @@ public sealed partial class PlayerComponentsTests
         RegisterServices(isClubAdmin: true, managementService: service);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         var oldSubmit = FillAndSubmitAsync(cut);
         await cut.WaitForAssertionAsync(() => commands.Count.ShouldBe(1));
@@ -127,14 +173,13 @@ public sealed partial class PlayerComponentsTests
         RegisterServices(isClubAdmin: true, managementService: service);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
         await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
-        await cut.WaitForAssertionAsync(() => cut.FindAll("#player-first-name").ShouldBeEmpty());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true)));
-        await cut.Find("button.btn-primary").ClickAsync(new());
         cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Programmatic edit";
         await cut.Find("button[type='submit']").ClickAsync(new());
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Enrolled in Original campaign."));
@@ -161,9 +206,9 @@ public sealed partial class PlayerComponentsTests
                 : new ServiceResult<PlayerCreationCompletion>(CreationCompletion(input)));
         });
         RegisterServices(isClubAdmin: true, managementService: service);
-        const string RosterUrl = "/players?view=archived&returnUrl=%2Fcampaigns%2F10%3Ftab%3Dclose&returnToDraft=10&search=Avery&graduationYear=2032&tag=11";
+        const string RosterUrl = "/players?view=archived&search=Avery&graduationYear=2032&tag=11&returnToDraft=10&returnUrl=%2Fcampaigns%2F10%3Ftab%3Dclose";
         Services.GetRequiredService<NavigationManager>().NavigateTo(RosterUrl);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("View existing archived player"));
@@ -176,7 +221,7 @@ public sealed partial class PlayerComponentsTests
         commands.Count.ShouldBe(2);
         commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
         commands[1].FirstName.ShouldBe("Corrected");
-        await cut.Find("button.btn-primary").ClickAsync(new());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         cut.Markup.ShouldNotContain("View existing archived player");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
     }
@@ -195,13 +240,13 @@ public sealed partial class PlayerComponentsTests
                 PlayerCreationProblems.Duplicate(input.OperationId, 21, LifecycleStatus.Active)));
         });
         RegisterServices(isClubAdmin: true, managementService: service);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
         cut.Markup.ShouldContain("View existing player");
 
         await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
-        await cut.Find("button.btn-primary").ClickAsync(new());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
 
         cut.Markup.ShouldNotContain("View existing player");
         cut.FindComponent<PlayerForm>().Instance.Duplicate.ShouldBeNull();
@@ -240,7 +285,7 @@ public sealed partial class PlayerComponentsTests
             return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(problem));
         });
         RegisterServices(isClubAdmin: true, managementService: service);
-        var cut = Render<PlayersPage>();
+        var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
         await cut.Find("button[type='submit']").ClickAsync(new());
@@ -254,7 +299,7 @@ public sealed partial class PlayerComponentsTests
         cut.Markup.ShouldContain("The original addition is still retained");
 
         await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
-        await cut.Find("button.btn-primary").ClickAsync(new());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Replacement must not escape";
         await cut.Find("button[type='submit']").ClickAsync(new());
@@ -267,9 +312,9 @@ public sealed partial class PlayerComponentsTests
         if (expired) { cut.Markup.ShouldNotContain("retry it unchanged"); }
     }
 
-    private static async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
+    private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
-        await cut.Find("button.btn-primary").ClickAsync(new());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
         await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
         await cut.Find("button[type='submit']").ClickAsync(new());

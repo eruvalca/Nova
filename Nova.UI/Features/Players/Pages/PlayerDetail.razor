@@ -54,13 +54,10 @@
                             <span class="@LifecycleBadgeClass">@_detail.LifecycleStatus</span>
                         </p>
                     </div>
-                    @if (_canManagePlayers)
-                    {
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating"
-                                    @onclick="BeginEditAsync">
-                                Edit
-                            </button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a class="btn btn-sm btn-outline-primary" href="@EditUrl">Edit</a>
+                        @if (_canManagePlayers)
+                        {
                             @if (_detail.LifecycleStatus == LifecycleStatus.Active)
                             {
                                 <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating"
@@ -75,8 +72,8 @@
                                     Restore
                                 </button>
                             }
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(_mutationError))
@@ -100,15 +97,6 @@
                 </div>
             </div>
         </section>
-
-        @if (_showEditForm && _editForm is not null)
-        {
-            <div class="mb-3">
-                <PlayerForm Heading="Edit player" Model="_editForm" SubmitButtonText="Save changes" IsSubmitting="_isMutating"
-                            ErrorMessage="@_formError" GraduationYearBlockers="_graduationYearBlockers"
-                            OnValidSubmit="UpdatePlayerAsync" OnCancel="CancelEdit" />
-            </div>
-        }
 
         @if (_showArchiveConfirm)
         {

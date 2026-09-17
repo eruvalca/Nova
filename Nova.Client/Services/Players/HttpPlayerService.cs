@@ -12,6 +12,23 @@ namespace Nova.Client.Services.Players;
 internal sealed class HttpPlayerService(HttpClient http) : IPlayerService
 {
     /// <inheritdoc />
+    public async Task<ServiceResult<PlayerDirectorySummary>> GetPlayerDirectorySummaryAsync(
+        GetPlayerDirectorySummaryInput input, CancellationToken cancellationToken = default)
+    {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0) { return ServiceProblem.Validation(errors); }
+        using var response = await http.GetAsync(new Uri(GetPlayerRosterEndpoints.GetSummaryUrl(input.ClubId), UriKind.Relative), cancellationToken);
+        if (!response.IsSuccessStatusCode) { return await response.ToServiceProblemAsync(cancellationToken); }
+        return await response.Content.ReadRequiredJsonAsync<PlayerDirectorySummary>(
+            "The server returned an invalid player directory summary.",
+            summary => summary.ActiveCount >= 0 && summary.ArchivedCount >= 0
+                && summary.GraduationYears is { Count: <= 101 }
+                && summary.GraduationYears.All(year => year is >= 2000 and <= 2100)
+                && summary.GraduationYears.Zip(summary.GraduationYears.Skip(1)).All(pair => pair.First < pair.Second),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ServiceResult<PagedResult<PlayerListItem>>> GetPlayerRosterAsync(
         GetPlayerRosterInput input,
         CancellationToken cancellationToken = default)
