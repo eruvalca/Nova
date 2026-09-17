@@ -6,21 +6,20 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `2cdfcc477f48fd800963dec48751ab62562102c7` plus the exact changes in
+Current review-round inputs: `3b44088d470a84c6cdc9000fd8dcf25127b8acbe` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-This delta rejects contradictory structured errors in player creation-conflict evidence, corrects
-the profile-validation method documentation, and adds shared/client/component/browser regressions.
-All changes for Copilot review `5230833236`, including this record, are committed together once.
-The preceding operation-ID classification review was completed in `2cdfcc47`.
+This delta preserves web JSON casing in recovered creation outcomes and indexes the tenant/birth-date
+duplicate lookup, with real HTTP replay and PostgreSQL query-plan regressions.
+All changes for Copilot review `5231082584`, including this record, are committed together once.
+The preceding contradictory-conflict review was completed in `3b44088d`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Current gates and tested-input comparisons are recorded in the conflict-evidence review disposition.
-The shared evidence parser and browser-suite changes are covered by new passing integration/browser evidence.
+Current gates and tested-input comparisons are recorded in the replay-shape/index review disposition.
+The persistence, migration and HTTP-output changes are covered by new passing integration/browser evidence.
 The prior round's diagnosed browser-observation
 failures remain resolved with the reproduced evidence and dispositions preserved below.
 Remote `main` remains `fc2c0053`; there are no incoming merge-input differences.
-Migration-model evidence from `c9c1d7e`
-remains applicable because model, migration and provider configuration inputs are unchanged.
+The new migration-model check confirms that the model matches this PR's updated incremental migration.
 Current remote checks and reviews are linked from [PR #283](https://github.com/eruvalca/Nova/pull/283).
 
 ## Guidance applied
@@ -621,6 +620,92 @@ The complete round diff received a focused self-review against its two findings,
 factories and all evidence consumers. Both suppressed findings are addressed; remote CI and a fresh
 automatic review must still cover the pushed commit. `git diff --check` and all 54 relative file
 links in this record pass. No review was requested and no checks were weakened.
+
+## Copilot replay-shape and duplicate-index review
+
+Source: [review 5231082584](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5231082584)
+at `3b44088d`, with [one inline finding](https://github.com/eruvalca/Nova/pull/283#discussion_r4033142868)
+and one suppressed performance finding. Both are valid.
+
+1. The original duplicate rejection serializes its typed details with web options. Receipt recovery
+   restores untyped extensions as `JsonElement`, whose nested property names retain their stored
+   casing. Default receipt serialization therefore changed `playerId`/`lifecycleStatus` into
+   `PlayerId`/`LifecycleStatus` on replay. Both success and rejection outcomes now use
+   `JsonSerializerOptions.Web` when stored and recovered. The original typed-request fingerprint
+   remains unchanged; no normalization or compatibility layer was introduced.
+2. PostgreSQL's original plan used `IX_Players_ClubId`, then filtered out 5,000 rows with other birth
+   dates before sorting the one candidate. The nonunique `(ClubId, DateOfBirth)` index now supports
+   both predicates, including archived records, while preserving the exact name comparison and
+   Active-first/player-ID ordering. The model change was generated against `NovaDbContext`; its
+   index operations and generated target model were folded into this PR's sole unmerged migration,
+   `20260916204134_AddPlayerCreationReceipts`. Earlier migrations and the original migration identity
+   are unchanged. `Down` removes the index as well as the receipt table.
+
+| Requirement | Named evidence |
+| --- | --- |
+| Exact duplicate HTTP shape on initial rejection and fresh-client recovery | [`DuplicateReplayPreservesOriginalHttpShapeAsync`](../Nova.Integration.Tests/Http/PlayerManagementHttpTests.DuplicateReplay.cs), Active and Archived cases, asserts exact camelCase nested property names, original player/status/operation, and complete ProblemDetails equality except the request-specific trace ID. It mutates the existing player's identity and lifecycle between attempts and still observes one player, two operation receipts and zero enrollments. |
+| Indexed tenant/birth-date lookup through the real provider | [`DuplicateLookupUsesTenantBirthDateIndexAsync`](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.QueryPlan.cs) seeds two independent 5,000-player rosters plus one matching player each, captures the actual service SELECT and bound parameters, and explains that command after refreshing statistics. It requires the migrated composite index, both predicates in its index condition, exactly one candidate and no residual filter. The service must return the original tenant's duplicate. |
+
+The plan test permits PostgreSQL's choice of index scan shape; it does not force planner settings,
+recreate the LINQ query, assert a timing threshold or equate synthetic latency with a product target.
+The focused post-fix plan used an Index Scan with both predicates in `Index Cond`, one actual row,
+no residual filter and three shared hit blocks at the index node; the pre-fix ClubId-only index
+node recorded 83 shared hit blocks and 5,000 rows removed by its birth-date filter. These are
+observations of the stated synthetic fixture, not production latency guarantees.
+The index bounds work by matching birth dates, not by a fixed candidate count for all possible data.
+The retained ClubId and creation-operation indexes still support their other consumers; CSV's
+classification and all roster-lock participants remain unchanged.
+
+Sibling inspection covered creation success, duplicate rejection, receipt verification and recovery,
+the HTTP result conversion, WASM evidence validators and rendered consumers. Placement/evaluation
+receipt outcomes deserialize their successful DTOs strongly; their rejection extensions here contain
+scalar operation markers rather than the nested typed duplicate object responsible for this defect.
+No demonstrated sibling casing defect required unrelated changes.
+
+Guidance applied: the existing C#, service, API, validation, tenancy and testing rules;
+`add-domain-persistence` with query-construction and retrying-mutation references;
+`add-api-endpoint` with ProblemDetails and the producer-to-UI contract check; `nova-testing` with
+transition and Aspire integration references; focused `code-testing-agent` and native MTP `run-tests`.
+The latter's repository overlay is absent. New test files were formatted before final compilation.
+
+Failure dispositions: the pre-fix HTTP cases both failed on the recovered PascalCase property names.
+The initial plan test captured the expected ClubId-only scan and 5,000 filtered rows, then failed
+because PostgreSQL 18 emits `Actual Rows` as `1.00`, which `GetInt32` rejects. Reading this numeric
+field as decimal preserves the exact-one assertion. The initial test build also flagged CA2100 on
+the EXPLAIN command. A one-line scoped exception documents that only captured EF-generated SELECT
+text is prefixed; original values are re-bound as `DbParameter` values. Review of this exception
+confirmed no request value enters SQL text, no production analyzer setting changes and no assertion
+is removed. Generation/model verification report the installed EF tool/runtime patch-version
+difference (10.0.8/10.0.12); generation succeeds and the pending-model check is clean.
+
+| Check | Command and result |
+| --- | --- |
+| Migration generation | `dotnet ef migrations add AddPlayerBirthDateLookupIndex --project Nova --context NovaDbContext` — generated only the intended index; folded into the PR's unmerged receipt migration as described above. |
+| Migration-model check | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext` — pass, no pending changes. |
+| Final build | `dotnet build Nova.slnx --no-restore` — pass, zero warnings/errors. |
+| Focused HTTP/provider | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-method '*DuplicateReplayPreservesOriginalHttpShapeAsync' --filter-method '*DuplicateLookupUsesTenantBirthDateIndexAsync' --report-trx --report-trx-filename focused.trx --results-directory <worktree-git>/testagent/copilot-5231082584` — three passed, zero failed/skipped. The local TRX includes the complete observed PostgreSQL plan. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — 3,703 passed, zero failed/skipped. |
+| Final format | `dotnet format Nova.slnx --verify-no-changes --no-restore --verbosity diagnostic` — pass, zero files changed. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — 672 passed, zero failed/skipped. |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — 209 passed, zero failed, eight existing opt-in capture skips (217 total). |
+
+All current results cover `3b44088d` plus this round's seven source/test/model files and this record.
+The complete browser suite was selected because receipt serialization is consumed across HTTP/WASM
+recovery flows and the migration changes every fresh application database. Application, browser-suite
+and generated-asset inputs remain fixed during the run; later edits are limited to this record.
+The complete round diff received a focused review of the original/recovered wire shapes, exact
+fingerprinting, parameter ownership, index/migration symmetry and the scoped analyzer exception.
+No authorization, lock order, duplicate-name policy, retry deadline, test selection or test timeout
+was weakened. The source-diff SHA-256 before and after the full browser run was
+`FB19DB988E86D754A9D37216123BCEAD6CD0DFFCEBFD39850706BCD6C44E0405`;
+generated CSS remained
+`559EC45DA0B8540B2DA715B171FC23B565F133D733E9A4C2E727F265495807DC`.
+Only this validation record changed after the run. Remote `main` remains `fc2c0053`; no incoming
+merge inputs require additional evidence. `git diff --check` and all 56 relative file links pass.
+Full review bodies, comments, inline threads and nested replies were rechecked with pagination;
+no additional findings appeared. The inline finding is verified fixed and ready for its linked PR
+reply/resolution, and the suppressed finding is addressed by the measured index change. Current-head
+CI and a fresh automatic review must still cover the pushed commit. No review was requested.
 
 ## Browser history validation incident
 

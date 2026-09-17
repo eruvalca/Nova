@@ -44,11 +44,20 @@ internal partial class AddPlayerCreationReceipts : Migration
             name: "IX_PlayerCreationReceipts_RecoveryExpiresAt_PlayerCreationRece~",
             table: "PlayerCreationReceipts",
             columns: ["RecoveryExpiresAt", "PlayerCreationReceiptId"]);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_Players_ClubId_DateOfBirth",
+            table: "Players",
+            columns: ["ClubId", "DateOfBirth"]);
     }
 
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropIndex(
+            name: "IX_Players_ClubId_DateOfBirth",
+            table: "Players");
+
         migrationBuilder.DropTable(
             name: "PlayerCreationReceipts");
     }

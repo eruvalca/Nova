@@ -1052,6 +1052,8 @@ namespace Nova.Data.Migrations
                     b.HasIndex("ClubId", "CreationOperationId")
                         .IsUnique();
 
+                    b.HasIndex("ClubId", "DateOfBirth");
+
                     b.ToTable("Players", t =>
                         {
                             t.HasCheckConstraint("CK_Players_LifecycleArchiveMetadata", "(\"LifecycleStatus\" = 0 AND \"ArchivedAt\" IS NULL AND \"ArchivedById\" IS NULL) OR (\"LifecycleStatus\" = 1 AND \"ArchivedAt\" IS NOT NULL AND \"ArchivedById\" IS NOT NULL)");

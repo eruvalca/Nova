@@ -22,6 +22,7 @@ internal class PlayerEntityConfiguration : IEntityTypeConfiguration<PlayerEntity
         builder.Property(e => e.LifecycleStatus)
             .IsConcurrencyToken();
         builder.HasIndex(e => e.ClubId);
+        builder.HasIndex(e => new { e.ClubId, e.DateOfBirth });
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
             .IsUnique();
 

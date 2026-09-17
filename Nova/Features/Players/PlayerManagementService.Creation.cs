@@ -74,9 +74,10 @@ internal sealed partial class PlayerManagementService
             ActorUserId = actor,
             OperationId = input.OperationId,
             RequestSha256 = fingerprint,
+            // Untyped problem extensions recover as JsonElements and must retain the HTTP property casing.
             ResultJson = result.Match(
-                value => JsonSerializer.Serialize(new CreationOutcome(value, null)),
-                problem => JsonSerializer.Serialize(new CreationOutcome(null, problem))),
+                value => JsonSerializer.Serialize(new CreationOutcome(value, null), JsonSerializerOptions.Web),
+                problem => JsonSerializer.Serialize(new CreationOutcome(null, problem), JsonSerializerOptions.Web)),
             RecoveryExpiresAt = deadline
         });
         await db.SaveChangesAsync(token);
@@ -166,7 +167,7 @@ internal sealed partial class PlayerManagementService
             return PlayerCreationProblems.Mismatch();
         }
         if (timeProvider.GetUtcNow() >= receipt.RecoveryExpiresAt) { return PlayerCreationProblems.Expired(); }
-        var outcome = JsonSerializer.Deserialize<CreationOutcome>(receipt.ResultJson)
+        var outcome = JsonSerializer.Deserialize<CreationOutcome>(receipt.ResultJson, JsonSerializerOptions.Web)
             ?? throw new InvalidOperationException("The player creation receipt has no outcome.");
         if (outcome.Problem is { } problem) { return problem; }
         var completion = outcome.Completion ?? throw new InvalidOperationException("The player creation receipt has no completion.");
