@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Data.Common;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -240,32 +241,76 @@ public sealed partial class PlayerCreationRecoveryPostgresTests(NovaAppHostFixtu
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>The PostgreSQL retention query is globally bounded and includes deleted-club receipts.</summary>
+    /// <summary>Retention bounds the global database delete, orders tied expiries, and keeps live deleted-club receipts.</summary>
     [Fact]
     public async Task CleanupDeletesAtMostFiveHundredExpiredReceiptsAcrossDeletedClubsAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(CampaignStatus.Draft, ct);
+        var other = await SeedAsync(CampaignStatus.Draft, ct);
         await using var db = fixture.CreateAdminContext();
-        var now = DateTimeOffset.UtcNow;
-        db.PlayerCreationReceipts.AddRange(Enumerable.Range(0, 502).Select(index => new PlayerCreationReceiptEntity
-        {
-            ClubId = seed.ClubId,
-            ActorUserId = seed.ActorUserId,
-            CreatedById = seed.ActorUserId,
-            OperationId = Guid.CreateVersion7(),
-            RequestSha256 = new string('A', 64),
-            ResultJson = "{}",
-            RecoveryExpiresAt = index == 501 ? now.AddHours(1) : now.AddMinutes(-1)
-        }));
+        // Keep this global maintenance cutoff earlier than other parallel tests' recovery windows.
+        var now = new DateTimeOffset(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var tied = Enumerable.Range(0, 501).Select(_ => RetentionReceipt(seed, now.AddMinutes(-1))).ToArray();
+        db.PlayerCreationReceipts.AddRange(tied);
+        await db.SaveChangesAsync(ct);
+        var oldest = RetentionReceipt(other, now.AddMinutes(-2));
+        var boundary = RetentionReceipt(seed, now);
+        var liveDeletedClub = RetentionReceipt(seed, now.AddTicks(10)); // One PostgreSQL microsecond after cutoff.
+        var liveOtherClub = RetentionReceipt(other, now.AddHours(1));
+        db.PlayerCreationReceipts.AddRange(oldest, boundary, liveDeletedClub, liveOtherClub);
         await db.SaveChangesAsync(ct);
         db.Clubs.Remove(await db.Clubs.SingleAsync(x => x.ClubId == seed.ClubId, ct));
         await db.SaveChangesAsync(ct);
-        await PlayerCreationReceiptCleanupService.PruneAsync(db, now, ct);
-        (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(2);
-        await PlayerCreationReceiptCleanupService.PruneAsync(db, now, ct);
-        (await db.PlayerCreationReceipts.Where(x => x.ClubId == seed.ClubId).Select(x => x.RecoveryExpiresAt).SingleAsync(ct))
-            .ShouldBeGreaterThan(now);
+        var liveIds = new[] { liveDeletedClub.PlayerCreationReceiptId, liveOtherClub.PlayerCreationReceiptId };
+        var afterFirstPass = tied.OrderBy(receipt => receipt.PlayerCreationReceiptId).Skip(499)
+            .Select(receipt => receipt.PlayerCreationReceiptId).Append(boundary.PlayerCreationReceiptId).Concat(liveIds).Order().ToArray();
+        var observer = new RetentionReaderInterceptor();
+        var factory = new RetryingAdminDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, observer);
+        await using var maintenance = await factory.CreateDbContextAsync(ct);
+
+        await PlayerCreationReceiptCleanupService.PruneAsync(maintenance, now, ct);
+        observer.ReaderExecutionCount.ShouldBe(0);
+        maintenance.ChangeTracker.Entries<PlayerCreationReceiptEntity>().ShouldBeEmpty();
+        (await db.PlayerCreationReceipts.Where(receipt => receipt.ClubId == seed.ClubId || receipt.ClubId == other.ClubId)
+            .OrderBy(receipt => receipt.PlayerCreationReceiptId).Select(receipt => receipt.PlayerCreationReceiptId).ToArrayAsync(ct))
+            .ShouldBe(afterFirstPass);
+        await PlayerCreationReceiptCleanupService.PruneAsync(maintenance, now, ct);
+        observer.ReaderExecutionCount.ShouldBe(0);
+        maintenance.ChangeTracker.Entries<PlayerCreationReceiptEntity>().ShouldBeEmpty();
+        (await db.PlayerCreationReceipts.Where(receipt => receipt.ClubId == seed.ClubId || receipt.ClubId == other.ClubId)
+            .OrderBy(receipt => receipt.PlayerCreationReceiptId).Select(receipt => receipt.PlayerCreationReceiptId).ToArrayAsync(ct))
+            .ShouldBe(liveIds.Order().ToArray());
+    }
+
+    private static PlayerCreationReceiptEntity RetentionReceipt(Seed seed, DateTimeOffset expiresAt) => new()
+    {
+        ClubId = seed.ClubId,
+        ActorUserId = seed.ActorUserId,
+        CreatedById = seed.ActorUserId,
+        OperationId = Guid.CreateVersion7(),
+        RequestSha256 = new string('A', 64),
+        ResultJson = "{}",
+        RecoveryExpiresAt = expiresAt
+    };
+
+    private sealed class RetentionReaderInterceptor : DbCommandInterceptor
+    {
+        internal int ReaderExecutionCount { get; private set; }
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            ReaderExecutionCount++;
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            ReaderExecutionCount++;
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static async Task ChangeCampaignAsync(ICampaignLifecycleService service, long campaignId, bool close, CancellationToken ct)

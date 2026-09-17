@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
-using Nova.Features.Players;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Results;
@@ -172,7 +171,8 @@ public sealed partial class PlayerManagementServiceTests
         PlayerCreationProblems.IsNotCommitted((await service.CreateAsync(input, ct)).Problem, input.OperationId).ShouldBeFalse();
         await using (var db = _harness.CreateAdminContext())
         {
-            await PlayerCreationReceiptCleanupService.PruneAsync(db, clock.Now, ct);
+            // Simulate receipt removal; provider-specific bounded retention is covered against PostgreSQL.
+            await db.PlayerCreationReceipts.Where(receipt => receipt.OperationId == input.OperationId).ExecuteDeleteAsync(ct);
             (await db.PlayerCreationReceipts.CountAsync(ct)).ShouldBe(0);
         }
         (await service.CreateAsync(input, ct)).Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
@@ -198,24 +198,6 @@ public sealed partial class PlayerManagementServiceTests
         await using var admin = _harness.CreateAdminContext();
         (await admin.PlayerCreationReceipts.SingleAsync(ct)).ResultJson = "{}";
         await Should.ThrowAsync<InvalidOperationException>(() => admin.SaveChangesAsync(ct));
-    }
-
-    [Fact]
-    public async Task CleanupBoundsEachPassAndRetainsLiveReceiptsAfterClubDeletionAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var now = DateTimeOffset.UtcNow;
-        await using var db = _harness.CreateAdminContext();
-        db.PlayerCreationReceipts.AddRange(Enumerable.Range(0, 501).Select(_ => Receipt(ClubAId, now.AddMinutes(-1))));
-        db.PlayerCreationReceipts.Add(Receipt(ClubBId, now.AddHours(1)));
-        await db.SaveChangesAsync(ct);
-        db.Clubs.Remove(await db.Clubs.SingleAsync(x => x.ClubId == ClubAId, ct));
-        await db.SaveChangesAsync(ct);
-        await PlayerCreationReceiptCleanupService.PruneAsync(db, now, ct);
-        (await db.PlayerCreationReceipts.CountAsync(ct)).ShouldBe(2);
-        (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == ClubBId, ct)).ShouldBe(1);
-        await PlayerCreationReceiptCleanupService.PruneAsync(db, now, ct);
-        (await db.PlayerCreationReceipts.CountAsync(ct)).ShouldBe(1);
     }
 
     private static PlayerCreationReceiptEntity Receipt(long club, DateTimeOffset expiry) => new()

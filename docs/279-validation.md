@@ -6,21 +6,20 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `1eff16154fd9eae0452e0d42f62fa11679ad3ab0` plus the exact changes in
+Current review-round inputs: `09aa2be599efd96b3f09f5ad0f0e217af399f825` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-The delta comprises the player form/component and roster page, creation endpoint/route documentation,
-`PlayerComponentsTests.CreationRecovery`, `PlayerFormBrowserTests.Recovery`, evaluation-history
-test failure diagnostics, and this document.
-All changes for Copilot review `5229673163`, including this evidence, are committed together once.
+The delta comprises `PlayerCreationReceiptCleanupService`, its SQLite expiry setup and PostgreSQL
+cleanup evidence, and this document. All changes for Copilot review `5229944610`, including this
+evidence, are committed together once. The preceding review round was completed in `09aa2be5`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Build, format, full unit/integration and the final full browser run pass on these inputs. The first
-browser run's unexplained evaluation-history timeout remains an open validation incident below;
-the green reruns do not establish a fix, so this record does not claim merge readiness.
-Only failure diagnostics in a browser test and documentation changed after the unit/integration
-runs; their application, fixture and suite inputs remain identical. Source diff and generated
-Bootstrap CSS hashes remained unchanged during the final browser run. Remote `main` still equals
-`fc2c0053`; there are no incoming merge-input differences. Migration-model evidence from `c9c1d7e`
+Current cleanup-round build, formatting and full unit/integration/browser suites pass. Application
+and test source stayed fixed during the browser run, confirmed by identical before/after patch hashes
+(`F932F8B23A49A60B0944031A3E73B028CFD01CF6DB1A822A426B16B76605FC5C`); generated theme CSS also
+remained unchanged. Only this record was finalized afterward. Remote `main` remains `fc2c0053`,
+with no incoming merge inputs. The preceding round's unexplained evaluation-history timeout remains
+an open validation incident below; green reruns do not establish a fix or merge readiness.
+Migration-model evidence from `c9c1d7e`
 remains applicable because model, migration and provider configuration inputs are unchanged.
 Current remote checks and reviews are linked from [PR #283](https://github.com/eruvalca/Nova/pull/283).
 
@@ -53,6 +52,10 @@ Current remote checks and reviews are linked from [PR #283](https://github.com/e
   bUnit, transition and browser-suite references. Applied `dotnet-test/code-testing-agent`'s focused
   existing-suite extension path and `dotnet-test/run-tests`; no runner overlay exists. No new
   test project, generation pipeline, guidance rule or diagnostic suppression was needed.
+- Cleanup-round follow-up: applied `add-domain-persistence` with provider-safe query construction and
+  receipt-retention references; `nova-testing` with transition, SQLite and PostgreSQL harness guidance;
+  and the existing C#, service, tenancy and testing rules. Used the focused existing-test workflow
+  from `dotnet-test/code-testing-agent` and the native MTP commands from `dotnet-test/run-tests`.
 
 ## Behavior and evidence
 
@@ -101,9 +104,9 @@ Current gate evidence for the implementation revision above:
 | Build | `dotnet build Nova.slnx --no-restore` | Pass: zero warnings/errors | Current review-round inputs above |
 | Formatting | `dotnet format Nova.slnx --verify-no-changes --no-restore` | Pass | Current review-round inputs above |
 | Migration model | `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` | Pass: no pending changes (tool 10.0.8 emits an informational runtime 10.0.12 version warning) | `c9c1d7e`, unchanged model inputs |
-| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,675 passed, zero failed/skipped | Current review-round inputs above |
+| Unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | 3,674 passed, zero failed/skipped; duplicate SQLite cleanup test moved into stronger provider coverage | Current review-round inputs above |
 | Integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | 661 passed, zero failed/skipped | Current review-round inputs above |
-| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | Final run: 207 passed, zero failed, 8 existing opt-in captures skipped. Full suite selected because recovery and navigation span composed flows. Earlier unexplained timeout remains open below. | Current review-round inputs above |
+| Browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | 207 passed, zero failed, 8 existing opt-in skips; earlier unexplained timeout remains open below | Current review-round inputs above |
 
 The incremental [receipt migration](../Nova/Data/Migrations/20260916204134_AddPlayerCreationReceipts.cs)
 was applied by the Aspire integration/browser fixtures. The browser skips were the existing accessibility
@@ -256,6 +259,39 @@ The final full browser run passed 207/207 executed cases with the same eight opt
 current execution evidence, not a causal disposition of the first run. Diagnostic self-review confirms
 the wrapper delegates to the original wait and enriches only the exception; all history-key, URL,
 draft and selected-player assertions remain unchanged. No suppression or validation weakening was added.
+
+## Copilot receipt-cleanup review
+
+Source: [Copilot review at `09aa2be5`](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5229944610).
+Its single suppressed finding correctly identifies full receipt materialization in the non-Npgsql
+fallback. Production already used a bounded SQL delete; `Program.cs` configures only Npgsql.
+SQLite cannot translate this `DateTimeOffset` ordering, so moving its LINQ operators before
+`ToListAsync` would not provide a valid fallback.
+
+Removed the test-only fallback and retained one database-side expiration predicate, deterministic
+`(RecoveryExpiresAt, PlayerCreationReceiptId)` order, `Take(500)` and `ExecuteDeleteAsync`, following
+`PlacementReceiptCleanupService`. No receipt entities are materialized by retention. The older
+evaluation and import cleanup fallbacks were inspected as siblings; both predate this change and
+have the same test-provider limitation. Their configured Npgsql paths already use bounded
+database-side deletion. No unrelated receipt family or provider contract is changed here.
+
+| Requirement | Evidence |
+| --- | --- |
+| Limit each global deletion to 500 expired receipts without reading receipt rows into the process | `CleanupDeletesAtMostFiveHundredExpiredReceiptsAcrossDeletedClubsAsync` asserts exact remaining identities, zero synchronous/asynchronous reader executions in an instrumented maintenance context, and an empty receipt change tracker after each pass against real PostgreSQL. |
+| Deterministic expiry/identity ordering, cutoff inclusivity, and retention across club deletion | The same test inserts an older receipt later in another club, 501 tied expirations, an exact-cutoff receipt, and live receipts in existing/deleted clubs. A one-microsecond-after-cutoff receipt survives both passes. The fixed historical cutoff isolates global maintenance from parallel tests' recovery windows. |
+| Receipt deletion cannot restart an expired operation | `ExpiredCreationCannotRestartAfterReceiptCleanupAsync` retains its original-operation rejection and one-player assertions. Its SQLite arrangement explicitly deletes only that operation's receipt; it no longer invokes a provider-specific cleanup query. |
+
+Coverage disposition: the duplicate SQLite cleanup-count test was removed only after its deleted-club,
+live-receipt and 500-row guarantees were incorporated into the stronger PostgreSQL test above.
+Cleanup translation and batching now run against the configured runtime provider. No assertion,
+timeout, retry or skip was relaxed, and the SQLite expiry/tenant-isolation/immutability tests remain.
+Focused self-review checks all cleanup callers, registration, index shape, cutoff precision and sibling
+retention patterns. No schema or migration input changed.
+The full suites in the current gate table cover the changed inputs, including all player and history
+browser flows. `git diff --check` passes. No local check failed in this cleanup round; the preceding
+round's unexplained browser incident remains open. The latest review bodies, conversation comments
+and all three existing resolved threads were rechecked with pagination; this finding has no inline
+thread. Fresh remote CI and the automatic review of this commit remain pending at push time.
 
 ## Guidance follow-up
 

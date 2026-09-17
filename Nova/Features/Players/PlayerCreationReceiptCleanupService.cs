@@ -39,19 +39,9 @@ internal sealed partial class PlayerCreationReceiptCleanupService(IServiceScopeF
     /// <summary>Uses the global expiration index, including receipts whose club no longer exists.</summary>
     internal static async Task PruneAsync(NovaAdminDbContext db, DateTimeOffset now, CancellationToken token)
     {
-        if (db.Database.IsNpgsql())
-        {
-            await db.PlayerCreationReceipts.Where(receipt => receipt.RecoveryExpiresAt <= now)
-                .OrderBy(receipt => receipt.RecoveryExpiresAt).ThenBy(receipt => receipt.PlayerCreationReceiptId)
-                .Take(500).ExecuteDeleteAsync(token);
-        }
-        else
-        {
-            var rows = await db.PlayerCreationReceipts.ToListAsync(token);
-            db.PlayerCreationReceipts.RemoveRange(rows.Where(receipt => receipt.RecoveryExpiresAt <= now)
-                .OrderBy(receipt => receipt.RecoveryExpiresAt).Take(500));
-            await db.SaveChangesAsync(token);
-        }
+        await db.PlayerCreationReceipts.Where(receipt => receipt.RecoveryExpiresAt <= now)
+            .OrderBy(receipt => receipt.RecoveryExpiresAt).ThenBy(receipt => receipt.PlayerCreationReceiptId)
+            .Take(500).ExecuteDeleteAsync(token);
     }
 
     /// <summary>Records a failed retention pass for the next scheduled retry.</summary>
