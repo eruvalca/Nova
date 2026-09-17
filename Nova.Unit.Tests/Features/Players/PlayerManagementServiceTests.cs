@@ -61,7 +61,7 @@ public sealed partial class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateEnrollsPlayerInEveryActiveCampaignAsync()
+    public async Task CreateEnrollsPlayerInCurrentActiveCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();

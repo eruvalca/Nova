@@ -6,21 +6,19 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `14f36eeb3ca3c3051d54837c8a60563119de36c1` plus the exact changes in
+Current review-round inputs: `9239d4d2b70724d7172927a9c5260377f60a746a` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-The delta comprises expiry recognition in the shared creation-conflict helper, the roster's creation
-feedback, component/browser regression coverage, browser transition synchronization, and this document. All changes for Copilot review
-`5230165851`, including this evidence, are committed together once. The preceding cleanup review
-round was completed in `14f36eeb`.
+The delta adds cross-club creation/recovery HTTP coverage, corrects the single-current-campaign
+service-test name, and updates this document. All changes for Copilot review `5230457872`, including
+this evidence, are committed together once. The preceding expiry-message and browser-observation
+review round was completed in `9239d4d2`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Build, formatting and full unit/integration/browser suites pass on the applicable current inputs.
-Browser validation identified and resolved two test-observation defects, including the earlier
-history incident; the reproduced evidence and dispositions are preserved below. The final browser
-run's source patches match before/after (SHA-256
-`C434F65087E38D76D176935EFEBD7CFAB24FABBAD3A5A8B109DC0AFAB4B6095B`), and generated theme CSS
-stayed unchanged. Only this record was finalized afterward. Unit/integration inputs have not changed
-since their passes; later changes affect only browser-test synchronization and documentation.
+Current-round build, formatting and full unit/integration suites pass as recorded below. Full browser
+evidence from `9239d4d2` remains applicable: this round changes only isolated unit/integration test
+files and this record; application, shared test helpers, browser suite, dependencies, configuration,
+discovery and generated-asset inputs are unchanged. The prior round's diagnosed browser-observation
+failures remain resolved with the reproduced evidence and dispositions preserved below.
 Remote `main` remains `fc2c0053`; there are no incoming merge-input differences.
 Migration-model evidence from `c9c1d7e`
 remains applicable because model, migration and provider configuration inputs are unchanged.
@@ -66,6 +64,10 @@ Current remote checks and reviews are linked from [PR #283](https://github.com/e
 - History-failure diagnosis: applied the repository `dotnet-inspect` skill and its installed 0.25.0
   guide to inspect `Microsoft.Playwright@1.62.0`; checked the matching upstream `Frame` source and
   official page-assertion documentation linked in the incident disposition below.
+- Cross-club HTTP follow-up: reused the applicable C#, service, API, tenancy and testing rules;
+  `nova-testing` with transition and HTTP/PostgreSQL harness references; the focused existing-suite
+  `dotnet-test/code-testing-agent` workflow and `dotnet-test/run-tests` native MTP syntax. No application
+  behavior, runner policy, shared harness or guidance changed.
 
 ## Behavior and evidence
 
@@ -358,6 +360,58 @@ with pagination; no additional actionable finding or inline thread appeared in t
 `git diff --check` and all 36 relative links in this record pass. All six changed files, including
 this record, are included in the same review-round commit. Fresh remote CI and automatic review
 of that commit remain pending at push time.
+
+## Copilot cross-club HTTP review
+
+Source: [review 5230457872](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5230457872)
+at `9239d4d2`. Its one inline finding and one suppressed finding are both actionable coverage or
+naming corrections. The suppressed comment points to the creation partial, but the outdated name
+is in the main service-test file; repository search found no other reference to that name.
+
+| Requirement | Evidence |
+| --- | --- |
+| A live approved member cannot choose another club for POST execution or recovery | [`CreateRejectsAnotherClubsApprovedMemberWithoutDisclosingOrWritingAsync`](../Nova.Integration.Tests/Http/PlayerManagementHttpTests.Recovery.cs) runs with and without an existing target-club receipt, through real Identity cookies and the deployed HTTP endpoint. It asserts 403/ProblemDetails/trace ID, no player/enrollment/conflict/settlement disclosure, and exact operation-scoped player/receipt club sets unchanged after denial. The same member and operation then create successfully in the member's own club, proving live membership and absence of a denial-created receipt. |
+| Test naming states the single-current-campaign contract | [`CreateEnrollsPlayerInCurrentActiveCampaignAsync`](../Nova.Unit.Tests/Features/Players/PlayerManagementServiceTests.cs) retains its exact-one participation assertion, current campaign ID and Undecided outcome. Only the obsolete `EveryActiveCampaign` method name changed. |
+
+Sibling inspection: existing HTTP coverage already exercises same-club member/admin success,
+anonymous and removed-membership denial, and other-club update isolation. Service and PostgreSQL
+tests cover actor/input/club mismatches and identity changes during lock waits. The added theory
+fills the live-outsider POST boundary gap without changing production authorization. Removing the
+request/authorized-club guard would return success in the caller's tenant instead of the asserted
+403; the positive control prevents an authorization failure unrelated to the requested club from
+passing unnoticed. No mutation experiment was needed for this missing boundary coverage.
+
+All results below cover `9239d4d2` plus this round's two test-file changes; only this record was
+finalized afterward. Build-capable commands were serialized, and no other Aspire suite ran during
+either integration execution.
+
+| Check | Command and result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — pass, zero warnings/errors. |
+| Focused HTTP regression | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-method '*CreateRejectsAnotherClubsApprovedMemberWithoutDisclosingOrWritingAsync'` — two passed, zero failed/skipped. |
+| Full unit suite | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — 3,675 passed, zero failed/skipped; includes the renamed enrollment test. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore --verbosity diagnostic` — pass, zero files changed. |
+| Full integration suite | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — 663 passed, zero failed/skipped. |
+
+The first build reported S2325 and CA1822 because the new authentication setup helper did not use
+instance state. Marking it static corrected both diagnostics; the subsequent solution build and
+format verification pass without suppression. No behavioral test failed in this round.
+
+Browser rerun is N/A for this isolated test-only delta. `git diff --name-only 9239d4d2` identifies
+only the two named unit/integration files and this record; neither is a shared/browser helper.
+The full `9239d4d2` pass (208 passed, eight existing opt-in skips) therefore covers the unchanged
+application and browser inputs. Generated theme CSS retains SHA-256
+`559EC45DA0B8540B2DA715B171FC23B565F133D733E9A4C2E727F265495807DC` after the build.
+Migration-model evidence from `c9c1d7e` remains applicable. Remote `main` was rechecked as `fc2c0053`.
+No tests or assertions were removed, skipped, suppressed or weakened; production behavior is unchanged.
+
+Focused self-review checked the complete three-file delta, valid real-cookie membership, operation-
+scoped database assertions, the positive control, and unchanged sibling tests. All review bodies,
+conversation comments and inline threads were inspected with pagination, including suppressed and
+resolved findings. This round's inline finding is fixed and will receive the commit/evidence link
+before resolution in the PR; the suppressed naming finding is fixed in the same commit.
+`git diff --check` and all 38 relative links in this record pass. Fresh CI and the next automatic
+review remain pending at push time; no review is manually requested.
 
 ## Browser history validation incident
 

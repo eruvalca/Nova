@@ -9,6 +9,65 @@ namespace Nova.Integration.Tests.Http;
 
 public sealed partial class PlayerManagementHttpTests
 {
+    /// <summary>A live member cannot select another tenant for execution or receipt recovery.</summary>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateRejectsAnotherClubsApprovedMemberWithoutDisclosingOrWritingAsync(bool receiptExists)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var targetAdminClient = fixture.CreateNovaHttpClient();
+        using var ownAdminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var targetClub = await CreateAuthenticatedClubAsync(targetAdminClient, "target", ct);
+        var ownClub = await CreateAuthenticatedClubAsync(ownAdminClient, "own", ct);
+        var memberEmail = UniqueEmail("cross-club-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, ct);
+        await UpdateUserAsync(memberEmail, "Live", "Member", ownClub.ClubId, ct);
+        await RefreshClubMembershipCookieAsync(memberClient, ct);
+        var input = ValidCreateInput(targetClub.ClubId);
+        if (receiptExists)
+        {
+            using var original = await targetAdminClient.PostAsJsonAsync(PlayerEndpoints.Create, input, ct);
+            original.StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        using var denied = await memberClient.PostAsJsonAsync(PlayerEndpoints.Create, input, ct);
+        denied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var problem = await denied.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("status").GetInt32().ShouldBe(403);
+        problem.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+        problem.TryGetProperty("player", out _).ShouldBeFalse();
+        problem.TryGetProperty("enrollment", out _).ShouldBeFalse();
+        problem.TryGetProperty(PlayerCreationProblems.ReasonExtension, out _).ShouldBeFalse();
+        problem.TryGetProperty(PlayerCreationProblems.DuplicateExtension, out _).ShouldBeFalse();
+        problem.TryGetProperty(PlayerCreationProblems.NotCommittedExtension, out _).ShouldBeFalse();
+        await using var db = fixture.CreateAdminContext();
+        var expectedClubs = receiptExists ? new[] { targetClub.ClubId } : Array.Empty<long>();
+        (await db.Players.Where(x => x.CreationOperationId == input.OperationId)
+            .Select(x => x.ClubId).ToArrayAsync(ct)).ShouldBe(expectedClubs);
+        (await db.PlayerCreationReceipts.Where(x => x.OperationId == input.OperationId)
+            .Select(x => x.ClubId).ToArrayAsync(ct)).ShouldBe(expectedClubs);
+
+        // The same live member and operation can execute in the authorized club; the denial
+        // neither reflects a missing membership nor reserves the operation in that tenant.
+        using var allowed = await memberClient.PostAsJsonAsync(PlayerEndpoints.Create, input with { ClubId = ownClub.ClubId }, ct);
+        allowed.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var completion = (await allowed.Content.ReadFromJsonAsync<PlayerCreationCompletion>(ct)).ShouldNotBeNull();
+        completion.OperationId.ShouldBe(input.OperationId);
+        completion.Player.ClubId.ShouldBe(ownClub.ClubId);
+        (await db.Players.CountAsync(x => x.ClubId == ownClub.ClubId && x.CreationOperationId == input.OperationId, ct)).ShouldBe(1);
+        (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == ownClub.ClubId && x.OperationId == input.OperationId, ct)).ShouldBe(1);
+    }
+
+    private static async Task<ClubDto> CreateAuthenticatedClubAsync(HttpClient client, string prefix, CancellationToken ct)
+    {
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, UniqueEmail(prefix), Password, ct);
+        var club = await CreateClubAsync(client, $"Cross-club {prefix}", "Austin", "TX", ct);
+        await RefreshClubMembershipCookieAsync(client, ct);
+        return club;
+    }
+
     /// <summary>Durable evidence survives a fresh HTTP client, mutable profile changes, and exact-request rejection.</summary>
     [Fact]
     public async Task CreationReplaysOriginalEvidenceThroughFreshClientAsync()
