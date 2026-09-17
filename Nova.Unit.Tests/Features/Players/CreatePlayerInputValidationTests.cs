@@ -27,6 +27,27 @@ public sealed class CreatePlayerInputValidationTests
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("01994916-0000-4000-8000-000000000000")]
+    [InlineData("ffffffff-ffff-7000-8000-000000000000")]
+    [InlineData("01994916-0000-7000-0000-000000000000")]
+    public void ValidateWithMalformedOperationIdReturnsError(string identity)
+    {
+        var errors = InputValidator.Validate(ValidInput() with { OperationId = Guid.Parse(identity) });
+        errors.Keys.ShouldBe([nameof(CreatePlayerInput.OperationId)]);
+        errors[nameof(CreatePlayerInput.OperationId)].ShouldNotBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(2000)]
+    [InlineData(2100)]
+    public void ValidateOperationShapeDoesNotDependOnCurrentTime(int year)
+    {
+        var issuedAt = new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        InputValidator.Validate(ValidInput() with { OperationId = Guid.CreateVersion7(issuedAt) }).ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]

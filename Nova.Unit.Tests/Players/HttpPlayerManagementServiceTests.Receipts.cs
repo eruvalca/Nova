@@ -44,16 +44,18 @@ public sealed partial class HttpPlayerManagementServiceTests
 
     /// <summary>Well-formed field feedback and correlation remain available without claiming durable rejection.</summary>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(HttpStatusCode.BadRequest)]
-    [InlineData(HttpStatusCode.UnprocessableEntity)]
-    public async Task CreatePreservesValidValidationFeedbackAsync(HttpStatusCode status)
+    [InlineData(HttpStatusCode.BadRequest, "FirstName")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "FirstName")]
+    [InlineData(HttpStatusCode.BadRequest, "OperationId")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "OperationId")]
+    public async Task CreatePreservesValidValidationFeedbackAsync(HttpStatusCode status, string field)
     {
         var input = CreateInput();
         using var response = new HttpResponseMessage(status)
         {
             Content = JsonContent.Create(new
             {
-                errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["FirstName"] = ["Invalid name"] },
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = ["Invalid value"] },
                 traceId = "trace-279"
             })
         };
@@ -63,7 +65,7 @@ public sealed partial class HttpPlayerManagementServiceTests
         var result = await new HttpPlayerManagementService(http).CreateAsync(input, TestContext.Current.CancellationToken);
 
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
-        result.Problem.Errors!["FirstName"].ShouldBe(["Invalid name"]);
+        result.Problem.Errors![field].ShouldBe(["Invalid value"]);
         result.Problem.Extensions!["traceId"]!.ToString().ShouldBe("trace-279");
         PlayerCreationProblems.IsNotCommitted(result.Problem, input.OperationId).ShouldBeFalse();
     }

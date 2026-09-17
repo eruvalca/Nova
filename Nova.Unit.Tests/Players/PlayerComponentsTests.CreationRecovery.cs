@@ -16,8 +16,10 @@ namespace Nova.Unit.Tests.Players;
 public sealed partial class PlayerComponentsTests
 {
     /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>
-    [Fact]
-    public async Task PlayersRetainsPendingCreationAfterValidationFailureAsync()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("FirstName")]
+    [InlineData("OperationId")]
+    public async Task PlayersRetainsPendingCreationAfterValidationFailureAsync(string field)
     {
         var commands = new List<CreatePlayerInput>();
         var service = Substitute.For<IPlayerManagementService>();
@@ -28,7 +30,7 @@ public sealed partial class PlayerComponentsTests
             ServiceResult<PlayerCreationCompletion> result = commands.Count switch
             {
                 1 => ServiceProblem.ServerError("Lost acknowledgement"),
-                2 => ServiceProblem.Validation("FirstName", "Unexpected validation response"),
+                2 => ServiceProblem.Validation(field, "Unexpected validation response"),
                 _ => CreationCompletion(input)
             };
             return Task.FromResult(result);

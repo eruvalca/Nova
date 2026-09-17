@@ -28,7 +28,9 @@ internal sealed partial class PlayerManagementService
         }
         if (!PlayerCreationOperation.TryGetDeadline(input.OperationId, timeProvider.GetUtcNow(), out var deadline))
         {
-            return PlayerCreationProblems.Expired();
+            return deadline == default
+                ? ServiceProblem.Validation(nameof(CreatePlayerInput.OperationId), "Use a UUIDv7 operation ID generated at the current time.")
+                : PlayerCreationProblems.Expired();
         }
 
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input))));

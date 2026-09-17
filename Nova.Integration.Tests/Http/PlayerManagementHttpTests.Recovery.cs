@@ -9,6 +9,47 @@ namespace Nova.Integration.Tests.Http;
 
 public sealed partial class PlayerManagementHttpTests
 {
+    /// <summary>Malformed/future identities are field errors; only a valid elapsed window is expiry.</summary>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("01994916-0000-4000-8000-000000000000")]
+    [InlineData("ffffffff-ffff-7000-8000-000000000000")]
+    [InlineData("01994916-0000-7000-0000-000000000000")]
+    [InlineData("future")]
+    [InlineData("expired")]
+    public async Task CreationDistinguishesInvalidOperationsFromExpiryAsync(string identity)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var club = await CreateAuthenticatedClubAsync(client, "operation-validation", ct);
+        var operationId = identity switch
+        {
+            "future" => Guid.CreateVersion7(DateTimeOffset.UtcNow.AddHours(1)),
+            "expired" => Guid.CreateVersion7(DateTimeOffset.UtcNow.AddHours(-25)),
+            _ => Guid.Parse(identity)
+        };
+        using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, ValidCreateInput(club.ClubId) with { OperationId = operationId }, ct);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+        if (string.Equals(identity, "expired", StringComparison.Ordinal))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+            problem.GetProperty(PlayerCreationProblems.ReasonExtension).GetString().ShouldBe("expired");
+            problem.TryGetProperty("errors", out _).ShouldBeFalse();
+        }
+        else
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            problem.GetProperty("errors").GetProperty(nameof(CreatePlayerInput.OperationId)).GetArrayLength().ShouldBeGreaterThan(0);
+            problem.TryGetProperty(PlayerCreationProblems.ReasonExtension, out _).ShouldBeFalse();
+        }
+        problem.TryGetProperty(PlayerCreationProblems.NotCommittedExtension, out _).ShouldBeFalse();
+        problem.TryGetProperty(PlayerCreationProblems.DuplicateExtension, out _).ShouldBeFalse();
+        await using var db = fixture.CreateAdminContext();
+        (await db.Players.CountAsync(x => x.ClubId == club.ClubId, ct)).ShouldBe(0);
+        (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == club.ClubId, ct)).ShouldBe(0);
+    }
+
     /// <summary>A live member cannot select another tenant for execution or receipt recovery.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]

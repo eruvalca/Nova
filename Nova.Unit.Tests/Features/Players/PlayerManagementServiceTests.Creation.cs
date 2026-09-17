@@ -9,6 +9,54 @@ namespace Nova.Unit.Tests.Features.Players;
 
 public sealed partial class PlayerManagementServiceTests
 {
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("01994916-0000-4000-8000-000000000000")]
+    [InlineData("ffffffff-ffff-7000-8000-000000000000")]
+    [InlineData("01994916-0000-7000-0000-000000000000")]
+    public async Task CreateRejectsMalformedOperationIdentityAsync(string identity)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+        var input = ValidCreateInput() with { OperationId = Guid.Parse(identity) };
+        var result = await CreateService().CreateAsync(input, ct);
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull().Keys.ShouldBe([nameof(CreatePlayerInput.OperationId)]);
+        result.Problem.Extensions.ShouldBeNull();
+        await using var db = _harness.CreateAdminContext();
+        (await db.Players.CountAsync(x => x.CreationOperationId == input.OperationId, ct)).ShouldBe(0);
+        (await db.PlayerCreationReceipts.CountAsync(x => x.OperationId == input.OperationId, ct)).ShouldBe(0);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(59999)]
+    [InlineData(60000)]
+    [InlineData(60001)]
+    public async Task CreateHonorsFutureOperationClockToleranceAsync(int milliseconds)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+        var clock = new CreationClock(new DateTimeOffset(2026, 9, 16, 0, 0, 0, TimeSpan.Zero));
+        var input = ValidCreateInput() with { OperationId = Guid.CreateVersion7(clock.Now.AddMilliseconds(milliseconds)) };
+        var service = CreateService(clock);
+        var result = await service.CreateAsync(input, ct);
+        await using var db = _harness.CreateAdminContext();
+        if (milliseconds > 60000)
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+            result.Problem.Errors.ShouldNotBeNull().Keys.ShouldBe([nameof(CreatePlayerInput.OperationId)]);
+            result.Problem.Extensions.ShouldBeNull();
+            (await db.Players.CountAsync(x => x.CreationOperationId == input.OperationId, ct)).ShouldBe(0);
+            (await db.PlayerCreationReceipts.CountAsync(x => x.OperationId == input.OperationId, ct)).ShouldBe(0);
+            clock.Now = clock.Now.AddMilliseconds(1);
+            result = await service.CreateAsync(input, ct);
+        }
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OperationId.ShouldBe(input.OperationId);
+        (await db.Players.CountAsync(x => x.CreationOperationId == input.OperationId, ct)).ShouldBe(1);
+        (await db.PlayerCreationReceipts.CountAsync(x => x.OperationId == input.OperationId, ct)).ShouldBe(1);
+    }
+
     [Fact]
     public async Task DuplicateSelectionPrefersActiveThenLowestPlayerIdentityAsync()
     {

@@ -6,18 +6,17 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `55af7cf62bdb5e4d79827aa846a8b9dc942b44a7` plus the exact changes in
+Current review-round inputs: `56d9ab79aaa85b9336665d930a18da6ba8c479eb` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-This documentation-only delta records the evidence-backed inapplicability of Copilot review
-`5230586090`'s SQLite cleanup request. Its disposition and validation are committed together once.
-The preceding cross-club HTTP and test-name review round was completed in `55af7cf6`.
+This delta corrects malformed/future operation-ID classification with shared input validation,
+service classification, unit/HTTP/consumer regressions and this record. All changes for Copilot
+review `5230668363` are committed together once. The preceding SQLite cleanup disposition was
+completed in the documentation-only commit `56d9ab79`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Build and full integration evidence from `55af7cf6` remains applicable; this round changes only
-this record. Current unit, format and focused PostgreSQL results are recorded in the disposition.
-Full browser evidence from `9239d4d2` remains applicable: since that pass only isolated unit/integration
-tests and this record changed; application, shared test helpers, browser suite, dependencies,
-configuration, discovery and generated-asset inputs are unchanged. The prior round's diagnosed browser-observation
+Current gates and tested-input comparisons are recorded in the operation-ID review disposition.
+The changed shared input and HTTP classification have passing new full integration/browser evidence.
+The prior round's diagnosed browser-observation
 failures remain resolved with the reproduced evidence and dispositions preserved below.
 Remote `main` remains `fc2c0053`; there are no incoming merge-input differences.
 Migration-model evidence from `c9c1d7e`
@@ -463,6 +462,86 @@ conversation comments and inline threads, including suppressed/resolved content,
 pagination. The PR reply will link this evidence-backed inapplicability explanation before the thread
 is resolved. This record is the round's single commit; fresh CI and automatic review of it remain
 pending at push time. No review is manually requested.
+
+## Copilot operation-ID classification review
+
+Source: [review 5230668363](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5230668363)
+at `56d9ab79`, with one suppressed finding and no new inline thread. The finding is valid: the
+previous input only rejected an empty GUID, and every `TryGetDeadline` failure returned an expiry
+conflict. A non-v7 GUID, invalid UUID variant, unrepresentable timestamp, or excessive future clock
+skew could therefore be described as an elapsed recovery window.
+
+Added input-owned `CustomValidation` using the existing deterministic `TryGetCreatedAt` parser,
+so structural rejection is shared by endpoint and direct-service validation. Shape validation does
+not read the clock or allocate an ID. The service now distinguishes the helper's documented failure
+outputs: an expired valid identity retains its computed deadline, while malformed/too-far-future
+identities return no deadline. Future-clock rejection is an `OperationId` validation problem, with
+no expiry or durable-rejection marker. A valid elapsed UUIDv7 window remains an expiry conflict.
+
+| Requirement | Named evidence |
+| --- | --- |
+| Reject malformed identity before creation or receipt effects | [`ValidateWithMalformedOperationIdReturnsError`](../Nova.Unit.Tests/Features/Players/CreatePlayerInputValidationTests.cs) and [`CreateRejectsMalformedOperationIdentityAsync`](../Nova.Unit.Tests/Features/Players/PlayerManagementServiceTests.Creation.cs) cover empty, v4, invalid-variant and unrepresentable IDs; assert the `OperationId` field, no settlement extensions and no player/receipt insertion. |
+| Separate immutable shape from time-dependent eligibility | `ValidateOperationShapeDoesNotDependOnCurrentTime` accepts well-formed historical/future UUIDv7 inputs. [`PlayerCreationOperationTests`](../Nova.Unit.Tests/Features/Players/PlayerCreationOperationTests.cs) verifies the failure-output contract and exclusive expiry; `CreateHonorsFutureOperationClockToleranceAsync` proves 59,999/60,000 ms acceptance and 60,001 ms validation, then advances the injected clock one millisecond and successfully replays the same original input. |
+| Real HTTP classification, correlation and absence of effects | [`CreationDistinguishesInvalidOperationsFromExpiryAsync`](../Nova.Integration.Tests/Http/PlayerManagementHttpTests.Recovery.cs) covers the four malformed IDs, excessive future skew and valid expiry. Invalid/future requests return 400 with `OperationId` errors; expiry returns 409/`expired`. All include trace IDs, no receipt-backed rejection marker, and zero player/receipt writes. |
+| Validation feedback cannot settle unresolved browser work | [`CreatePreservesValidValidationFeedbackAsync`](../Nova.Unit.Tests/Players/HttpPlayerManagementServiceTests.Receipts.cs) now covers `OperationId` alongside profile feedback for both 400/422. [`PlayersRetainsPendingCreationAfterValidationFailureAsync`](../Nova.Unit.Tests/Players/PlayerComponentsTests.CreationRecovery.cs) adds an operation-field case after lost acknowledgement, retaining the exact original object and profile through the next successful retry. |
+
+The review's classification correction does not authorize releasing a pending command based on a
+validation response alone. Existing receipt, expiry, membership and exact-request recovery rules
+remain unchanged; malformed or contradictory responses still cannot prove rollback. The form still
+validates only `PlayerProfileInput`, independently of operation allocation.
+
+Guidance applied: existing C#, validation, service, API, tenancy, Blazor and testing rules;
+`add-feature-slice` with input/validation, service-result and WASM references; `add-api-endpoint`
+with validation/ProblemDetails guidance; `add-blazor-ui` form/state guidance; and `nova-testing`
+with transition, SQLite, HTTP/PostgreSQL, component and browser references. Used the focused
+`code-testing-agent` workflow and `run-tests` native MTP commands. No new guidance or exception was added.
+
+Sibling review: placement already distinguishes invalid/future IDs from expiry. The evaluation
+executor has the earlier combined classification too, but both its executor and input are unchanged
+from `fc2c0053`; it is not a dependency of player creation. **Separate follow-up:** correct
+[`EvaluationMutationExecutor`](../Nova/Features/Campaigns/EvaluationMutationExecutor.cs) and
+[`EvaluationOperationInput`](../Nova.SharedKernel/Features/Campaigns/EvaluationOperationInput.cs)
+with equivalent input/service/HTTP classification and pending-command evidence. This finding is
+source-verified, not newly reproduced at runtime; it remains outside #279's player-command scope.
+
+Failure disposition: before the production fix, the focused unit run passed 112 and failed seven:
+three malformed IDs passed input validation, the same three returned service conflicts, and the
+60,001 ms future case returned a conflict. After correction, all 121 focused cases pass (the run also
+includes the two added WASM feedback cases). These are reproduced expected regression failures,
+resolved by the input/service changes; no assertion, retry budget, skip or suppression was weakened.
+
+All results below cover `56d9ab79` plus the nine source/test changes in this round; this record is
+the only later documentation edit. Build-capable commands and machine-wide Aspire suites were
+serialized. The same focused unit command produced the expected pre-fix failures recorded above.
+
+| Check | Command and result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — pass, zero warnings/errors. |
+| Focused unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerManagementServiceTests' --filter-class '*CreatePlayerInputValidationTests' --filter-class '*PlayerCreationOperationTests'` — 121 passed, zero failed/skipped. |
+| Focused HTTP | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-method '*CreationDistinguishesInvalidOperationsFromExpiryAsync'` — six passed, zero failed/skipped. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — 3,691 passed, zero failed/skipped. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore --verbosity diagnostic` — pass, zero files changed. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — 669 passed, zero failed/skipped. |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — 208 passed, zero failed, eight existing opt-in capture skips. |
+
+Selected the full browser suite because the shared creation input and HTTP classification are used
+across server-rendered and WASM workflows. Existing `PlayerFormBrowserTests` cover valid creation,
+validation, duplicates and retained retries; lifecycle, enrollment, import and history siblings also
+ran. Source and generated assets stayed fixed during the run. Migration-model evidence at `c9c1d7e`
+remains applicable because model, migration and provider configuration inputs are unchanged.
+
+The source patch excluding this record has matching before/after browser SHA-256
+`36E67EB08F5F28699F975DA3D54A0FC8FECA7A6284FE0EC06B5089D94160FCFE`; generated theme CSS remains
+`559EC45DA0B8540B2DA715B171FC23B565F133D733E9A4C2E727F265495807DC`. Only this record was finalized
+after the gates. Remote `main` still points to `fc2c0053`, with no incoming merge-input changes.
+
+Focused self-review checked annotation/service ordering, helper failure outputs, unchanged receipt
+serialization/fingerprints, authorization and enrollment, consumer non-settlement, and the sibling
+follow-up above. Full review bodies, conversation comments and inline replies were compared with the
+previous inspection using paginated APIs; this is the only new finding and it has no inline thread.
+All five existing threads remain resolved. `git diff --check` and all 50 relative file links pass.
+The ten-file delta, including this record, is committed once for this review round. Fresh CI and
+automatic review of the pushed commit remain pending; no review is manually requested.
 
 ## Browser history validation incident
 

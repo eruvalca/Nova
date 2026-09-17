@@ -25,6 +25,10 @@ public static class PlayerCreationOperation
     }
 
     /// <summary>Accepts an operation within its exclusive 24-hour window, allowing one minute of clock skew.</summary>
+    /// <param name="operationId">The immutable UUIDv7 creation identity.</param>
+    /// <param name="now">The current time used for execution and recovery eligibility.</param>
+    /// <param name="deadline">The expiry, even for an expired operation; default for malformed or too-far-future identities.</param>
+    /// <returns>Whether the current time is inside the allowed operation window.</returns>
     public static bool TryGetDeadline(Guid operationId, DateTimeOffset now, out DateTimeOffset deadline)
     {
         deadline = default;
