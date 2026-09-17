@@ -18,7 +18,7 @@ public static class PlayerEndpoints
     public const string GroupPrefix = "/api/players";
 
     /// <summary>
-    /// Creates a new player and enrolls them in all Active campaigns (POST).
+    /// Creates or recovers a player with the original optional enrollment in the current Active campaign (POST).
     /// </summary>
     public const string Create = "/api/players";
 

@@ -19,7 +19,8 @@ Canonical files:
 - Validate shared input before calling a URL builder that normalizes or omits invalid values; invalid
   caller input must not silently become a default request.
 - Use the endpoint's JSON or multipart encoding and pass the `CancellationToken`.
-- On non-success status codes, call `response.ToServiceProblemAsync(cancellationToken)`.
+- On non-success status codes, call `response.ToServiceProblemAsync(cancellationToken)`, then apply
+  the feature's rejection-evidence validation when the response can settle a recoverable command.
 - On success, use `ReadRequiredJsonAsync` to deserialize and validate the required body. A
   successfully deserialized empty collection (`[]`) is valid when the contract permits it. The
   helper maps an empty body, JSON `null`, malformed JSON, or a contract-invalid payload to
@@ -41,6 +42,15 @@ returned operation identity as well as payload invariants. Follow
 [client retries and reviewed batches](../../add-domain-persistence/references/retrying-mutations-and-locks.md#client-retries-and-reviewed-batches)
 for the server receipt contract; `HttpPlayerImportService` is the multipart example. A cancelled
 request or lost response leaves the commit outcome unknown until recovery succeeds.
+
+For JSON command recovery, pair `HttpPlayerManagementService.CreateAsync` with
+`PlayerCreationProblems` and
+`HttpPlayerManagementServiceTests.CreateRejectsContradictoryConflictEvidenceAsync`. They validate
+the rejection reason, matching operation marker, and duplicate details together. The regression
+includes an expiry/mismatch reason carrying a not-committed marker, a wrong operation ID, and
+missing or invalid duplicate details; each becomes a protocol failure that cannot release pending
+work. Follow the [API response rules](../../../../.github/instructions/api-endpoints.instructions.md#wasm-response-contracts)
+for the invariant; player duplicate evidence is an example, not a required shape for other features.
 
 ## Producer-to-UI contract check
 

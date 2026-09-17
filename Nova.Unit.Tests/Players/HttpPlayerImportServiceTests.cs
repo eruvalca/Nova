@@ -780,7 +780,7 @@ public sealed class HttpPlayerImportServiceTests
 
     private static PlayerImportPreview ValidPreview()
     {
-        var candidate = new CreatePlayerInput
+        var candidate = new PlayerProfileInput
         {
             FirstName = "Alex",
             LastName = "Archer",

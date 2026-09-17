@@ -13,7 +13,7 @@ namespace Nova.Browser.Tests;
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
-public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
+public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 

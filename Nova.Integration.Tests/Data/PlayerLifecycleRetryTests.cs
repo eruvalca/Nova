@@ -21,9 +21,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     public async Task PlayerLifecycleRetriesWithFreshContextAfterTransientSaveFailureAsync()
 #pragma warning restore MA0051
     {
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+        long actorUserId;
         var suffix = Guid.NewGuid().ToString("N");
         long clubId;
         long playerId;
@@ -34,6 +32,10 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
 
         await using (var seed = fixture.CreateAdminContext())
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -43,6 +45,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var player = new PlayerEntity
@@ -97,11 +101,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     [Fact]
     public async Task PlayerArchiveReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
-        var (clubId, playerId) = await SeedClubAndPlayerAsync(actorUserId, suffix);
+        var (clubId, playerId, actorUserId) = await SeedClubAndPlayerAsync(suffix);
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -137,11 +138,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     [Fact]
     public async Task PlayerRestoreReportsSuccessWhenCommitSucceedsButTransientFailureSurfacesAsync()
     {
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
         var suffix = Guid.NewGuid().ToString("N");
-        var (clubId, playerId) = await SeedClubAndPlayerAsync(actorUserId, suffix, archived: true);
+        var (clubId, playerId, actorUserId) = await SeedClubAndPlayerAsync(suffix, archived: true);
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
@@ -174,12 +172,10 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Seeds one club and one player owned by it, bypassing tenant filters.
     /// </summary>
-    /// <param name="actorUserId">The creating user identifier.</param>
     /// <param name="suffix">A unique suffix for generated names.</param>
     /// <param name="archived">Whether the seeded player starts archived.</param>
-    /// <returns>The seeded club and player identifiers.</returns>
-    private async Task<(long ClubId, long PlayerId)> SeedClubAndPlayerAsync(
-        long actorUserId,
+    /// <returns>The database-generated club, player, and acting user identifiers.</returns>
+    private async Task<(long ClubId, long PlayerId, long ActorUserId)> SeedClubAndPlayerAsync(
         string suffix,
         bool archived = false)
     {
@@ -190,6 +186,10 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
         var seed = fixture.CreateAdminContext();
         await using (seed)
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -199,6 +199,8 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var player = new PlayerEntity
@@ -217,7 +219,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
             seed.Players.Add(player);
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            return (club.ClubId, player.PlayerId);
+            return (club.ClubId, player.PlayerId, actorUserId);
         }
     }
 }

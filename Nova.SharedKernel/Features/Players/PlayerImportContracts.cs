@@ -90,7 +90,7 @@ public sealed record PlayerImportDuplicate(
 public sealed record PlayerImportPreviewRow(
     int SourceRowNumber,
     PlayerImportRowValues Values,
-    CreatePlayerInput? Candidate,
+    PlayerProfileInput? Candidate,
     PlayerImportRowStatus Status,
     IReadOnlyList<PlayerImportFieldError> Errors,
     PlayerImportDuplicate? Duplicate);

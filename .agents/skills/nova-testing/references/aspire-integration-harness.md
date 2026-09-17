@@ -158,6 +158,10 @@ flow, ProblemDetails bodies with `traceId`, ETag/304 caching, and owner-only acc
 6. Use unique emails/data per test; never rely on global counts.
 7. For `CreatedAtRoute`, assert `201`, the exact `Location`, and a successful GET after following it.
 
+For services that recheck database authorization, follow the shared
+[persisted membership setup](unit-sqlite-harness.md#persisted-membership); setting the fixture's
+current user alone does not establish membership or roles in PostgreSQL.
+
 Example pattern from `Nova.Integration.Tests\Data\PostgresTenancyTests.cs`:
 
 ```csharp

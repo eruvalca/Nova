@@ -10,6 +10,11 @@
             <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
         }
 
+        @if (Duplicate is { } duplicate && DuplicateDetailUrl is not null)
+        {
+            <p><a href="@DuplicateDetailUrl">View existing @(duplicate.LifecycleStatus == LifecycleStatus.Archived ? "archived " : string.Empty)player</a></p>
+        }
+
         @if (GraduationYearBlockers.Count > 0)
         {
             <div class="alert alert-warning" role="alert" aria-live="polite">
@@ -27,6 +32,7 @@
 
         <EditForm Model="Model" OnValidSubmit="OnValidSubmit">
             <DataAnnotationsValidator />
+            <fieldset disabled="@(IsSubmitting || IsReadOnly)">
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="player-first-name" class="form-label">First name</label>
@@ -65,6 +71,7 @@
                 </div>
             </div>
 
+            </fieldset>
             <div class="d-flex flex-wrap gap-2 mt-4">
                 <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
                     @if (IsSubmitting)
@@ -73,7 +80,7 @@
                     }
                     @SubmitButtonText
                 </button>
-                <button type="button" class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
             </div>
         </EditForm>
     </div>

@@ -49,6 +49,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         var task1 = svc1.CreateAsync(new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = fixture.CurrentUser.ClubId.GetValueOrDefault(),
             FirstName = "Player",
             LastName = "One",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -57,6 +59,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         var task2 = svc2.CreateAsync(new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = fixture.CurrentUser.ClubId.GetValueOrDefault(),
             FirstName = "Player",
             LastName = "Two",
             DateOfBirth = new DateOnly(2013, 6, 1),
@@ -68,8 +72,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         result1.IsSuccess.ShouldBeTrue("Player One creation should succeed");
         result2.IsSuccess.ShouldBeTrue("Player Two creation should succeed");
 
-        var id1 = result1.Value.PlayerId;
-        var id2 = result2.Value.PlayerId;
+        var id1 = result1.Value.Player.PlayerId;
+        var id2 = result2.Value.Player.PlayerId;
         id1.ShouldNotBe(id2);
 
         await using var db = fixture.CreateAdminContext();
@@ -102,6 +106,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         var tasks = Enumerable.Range(1, PlayerCount).Select(index =>
             CreateService().CreateAsync(new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId.GetValueOrDefault(),
                 FirstName = $"Concurrent{index}",
                 LastName = "Player",
                 DateOfBirth = new DateOnly(2012, 1, index % 28 + 1),
@@ -112,7 +118,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         results.ShouldAllBe(r => r.IsSuccess, "all concurrent players should be created successfully");
 
-        var playerIds = results.Select(r => r.Value.PlayerId).ToList();
+        var playerIds = results.Select(r => r.Value.Player.PlayerId).ToList();
         playerIds.ShouldBeUnique("each concurrent creation should produce a unique player ID");
 
         await using var db = fixture.CreateAdminContext();
@@ -138,13 +144,16 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         await using (var db = fixture.CreateAdminContext())
         {
             var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+            var actor = new NovaUserEntity { FirstName = "Isolation", LastName = "Member" };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
 
             var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
             var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
             db.Clubs.AddRange(clubA, clubB);
+            await db.SaveChangesAsync(cancellationToken);
+            actor.ClubId = clubA.ClubId;
             await db.SaveChangesAsync(cancellationToken);
 
             var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Season A {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = actorUserId };
@@ -168,6 +177,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         var result = await CreateService().CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId.GetValueOrDefault(),
                 FirstName = "Isolation",
                 LastName = "Player",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -179,7 +190,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         await using var verifyDb = fixture.CreateAdminContext();
         var assignments = await verifyDb.PlayerCampaignAssignments
-            .Where(a => a.PlayerId == result.Value.PlayerId)
+            .Where(a => a.PlayerId == result.Value.Player.PlayerId)
             .ToListAsync(cancellationToken);
 
         assignments.Count.ShouldBe(1, "the new player should only enroll in their own club's active campaign");
@@ -198,7 +209,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
     private PlayerManagementService CreateService() =>
         new(new FixtureDbContextFactory(fixture), fixture.CurrentUser,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<PlayerManagementService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
     private async Task<EnrollmentSeed> SeedAsync(int activeCampaignCount, CancellationToken cancellationToken)
     {
@@ -207,9 +218,10 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         await using (db)
         {
             var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = actor.Id;
 
             var club = new ClubEntity
             {
@@ -220,6 +232,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+            actor.ClubId = club.ClubId;
             await db.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity

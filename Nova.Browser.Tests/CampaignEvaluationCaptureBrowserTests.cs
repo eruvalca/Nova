@@ -316,11 +316,11 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
         await AssertProtectedHistoryOriginAsync(page, selectedUrl, selectedKey, events);
         await page.GetByRole(AriaRole.Button, new() { Name = "Discard and leave", Exact = true }).ClickAsync();
-        await page.WaitForURLAsync(finderUrl, new() { WaitUntil = WaitUntilState.Commit });
+        await AssertHistoryDestinationAsync(page, finderUrl, events);
         await Expect(page.Locator("#evaluation-player-heading")).ToHaveCountAsync(0);
         (await page.EvaluateAsync<string>("navigation.currentEntry.key")).ShouldBe(finderKey);
         await page.GoForwardAsync(new() { WaitUntil = WaitUntilState.Commit });
-        await page.WaitForURLAsync(selectedUrl, new() { WaitUntil = WaitUntilState.Commit });
+        await AssertHistoryDestinationAsync(page, selectedUrl, events);
         await Expect(page.Locator("#evaluation-player-heading")).ToContainTextAsync("#60 ");
         await Expect(page.Locator("a[data-eval-result][aria-current='page']")).ToHaveCountAsync(1);
         await Expect(page.Locator("#evaluation-search")).ToHaveValueAsync("60");
@@ -409,10 +409,26 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         (await database.Notes.CountAsync(note => note.PlayerCampaignAssignmentId == seed.AssignmentIds[1], TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
+    private static async Task AssertHistoryDestinationAsync(IPage page, string url, IEnumerable<string> events)
+    {
+        // Assert settled history state even when traversal completes before a navigation waiter subscribes.
+        try { await Expect(page).ToHaveURLAsync(url, new() { Timeout = 30000 }); }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            var history = await page.EvaluateAsync<string>("""
+                JSON.stringify({current: {key: navigation.currentEntry.key, url: location.href},
+                    entries: navigation.entries().map(entry => ({key: entry.key, url: entry.url})),
+                    events: window.__evaluationClickDiagnostics ?? []})
+                """);
+            var snapshot = await page.Locator("body").AriaSnapshotAsync();
+            throw new TimeoutException($"History destination did not settle at {url}. Actual URL: {page.Url}; events: {string.Join('\n', events)}; history: {history}; ARIA: {snapshot}", exception);
+        }
+    }
+
     private static async Task AssertProtectedHistoryOriginAsync(IPage page, string url, string key, IEnumerable<string> events)
     {
         await AssertGuardPromptAsync(page, page.Locator(".evaluation-protection"), events);
-        await page.WaitForURLAsync(url, new() { WaitUntil = WaitUntilState.Commit });
+        await AssertHistoryDestinationAsync(page, url, events);
         (await page.EvaluateAsync<string>("navigation.currentEntry.key")).ShouldBe(key);
         await Expect(page.Locator("#evaluation-note")).ToHaveValueAsync("History-protected draft.");
     }

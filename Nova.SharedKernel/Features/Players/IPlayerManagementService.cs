@@ -9,16 +9,16 @@ namespace Nova.SharedKernel.Features.Players;
 public interface IPlayerManagementService
 {
     /// <summary>
-    /// Creates a new Active player and atomically enrolls that player into every currently Active
+    /// Creates a new Active player and atomically enrolls that player into the currently Active
     /// campaign in the current club.
     /// </summary>
     /// <param name="input">The player profile details.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// <see cref="ServiceResult{TSuccess}"/> containing the created <see cref="PlayerDto"/> on success,
+    /// <see cref="ServiceResult{TSuccess}"/> containing the original <see cref="PlayerCreationCompletion"/> on success,
     /// or a <see cref="ServiceProblem"/> on failure (validation errors, forbidden, or server error).
     /// </returns>
-    Task<ServiceResult<PlayerDto>> CreateAsync(CreatePlayerInput input, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PlayerCreationCompletion>> CreateAsync(CreatePlayerInput input, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates a player's permanent profile fields. Blocks graduation-year changes that would

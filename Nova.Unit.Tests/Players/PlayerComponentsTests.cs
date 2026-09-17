@@ -18,7 +18,7 @@ namespace Nova.Unit.Tests.Players;
 /// <summary>
 /// Component-level tests for player roster state handling, role matrix, and mutation UX.
 /// </summary>
-public sealed class PlayerComponentsTests : BunitContext
+public sealed partial class PlayerComponentsTests : BunitContext
 {
     /// <summary>Retains correction context and applies discovery filters before either startup authentication path loads the roster.</summary>
     /// <param name="notificationOvertakesStartup">Whether the initial identity arrives through a notification before startup completes.</param>
@@ -507,15 +507,22 @@ public sealed class PlayerComponentsTests : BunitContext
 
         var managementService = Substitute.For<IPlayerManagementService>();
         managementService.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<PlayerDto>(new PlayerDto
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(new PlayerCreationCompletion
             {
-                PlayerId = 21,
-                ClubId = 42,
-                FirstName = "Taylor",
-                LastName = "Lane",
-                DateOfBirth = new DateOnly(2012, 5, 1),
-                GraduationYear = 2031,
-                LifecycleStatus = LifecycleStatus.Active
+                OperationId = call.Arg<CreatePlayerInput>().OperationId,
+                CompletedAt = DateTimeOffset.UtcNow,
+                RecoveryExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
+                Enrollment = null,
+                Player = new PlayerDto
+                {
+                    PlayerId = 21,
+                    ClubId = 42,
+                    FirstName = "Taylor",
+                    LastName = "Lane",
+                    DateOfBirth = new DateOnly(2012, 5, 1),
+                    GraduationYear = 2031,
+                    LifecycleStatus = LifecycleStatus.Active
+                }
             })));
 
         RegisterServices(

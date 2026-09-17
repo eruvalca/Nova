@@ -105,7 +105,7 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defender
     /// </summary>
     [Fact]
 #pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
-    public async Task PlayerRosterWorkflowAdminRoundTripAndEvaluatorReadOnlyAsync()
+    public async Task PlayerRosterWorkflowMemberCreationAndAdminLifecycleRoundTripAsync()
 #pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -125,6 +125,8 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defender
 
         var createInput = new CreatePlayerInput
         {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = club.ClubId,
             FirstName = "Skyler",
             LastName = "Rivera",
             DateOfBirth = new DateOnly(2012, 9, 7),
@@ -132,11 +134,11 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defender
         };
 
         using var evaluatorCreate = await evaluatorClient.PostAsJsonAsync(PlayerEndpoints.Create, createInput, cancellationToken);
-        evaluatorCreate.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        evaluatorCreate.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         using var createResponse = await adminClient.PostAsJsonAsync(PlayerEndpoints.Create, createInput, cancellationToken);
-        createResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
-        var created = await createResponse.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
+        createResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var created = (await evaluatorCreate.Content.ReadFromJsonAsync<PlayerCreationCompletion>(cancellationToken))?.Player;
         created.ShouldNotBeNull();
 
         var updateInput = new UpdatePlayerInput
@@ -154,9 +156,6 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defender
         using var archiveResponse = await adminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         archiveResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        using var evaluatorRestore = await evaluatorClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
-        evaluatorRestore.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-
         using (var archivedRoster = await adminClient.GetAsync(
 new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "archived", search: "Updated"), UriKind.RelativeOrAbsolute),
                    cancellationToken))
@@ -168,8 +167,8 @@ new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "arc
             archivedPayload.Items.ShouldContain(player => player.PlayerId == created.PlayerId && player.DisplayName == "Skyler Updated");
         }
 
-        using var restoreResponse = await adminClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
-        restoreResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        using var evaluatorRestore = await evaluatorClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
+        evaluatorRestore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var activeRoster = await adminClient.GetAsync(
 new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "active", search: "Updated"), UriKind.RelativeOrAbsolute),

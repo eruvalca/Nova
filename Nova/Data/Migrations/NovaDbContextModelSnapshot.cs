@@ -935,6 +935,57 @@ namespace Nova.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Nova.Entities.PlayerCreationReceiptEntity", b =>
+                {
+                    b.Property<long>("PlayerCreationReceiptId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("PlayerCreationReceiptId"));
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ClubId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("ModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("ModifiedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RecoveryExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("PlayerCreationReceiptId");
+
+                    b.HasIndex("ClubId", "OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("RecoveryExpiresAt", "PlayerCreationReceiptId");
+
+                    b.ToTable("PlayerCreationReceipts");
+                });
+
             modelBuilder.Entity("Nova.Entities.PlayerEntity", b =>
                 {
                     b.Property<long>("PlayerId")
@@ -1000,6 +1051,8 @@ namespace Nova.Data.Migrations
 
                     b.HasIndex("ClubId", "CreationOperationId")
                         .IsUnique();
+
+                    b.HasIndex("ClubId", "DateOfBirth");
 
                     b.ToTable("Players", t =>
                         {

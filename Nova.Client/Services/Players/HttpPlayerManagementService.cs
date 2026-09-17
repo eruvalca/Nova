@@ -13,19 +13,22 @@ namespace Nova.Client.Services.Players;
 internal sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManagementService
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<PlayerDto>> CreateAsync(
+    public async Task<ServiceResult<PlayerCreationCompletion>> CreateAsync(
         CreatePlayerInput input,
         CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            return await response.ToServiceProblemAsync(cancellationToken);
+            var problem = await response.ToServiceProblemAsync(cancellationToken);
+            return !IsValidCreationProblem(problem, input.OperationId)
+                ? ServiceProblem.ServerError("The server returned invalid player creation evidence. Retry the original operation.", problem.Extensions)
+                : problem;
         }
 
-        return await response.Content.ReadRequiredJsonAsync<PlayerDto>(
-            "The server returned an invalid player response.",
-            player => IsValidPlayer(player),
+        return await response.Content.ReadRequiredJsonAsync<PlayerCreationCompletion>(
+            "The server returned invalid player creation evidence. Retry the original operation.",
+            completion => IsValidCompletion(completion, input),
             cancellationToken);
     }
 
@@ -49,6 +52,34 @@ internal sealed class HttpPlayerManagementService(HttpClient http) : IPlayerMana
             player => IsValidPlayer(player, input.PlayerId),
             cancellationToken);
     }
+
+    /// <summary>Validates field feedback separately from the receipt evidence needed to settle an operation.</summary>
+    private static bool IsValidCreationProblem(ServiceProblem problem, Guid operationId)
+    {
+        if (problem.Kind == ServiceProblemKind.Conflict) { return PlayerCreationProblems.IsValidConflict(problem, operationId); }
+        if (problem.Kind != ServiceProblemKind.Validation) { return true; }
+        return problem.Errors is { Count: > 0 }
+            && problem.Errors.All(error => error.Value is { Length: > 0 }
+                && error.Value.All(message => !string.IsNullOrWhiteSpace(message)))
+            && (problem.Extensions is null || !problem.Extensions.Keys.Any(key => key is
+                PlayerCreationProblems.ReasonExtension or PlayerCreationProblems.NotCommittedExtension or PlayerCreationProblems.DuplicateExtension));
+    }
+
+    /// <summary>Requires original operation, profile, deadline and enrollment evidence to agree.</summary>
+    private static bool IsValidCompletion(PlayerCreationCompletion completion, CreatePlayerInput input)
+        => completion is not null && completion.OperationId == input.OperationId
+            && PlayerCreationOperation.TryGetCreatedAt(input.OperationId, out var createdAt)
+            && completion.RecoveryExpiresAt == createdAt.Add(PlayerCreationOperation.Lifetime)
+            && completion.CompletedAt.Offset == TimeSpan.Zero && completion.RecoveryExpiresAt.Offset == TimeSpan.Zero
+            && completion.CompletedAt >= createdAt.AddMinutes(-1) && completion.CompletedAt < completion.RecoveryExpiresAt
+            && IsValidPlayer(completion.Player) && completion.Player.ClubId == input.ClubId
+            && completion.Player.LifecycleStatus == LifecycleStatus.Active
+            && string.Equals(completion.Player.FirstName, input.FirstName, StringComparison.Ordinal)
+            && string.Equals(completion.Player.LastName, input.LastName, StringComparison.Ordinal)
+            && completion.Player.DateOfBirth == input.DateOfBirth && completion.Player.GraduationYear == input.GraduationYear
+            && completion.Player.Gender == input.Gender && completion.Player.JerseyNumber == input.JerseyNumber
+            && (completion.Enrollment is null || (completion.Enrollment.CampaignId > 0
+                && completion.Enrollment.PlayerCampaignAssignmentId > 0 && !string.IsNullOrWhiteSpace(completion.Enrollment.CampaignName)));
 
     /// <summary>
     /// Validates the portable invariants of a player success payload.

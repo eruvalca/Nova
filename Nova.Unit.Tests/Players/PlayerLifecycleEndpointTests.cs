@@ -14,10 +14,10 @@ namespace Nova.Unit.Tests.Players;
 public sealed class PlayerLifecycleEndpointTests
 {
     /// <summary>
-    /// Verifies archive and restore endpoints require the club-administrator policy.
+    /// Verifies archive and restore endpoints require the club-member policy.
     /// </summary>
     [Fact]
-    public async Task PlayerLifecycleEndpointsRequireClubAdminPolicyAsync()
+    public async Task PlayerLifecycleEndpointsRequireClubMemberPolicyAsync()
     {
         var builder = WebApplication.CreateBuilder();
         await using var app = builder.Build();
@@ -35,7 +35,7 @@ public sealed class PlayerLifecycleEndpointTests
         {
             endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
-                .ShouldContain(metadata => metadata.Policy == Policies.RequireClubAdmin);
+                .ShouldContain(metadata => metadata.Policy == Policies.RequireClubMember);
         }
     }
 }

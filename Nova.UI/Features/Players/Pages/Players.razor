@@ -1,4 +1,4 @@
-﻿@page "/players"
+@page "/players"
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
@@ -86,7 +86,8 @@
     @if (_canManagePlayers && _showCreateForm)
     {
         <div class="mb-3">
-            <PlayerForm Heading="Add player" Model="_createForm" SubmitButtonText="Create player" IsSubmitting="_isMutating"
+            <PlayerForm Heading="Add player" Model="_createForm" IsReadOnly="@(_pendingCreate is not null)" Duplicate="_creationDuplicate" SubmitButtonText="Create player" IsSubmitting="_isMutating"
+                        DuplicateDetailUrl="@(_creationDuplicate is { } duplicate ? new Uri(BuildPlayerDetailUrl(duplicate.PlayerId), UriKind.Relative) : null)"
                         ErrorMessage="@_mutationError" GraduationYearBlockers="_graduationYearBlockers"
                         OnValidSubmit="CreatePlayerAsync" OnCancel="CancelMutationForm" />
         </div>

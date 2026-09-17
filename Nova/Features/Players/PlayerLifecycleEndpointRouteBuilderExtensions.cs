@@ -21,7 +21,7 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
 
             var group = endpoints
                 .MapGroup(PlayerEndpoints.GroupPrefix)
-                .RequireAuthorization(Policies.RequireClubAdmin);
+                .RequireAuthorization(Policies.RequireClubMember);
 
             group.MapPost(PlayerEndpoints.ArchiveRelative, ArchivePlayerHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)

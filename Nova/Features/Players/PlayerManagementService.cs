@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Campaigns;
 using Nova.Features.Common;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
@@ -13,53 +12,19 @@ using Nova.SharedKernel.Validation;
 namespace Nova.Features.Players;
 
 /// <summary>
-/// Creates and updates player profiles with club-administrator authorization. Player creation
-/// atomically enrolls the new player into every Active campaign in the same transaction.
+/// Creates and updates player profiles with club-member authorization. Player creation
+/// atomically enrolls the new player into the Active campaign in the same transaction.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for service outcomes.</param>
+/// <param name="timeProvider">The clock used to enforce creation execution and recovery deadlines.</param>
 internal sealed partial class PlayerManagementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<PlayerManagementService> logger) : IPlayerManagementService
+    ILogger<PlayerManagementService> logger,
+    TimeProvider timeProvider) : IPlayerManagementService
 {
-    /// <inheritdoc />
-    public async Task<ServiceResult<PlayerDto>> CreateAsync(
-        CreatePlayerInput input,
-        CancellationToken cancellationToken = default)
-    {
-        var validationErrors = InputValidator.Validate(input);
-        if (validationErrors.Count > 0)
-        {
-            return ServiceProblem.Validation(validationErrors);
-        }
-
-        if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
-        {
-            LogPlayerCreateForbidden(currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to create players.");
-        }
-
-        var creationOperationId = Guid.CreateVersion7();
-        return await ExecuteWithFreshContextAsync(
-            db => CreatePlayerAsync(
-                db,
-                input,
-                actorUserId,
-                clubId,
-                creationOperationId,
-                cancellationToken),
-            db => VerifyPlayerCreationAsync(
-                db,
-                clubId,
-                creationOperationId,
-                cancellationToken),
-            cancellationToken);
-    }
-
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerDto>> UpdateAsync(
         UpdatePlayerInput input,
@@ -72,11 +37,10 @@ internal sealed partial class PlayerManagementService(
         }
 
         if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
+            || currentUserProvider.ClubId is not long clubId)
         {
             LogPlayerUpdateForbidden(input.PlayerId, currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to edit players.");
+            return ServiceProblem.Forbidden("You must be a club member to edit players.");
         }
 
         return await ExecuteWithFreshContextAsync(
@@ -155,118 +119,11 @@ internal sealed partial class PlayerManagementService(
     }
 
     /// <summary>
-    /// Creates one player and enrolls them in every active campaign using one transactional execution
-    /// attempt.
-    /// </summary>
-    /// <param name="db">The fresh tenant context for this execution attempt.</param>
-    /// <param name="input">The requested player profile details.</param>
-    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
-    /// <param name="clubId">The current club identifier.</param>
-    /// <param name="creationOperationId">The stable identifier for this logical creation operation.</param>
-    /// <param name="cancellationToken">A token that cancels the database work.</param>
-    /// <returns>The created player or a ProblemDetails-mappable failure.</returns>
-    private async Task<ServiceResult<PlayerDto>> CreatePlayerAsync(
-        NovaDbContext db,
-        CreatePlayerInput input,
-        long actorUserId,
-        long clubId,
-        Guid creationOperationId,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-
-        // Serialize with campaign creation so late-joining player and concurrent campaign cannot miss each other.
-        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
-
-        var player = new PlayerEntity
-        {
-            FirstName = input.FirstName,
-            LastName = input.LastName,
-            DateOfBirth = input.DateOfBirth,
-            GraduationYear = input.GraduationYear,
-            Gender = input.Gender,
-            JerseyNumber = input.JerseyNumber,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreationOperationId = creationOperationId,
-            CreatedById = default
-        };
-
-        db.Players.Add(player);
-
-        try
-        {
-            // Save first to obtain the generated PlayerId before inserting participations.
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogPlayerCreateConcurrencyConflict(actorUserId);
-            return ServiceProblem.Conflict("The player could not be created. Reload and try again.");
-        }
-
-        var activeCampaignIds = await db.Campaigns
-            .Where(campaign => campaign.Status == CampaignStatus.Active)
-            .Select(campaign => campaign.CampaignId)
-            .ToListAsync(cancellationToken);
-
-        foreach (var campaignId in activeCampaignIds)
-        {
-            CampaignParticipationWriter.StageEnrollments(db, clubId, campaignId, [player.PlayerId]);
-        }
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogPlayerCreateConcurrencyConflict(actorUserId);
-            return ServiceProblem.Conflict("The player could not be enrolled in campaigns. Reload and try again.");
-        }
-
-        LogPlayerCreated(player.PlayerId, activeCampaignIds.Count, actorUserId);
-        return ToDto(player);
-    }
-
-    /// <summary>
-    /// Checks whether a player-creation transaction with an uncertain commit outcome was committed
-    /// and reconstructs its successful service result without replaying the insert.
-    /// </summary>
-    /// <param name="db">The fresh tenant context used for commit verification.</param>
-    /// <param name="clubId">The current club identifier.</param>
-    /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
-    /// <param name="cancellationToken">A token that cancels the verification query.</param>
-    /// <returns>An execution result indicating whether the committed player was found.</returns>
-    private async Task<ExecutionResult<ServiceResult<PlayerDto>>> VerifyPlayerCreationAsync(
-        NovaDbContext db,
-        long clubId,
-        Guid creationOperationId,
-        CancellationToken cancellationToken)
-    {
-        var player = await db.Players
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                candidate => candidate.ClubId == clubId
-                    && candidate.CreationOperationId == creationOperationId,
-                cancellationToken);
-
-        if (player is null)
-        {
-            return new ExecutionResult<ServiceResult<PlayerDto>>(successful: false, default!);
-        }
-
-        LogPlayerCreationCommitRecovered(player.PlayerId, creationOperationId, clubId);
-        return new ExecutionResult<ServiceResult<PlayerDto>>(successful: true, ToDto(player));
-    }
-
-    /// <summary>
     /// Updates one player profile using one transactional execution attempt.
     /// </summary>
     /// <param name="db">The fresh tenant context for this execution attempt.</param>
     /// <param name="input">The requested player profile updates.</param>
-    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="actorUserId">The authenticated club-member identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The updated player or a ProblemDetails-mappable failure.</returns>
@@ -280,6 +137,10 @@ internal sealed partial class PlayerManagementService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await PlayerMutationAuthorization.AuthorizeAsync(db, actorUserId, clubId, cancellationToken))
+        {
+            return ServiceProblem.Forbidden("You must remain a member of this club to edit players.");
+        }
         await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquirePlayerMutationLockAsync(input.PlayerId, cancellationToken);
 
@@ -373,11 +234,11 @@ internal sealed partial class PlayerManagementService(
         return errors;
     }
 
-    /// <summary>Logs a create request rejected because the caller is not a club administrator.</summary>
+    /// <summary>Logs a create request rejected because the caller is not a club member.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Player create forbidden for UserId={UserId}.")]
     private partial void LogPlayerCreateForbidden(long userId);
 
-    /// <summary>Logs an update request rejected because the caller is not a club administrator.</summary>
+    /// <summary>Logs an update request rejected because the caller is not a club member.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Player update forbidden for PlayerId={PlayerId} by UserId={UserId}.")]
     private partial void LogPlayerUpdateForbidden(long playerId, long userId);
 
@@ -392,10 +253,6 @@ internal sealed partial class PlayerManagementService(
     /// <summary>Logs a graduation-year change blocked by ineligible active placements.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Graduation-year edit blocked for PlayerId={PlayerId}: {BlockerCount} ineligible placement(s).")]
     private partial void LogPlayerGraduationYearBlocked(long playerId, int blockerCount);
-
-    /// <summary>Logs a create operation that failed due to a concurrent data change.</summary>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Player create concurrency conflict for UserId={UserId}.")]
-    private partial void LogPlayerCreateConcurrencyConflict(long userId);
 
     /// <summary>Logs an update operation that failed due to a concurrent data change.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Player update concurrency conflict for PlayerId={PlayerId}.")]

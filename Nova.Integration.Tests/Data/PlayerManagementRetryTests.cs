@@ -24,14 +24,15 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
         var creationOperationId = Guid.CreateVersion7();
 
         ActAs(userId: null, clubId: null, isAdmin: false);
 
         await using var db = fixture.CreateAdminContext();
+        var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+        db.Users.Add(actor);
+        await db.SaveChangesAsync(cancellationToken);
+        var actorUserId = actor.Id;
         var club = new ClubEntity
         {
             CreationOperationId = Guid.NewGuid(),
@@ -41,6 +42,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
             CreatedById = actorUserId
         };
         db.Clubs.Add(club);
+        await db.SaveChangesAsync(cancellationToken);
+        actor.ClubId = club.ClubId;
         await db.SaveChangesAsync(cancellationToken);
 
         db.Players.AddRange(
@@ -61,9 +64,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+        long actorUserId;
         long clubId;
         long activeCampaignId;
 
@@ -71,6 +72,10 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
         await using (var seed = fixture.CreateAdminContext())
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(cancellationToken);
+            actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -80,6 +85,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity
@@ -120,11 +127,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId!.Value,
                 FirstName = "Ambiguous",
                 LastName = "Commit",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -143,10 +152,10 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 && player.LastName == "Commit")
             .Select(player => player.PlayerId)
             .ToListAsync(cancellationToken);
-        players.ShouldBe([result.Value.PlayerId]);
+        players.ShouldBe([result.Value.Player.PlayerId]);
 
         var assignments = await verify.PlayerCampaignAssignments
-            .Where(assignment => assignment.PlayerId == result.Value.PlayerId)
+            .Where(assignment => assignment.PlayerId == result.Value.Player.PlayerId)
             .Select(assignment => assignment.CampaignId)
             .ToListAsync(cancellationToken);
         assignments.ShouldBe([activeCampaignId]);
@@ -163,9 +172,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+        long actorUserId;
         long clubId;
         long activeCampaignId;
 
@@ -173,6 +180,10 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
         await using (var seed = fixture.CreateAdminContext())
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(cancellationToken);
+            actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -182,6 +193,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(cancellationToken);
 
             var season = new SeasonEntity
@@ -222,11 +235,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.CreateAsync(
             new CreatePlayerInput
             {
+                OperationId = Guid.CreateVersion7(),
+                ClubId = fixture.CurrentUser.ClubId!.Value,
                 FirstName = "Retry",
                 LastName = "Create",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -244,11 +259,11 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
             .Select(player => new { player.PlayerId, player.ClubId, player.LifecycleStatus })
             .ToListAsync(cancellationToken);
         createdPlayers.Count.ShouldBe(1);
-        createdPlayers[0].PlayerId.ShouldBe(result.Value.PlayerId);
+        createdPlayers[0].PlayerId.ShouldBe(result.Value.Player.PlayerId);
         createdPlayers[0].LifecycleStatus.ShouldBe(LifecycleStatus.Active);
 
         var assignments = await verify.PlayerCampaignAssignments
-            .Where(assignment => assignment.PlayerId == result.Value.PlayerId)
+            .Where(assignment => assignment.PlayerId == result.Value.Player.PlayerId)
             .Select(assignment => assignment.CampaignId)
             .ToListAsync(cancellationToken);
         assignments.ShouldBe([activeCampaignId]);
@@ -265,9 +280,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
-#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-#pragma warning restore CA5394
+        long actorUserId;
         long clubId;
         long playerId;
 
@@ -275,6 +288,10 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
         await using (var seed = fixture.CreateAdminContext())
         {
+            var actor = new NovaUserEntity { FirstName = "Fixture", LastName = "Member" };
+            seed.Users.Add(actor);
+            await seed.SaveChangesAsync(cancellationToken);
+            actorUserId = actor.Id;
             var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -284,6 +301,8 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             };
             seed.Clubs.Add(club);
+            await seed.SaveChangesAsync(cancellationToken);
+            actor.ClubId = club.ClubId;
             await seed.SaveChangesAsync(cancellationToken);
 
             var player = new PlayerEntity
@@ -313,7 +332,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         var service = new PlayerManagementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<PlayerManagementService>.Instance);
+            NullLogger<PlayerManagementService>.Instance, TimeProvider.System);
 
         var result = await service.UpdateAsync(
             new UpdatePlayerInput

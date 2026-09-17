@@ -12,7 +12,7 @@ using OneOf.Types;
 namespace Nova.Features.Players;
 
 /// <summary>
-/// Applies tenant-safe player lifecycle transitions with club-administrator authorization.
+/// Applies tenant-safe player lifecycle transitions with club-member authorization.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for lifecycle mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
@@ -75,11 +75,10 @@ internal sealed partial class PlayerLifecycleService(
         CancellationToken cancellationToken)
     {
         if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
+            || currentUserProvider.ClubId is not long clubId)
         {
             LogPlayerLifecycleForbidden(playerId, currentUserProvider.UserId ?? 0);
-            return new LifecycleForbidden("You must be a club administrator to change player lifecycle state.");
+            return new LifecycleForbidden("You must be a club member to change player lifecycle state.");
         }
 
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -116,6 +115,12 @@ internal sealed partial class PlayerLifecycleService(
                 }
 
                 await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                await using var transaction = await db.Database.BeginTransactionAsync(token);
+                if (!await PlayerMutationAuthorization.AuthorizeAsync(db, state.ActorUserId, state.ClubId, token))
+                {
+                    return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(
+                        true, new LifecycleForbidden("You must remain a member of this club to recover player changes."));
+                }
                 return await VerifyTransitionCommittedAsync(db, state.PlayerId, state.TargetStatus, state.ClubId, token);
             },
             cancellationToken);
@@ -162,7 +167,7 @@ internal sealed partial class PlayerLifecycleService(
     /// <param name="db">The fresh tenant context for this execution attempt.</param>
     /// <param name="playerId">The player identifier to mutate.</param>
     /// <param name="targetStatus">The lifecycle status to apply.</param>
-    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="actorUserId">The authenticated club-member identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
@@ -179,6 +184,10 @@ internal sealed partial class PlayerLifecycleService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await PlayerMutationAuthorization.AuthorizeAsync(db, actorUserId, clubId, cancellationToken))
+        {
+            return new LifecycleForbidden("You must remain a member of this club to change players.");
+        }
         await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
         var player = await db.Players
@@ -275,7 +284,7 @@ internal sealed partial class PlayerLifecycleService(
     }
 
     /// <summary>
-    /// Logs a lifecycle request rejected because the caller is not a club administrator.
+    /// Logs a lifecycle request rejected because the caller is not a club member.
     /// </summary>
     /// <param name="playerId">The requested player identifier.</param>
     /// <param name="userId">The current user identifier, or zero when unauthenticated.</param>
@@ -326,7 +335,7 @@ internal sealed partial class PlayerLifecycleService(
     /// </summary>
     /// <param name="playerId">The changed player identifier.</param>
     /// <param name="status">The applied lifecycle status.</param>
-    /// <param name="actorUserId">The acting administrator identifier.</param>
+    /// <param name="actorUserId">The acting member identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerId={PlayerId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogPlayerLifecycleChanged(long playerId, LifecycleStatus status, long actorUserId);
 
