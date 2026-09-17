@@ -1,4 +1,5 @@
-﻿using Bunit;
+﻿using System.Text.Json;
+using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
@@ -202,9 +203,10 @@ public sealed partial class PlayerComponentsTests
 
     /// <summary>Neither expiry nor denied recovery proves rollback; hiding the form cannot replace unresolved work.</summary>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task PlayersRetainsUnresolvedCreationAfterDenialAndCancelAsync(bool expired)
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task PlayersRetainsUnresolvedCreationAfterDenialAndCancelAsync(bool expired, bool decodedExtensions)
     {
         var commands = new List<CreatePlayerInput>();
         var service = Substitute.For<IPlayerManagementService>();
@@ -212,6 +214,16 @@ public sealed partial class PlayerComponentsTests
         {
             commands.Add(call.Arg<CreatePlayerInput>());
             var denial = expired ? PlayerCreationProblems.Expired() : ServiceProblem.Forbidden("Membership removed");
+            if (decodedExtensions)
+            {
+                denial = denial with
+                {
+                    Extensions = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        [PlayerCreationProblems.ReasonExtension] = JsonSerializer.SerializeToElement("expired")
+                    }
+                };
+            }
             var problem = commands.Count == 1 ? ServiceProblem.ServerError("Lost response") : denial;
             return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(problem));
         });
@@ -221,6 +233,13 @@ public sealed partial class PlayerComponentsTests
         await FillAndSubmitAsync(cut);
         await cut.Find("button[type='submit']").ClickAsync(new());
         cut.Markup.ShouldContain(expired ? "has expired" : "Membership removed");
+        if (expired)
+        {
+            cut.Markup.ShouldContain("Review the Players directory");
+            cut.Markup.ShouldNotContain("retry it unchanged");
+        }
+        else { cut.Markup.ShouldContain("retry it unchanged"); }
+        cut.Markup.ShouldContain("The original addition is still retained");
 
         await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
         await cut.Find("button.btn-primary").ClickAsync(new());
@@ -233,6 +252,7 @@ public sealed partial class PlayerComponentsTests
         commands[2].ShouldBeSameAs(commands[0]);
         commands[2].FirstName.ShouldBe("Taylor");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        if (expired) { cut.Markup.ShouldNotContain("retry it unchanged"); }
     }
 
     private static async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)

@@ -411,8 +411,9 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
 
     private static async Task AssertHistoryDestinationAsync(IPage page, string url, IEnumerable<string> events)
     {
-        try { await page.WaitForURLAsync(url, new() { WaitUntil = WaitUntilState.Commit }); }
-        catch (TimeoutException exception)
+        // Assert settled history state even when traversal completes before a navigation waiter subscribes.
+        try { await Expect(page).ToHaveURLAsync(url, new() { Timeout = 30000 }); }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
         {
             var history = await page.EvaluateAsync<string>("""
                 JSON.stringify({current: {key: navigation.currentEntry.key, url: location.href},
@@ -427,7 +428,7 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
     private static async Task AssertProtectedHistoryOriginAsync(IPage page, string url, string key, IEnumerable<string> events)
     {
         await AssertGuardPromptAsync(page, page.Locator(".evaluation-protection"), events);
-        await page.WaitForURLAsync(url, new() { WaitUntil = WaitUntilState.Commit });
+        await AssertHistoryDestinationAsync(page, url, events);
         (await page.EvaluateAsync<string>("navigation.currentEntry.key")).ShouldBe(key);
         await Expect(page.Locator("#evaluation-note")).ToHaveValueAsync("History-protected draft.");
     }

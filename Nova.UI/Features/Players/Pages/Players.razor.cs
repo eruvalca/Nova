@@ -687,7 +687,9 @@ public partial class Players(
                 }
                 else
                 {
-                    _mutationError += " The original addition is still retained; retry it unchanged to recover its result.";
+                    _mutationError += PlayerCreationProblems.IsExpired(problem)
+                        ? " The original addition is still retained."
+                        : " The original addition is still retained; retry it unchanged to recover its result.";
                 }
             });
 

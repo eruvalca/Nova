@@ -58,6 +58,13 @@ public static class PlayerCreationProblems
         };
     }
 
+    /// <summary>Recognizes valid expiry evidence without asserting whether an earlier attempt committed.</summary>
+    public static bool IsExpired(ServiceProblem problem)
+        => problem.Extensions is not null
+            && problem.Extensions.TryGetValue(ReasonExtension, out var reason)
+            && string.Equals(ReadString(reason), "expired", StringComparison.Ordinal)
+            && IsValidConflict(problem, Guid.Empty);
+
     /// <summary>Reads a bounded duplicate destination from either direct or HTTP-decoded problems.</summary>
     public static bool TryGetDuplicate(ServiceProblem problem, out PlayerCreationDuplicate? duplicate)
     {
