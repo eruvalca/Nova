@@ -854,8 +854,9 @@ public sealed partial class PlayerComponentsTests : BunitContext
     private sealed class SnapshotPlayers(IPlayerService roster, IPlayerManagementService management,
 #pragma warning restore CA1812
         IPlayerLifecycleService lifecycle, IPlayerDetailService details,
-        ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation)
-        : PlayersPage(roster, management, lifecycle, details, tags, authentication, navigation)
+        ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation,
+        Microsoft.Extensions.Logging.ILogger<PlayersPage> logger)
+        : PlayersPage(roster, management, lifecycle, details, tags, authentication, navigation, logger)
     {
         /// <summary>Gets or sets the scope serialized with the old roster.</summary>
         [Parameter] public string? RestoredScope { get; set; }

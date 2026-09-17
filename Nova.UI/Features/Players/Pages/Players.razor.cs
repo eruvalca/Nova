@@ -1,10 +1,12 @@
 ﻿#pragma warning disable CA1724 // The routed page shares its feature's namespace name.
 #pragma warning disable CA1849, S6966 // Cancellation completes before replacing request ownership.
+using System.Data.Common;
 using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.Extensions.Logging;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
@@ -23,7 +25,8 @@ public partial class Players(
     IPlayerDetailService playerDetailService,
     ITagDefinitionQueryService tagDefinitionQueryService,
     AuthenticationStateProvider authenticationStateProvider,
-    NavigationManager navigationManager) : NovaComponentBase
+    NavigationManager navigationManager,
+    ILogger<Players> logger) : NovaComponentBase
 {
     private const int SearchDebounceMilliseconds = 350;
     private const int RosterPageSize = GetPlayerRosterInput.DefaultPageSize;
@@ -313,6 +316,28 @@ public partial class Players(
         }
     }
 
+    // Auto rendering calls server services directly as well as HTTP clients. Isolate read failures
+    // here without broadening the mutation helper's settlement or recovery behavior.
+    private async Task<ServiceResult<T>> ReceiveDirectoryReadAsync<T>(
+        Func<Task<ServiceResult<T>>> request, string region, CancellationToken cancellationToken)
+    {
+        var userId = _userId;
+        var clubId = _clubId;
+        try { return await request(); }
+        catch (Exception exception) when (cancellationToken.IsCancellationRequested
+            || exception is HttpRequestException or OperationCanceledException or DbException
+            || exception.InnerException is DbException)
+        {
+            // Obsolete provider failures must not fault the new scope's rendering task either.
+            cancellationToken.ThrowIfCancellationRequested();
+            LogDirectoryReadFailed(exception, logger, region, userId, clubId);
+            return ServiceProblem.ServerError("This part of the directory is unavailable. Please retry.");
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Player directory {Region} read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private static partial void LogDirectoryReadFailed(Exception exception, ILogger logger, string region, string? userId, long? clubId);
+
     private static long? ReadClubIdClaim(ClaimsPrincipal principal)
         => long.TryParse(principal.FindFirst(NovaClaimTypes.ClubId)?.Value, NumberStyles.Integer,
             CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
@@ -329,7 +354,7 @@ public partial class Players(
         _loadedQuery = _urlState.QueryFingerprint;
         if (!_urlState.IsSearchValid) { _isLoading = false; PersistStartupState(); return; }
         _isLoading = true;
-        var result = await ReceiveAsync(playerService.GetPlayerRosterAsync(new GetPlayerRosterInput
+        var result = await ReceiveDirectoryReadAsync(() => playerService.GetPlayerRosterAsync(new GetPlayerRosterInput
         {
             ClubId = clubId,
             Search = _urlState.Search,
@@ -338,7 +363,7 @@ public partial class Players(
             PlayerTagId = _urlState.TagId,
             Page = _urlState.Page,
             PageSize = RosterPageSize
-        }, token));
+        }, token), "roster", token);
         if (version != _rosterVersion || token.IsCancellationRequested) { return; }
         result.Switch(roster => _roster = roster, problem =>
         {
@@ -357,7 +382,8 @@ public partial class Players(
         var token = _identitySource!.Token;
         _summaryLoading = true;
         _summaryError = null;
-        var result = await ReceiveAsync(playerService.GetPlayerDirectorySummaryAsync(new GetPlayerDirectorySummaryInput { ClubId = clubId }, token));
+        var result = await ReceiveDirectoryReadAsync(
+            () => playerService.GetPlayerDirectorySummaryAsync(new GetPlayerDirectorySummaryInput { ClubId = clubId }, token), "summary", token);
         if (identity != _identityVersion || version != _summaryVersion || token.IsCancellationRequested) { return; }
         result.Switch(summary => _summary = summary, problem =>
         {
@@ -376,7 +402,7 @@ public partial class Players(
         var token = _identitySource!.Token;
         _tagsLoading = true;
         _tagsError = null;
-        var result = await ReceiveAsync(tagDefinitionQueryService.GetChoicesAsync(token));
+        var result = await ReceiveDirectoryReadAsync(() => tagDefinitionQueryService.GetChoicesAsync(token), "tags", token);
         if (identity != _identityVersion || version != _tagsVersion || token.IsCancellationRequested) { return; }
         result.Switch(tags => _availableTags = tags, problem =>
         {

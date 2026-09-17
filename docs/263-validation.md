@@ -10,12 +10,14 @@ redesign and durable reload recovery remain #264; record/history replacement rem
 
 The [application-input manifest](../.impeccable/review/issue-263/application-inputs.txt) records
 SHA-256 values for every changed or new application/test file, relative to the base commit.
-Final manifest SHA-256: `78A15BBD11FD203334FD934B53CEAFED1F285DA382FE848E348239FF72879746`.
-The full unit/integration runs used prior manifest
-`F56FF298C1339F8837614D1054DF10E72BBA3FBAA29221A60BCA06752F19524A`.
-Application, unit and integration inputs are unchanged. Later inputs are browser-only: the existing
-Place attachment probe, evaluation settlement/new-tab checks, directory navigation checks and shared
-navigation diagnostics. The unaffected full unit/integration results are reused on that comparison.
+Current manifest SHA-256: `87D32690D3CFB30EB1769A878FBA1326DA71F92DC1F8AAA6B9298B0B485EAB19`
+(38 files). The review-fix runs used opening revision `eb5031ff7aa2fafacb8e67ade8801f77db827513`
+plus uncommitted changes to `Players.razor.cs`, `PlayerComponentsTests.cs` and the new
+`PlayerComponentsTests.ReadFailures.cs`. Those exact inputs are included with this record.
+The [opening validation record](https://github.com/eruvalca/Nova/blob/eb5031ff7aa2fafacb8e67ade8801f77db827513/docs/263-validation.md)
+preserves the prior manifest `78A15BBD11FD203334FD934B53CEAFED1F285DA382FE848E348239FF72879746`
+and its earlier unit/integration evidence-reuse comparison. All full suites were rerun for the fix;
+only documentation/evidence bookkeeping changed afterward.
 Runtime: .NET SDK 10.0.401, Aspire 13.5.4 and PostgreSQL 18.
 Later design documentation, validation and evidence-manifest edits do not change runtime inputs.
 
@@ -79,15 +81,16 @@ was started for these runs. All tests use the compiled solution with `--no-build
 
 | Check | Command / result |
 | --- | --- |
-| Full build | `dotnet build Nova.slnx --no-restore --no-incremental` — passed, 0 warnings/errors. Subsequent browser-only fixes rebuilt with `dotnet build Nova.slnx --no-restore`, 0 warnings/errors; final build 5.9s. |
-| Format | `dotnet format Nova.slnx`; `dotnet format Nova.slnx --verify-no-changes --no-restore` — passed. After the final test-only additions, the same verification with `--include Nova.Unit.Tests/Players/PlayerServiceTests.Directory.cs Nova.Unit.Tests/Players/PlayerComponentsTests.Directory.cs Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.QueryPlan.cs` also passed, followed by separate `--include Nova.Browser.Tests/CampaignPlaceInvalidStorageBrowserTests.cs` and `--include Nova.Browser.Tests/CampaignEvaluationResponsiveBrowserTests.cs` checks after the final browser corrections. |
-| Focused component/URL/detail | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerComponentsTests' --filter-class '*PlayerDetailComponentsTests' --filter-class '*PlayersUrlStateTests'` — 100 passed before final additional actor/tag cases. |
-| Focused service/client | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerServiceTests'` — 54 passed after empty-club fixture correction. |
-| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3763 passed**, 19.9s, unchanged unit/application inputs as compared above. |
-| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **674 passed**, 1m51.3s, unchanged integration/application inputs as compared above. |
+| Full build | `dotnet build Nova.slnx --no-restore --no-incremental` — passed, 0 warnings/errors, 1m09.2s, current manifest. |
+| Format | `dotnet format Nova.slnx --no-restore`; `dotnet format Nova.slnx --verify-no-changes --no-restore` — both passed for the review fix. |
+| Focused read-failure regression | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-method '*ThrownDirectoryReadFailure*' --filter-method '*ObsoleteReadException*'` — **11 passed**, 2.8s, current manifest. |
+| Opening component/URL/detail selection | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerComponentsTests' --filter-class '*PlayerDetailComponentsTests' --filter-class '*PlayersUrlStateTests'` — 100 passed before final additional actor/tag cases; superseded by current full unit evidence. |
+| Opening service/client selection | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerServiceTests'` — 54 passed after empty-club fixture correction; superseded by current full unit evidence. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3774 passed**, 45.3s, current manifest. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **674 passed**, 3m11.9s, current manifest. |
 | Selected browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayersDirectoryBrowserTests' --filter-class '*PlayerFormBrowserTests' --filter-class '*CampaignDraftBrowserTests'` — **20 passed, 1 optional capture skipped**, 59.8s. Includes final runtime/markup/CSS; superseded by the full browser evidence for the final inputs. |
 | Navigation confirmation | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayersDirectoryBrowserTests' --filter-class '*CampaignEvaluationCaptureBrowserTests'` — **26 passed**, 63.2s, before the final Cancel probe/diagnostic wrapper adjustment. Final full suite covers that adjustment. |
-| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`, with `NOVA_PLAYERS_EVIDENCE=.impeccable/work/issue-263/final-validation` (resolved absolute path) — **217 passed, 0 failed, 8 optional captures skipped**, 4m48.8s, final manifest above. |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`, with `NOVA_PLAYERS_EVIDENCE=.impeccable/work/issue-263/review-round-1-final` (resolved absolute path) — **217 passed, 0 failed, 8 optional captures skipped**, 7m26.7s, current manifest. |
 | Static diff | `git diff --check` — passed. |
 
 The selected browser scope covers directory/form contracts and the Draft consumer; the final full
@@ -222,9 +225,11 @@ Curated captures: [desktop 1440](../.impeccable/review/issue-263/captures/deskto
 [mobile 390](../.impeccable/review/issue-263/captures/mobile.png), with
 [capture manifest](../.impeccable/review/issue-263/capture-manifest.json) and
 [comparison report](../.impeccable/review/issue-263/comp-report.json).
-The final full-suite mobile capture is byte-identical to the reviewed mobile capture
+The opening full-suite mobile capture is byte-identical to the reviewed mobile capture
 (`5A6AA880F1CA3451E0CD7CD12F9D78235711366B7F97A99B978D5A123418BE68`). No markup or CSS changed
-after the reviewed captures; subsequent application-input changes were confined to browser tests.
+after the reviewed captures. Before opening, later application-input changes were confined to browser
+tests. The review fix changes only read exception handling and its tests, so the design inputs and
+reviewed composition remain applicable; the full browser suite was rerun for the changed behavior.
 
 ## Instruction and skill retrospective
 
@@ -265,12 +270,44 @@ native no-JavaScript coverage and requiring `type="button"` only for button prob
 three-file guidance review has **no remaining findings**. This was a documentation/code consistency
 review; no stronger claim about the original missing pre-attachment trace is made.
 
+## PR review loop
+
+The user requested thorough `code-review` rounds, one fix commit per round, and fresh review after
+each push. The installed skill, its PR procedure, doctrine and checklist were read; its pending-review
+then Comment submission workflow was used on [draft PR #284](https://github.com/eruvalca/Nova/pull/284).
+Review includes the full source/test/guidance diff and related callers. Binary captures and generated
+comparison output are excluded from code review; their separate design review remains above.
+
+[Round 1](https://github.com/eruvalca/Nova/pull/284#pullrequestreview-5239996524) at `eb5031ff` found one
+Medium, Verified defect, independently corroborated by `/root/pr284_review_round1`: direct server
+database exceptions escaped regional recovery and could fail the page. The fix uses a deferred,
+logged read boundary for roster, summary and tags, covering direct database/transport failures and
+database retry wrappers. Owned cancellation remains cancellation, stale results cannot publish,
+and active unrelated programming exceptions still propagate. Mutation settlement is unchanged.
+
+| Requirement | Evidence |
+| --- | --- |
+| Thrown reads leave successful regions visible, conceal provider details, log failures and retry only the failed region | `PlayerComponentsTests.ThrownDirectoryReadFailurePreservesNeighborsAndRetriesOnlyItsRegionAsync`: nine cases for three regions, synchronous/faulted-task provider failures, and EF retry-exhaustion wrappers. |
+| Obsolete failures and cancellation cannot replace the new club's data | `PlayerComponentsTests.ObsoleteReadExceptionCannotReplaceNewClubSummaryAsync`: two cases retain the replacement summary and snapshot ownership without an alert. |
+
+Both tests are in [PlayerComponentsTests.ReadFailures.cs](../Nova.Unit.Tests/Players/PlayerComponentsTests.ReadFailures.cs).
+Before the production fix, the initial eight-case regression run produced **seven failures and one
+passing cancellation control**, with uncaught `NpgsqlException` stacks through the original loader.
+After the fix, all eight passed; the final eleven-case run adds real EF retry wrappers and passes.
+An initial test compile error was corrected by explicitly constructing the summary DTO. The first
+overbroad catch failed CA1031; the catch was narrowed without a suppression. Separate fix review
+accepted the final filter, ownership behavior and assertions with **no findings**.
+
+The current validation table records all rerun gates. Full browser scope was selected because the
+read boundary participates in startup, navigation and refresh; suites ran serially. Fresh reviews
+after the fix push are submitted to the PR against their exact head revision. Any new findings must
+be resolved in the next single fix commit before the review loop is complete.
+
 ## Delivery gates
 
 No migration is required. Build, format, full unit/integration and final full-browser gates pass;
-the code, quality-control and design reviews are complete. All 37 manifest inputs were rechecked
-after the full browser run; only documentation/evidence bookkeeping changed afterward. Draft PR
-preparation rechecked the manifest and repository template on branch `codex/263-players-directory`.
-This record accompanies the opening revision; no merge has been performed. Later application/browser
+the code, quality-control and design reviews are recorded above. All 38 manifest inputs were rechecked
+after the review-fix browser run; only documentation/evidence bookkeeping changed afterward.
+Draft PR #284 is open on `codex/263-players-directory`; no merge has been performed. Later application/browser
 input changes require fresh evidence, and unit/integration suites must rerun before merge under the
 repository stage gate.
