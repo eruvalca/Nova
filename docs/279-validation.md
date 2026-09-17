@@ -6,18 +6,18 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `9239d4d2b70724d7172927a9c5260377f60a746a` plus the exact changes in
+Current review-round inputs: `55af7cf62bdb5e4d79827aa846a8b9dc942b44a7` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-The delta adds cross-club creation/recovery HTTP coverage, corrects the single-current-campaign
-service-test name, and updates this document. All changes for Copilot review `5230457872`, including
-this evidence, are committed together once. The preceding expiry-message and browser-observation
-review round was completed in `9239d4d2`.
+This documentation-only delta records the evidence-backed inapplicability of Copilot review
+`5230586090`'s SQLite cleanup request. Its disposition and validation are committed together once.
+The preceding cross-club HTTP and test-name review round was completed in `55af7cf6`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Current-round build, formatting and full unit/integration suites pass as recorded below. Full browser
-evidence from `9239d4d2` remains applicable: this round changes only isolated unit/integration test
-files and this record; application, shared test helpers, browser suite, dependencies, configuration,
-discovery and generated-asset inputs are unchanged. The prior round's diagnosed browser-observation
+Build and full integration evidence from `55af7cf6` remains applicable; this round changes only
+this record. Current unit, format and focused PostgreSQL results are recorded in the disposition.
+Full browser evidence from `9239d4d2` remains applicable: since that pass only isolated unit/integration
+tests and this record changed; application, shared test helpers, browser suite, dependencies,
+configuration, discovery and generated-asset inputs are unchanged. The prior round's diagnosed browser-observation
 failures remain resolved with the reproduced evidence and dispositions preserved below.
 Remote `main` remains `fc2c0053`; there are no incoming merge-input differences.
 Migration-model evidence from `c9c1d7e`
@@ -412,6 +412,57 @@ resolved findings. This round's inline finding is fixed and will receive the com
 before resolution in the PR; the suppressed naming finding is fixed in the same commit.
 `git diff --check` and all 38 relative links in this record pass. Fresh CI and the next automatic
 review remain pending at push time; no review is manually requested.
+
+## Copilot SQLite cleanup follow-up
+
+Source: [review 5230586090](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5230586090)
+at `55af7cf6`, with [one inline finding](https://github.com/eruvalca/Nova/pull/283#discussion_r4032745283)
+and no suppressed findings. It requests an `IsNpgsql()` branch and the import cleanup's
+materialize/filter/remove fallback because SQLite cannot translate the current query.
+
+Disposition: **inapplicable to the supported cleanup execution paths**. The SQLite translation
+limitation is accurate; SQLite support for this provider-specific maintenance method is not required
+by a current caller or by #279. Checked all references, not only the successful test:
+
+- [`PlayerCreationReceiptCleanupService.RunPassAsync`](../Nova/Features/Players/PlayerCreationReceiptCleanupService.cs)
+  is the only application caller of `PruneAsync`; it obtains the admin-context factory from DI.
+  [`Program.cs`](../Nova/Program.cs) registers that factory with `UseNpgsql` and registers the worker.
+- The only direct test calls are in
+  [`CleanupDeletesAtMostFiveHundredExpiredReceiptsAcrossDeletedClubsAsync`](../Nova.Integration.Tests/Data/PlayerCreationRecoveryPostgresTests.cs),
+  whose maintenance factory uses the live PostgreSQL connection. No SQLite test invokes this worker
+  or method. SQLite still proves receipt expiry, isolation and immutability at its appropriate boundary.
+- [`PlacementReceiptCleanupService`](../Nova/Features/Campaigns/PlacementReceiptCleanupService.cs) uses
+  the same PostgreSQL maintenance pattern. Import invokes its cleanup inside `CommitAsync`, which
+  is exercised through SQLite service tests; its fallback serves an actual harness caller.
+  That difference does not establish a requirement to add a second provider to this isolated worker.
+
+Re-read tenancy/provider instructions, `add-domain-persistence` with query construction and
+retry/receipt references, and `nova-testing`'s provider-selection guidance. The SQLite fallback rules
+govern paths exercised on SQLite; provider-sensitive cleanup translation, batching and retention
+are tested on the configured PostgreSQL provider. This is not a claim that the method works on SQLite.
+The [earlier cleanup disposition](#copilot-receipt-cleanup-review) explains why its duplicate SQLite
+coverage was moved to PostgreSQL and why reintroducing full-table materialization would undo that
+review fix. No runtime code, test, guidance policy, assertion or supported provider changed here.
+
+Validation against `55af7cf6` plus this documentation-only delta:
+
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build --filter-method '*CleanupDeletesAtMostFiveHundredExpiredReceiptsAcrossDeletedClubsAsync'`:
+  one passed, zero failed/skipped. The existing provider regression confirms translation, exact batch
+  membership, expiry/deleted-club retention and zero receipt-reader executions.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`: 3,675 passed, zero failed/skipped.
+- `dotnet format Nova.slnx --verify-no-changes --no-restore --verbosity diagnostic`: pass, zero files changed.
+- The full build and 663-case integration pass at `55af7cf6`, the 208-case executed browser pass at
+  `9239d4d2` (eight existing opt-in skips), and migration-model evidence at `c9c1d7e` cover unchanged
+  inputs. `git diff --name-only 55af7cf6` contains only this record, so browser rerun is N/A.
+- `git diff --check` and all 42 relative file links pass. Remote `main` still points to `fc2c0053`.
+  No local check failed in this round. CI Build and Unit Tests for `55af7cf6` both passed in
+  [run 35176674518](https://github.com/eruvalca/Nova/actions/runs/35176674518).
+
+Focused self-review traced every cleanup caller and the sibling distinction above. All review bodies,
+conversation comments and inline threads, including suppressed/resolved content, were inspected with
+pagination. The PR reply will link this evidence-backed inapplicability explanation before the thread
+is resolved. This record is the round's single commit; fresh CI and automatic review of it remain
+pending at push time. No review is manually requested.
 
 ## Browser history validation incident
 
