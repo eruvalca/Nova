@@ -38,6 +38,12 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "View players", Exact = true }),
             async () => string.Equals(new Uri(page.Url).AbsolutePath, "/players", StringComparison.Ordinal) && await returnToDraft.IsVisibleAsync());
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Return to draft", Exact = true })).ToBeVisibleAsync();
+        await page.Locator("tbody .player-record-link").First.ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true })).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "Edit", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#player-first-name")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "Return to players", Exact = true }).ClickAsync();
+        await Expect(returnToDraft).ToBeVisibleAsync();
         await InteractionHelpers.ClickUntilAsync(page, returnToDraft,
             () => page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview" }).IsVisibleAsync());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview" })).ToBeVisibleAsync();

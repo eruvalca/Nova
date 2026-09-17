@@ -312,6 +312,19 @@ A flat Paper White record keeps final outcomes beside their original attribution
 
 Source: [Closed record markup](Nova.UI/Features/Campaigns/Components/CampaignClosedRecord.razor), [read and navigation behavior](Nova.UI/Features/Campaigns/Components/CampaignClosedRecord.razor.cs), and [component styles](Nova.UI/Features/Campaigns/Components/CampaignClosedRecord.razor.css). The [#257 surface brief](.impeccable/surfaces/issue-257-closed-record.md) records the approved code-led extension; no new comp applies. The [independent finish review](.impeccable/review/issue-257/finish-review.md) returned **ship (scoped PASS)** against the incumbent Fieldhouse system, with no separate quality-bar card. Its [desktop](.impeccable/review/issue-257/captures/desktop.png), [phone history](.impeccable/review/issue-257/captures/phone-history.png), [phone filtered](.impeccable/review/issue-257/captures/phone-filtered.png), and [phone native empty](.impeccable/review/issue-257/captures/phone-native-empty.png) captures are finish evidence, not shipping raster assets or proof of uncaptured runtime states. The historical #256 comp and local hero-state disposition remain unchanged. This scoped addition introduces no tokens and does not refresh unrelated incumbent sidecar guidance.
 
+### Players Directory
+
+The club directory extends the flat working field with a page title, manual Add action, counted lifecycle destinations, compact discovery, result information, one bounded table, and paging.
+
+- **Lifecycle and scope:** Active and Archived are ordinary destination links with written counts; the current link uses teal text, a bottom rule, and `aria-current="page"`. Club-wide totals remain separate from filtered result counts. Missing totals display unavailable evidence rather than a zero.
+- **Discovery and return:** labeled name/tryout search, graduation year, and tag fields use a native GET form with interactive enhancement. Filters and paging survive ordinary record and Add/Edit links and the return to the directory. A saved tag missing from the available choices stays named and removable.
+- **Rows and bounds:** twenty results occupy a keyboard-focusable scroll region with sticky column headings. Names, tags, and campaign text wrap inside the table; horizontal overflow stays local. Record links, row actions, lifecycle links, and discovery controls retain the existing `2.75rem` minimum height. At narrower widths, search and Apply each span the discovery grid while year and tag remain paired; on phones, the club total takes its own line.
+- **Recovery:** club totals, tag choices, and player results have separate written unavailable/retry states. Empty lifecycle, filtered-empty, and out-of-range pages retain contextual recovery. Manual mutations use the existing form host and inline archive confirmation; this directory does not establish a new form design.
+
+**The Directory Scope Rule.** Keep club-wide lifecycle totals distinct from filtered player results, and name unavailable regional evidence without converting it to zero or clearing retained discovery state.
+
+Source: [directory markup](Nova.UI/Features/Players/Pages/Players.razor), [styles](Nova.UI/Features/Players/Pages/Players.razor.css), and [URL state](Nova.UI/Features/Players/Services/PlayersUrlState.cs). The [player-intake brief's #263 section](.impeccable/surfaces/player-intake.md) owns the approved composition, reference A, delivery boundaries, and validation link. This extension adds no palette, type, spacing, radius, or acceptance-threshold tokens. Incumbent system-display, eyebrow, and marketing-offset guidance remains preserved authority; those craft-floor conflicts are not new directory conventions.
+
 ## Do's and Don'ts
 
 ### Do:

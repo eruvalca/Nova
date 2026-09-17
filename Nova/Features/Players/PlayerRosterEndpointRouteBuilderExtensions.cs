@@ -21,6 +21,14 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             var group = endpoints.MapGroup(GetPlayerRosterEndpoints.GroupPrefix).RequireAuthorization();
+            group.MapGet(GetPlayerRosterEndpoints.GetSummaryRelative, GetPlayerDirectorySummaryHandlerAsync)
+                .Produces<PlayerDirectorySummary>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName("GetPlayerDirectorySummary");
             group.MapGet(GetPlayerRosterEndpoints.GetRosterRelative, GetPlayerRosterHandlerAsync)
                 .Produces<PagedResult<PlayerListItem>>()
                 .ProducesValidationProblem()
@@ -49,4 +57,10 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
         var result = await playerService.GetPlayerRosterAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
+
+    private static async Task<IResult> GetPlayerDirectorySummaryHandlerAsync(
+        [AsParameters] GetPlayerDirectorySummaryInput input,
+        IPlayerService playerService,
+        CancellationToken cancellationToken)
+        => (await playerService.GetPlayerDirectorySummaryAsync(input, cancellationToken)).ToHttpResult();
 }

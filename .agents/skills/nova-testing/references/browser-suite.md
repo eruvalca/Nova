@@ -17,8 +17,9 @@ Canonical files:
 - `Nova.Browser.Tests\CampaignEvaluationBrowserTests.cs` — the scenario tests plus the
   `OpenWorkspaceAsync`/`OpenParticipantAsync`/`CloseDrawerAsync` helpers (which delegate to
   `InteractionHelpers`/`BrowserRetryPolicy` for hydration retries).
-- `Nova.Browser.Tests\InteractionHelpers.cs` — shared SSR-hydration interaction retry helpers
-  (`ActUntilAsync`, `ClickUntilAsync`, `TabUntilFocusedAsync`), all driven by `BrowserRetryPolicy`.
+- `Nova.Browser.Tests\InteractionHelpers.cs` — shared SSR-hydration retries
+  (`ActUntilAsync`, `ClickUntilAsync`, `TabUntilFocusedAsync`) driven by `BrowserRetryPolicy`, plus
+  `NavigateEnhancedAsync` for document completion and `WithNavigationDiagnosticsAsync` for evidence.
 - `Nova.Browser.Tests\BrowserRetryPolicy.cs` — lazily-initialized, environment-tunable retry policy
   (`NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`; defaults 60 × 250 ms).
 - `Nova.Integration.Tests\Http\SeedingHelpers.cs` — shared seeding primitives
@@ -38,16 +39,23 @@ Use these patterns when the scenario crosses prerender, interactive attachment, 
    `Microsoft.Playwright.Assertions` — add `using static Microsoft.Playwright.Assertions;` (or a
    `<Using Include="Microsoft.Playwright.Assertions" Static="true" />` in the csproj) and call
    `await Expect(locator).ToBeVisibleAsync();`.
-2. **Client-side navigation never fires a document load.** Blazor
-   `NavigationManager.NavigateTo` rewrites history without a `load` event, so
-   `WaitForURLAsync`/`GoBackAsync`/`GoForwardAsync` with the default `WaitUntil` hang until
-   timeout. Always pass `WaitUntilState.Commit` for Blazor-driven URL changes, and wait for
-   state (e.g. `ToHaveTextAsync("51 of 60")`) before asserting on `page.Url`.
-3. **SSR prerender swallows early clicks.** Roster rows are prerendered; clicks before the
-   interactive circuit attaches are ignored, and after the drawer opens the backdrop intercepts
-   re-clicks. Use a retry helper that clicks until the drawer is actually visible and never
-   re-clicks once it is (`OpenParticipantAsync`). For URL-state tests, open and close a
-   participant first — a successful drawer open proves hydration before filters are driven.
+2. **URL changes, document completion and attachment are separate.** Same-document Blazor
+   navigation does not fire `load`; use `WaitUntilState.Commit` for its URL/history waits.
+   Nova's per-page enhanced navigation can change the URL and render interactive state before
+   the fetched destination HTML is applied. Wrap an enhanced link/history action in
+   `InteractionHelpers.NavigateEnhancedAsync`, which observes navigation start/end, then assert
+   the exact destination state and URL. It does not prove attachment and is not for full loads,
+   reloads, new tabs or query-only changes that do not fetch a document. See
+   `PlayersDirectoryBrowserTests.EnhancedFormResponsePreservesTheMountedFormAndItsDraftAsync`.
+3. **Prove attachment through a safe handler.** When an interaction or assertion depends on Blazor
+   handlers, first use a reversible non-submitting handler, such as opening/closing the participant
+   drawer or Cancel on the player form. Button probes must use `type="button"`. Native GET-form
+   tests with JavaScript disabled do not need attachment. A native link works before attachment;
+   submitting a blank form can issue a native POST, so neither is an attachment probe.
+   Use `ClickUntilAsync` only while the
+   handler's outcome is absent, and close any resulting dialog. If the probe navigates, also await
+   enhanced document completion before reopening the form. See the ordinary-member scenario in
+   `PlayersDirectoryBrowserTests` and `OpenParticipantAsync` for drawer attachment.
 4. **Playwright action methods throw `System.TimeoutException`, not `PlaywrightException`.** On
    actionability timeouts (`Click`/`Check`/`Select`/`Fill`/`Focus`), Playwright .NET surfaces
    `System.TimeoutException`, so a hydration-retry loop that catches only `PlaywrightException`
@@ -224,6 +232,12 @@ For a load-sensitive failure, retain the failing URL/rendered state and rerun th
 without concurrent build/format work before interpreting timing. An isolated pass does not prove
 contention caused the failure or replace the required full-suite run.
 
+Wrap enhanced-navigation regressions in `InteractionHelpers.WithNavigationDiagnosticsAsync` so failures in
+later typing or assertions retain the URL, navigation events, history entries and rendered state,
+not just failures inside the navigation wait. Capture is best-effort and preserves the original
+exception; it neither retries the scenario nor extends its timeout.
+
 For modified-click navigation, observe new pages through the browser context; an opener-specific
-popup event is not guaranteed for native links. Retain assertions for the destination and unchanged
-source-page draft.
+popup event is not guaranteed for native links. The page event can precede the initial document:
+await that page's `WaitForLoadStateAsync(LoadState.DOMContentLoaded)` before destination assertions.
+Retain assertions for the destination and unchanged source-page draft.

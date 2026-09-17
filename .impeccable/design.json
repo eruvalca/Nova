@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-16T04:02:36.273Z",
+  "generatedAt": "2026-09-17T17:23:19.523Z",
   "title": "Design System: Nova",
   "extensions": {
     "colorMeta": {
@@ -95,6 +95,13 @@
     ]
   },
   "components": [
+    {
+      "name": "Player Lifecycle Destinations",
+      "kind": "nav",
+      "description": "Counted ordinary links distinguish the selected lifecycle from club-wide scope. Illustrative counts; source: Nova.UI/Features/Players/Pages/Players.razor and .razor.css. Composition and delivery boundaries: .impeccable/surfaces/player-intake.md, issue #263.",
+      "html": "<nav class=\"ds-player-views\" aria-label=\"Player lifecycle\"><a href=\"/players\" aria-current=\"page\">Active <span>24</span></a><a href=\"/players?view=archived\">Archived <span>3</span></a><span class=\"ds-player-count\">Club players</span></nav>",
+      "css": ".ds-player-views { display: flex; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--bs-border-color); margin-bottom: 1.5rem; font-family: var(--bs-body-font-family); font-size: var(--bs-body-font-size); line-height: var(--bs-body-line-height); } .ds-player-views a { display: inline-flex; align-items: center; gap: .75rem; padding: .65rem 1rem; min-height: 2.75rem; color: var(--bs-secondary-color); text-decoration: none; border-bottom: .2rem solid transparent; } .ds-player-views a[aria-current=page] { color: var(--bs-primary); border-color: var(--bs-primary); font-weight: 700; } .ds-player-views a:hover { text-decoration: none; } .ds-player-views a:focus-visible { outline: auto; } .ds-player-count { margin-left: auto; color: var(--bs-secondary-color); padding: .5rem 0; } @media (max-width: 35.99rem) { .ds-player-count { width: 100%; margin-left: 1rem; } }"
+    },
     {
       "name": "Shared Trait Disclosure",
       "kind": "chip",
@@ -202,7 +209,8 @@
       { "name": "The Precise Edge Rule", "body": "Borders are one-pixel hairlines; the active navigation rail may grow to `0.25rem` because it carries route state.", "section": "shapes" },
       { "name": "The Scoped Totals Rule", "body": "In Close review, distinguish whole-campaign outcome totals from filtered participant counts and page-local group counts in visible text.", "section": "components" },
       { "name": "The Review Before Commit Rule", "body": "The shared lifecycle checkpoint presents refreshed evidence in a separate inline confirmation before exposing the final lifecycle commit.", "section": "components" },
-      {"name":"The Campaign-Local Evidence Rule","body":"In the Closed record, keep the final outcome and its attributable campaign-only history together; distinguish lifecycle activity in its own labeled region and retain lifecycle actions in the shared checkpoint.","section":"components"}
+      {"name":"The Campaign-Local Evidence Rule","body":"In the Closed record, keep the final outcome and its attributable campaign-only history together; distinguish lifecycle activity in its own labeled region and retain lifecycle actions in the shared checkpoint.","section":"components"},
+      {"name":"The Directory Scope Rule","body":"Keep club-wide lifecycle totals distinct from filtered player results, and name unavailable regional evidence without converting it to zero or clearing retained discovery state.","section":"components"}
     ],
     "dos": [
       "Do use Wayfinding Teal for the primary action, active route, or deliberate orientation cue.",

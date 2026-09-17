@@ -399,6 +399,7 @@ Nova/wwwroot/css/
 
 # Generated design work stays local. Curate durable evidence explicitly; see AGENTS.md.
 .impeccable/build/
+.impeccable/work/issue-263/
 .impeccable/archive/
 .impeccable/mocks/**
 !.impeccable/mocks/decision/
@@ -463,3 +464,14 @@ Nova/wwwroot/css/
 !.impeccable/review/issue-257/captures/phone-filtered.png
 !.impeccable/review/issue-257/captures/phone-native-empty.png
 !.impeccable/review/issue-257/capture-manifest.json
+
+# Issue #263 approved directory reference and its exact generation provenance.
+!.impeccable/mocks/issue-263-a.png
+!.impeccable/mocks/issue-263-a.png.json
+!.impeccable/mocks/issue-263-a.prompt.txt
+!.impeccable/review/issue-263/captures/desktop.png
+!.impeccable/review/issue-263/captures/desktop-1280.png
+!.impeccable/review/issue-263/captures/mobile.png
+!.impeccable/review/issue-263/comp-report.json
+!.impeccable/review/issue-263/capture-manifest.json
+!.impeccable/review/issue-263/application-inputs.txt

@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
-public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
+public sealed partial class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 

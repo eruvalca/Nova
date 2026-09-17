@@ -23,6 +23,9 @@ public sealed record GetPlayerRosterInput
     /// </summary>
     public const int MaxPageSize = 100;
 
+    /// <summary>The maximum length of a literal directory search.</summary>
+    public const int MaxSearchLength = 200;
+
     /// <summary>
     /// The club identifier from the route.
     /// </summary>
@@ -33,7 +36,7 @@ public sealed record GetPlayerRosterInput
     /// <summary>
     /// Optional case-insensitive search term applied to player display names.
     /// </summary>
-    [MaxLength(200)]
+    [MaxLength(MaxSearchLength)]
     public string? Search { get; init; }
 
     /// <summary>

@@ -22,6 +22,55 @@ Manual intake serves the staff member handling a walk-up addition or correcting 
 
 ## Selected direction
 
+### #263 directory delivery
+
+The user approved **A — Compact controls** on 2026-09-17. The approved reference is
+[`issue-263-a.png`](../mocks/issue-263-a.png), with its exact prompt and approval in
+[`issue-263-a.png.json`](../mocks/issue-263-a.png.json). It was generated against the actual Players shell
+captured at **1440 × 1000 CSS pixels, DPR 1**. The comparison boundary is the entire viewport;
+the mobile acceptance breakpoint is 390 × 844. The generated raster is 1505 × 1045 and is scaled
+to the recorded viewport for comparison. Composition check: the reference retains Nova's left shell,
+brand and caption, Dashboard, Club and its name, Campaigns, Players, Teams, Manage and Logout.
+The directory contains its heading and Add action, counted lifecycle destinations, labeled discovery
+controls, result count, bounded table and paging. Generated typography and visible row count are
+indicative; the live system's tokens, readable text, 44 px controls and twenty-result page own those details.
+
+The direction contract is one flat directory: heading/action, counted Active/Archived links,
+one compact discovery row, filtered result information, a bounded table, then paging. Existing names,
+graduation years, tags and Active-campaign context remain visible. Long content wraps; table overflow
+stays within its region. Club totals are separate from filtered totals and may reflect a different read.
+Missing summary/tag evidence is named unavailable and retryable, never converted to zero.
+
+This delivery stages intake deliberately. **CSV is hidden for every role until #218 supplies a working
+destination.** That issue owns the administrator-only entry, template, upload, review and commit.
+Manual Add/Edit destinations reuse the existing form and commands under a shared route host;
+the later manual-form redesign, receipts and durable reload recovery remain with #264. No photo or
+record/history redesign is implied. Return to Draft remains a separate administrator capability.
+The validation and review record is [`263-validation.md`](../../docs/263-validation.md).
+
+### Direction contract — #263
+
+**THESIS:** A complete, bounded player directory for approved club staff.
+
+**OWN-WORLD:** Incumbent Fieldhouse Wayfinding: Foam Mist, sea-glass navigation, teal destinations,
+system typography and flat semantic controls.
+
+**STORY:** Choose lifecycle, find a player, open a record or manual form, return in context.
+
+**FIRST VIEWPORT:** Heading and Add action, counted lifecycle destinations, compact discovery,
+result count, bounded player table, then paging.
+
+**FORM:** Compact controls, user-selected reference A. Seed N/A: the approved implementation plan
+already specified the composition within the established world; `new-work.md` forbids a concept roll
+for a precisely specified narrow request. No new visual world or challenger QUALITY BAR card applies.
+`DESIGN.md`, the scoped UI rules and approved A establish this extension's ceiling.
+
+**FINISH:** unreviewed and undocumented is unfinished; this build ends with the finish review, the
+verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+The font-match catalog ranking is advisory here: the committed system font and operational heading
+tokens remain authoritative, as recorded before implementation above. No font replacement is introduced.
+
 The Players area is the club's enrollment desk: one flat operational directory with visible entry routes, not a CRUD card collection. The empty roster teaches through real work. Administrators see **Import player list** as the primary first-roster action and **Add one player** as the supporting action; other members see manual addition as their available path without a disabled or leaked bulk-import control. Once players exist, manual add and administrator import remain discoverable directory actions without competing with search and roster scanning.
 
 Manual intake uses a dedicated, URL-backed working board inside the Players area rather than a modal or an expanding form buried in the directory. It supports consecutive walk-up additions while preserving a stable destination for campaign-readiness links. Bulk intake uses a sequential route because each commitment depends on the previous artifact, but it never disguises errors or forces administrators through explanatory ceremony. The uploaded spreadsheet remains the source of truth: Nova previews and diagnoses it but does not become an inline spreadsheet editor.

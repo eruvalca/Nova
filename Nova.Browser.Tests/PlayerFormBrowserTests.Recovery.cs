@@ -184,9 +184,10 @@ public sealed partial class PlayerFormBrowserTests
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Original Recovery", Exact = true })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
-        await OpenCreationFormAsync(page);
         new Uri(page.Url).PathAndQuery.ShouldBe(RosterUrl);
         await Expect(page.Locator("#players-search")).ToHaveValueAsync("Original");
+        await OpenCreationFormAsync(page);
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToHaveCountAsync(0);
     }
 
@@ -195,9 +196,10 @@ public sealed partial class PlayerFormBrowserTests
         await OpenPlayersAsync(page);
         await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, async () =>
         {
+            // Add can navigate before hydration; the local Cancel command proves attachment.
             await OpenCreationFormAsync(page);
-            await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
-            await Expect(page.Locator("#player-first-name")).ToHaveCountAsync(0);
+            await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }),
+                () => page.Locator("#players-search").IsVisibleAsync());
         });
     }
 
@@ -209,7 +211,7 @@ public sealed partial class PlayerFormBrowserTests
     }
 
     private static async Task OpenCreationFormAsync(IPage page)
-        => await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player", Exact = true }),
+        => await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Add player", Exact = true }),
             () => page.Locator("#player-first-name").IsVisibleAsync());
 
     private static async Task FillCreationFormAsync(IPage page, string firstName)

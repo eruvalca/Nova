@@ -10,7 +10,7 @@ namespace Nova.Unit.Tests.Players;
 /// <summary>
 /// Tests for <see cref="HttpPlayerService"/> roster query behavior.
 /// </summary>
-public sealed class HttpPlayerServiceTests
+public sealed partial class HttpPlayerServiceTests
 {
     /// <summary>
     /// A test HTTP handler that captures the outgoing request.

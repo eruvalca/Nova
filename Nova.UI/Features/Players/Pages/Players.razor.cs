@@ -1,647 +1,534 @@
-﻿#pragma warning disable CA1724 // The Razor page name identifies its routed feature; namespaces remain fully qualified where ambiguous.
-#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+﻿#pragma warning disable CA1724 // The routed page shares its feature's namespace name.
+#pragma warning disable CA1849, S6966 // Cancellation completes before replacing request ownership.
+using System.Data.Common;
 using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.Extensions.Logging;
 using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Players.Components;
+using Nova.UI.Features.Players.Services;
 
 namespace Nova.UI.Features.Players.Pages;
 
-/// <summary>
-/// Renders the player roster workflow with filters and player lifecycle/profile actions.
-/// </summary>
-/// <param name="playerService">The roster query service.</param>
-/// <param name="playerManagementService">The player create/update service.</param>
-/// <param name="playerLifecycleService">The player archive/restore service.</param>
-/// <param name="playerDetailService">The player detail query service.</param>
-/// <param name="authenticationStateProvider">The authentication state provider.</param>
-/// <param name="navigationManager">The navigation manager used for redirects and links.</param>
+/// <summary>Owns the URL-backed directory and existing manual forms for one authenticated club.</summary>
 public partial class Players(
     IPlayerService playerService,
     IPlayerManagementService playerManagementService,
     IPlayerLifecycleService playerLifecycleService,
     IPlayerDetailService playerDetailService,
+    ITagDefinitionQueryService tagDefinitionQueryService,
     AuthenticationStateProvider authenticationStateProvider,
-    NavigationManager navigationManager) : NovaComponentBase
+    NavigationManager navigationManager,
+    ILogger<Players> logger) : NovaComponentBase
 {
-    /// <summary>
-    /// The debounce interval for search input updates.
-    /// </summary>
     private const int SearchDebounceMilliseconds = 350;
-
-    /// <summary>
-    /// The roster page size requested by this UI.
-    /// </summary>
-    private const int RosterPageSize = GetPlayerRosterInput.MaxPageSize;
-
-    /// <summary>
-    /// The loaded roster page, or <see langword="null"/> when unavailable.
-    /// </summary>
+    private const int RosterPageSize = GetPlayerRosterInput.DefaultPageSize;
     private PagedResult<PlayerListItem>? _roster;
-
-    /// <summary>
-    /// The current page-level error message.
-    /// </summary>
+    private PlayerDirectorySummary? _summary;
+    private IReadOnlyList<TagDefinitionDto> _availableTags = [];
+    private IReadOnlyList<int> AvailableGraduationYears => _summary?.GraduationYears ?? [];
     private string? _pageError;
-
-    /// <summary>
-    /// The current mutation-level error message.
-    /// </summary>
+    private string? _summaryError;
+    private string? _tagsError;
     private string? _mutationError;
-
-    /// <summary>
-    /// The current status message shown after successful mutations.
-    /// </summary>
     private string? _statusMessage;
-
-    /// <summary>
-    /// Indicates whether roster data is being loaded.
-    /// </summary>
     private bool _isLoading;
-
-    /// <summary>
-    /// Indicates whether a create/edit/archive/restore mutation is in progress.
-    /// </summary>
+    private bool _summaryLoading;
+    private bool _tagsLoading;
     private bool _isMutating;
-
-    /// <summary>
-    /// Indicates whether the current user can create/edit/archive/restore players.
-    /// </summary>
     private bool _canManagePlayers;
+    private bool _isClubAdmin;
     private CreatePlayerInput? _pendingCreate;
+    private string? _pendingCreationError;
     private PlayerCreationDuplicate? _creationDuplicate;
-
-    /// <summary>
-    /// Stores the current user's club identifier from claims.
-    /// </summary>
     private long? _clubId;
-
-    /// <summary>Identifies the authenticated user owning the mounted roster.</summary>
     private string? _userId;
-
-    /// <summary>Invalidates in-flight operations when user, club, or administrator authority changes.</summary>
     private int _identityVersion;
-
-    /// <summary>Ensures only the most recent roster request can publish results.</summary>
     private int _rosterVersion;
-
-    /// <summary>Orders asynchronous authentication notifications and startup authentication.</summary>
+    private int _summaryVersion;
+    private int _tagsVersion;
+    private int _routeVersion;
     private int _authenticationVersion;
-    /// <summary>Distinguishes an applied clubless identity from uninitialized field defaults.</summary>
     private bool _identityApplied;
-
-    /// <summary>Gets the identity and authority that own the current persisted snapshot.</summary>
-    private string CurrentScope => $"{_userId}:{_clubId}:{_canManagePlayers}";
-
-    /// <summary>
-    /// Draft text from the search input.
-    /// </summary>
+    private string CurrentScope => $"{_userId}:{_clubId}:{_isClubAdmin}";
     private string _searchDraft = string.Empty;
-
-    /// <summary>
-    /// Applied search term used in server queries.
-    /// </summary>
-    private string _searchApplied = string.Empty;
-
-    /// <summary>
-    /// The active roster lifecycle-status filter ("active" or "archived").
-    /// </summary>
-    private string _lifecycleStatusFilter = "active";
-
-    /// <summary>
-    /// The selected graduation-year filter.
-    /// </summary>
-    private int? _graduationYearFilter;
-
-    /// <summary>
-    /// The selected player-tag filter.
-    /// </summary>
-    private long? _playerTagFilter;
-
-    /// <summary>
-    /// The years displayed in the graduation-year dropdown.
-    /// </summary>
-    private IReadOnlyList<int> _availableGraduationYears = [];
-
-    /// <summary>
-    /// The tags displayed in the tag filter dropdown.
-    /// </summary>
-    private IReadOnlyList<PlayerRosterTagItem> _availableTags = [];
-
-    /// <summary>
-    /// The create-player input model.
-    /// </summary>
+    private PlayersUrlState _urlState = new();
+    private string? _locationKey;
+    private string? _loadedQuery;
+    private bool _metadataStarted;
     private PlayerFormState _createForm = PlayerFormState.CreateDefault();
-
-    /// <summary>
-    /// The edit-player input model when edit mode is active.
-    /// </summary>
     private PlayerFormState? _editForm;
-
-    /// <summary>
-    /// Indicates whether the create form is currently visible.
-    /// </summary>
     private bool _showCreateForm;
-
-    /// <summary>
-    /// Structured blockers for graduation-year conflicts.
-    /// </summary>
+    private bool _isEditRoute;
+    private bool _formLoading;
     private IReadOnlyList<GraduationYearBlockerItem> _graduationYearBlockers = [];
-
-    /// <summary>
-    /// The currently selected archive target.
-    /// </summary>
     private PlayerListItem? _archiveCandidate;
-
-    /// <summary>
-    /// Indicates whether the archive confirmation checkbox is checked.
-    /// </summary>
     private bool _archiveConfirmed;
-
-    /// <summary>
-    /// Structured blockers returned from archive conflicts.
-    /// </summary>
     private IReadOnlyList<PlayerArchiveBlocker> _archiveBlockers = [];
-
-    /// <summary>
-    /// Debounce source used to cancel stale search requests.
-    /// </summary>
     private CancellationTokenSource? _searchDebounceSource;
+    private CancellationTokenSource? _identitySource;
+    private CancellationTokenSource? _rosterSource;
+    private CancellationTokenSource? _formSource;
 
-    /// <summary>
-    /// Indicates whether query-string filters have been applied to component state.
-    /// </summary>
-    private bool _queryFiltersApplied;
+    /// <summary>The optional edit route's player identifier.</summary>
+    [Parameter] public long? PlayerId { get; set; }
+    /// <summary>The raw local correction return supplied by the router.</summary>
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? CorrectionReturn { get; set; }
+    /// <summary>The raw Draft correction campaign supplied by the router.</summary>
+    [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
+    // Raw strings prevent the router from rejecting malformed optional numeric values.
+    [SupplyParameterFromQuery(Name = "view")] private string? ViewQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "search")] private string? SearchQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "graduationYear")] private string? GraduationYearQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "tag")] private string? TagQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] private string? PageQuery { get; set; }
 
-    /// <summary>
-    /// Gets or sets the persisted startup roster snapshot used across prerender and interactive attach.
-    /// </summary>
-    [PersistentState]
-    public PagedResult<PlayerListItem>? PersistedRoster { get; set; }
+    /// <summary>The roster snapshot across prerender and interactive attach.</summary>
+    [PersistentState] public PagedResult<PlayerListItem>? PersistedRoster { get; set; }
+    /// <summary>The summary snapshot across prerender and interactive attach.</summary>
+    [PersistentState] public PlayerDirectorySummary? PersistedSummary { get; set; }
+    /// <summary>The complete bounded active-tag choices across attach.</summary>
+    [PersistentState] public IReadOnlyList<TagDefinitionDto>? PersistedTags { get; set; }
+    /// <summary>The startup roster error.</summary>
+    [PersistentState] public string? PersistedPageError { get; set; }
+    /// <summary>The startup summary error.</summary>
+    [PersistentState] public string? PersistedSummaryError { get; set; }
+    /// <summary>The startup tag-choice error.</summary>
+    [PersistentState] public string? PersistedTagsError { get; set; }
+    /// <summary>Whether startup reads settled.</summary>
+    [PersistentState] public bool Initialized { get; set; }
+    /// <summary>The actor, club and authority owning the snapshot.</summary>
+    [PersistentState] public string? SnapshotScope { get; set; }
+    /// <summary>The normalized query owning the roster snapshot.</summary>
+    [PersistentState] public string? SnapshotQuery { get; set; }
 
-    /// <summary>
-    /// Gets or sets the persisted startup page error used across prerender and interactive attach.
-    /// </summary>
-    [PersistentState]
-    public string? PersistedPageError { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether startup initialization already completed during prerender.
-    /// </summary>
-    [PersistentState]
-    public bool Initialized { get; set; }
-
-    /// <summary>Gets or sets the user, club, and authority associated with the prerender snapshot.</summary>
-    [PersistentState]
-    public string? SnapshotScope { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming lifecycle view query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "view")]
-    private string? ViewQuery { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming search query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "search")]
-    private string? SearchQuery { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming graduation-year query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "graduationYear")]
-    private int? GraduationYearQuery { get; set; }
-
-    /// <summary>
-    /// Gets or sets the incoming tag query parameter.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "tag")]
-    private long? TagQuery { get; set; }
-
-    /// <summary>
-    /// Gets the selected graduation-year filter as a string for select binding.
-    /// </summary>
-    protected string GraduationYearFilterText => _graduationYearFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-
-    /// <summary>
-    /// Gets the selected tag filter as a string for select binding.
-    /// </summary>
-    protected string PlayerTagFilterText => _playerTagFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-
-    /// <summary>
-    /// Gets a value indicating whether roster results are truncated in the current UI payload.
-    /// </summary>
-    protected bool IsRosterTruncated => _roster is not null && _roster.TotalCount > _roster.Items.Count;
-
-    /// <inheritdoc />
-    protected override void OnParametersSet() => ApplyQueryFilters();
-
-    /// <summary>Applies incoming URL filters once when binding the initial identity.</summary>
-    private void ApplyQueryFilters()
-    {
-        if (_queryFiltersApplied)
-        {
-            return;
-        }
-
-        _queryFiltersApplied = true;
-        _lifecycleStatusFilter = string.Equals(ViewQuery, "archived", StringComparison.OrdinalIgnoreCase)
-            ? "archived"
-            : "active";
-        _searchDraft = SearchQuery ?? string.Empty;
-        _searchApplied = _searchDraft;
-        _graduationYearFilter = GraduationYearQuery;
-        _playerTagFilter = TagQuery;
-    }
+    private string GraduationYearFilterText => _urlState.GraduationYear?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    private string PlayerTagFilterText => _urlState.TagId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    private bool IsFormRoute => _showCreateForm || _isEditRoute;
+    private bool HasSavedTag => _urlState.TagId is { } id && !_availableTags.Any(tag => tag.PlayerTagId == id);
+    private long PageCount => _roster is null ? 1 : Math.Max(1, ((long)_roster.TotalCount + RosterPageSize - 1) / RosterPageSize);
+    private string? SearchError => _urlState.IsSearchValid ? null : $"Search must be {GetPlayerRosterInput.MaxSearchLength} characters or fewer.";
+    private string? CorrectionDestination => _urlState.ReturnUrl;
+    private long? DraftReturnId => _urlState.ReturnToDraft;
+    private string DraftCorrectionDestination(long draftId) => (_urlState with { ReturnToDraft = draftId }).ToDraftUrl()!;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        ApplyQueryFilters();
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
-        var authenticationVersion = _authenticationVersion;
-        var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        navigationManager.LocationChanged += OnLocationChanged;
+        var version = _authenticationVersion;
+        var authentication = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (version == _authenticationVersion && !ComponentCancellationToken.IsCancellationRequested)
         {
-            return;
+            await ApplyIdentityAsync(authentication.User);
         }
-        var principal = authenticationState.User;
-
-        _identityApplied = true;
-        _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
-        _clubId = ReadClubIdClaim(principal);
-        _userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (Initialized && string.Equals(SnapshotScope, CurrentScope, StringComparison.Ordinal))
-        {
-            _roster = PersistedRoster;
-            _pageError = PersistedPageError;
-            if (_roster is not null)
-            {
-                RefreshAvailableFilters(_roster.Items);
-            }
-            _isLoading = false;
-            return;
-        }
-
-        PersistedRoster = null;
-        PersistedPageError = null;
-        SnapshotScope = null;
-        _isLoading = true;
-        if (_clubId is null)
-        {
-            _pageError = "You must join a club before viewing the player roster.";
-            PersistStartupState();
-            Initialized = true;
-            _isLoading = false;
-            return;
-        }
-
-        await LoadRosterAsync();
     }
 
-    /// <summary>Rebinds user, club, and authority, resetting URL context with the roster filters before reloading.</summary>
-    /// <param name="stateTask">The updated authentication state.</param>
-    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+    /// <inheritdoc />
+    protected override Task OnParametersSetAsync() => ReconcileLocationAsync();
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+        => _ = InvokeAsync(async () => { await ReconcileLocationAsync(); StateHasChanged(); });
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
         => _ = InvokeAsync(async () =>
         {
-            var authenticationVersion = ++_authenticationVersion;
-            var state = await stateTask;
-            if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+            var version = ++_authenticationVersion;
+            var state = await task;
+            if (version == _authenticationVersion && !ComponentCancellationToken.IsCancellationRequested)
             {
-                return;
+                await ApplyIdentityAsync(state.User);
+                StateHasChanged();
             }
-
-            var clubId = ReadClubIdClaim(state.User);
-            var userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
-            if (_identityApplied && clubId == _clubId && string.Equals(userId, _userId, StringComparison.Ordinal) && canManagePlayers == _canManagePlayers)
-            {
-                return;
-            }
-
-            ++_identityVersion;
-            ++_rosterVersion;
-            // A role change invalidates rendered authority, but the same caller and club still own unresolved work.
-            var retainedCreation = _identityApplied && clubId == _clubId && string.Equals(userId, _userId, StringComparison.Ordinal)
-                ? _pendingCreate : null;
-            var retainedForm = _createForm;
-            var discardReturnContext = _identityApplied
-                || (Initialized && !string.Equals(SnapshotScope, $"{userId}:{clubId}:{canManagePlayers}", StringComparison.Ordinal));
-            _identityApplied = true;
-            _clubId = clubId;
-            _userId = userId;
-            _canManagePlayers = canManagePlayers;
-            ResetIdentityState();
-            if (retainedCreation is not null)
-            {
-                _pendingCreate = retainedCreation;
-                _createForm = retainedForm;
-            }
-            if (!discardReturnContext)
-            {
-                _queryFiltersApplied = false;
-                ApplyQueryFilters();
-            }
-            _isLoading = _clubId is not null;
-            StateHasChanged();
-            if (discardReturnContext)
-            {
-                navigationManager.NavigateTo("/players", replace: true);
-            }
-            if (_clubId is null)
-            {
-                _pageError = "You must join a club before viewing the player roster.";
-                PersistStartupState();
-            }
-            else
-            {
-                await LoadRosterAsync();
-            }
-            StateHasChanged();
         });
 
-    /// <summary>Clears all visible, derived, pending, and persisted state owned by the previous identity.</summary>
+    private async Task ApplyIdentityAsync(ClaimsPrincipal principal)
+    {
+        var club = ReadClubIdClaim(principal);
+        var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var admin = principal.IsInRole(Roles.ClubAdmin);
+        var member = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
+        if (_identityApplied && club == _clubId && string.Equals(user, _userId, StringComparison.Ordinal)
+            && admin == _isClubAdmin && member == _canManagePlayers) { return; }
+        var previousIdentity = _identityApplied;
+        var sameOwner = previousIdentity && club == _clubId && string.Equals(user, _userId, StringComparison.Ordinal);
+        var pending = sameOwner ? _pendingCreate : null;
+        var pendingError = sameOwner ? _pendingCreationError : null;
+        var form = _createForm;
+        var status = sameOwner ? _statusMessage : null;
+        ++_identityVersion;
+        CancelSource(ref _identitySource);
+        _identitySource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        _clubId = club;
+        _userId = user;
+        _isClubAdmin = admin;
+        _canManagePlayers = member;
+        _identityApplied = true;
+        if (previousIdentity)
+        {
+            ResetIdentityState();
+            _pendingCreate = pending;
+            _pendingCreationError = pendingError;
+            if (pending is not null) { _createForm = form; }
+            _statusMessage = status;
+            if (!sameOwner)
+            {
+                _urlState = new();
+                navigationManager.NavigateTo("/players", replace: true);
+            }
+        }
+        StateHasChanged();
+        await ReconcileLocationAsync();
+    }
+
     private void ResetIdentityState()
     {
-        _pendingCreate = null;
-        _creationDuplicate = null;
-        _searchDebounceSource?.Cancel();
-        _searchDebounceSource?.Dispose();
-        _searchDebounceSource = null;
+        ++_rosterVersion;
+        ++_summaryVersion;
+        ++_tagsVersion;
+        ++_routeVersion;
+        CancelSource(ref _searchDebounceSource);
+        CancelSource(ref _rosterSource);
+        CancelSource(ref _formSource);
         _roster = null;
-        _availableGraduationYears = [];
+        _summary = null;
         _availableTags = [];
+        _pageError = _summaryError = _tagsError = _mutationError = _statusMessage = null;
         _searchDraft = string.Empty;
-        _searchApplied = string.Empty;
-        _lifecycleStatusFilter = "active";
-        _graduationYearFilter = null;
-        _playerTagFilter = null;
-        _pageError = null;
-        _statusMessage = null;
-        _isMutating = false;
+        _pendingCreate = null;
+        _pendingCreationError = null;
+        _creationDuplicate = null;
         _createForm = PlayerFormState.CreateDefault();
-        CancelMutationForm();
+        ClearMutationForm();
         CancelArchive();
+        _isMutating = _isLoading = _summaryLoading = _tagsLoading = _formLoading = false;
+        _locationKey = _loadedQuery = null;
+        _metadataStarted = false;
+        ClearPersistedState();
+    }
+
+    private void ClearPersistedState()
+    {
         PersistedRoster = null;
-        PersistedPageError = null;
-        SnapshotScope = null;
+        PersistedSummary = null;
+        PersistedTags = null;
+        PersistedPageError = PersistedSummaryError = PersistedTagsError = null;
+        SnapshotScope = SnapshotQuery = null;
         Initialized = false;
     }
 
-    /// <summary>Maps transport failures into results so request ownership is checked before publishing an error.</summary>
-    /// <typeparam name="T">The service's successful response type.</typeparam>
-    /// <param name="request">The in-flight service request.</param>
-    /// <returns>The response or a transport problem; component cancellation is preserved.</returns>
-    private async Task<ServiceResult<T>> ReceiveAsync<T>(Task<ServiceResult<T>> request)
+    private async Task ReconcileLocationAsync()
     {
-        try
+        if (!_identityApplied || ComponentCancellationToken.IsCancellationRequested) { return; }
+        var uri = new Uri(navigationManager.Uri);
+        var path = uri.AbsolutePath.TrimEnd('/');
+        if (!string.Equals(path, "/players", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase)
+            && !(path.StartsWith("/players/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase)))
         {
-            return await request;
+            // A mounted bUnit host has no Router; real navigation disposes this page on other routes.
+            return;
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        var state = PlayersUrlState.FromUri(navigationManager.Uri);
+        var key = path + state.ToDirectoryUrl();
+        if (string.Equals(_locationKey, key, StringComparison.Ordinal)) { return; }
+        _locationKey = key;
+        var routeVersion = ++_routeVersion;
+        CancelSource(ref _searchDebounceSource);
+        CancelSource(ref _formSource);
+        _urlState = state;
+        _searchDraft = state.Search;
+        _showCreateForm = string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase);
+        _isEditRoute = path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase);
+        _editForm = null;
+        _mutationError = _showCreateForm && _pendingCreate is not null ? _pendingCreationError : null;
+        _creationDuplicate = null;
+        _graduationYearBlockers = [];
+        _formLoading = false;
+        CancelArchive();
+
+        if (!_canManagePlayers)
         {
-            throw;
+            ClearPersistedState();
+            _pageError = "You must join a club before viewing the player roster.";
+            PersistStartupState();
+            return;
         }
+        var reads = StartDirectoryReads(state);
+        if (_isEditRoute)
+        {
+            var parts = path.Split('/');
+            if (parts.Length == 4 && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var id) && id > 0)
+            {
+                reads.Add(LoadEditAsync(id, routeVersion));
+            }
+            else { _mutationError = "This player could not be found."; }
+        }
+        StateHasChanged();
+        await Task.WhenAll(reads);
+    }
+
+    private List<Task> StartDirectoryReads(PlayersUrlState state)
+    {
+        var reads = new List<Task>();
+        if (!_metadataStarted)
+        {
+            _metadataStarted = true;
+            if (Initialized && string.Equals(SnapshotScope, CurrentScope, StringComparison.Ordinal)
+                && string.Equals(SnapshotQuery, state.QueryFingerprint, StringComparison.Ordinal))
+            {
+                _roster = PersistedRoster;
+                _summary = PersistedSummary;
+                _availableTags = PersistedTags ?? [];
+                _pageError = PersistedPageError;
+                _summaryError = PersistedSummaryError;
+                _tagsError = PersistedTagsError;
+                _loadedQuery = state.QueryFingerprint;
+            }
+            else
+            {
+                ClearPersistedState();
+                reads.Add(LoadSummaryAsync());
+                reads.Add(LoadTagsAsync());
+            }
+        }
+        if (!string.Equals(_loadedQuery, state.QueryFingerprint, StringComparison.Ordinal))
+        {
+            reads.Add(LoadRosterAsync());
+        }
+        return reads;
+    }
+
+    private static async Task<ServiceResult<T>> ReceiveAsync<T>(Task<ServiceResult<T>> request)
+    {
+        try { return await request; }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            return ServiceProblem.ServerError("The request did not return a result. Reload to check the latest state.");
+            return ServiceProblem.ServerError("The request did not return a result. Retry to check the latest state.");
         }
     }
 
-    /// <summary>
-    /// Parses the club identifier claim from the current principal.
-    /// </summary>
-    /// <param name="principal">The current principal.</param>
-    /// <returns>The parsed club identifier when present; otherwise <see langword="null"/>.</returns>
-    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+    // Auto rendering calls server services directly as well as HTTP clients. Isolate read failures
+    // here without broadening the mutation helper's settlement or recovery behavior.
+    private async Task<ServiceResult<T>> ReceiveDirectoryReadAsync<T>(
+        Func<Task<ServiceResult<T>>> request, string region, CancellationToken cancellationToken)
     {
-        var clubIdText = principal.FindFirst(NovaClaimTypes.ClubId)?.Value;
-        return long.TryParse(clubIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var clubId)
-            ? clubId
-            : null;
+        var userId = _userId;
+        var clubId = _clubId;
+        try { return await request(); }
+        catch (Exception exception) when (cancellationToken.IsCancellationRequested
+            || exception is HttpRequestException or OperationCanceledException or DbException
+            || exception.InnerException is DbException)
+        {
+            // Obsolete provider failures must not fault the new scope's rendering task either.
+            cancellationToken.ThrowIfCancellationRequested();
+            LogDirectoryReadFailed(exception, logger, region, userId, clubId);
+            return ServiceProblem.ServerError("This part of the directory is unavailable. Please retry.");
+        }
     }
 
-    /// <summary>
-    /// Reloads the roster using the currently selected filters.
-    /// </summary>
-    /// <returns>A task that completes when loading and state updates are finished.</returns>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Player directory {Region} read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private static partial void LogDirectoryReadFailed(Exception exception, ILogger logger, string region, string? userId, long? clubId);
+
+    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+        => long.TryParse(principal.FindFirst(NovaClaimTypes.ClubId)?.Value, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
+
     private async Task LoadRosterAsync()
     {
-        if (_clubId is null)
-        {
-            return;
-        }
-
-        _isLoading = true;
-        _pageError = null;
+        if (!_canManagePlayers || _clubId is not { } clubId) { return; }
         var version = ++_rosterVersion;
-
-        var input = new GetPlayerRosterInput
+        CancelSource(ref _rosterSource);
+        _rosterSource = CancellationTokenSource.CreateLinkedTokenSource(_identitySource!.Token);
+        var token = _rosterSource.Token;
+        _roster = null;
+        _pageError = null;
+        _loadedQuery = _urlState.QueryFingerprint;
+        if (!_urlState.IsSearchValid) { _isLoading = false; PersistStartupState(); return; }
+        _isLoading = true;
+        var result = await ReceiveDirectoryReadAsync(() => playerService.GetPlayerRosterAsync(new GetPlayerRosterInput
         {
-            ClubId = _clubId.Value,
-            Search = _searchApplied,
-            LifecycleStatus = _lifecycleStatusFilter,
-            GraduationYear = _graduationYearFilter,
-            PlayerTagId = _playerTagFilter,
-            Page = GetPlayerRosterInput.DefaultPage,
+            ClubId = clubId,
+            Search = _urlState.Search,
+            LifecycleStatus = _urlState.View,
+            GraduationYear = _urlState.GraduationYear,
+            PlayerTagId = _urlState.TagId,
+            Page = _urlState.Page,
             PageSize = RosterPageSize
-        };
-
-        var result = await ReceiveAsync(playerService.GetPlayerRosterAsync(input, ComponentCancellationToken));
-        if (version != _rosterVersion || ComponentCancellationToken.IsCancellationRequested)
+        }, token), "roster", token);
+        if (version != _rosterVersion || token.IsCancellationRequested) { return; }
+        result.Switch(roster => _roster = roster, problem =>
         {
-            return;
-        }
-        result.Switch(
-            roster =>
-            {
-                _roster = roster;
-                RefreshAvailableFilters(roster.Items);
-            },
-            problem =>
-            {
-                if (problem.Kind == ServiceProblemKind.Forbidden)
-                {
-                    navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                    return;
-                }
-
-                _pageError = problem.Detail ?? "Failed to load players. Please retry.";
-                _roster = null;
-            });
-
-        PersistStartupState();
+            _pageError = problem.Detail ?? "Players are unavailable. Please retry.";
+            if (problem.Kind == ServiceProblemKind.Forbidden) { navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true); }
+        });
         _isLoading = false;
+        PersistStartupState();
     }
 
-    /// <summary>
-    /// Persists the current startup roster/error state for prerender-to-interactive restoration.
-    /// </summary>
+    private async Task LoadSummaryAsync()
+    {
+        if (!_canManagePlayers || _clubId is not { } clubId) { return; }
+        var version = ++_summaryVersion;
+        var identity = _identityVersion;
+        var token = _identitySource!.Token;
+        _summaryLoading = true;
+        _summaryError = null;
+        var result = await ReceiveDirectoryReadAsync(
+            () => playerService.GetPlayerDirectorySummaryAsync(new GetPlayerDirectorySummaryInput { ClubId = clubId }, token), "summary", token);
+        if (identity != _identityVersion || version != _summaryVersion || token.IsCancellationRequested) { return; }
+        result.Switch(summary => _summary = summary, problem =>
+        {
+            _summary = null;
+            _summaryError = problem.Detail ?? "Club totals and graduation years are unavailable.";
+        });
+        _summaryLoading = false;
+        PersistStartupState();
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        if (!_canManagePlayers) { return; }
+        var version = ++_tagsVersion;
+        var identity = _identityVersion;
+        var token = _identitySource!.Token;
+        _tagsLoading = true;
+        _tagsError = null;
+        var result = await ReceiveDirectoryReadAsync(() => tagDefinitionQueryService.GetChoicesAsync(token), "tags", token);
+        if (identity != _identityVersion || version != _tagsVersion || token.IsCancellationRequested) { return; }
+        result.Switch(tags => _availableTags = tags, problem =>
+        {
+            _availableTags = [];
+            _tagsError = problem.Detail ?? "Tag choices are unavailable.";
+        });
+        _tagsLoading = false;
+        PersistStartupState();
+    }
+
     private void PersistStartupState()
     {
         PersistedRoster = _roster;
+        PersistedSummary = _summary;
+        PersistedTags = _availableTags;
         PersistedPageError = _pageError;
+        PersistedSummaryError = _summaryError;
+        PersistedTagsError = _tagsError;
         SnapshotScope = CurrentScope;
-        Initialized = true;
+        SnapshotQuery = _urlState.QueryFingerprint;
+        Initialized = !_isLoading && !_summaryLoading && !_tagsLoading;
+        StateHasChanged();
     }
 
-    /// <summary>
-    /// Refreshes graduation-year and tag filter options from the currently loaded roster rows.
-    /// </summary>
-    /// <param name="items">The loaded roster rows.</param>
-    private void RefreshAvailableFilters(IReadOnlyList<PlayerListItem> items)
-    {
-        _availableGraduationYears = items
-            .Select(player => player.GraduationYear)
-            .Distinct()
-            .OrderBy(year => year)
-            .ToList()
-            .AsReadOnly();
+    private async Task RefreshDirectoryAsync() => await Task.WhenAll(LoadRosterAsync(), LoadSummaryAsync());
+    private Task ReloadAsync() => LoadRosterAsync();
 
-        _availableTags = items
-            .SelectMany(player => player.CurrentTags)
-            .GroupBy(tag => new { tag.PlayerTagId, tag.Name, tag.Color })
-            .OrderBy(group => group.Key.Name, StringComparer.Ordinal)
-            .ThenBy(group => group.Key.PlayerTagId)
-            .Select(group => new PlayerRosterTagItem(group.Key.PlayerTagId, group.Key.Name, group.Key.Color))
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Reloads roster data after a user-initiated retry action.
-    /// </summary>
-    /// <returns>A task that completes when loading is finished.</returns>
-    private async Task ReloadAsync() => await LoadRosterAsync();
-
-    /// <summary>
-    /// Applies a debounced search term update and reloads the roster.
-    /// </summary>
-    /// <param name="args">The input event payload.</param>
-    /// <returns>A task that completes when the debounce and reload flow finishes.</returns>
     private async Task OnSearchInputChangedAsync(ChangeEventArgs args)
     {
         _searchDraft = args.Value?.ToString() ?? string.Empty;
-
-        _searchDebounceSource?.Cancel();
-        _searchDebounceSource?.Dispose();
-        _searchDebounceSource = new CancellationTokenSource();
-        var debounceToken = _searchDebounceSource.Token;
-
-        try
+        CancelSource(ref _searchDebounceSource);
+        _searchDebounceSource = CancellationTokenSource.CreateLinkedTokenSource(_identitySource!.Token);
+        var token = _searchDebounceSource.Token;
+        try { await Task.Delay(SearchDebounceMilliseconds, token); }
+        catch (OperationCanceledException) { return; }
+        if (!token.IsCancellationRequested)
         {
-            await Task.Delay(SearchDebounceMilliseconds, debounceToken);
+            NavigateDirectory(_urlState with { Search = _searchDraft.Trim(), Page = 1 }, replace: true);
         }
-        catch (OperationCanceledException)
+    }
+
+    private void ApplyDiscovery() => NavigateDirectory(_urlState with { Search = _searchDraft.Trim(), Page = 1 });
+    private void OnGraduationYearChanged(ChangeEventArgs args)
+        => NavigateDirectory(_urlState with
         {
-            return;
-        }
-
-        _searchApplied = _searchDraft;
-        await LoadRosterAsync();
-    }
-
-    /// <summary>
-    /// Applies a lifecycle-status filter change and reloads the roster.
-    /// </summary>
-    /// <param name="args">The select-change payload.</param>
-    /// <returns>A task that completes when loading is finished.</returns>
-    private async Task OnLifecycleStatusChangedAsync(ChangeEventArgs args)
-    {
-        _lifecycleStatusFilter = args.Value?.ToString() ?? "active";
-        await LoadRosterAsync();
-    }
-
-    /// <summary>
-    /// Applies a graduation-year filter change and reloads the roster.
-    /// </summary>
-    /// <param name="args">The select-change payload.</param>
-    /// <returns>A task that completes when loading is finished.</returns>
-    private async Task OnGraduationYearChangedAsync(ChangeEventArgs args)
-    {
-        var raw = args.Value?.ToString();
-        _graduationYearFilter = int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedYear)
-            ? parsedYear
-            : null;
-        await LoadRosterAsync();
-    }
-
-    /// <summary>
-    /// Applies a tag filter change and reloads the roster.
-    /// </summary>
-    /// <param name="args">The select-change payload.</param>
-    /// <returns>A task that completes when loading is finished.</returns>
-    private async Task OnTagFilterChangedAsync(ChangeEventArgs args)
-    {
-        var raw = args.Value?.ToString();
-        _playerTagFilter = long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTagId)
-            ? parsedTagId
-            : null;
-        await LoadRosterAsync();
-    }
-
-    /// <summary>
-    /// Shows the create-player form and clears mutation messages.
-    /// </summary>
-    private void ShowCreateForm()
-    {
-        if (!_canManagePlayers)
+            GraduationYear = PlayersUrlState.Parse(graduationYear: args.Value?.ToString()).GraduationYear,
+            Search = _searchDraft.Trim(),
+            Page = 1
+        });
+    private void OnTagFilterChanged(ChangeEventArgs args)
+        => NavigateDirectory(_urlState with
         {
-            return;
-        }
-        _showCreateForm = true;
+            TagId = PlayersUrlState.Parse(tag: args.Value?.ToString()).TagId,
+            Search = _searchDraft.Trim(),
+            Page = 1
+        });
+    private void NavigateDirectory(PlayersUrlState state, bool replace = false)
+    {
+        CancelSource(ref _searchDebounceSource);
+        navigationManager.NavigateTo(state.ToDirectoryUrl(), replace: replace);
+    }
+
+    private void CancelMutationForm() => navigationManager.NavigateTo(_urlState.ToDirectoryUrl());
+    private void ClearMutationForm()
+    {
+        _showCreateForm = _isEditRoute = false;
         _editForm = null;
         _mutationError = null;
         _creationDuplicate = null;
         _graduationYearBlockers = [];
     }
 
-    /// <summary>
-    /// Hides create/edit mode and clears feedback while retaining any unresolved creation command.
-    /// </summary>
-    private void CancelMutationForm()
+    private Task RetryEditAsync()
     {
-        _showCreateForm = false;
-        _editForm = null;
-        _mutationError = null;
-        _creationDuplicate = null;
-        _graduationYearBlockers = [];
+        var parts = new Uri(navigationManager.Uri).AbsolutePath.Split('/');
+        return parts.Length == 4 && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var id)
+            ? LoadEditAsync(id, ++_routeVersion) : Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Opens edit mode by loading complete player profile data.
-    /// </summary>
-    /// <param name="player">The selected roster player.</param>
-    /// <returns>A task that completes when the edit model is populated.</returns>
-    private async Task BeginEditAsync(PlayerListItem player)
+    private string EmptyHeading => (_urlState, _summary) switch
     {
-        if (!_canManagePlayers || _isMutating)
-        {
-            return;
-        }
-        var version = _identityVersion;
-        _showCreateForm = false;
-        _mutationError = null;
-        _graduationYearBlockers = [];
-        _isMutating = true;
+        ({ Page: > 1 }, _) => "This page is unavailable",
+        ({ HasFilters: true }, _) => "No matching players",
+        (_, { ActiveCount: 0, ArchivedCount: 0 }) => "Your club has no players yet",
+        ({ View: "active" }, { ActiveCount: 0, ArchivedCount: > 0 }) => "All players are archived",
+        ({ View: "archived" }, _) => "No archived players",
+        _ => "No active players"
+    };
 
-        var result = await ReceiveAsync(playerDetailService.GetPlayerDetailAsync(player.PlayerId, ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        result.Switch(
-            detail => _editForm = PlayerFormState.FromDetail(detail),
+    private string EmptyDescription => (_urlState, _summary) switch
+    {
+        ({ Page: > 1 }, _) => "Players may have changed since this link was saved. Start from the first page.",
+        ({ HasFilters: true }, _) => "Try another search or clear the filters.",
+        (_, { ActiveCount: 0, ArchivedCount: 0 }) => "Add a player to start your club directory.",
+        ({ View: "active" }, { ActiveCount: 0, ArchivedCount: > 0 }) => "Open Archived to find and restore a player.",
+        (_, null) => "There are no results in this view. Club totals are unavailable.",
+        _ => "There are no players in this view."
+    };
+
+    private string ClubCountLabel => (_summaryLoading, _summary) switch
+    {
+        (true, _) => "Loading club totals…",
+        (_, null) => "Club totals unavailable",
+        _ => "Club players"
+    };
+
+    private string ResultSummary => (_isLoading, _roster) switch
+    {
+        (true, _) => "Loading players…",
+        (_, null) => "Results unavailable",
+        (_, { } roster) => $"{roster.TotalCount} matching players · 20 per page"
+    };
+
+    private async Task LoadEditAsync(long playerId, int version)
+    {
+        CancelSource(ref _formSource);
+        _formSource = CancellationTokenSource.CreateLinkedTokenSource(_identitySource!.Token);
+        var token = _formSource.Token;
+        _formLoading = true;
+        _mutationError = null;
+        var result = await ReceiveAsync(playerDetailService.GetPlayerDetailAsync(playerId, token));
+        if (version != _routeVersion || token.IsCancellationRequested) { return; }
+        result.Switch(detail => _editForm = PlayerFormState.FromDetail(detail),
             problem => _mutationError = problem.Detail ?? "Could not load player details for editing.");
-
-        _isMutating = false;
+        _formLoading = false;
+        StateHasChanged();
     }
 
     /// <summary>
@@ -661,17 +548,20 @@ public partial class Players(
 
         if (_clubId is not long clubId) { _isMutating = false; return; }
         _pendingCreate ??= _createForm.ToCreateInput(Guid.CreateVersion7(), clubId);
+        var command = _pendingCreate;
         _creationDuplicate = null;
-        var result = await ReceiveAsync(playerManagementService.CreateAsync(_pendingCreate, ComponentCancellationToken));
+        var result = await ReceiveAsync(playerManagementService.CreateAsync(command, _identitySource!.Token));
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
+        var ownsForm = _showCreateForm && _pendingCreate?.OperationId == command.OperationId;
         result.Switch(
             completion =>
             {
                 _pendingCreate = null;
-                _showCreateForm = false;
+                _pendingCreationError = null;
+                if (ownsForm) { _showCreateForm = false; }
                 _createForm = PlayerFormState.CreateDefault();
                 _statusMessage = completion.Enrollment is { } enrollment
                     ? $"Player created successfully. Enrolled in {enrollment.CampaignName}."
@@ -679,24 +569,28 @@ public partial class Players(
             },
             problem =>
             {
-                _mutationError = problem.Detail ?? "Could not create player.";
-                if (PlayerCreationProblems.IsNotCommitted(problem, _pendingCreate.OperationId))
+                var error = problem.Detail ?? "Could not create player.";
+                if (PlayerCreationProblems.IsNotCommitted(problem, command.OperationId))
                 {
                     _pendingCreate = null;
-                    PlayerCreationProblems.TryGetDuplicate(problem, out _creationDuplicate);
+                    _pendingCreationError = null;
+                    if (ownsForm) { PlayerCreationProblems.TryGetDuplicate(problem, out _creationDuplicate); }
                 }
                 else
                 {
-                    _mutationError += PlayerCreationProblems.IsExpired(problem)
+                    error += PlayerCreationProblems.IsExpired(problem)
                         ? " The original addition is still retained."
                         : " The original addition is still retained; retry it unchanged to recover its result.";
+                    _pendingCreationError = error;
                 }
+                if (ownsForm) { _mutationError = error; }
             });
 
         _isMutating = false;
         if (result.IsSuccess)
         {
-            await LoadRosterAsync();
+            if (ownsForm) { CancelMutationForm(); }
+            await RefreshDirectoryAsync();
         }
     }
 
@@ -716,9 +610,16 @@ public partial class Players(
         _graduationYearBlockers = [];
 
         var version = _identityVersion;
-        var result = await ReceiveAsync(playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), ComponentCancellationToken));
+        var route = _routeVersion;
+        var result = await ReceiveAsync(playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), _identitySource!.Token));
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
+            return;
+        }
+        if (route != _routeVersion)
+        {
+            _isMutating = false;
+            if (result.IsSuccess) { await RefreshDirectoryAsync(); }
             return;
         }
         result.Switch(
@@ -739,7 +640,8 @@ public partial class Players(
         _isMutating = false;
         if (result.IsSuccess)
         {
-            await LoadRosterAsync();
+            if (route == _routeVersion) { CancelMutationForm(); }
+            await RefreshDirectoryAsync();
         }
     }
 
@@ -786,9 +688,16 @@ public partial class Players(
         _archiveBlockers = [];
 
         var version = _identityVersion;
-        var result = await ReceiveAsync(playerLifecycleService.ArchiveAsync(_archiveCandidate.PlayerId, ComponentCancellationToken));
+        var route = _routeVersion;
+        var result = await ReceiveAsync(playerLifecycleService.ArchiveAsync(_archiveCandidate.PlayerId, _identitySource!.Token));
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
+            return;
+        }
+        if (route != _routeVersion)
+        {
+            _isMutating = false;
+            if (result.IsSuccess) { await RefreshDirectoryAsync(); }
             return;
         }
         result.Switch(
@@ -810,7 +719,7 @@ public partial class Players(
         _isMutating = false;
         if (result.IsSuccess)
         {
-            await LoadRosterAsync();
+            await RefreshDirectoryAsync();
         }
     }
 
@@ -826,12 +735,19 @@ public partial class Players(
             return;
         }
         var version = _identityVersion;
+        var route = _routeVersion;
         _isMutating = true;
         _mutationError = null;
 
-        var result = await ReceiveAsync(playerLifecycleService.RestoreAsync(player.PlayerId, ComponentCancellationToken));
+        var result = await ReceiveAsync(playerLifecycleService.RestoreAsync(player.PlayerId, _identitySource!.Token));
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
+            return;
+        }
+        if (route != _routeVersion)
+        {
+            _isMutating = false;
+            if (result.IsSuccess) { await RefreshDirectoryAsync(); }
             return;
         }
         result.Switch(
@@ -841,64 +757,12 @@ public partial class Players(
         _isMutating = false;
         if (result.IsSuccess)
         {
-            await LoadRosterAsync();
+            await RefreshDirectoryAsync();
         }
     }
 
-    /// <summary>
-    /// Builds the player-detail URL while preserving current roster filter context.
-    /// </summary>
-    /// <param name="playerId">The target player identifier.</param>
-    /// <returns>A relative player-detail URL.</returns>
-    private string BuildPlayerDetailUrl(long playerId)
-        => $"/players/{playerId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
-
-    /// <summary>
-    /// Builds the current roster URL with active filter state.
-    /// </summary>
-    /// <returns>The roster URL with query-string filter values.</returns>
-    private string BuildCurrentRosterUrl()
-    {
-        var querySegments = new List<string>
-        {
-            $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
-        };
-        if (CorrectionDestination is { } destination)
-        {
-            querySegments.Add($"returnUrl={Uri.EscapeDataString(destination)}");
-        }
-        if (DraftReturnId is { } draftId)
-        {
-            querySegments.Add($"returnToDraft={draftId}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(_searchApplied))
-        {
-            querySegments.Add($"search={Uri.EscapeDataString(_searchApplied)}");
-        }
-
-        if (_graduationYearFilter is not null)
-        {
-            querySegments.Add($"graduationYear={_graduationYearFilter.Value.ToString(CultureInfo.InvariantCulture)}");
-        }
-
-        if (_playerTagFilter is not null)
-        {
-            querySegments.Add($"tag={_playerTagFilter.Value.ToString(CultureInfo.InvariantCulture)}");
-        }
-
-        return $"/players?{string.Join('&', querySegments)}";
-    }
-
-    /// <summary>The local destination to return to after correcting shared records.</summary>
-    [SupplyParameterFromQuery(Name = "returnUrl")] public string? CorrectionReturn { get; set; }
-    private string? CorrectionDestination => Nova.UI.Common.CorrectionReturnContext.Normalize(CorrectionReturn);
-    private string DraftCorrectionDestination(long draftId) => $"/campaigns/{draftId}"
-        + (CorrectionDestination is { } destination ? $"?returnUrl={Uri.EscapeDataString(destination)}" : string.Empty);
-
-    /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
-    [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
-    private long? DraftReturnId => long.TryParse(ReturnToDraft, CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
+    private string BuildPlayerDetailUrl(long playerId) => _urlState.ToPlayerUrl(playerId);
+    private string BuildCurrentRosterUrl() => _urlState.ToDirectoryUrl();
 
     /// <summary>
     /// Builds the inline CSS style string for one roster tag pill.
@@ -1028,16 +892,28 @@ public partial class Players(
             ? parsed
             : null;
 
+    private static void CancelSource(ref CancellationTokenSource? source)
+    {
+        source?.Cancel();
+        source?.Dispose();
+        source = null;
+    }
+
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
         ++_identityVersion;
         ++_rosterVersion;
+        ++_summaryVersion;
+        ++_tagsVersion;
+        ++_routeVersion;
         ++_authenticationVersion;
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
-        _searchDebounceSource?.Cancel();
-        _searchDebounceSource?.Dispose();
-        _searchDebounceSource = null;
+        navigationManager.LocationChanged -= OnLocationChanged;
+        CancelSource(ref _searchDebounceSource);
+        CancelSource(ref _rosterSource);
+        CancelSource(ref _formSource);
+        CancelSource(ref _identitySource);
         return base.DisposeAsyncCore();
     }
 

@@ -69,8 +69,10 @@ scratch state; it is not durable evidence.
 
 - Use the existing `BrowserSuiteFixture`, real Identity login, shared seeding and
   `InteractionHelpers`/`BrowserRetryPolicy`; do not create per-file hydration retry loops.
-- Prove interactive attachment through an observable action before testing filters, focus or
-  geometry. A visible prerendered control alone does not prove it can handle an event.
+- When testing filters, focus or geometry that depend on Blazor handlers, prove interactive
+  attachment through an observable action. A visible control, successful native link or completed
+  enhanced navigation does not prove its Blazor handlers are attached. Use a non-submitting,
+  reversible handler probe; the browser-suite reference separates document completion from attachment.
 - Keep accessibility assertions in the scenario that exercises the control. Use the surface's
   target-size contract (Nova phone controls: 44px), plus readable contrast and visible focus.
   An older 24px baseline assertion is not permission to shrink a 44px control.

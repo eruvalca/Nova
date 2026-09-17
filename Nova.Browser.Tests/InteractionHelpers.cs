@@ -8,6 +8,74 @@
 /// </summary>
 internal static class InteractionHelpers
 {
+    private const string InstallNavigationProbe = """
+        () => {
+            if (!window.__novaNavigationEvidence) {
+                const probe = window.__novaNavigationEvidence = { started: 0, completed: 0, events: [] };
+                const record = kind => {
+                    probe.events.push({kind, url: location.href, key: window.navigation?.currentEntry?.key});
+                    if (probe.events.length > 64) probe.events.shift();
+                };
+                Blazor.addEventListener('enhancednavigationstart', () => { probe.started++; record('start'); });
+                Blazor.addEventListener('enhancednavigationend', () => { probe.completed = probe.started; record('end'); });
+                window.addEventListener('popstate', () => record('popstate'));
+                window.navigation?.addEventListener('currententrychange', () => record('entrychange'));
+            }
+            return window.__novaNavigationEvidence.started;
+        }
+        """;
+
+    /// <summary>Waits for one enhanced navigation to finish applying its destination document.</summary>
+    /// <param name="page">A page using Blazor's per-page enhanced navigation.</param>
+    /// <param name="navigate">The single native link or browser-history action.</param>
+    /// <returns>A task that completes after the destination response has been applied.</returns>
+    public static async Task NavigateEnhancedAsync(IPage page, Func<Task> navigate)
+    {
+        var started = await page.EvaluateAsync<int>(InstallNavigationProbe);
+        try
+        {
+            await navigate();
+            await page.WaitForFunctionAsync("previous => { const probe = window.__novaNavigationEvidence; return probe?.started > previous && probe.completed === probe.started; }", started);
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            throw new InvalidOperationException($"Enhanced navigation did not complete. {await CaptureNavigationAsync(page)}", exception);
+        }
+    }
+
+    /// <summary>Retains navigation evidence when a later scenario action or assertion fails.</summary>
+    /// <param name="page">The page under test.</param>
+    /// <param name="scenario">The actions and assertions whose original failure must be preserved.</param>
+    /// <returns>A task that completes when the scenario passes.</returns>
+    public static async Task WithNavigationDiagnosticsAsync(IPage page, Func<Task> scenario)
+    {
+        try { await scenario(); }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Navigation scenario failed. {await CaptureNavigationAsync(page)}", exception);
+        }
+    }
+
+    private static async Task<string> CaptureNavigationAsync(IPage page)
+    {
+        var evidence = $"URL: {page.Url}";
+        try
+        {
+            evidence += await page.EvaluateAsync<string>("""
+                () => JSON.stringify({url: location.href, navigation: window.__novaNavigationEvidence,
+                    entries: window.navigation?.entries().map(entry => ({url: entry.url, key: entry.key})),
+                    forms: document.querySelectorAll('#player-first-name').length,
+                    links: [...document.querySelectorAll('main a')].map(a => ({text: a.textContent, href: a.href}))})
+                """);
+            evidence += " ARIA: " + await page.Locator("body").AriaSnapshotAsync();
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            // A closed page or replaced execution context must not obscure the original failure.
+        }
+        return evidence;
+    }
+
     /// <summary>Repeatedly clicks a locator until the supplied settle predicate succeeds.</summary>
     /// <param name="page">The page to drive.</param>
     /// <param name="locator">The element to click.</param>

@@ -384,6 +384,7 @@ public sealed partial class CampaignEvaluationCaptureBrowserTests(BrowserSuiteFi
         }
         context.Pages.Count.ShouldBe(initialPageCount + 1);
         popup.ShouldNotBeSameAs(page);
+        await popup.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         await Expect(popup.Locator("#evaluation-player-heading")).ToContainTextAsync("#1 ");
         popup.Url.ShouldContain($"evalParticipant={seed.AssignmentIds[0]}");
         page.Url.ShouldBe(origin);

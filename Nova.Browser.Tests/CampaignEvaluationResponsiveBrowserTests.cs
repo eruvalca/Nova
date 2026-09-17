@@ -95,7 +95,12 @@ public sealed class CampaignEvaluationResponsiveBrowserTests(BrowserSuiteFixture
         }
         await Expect(page.Locator("a[data-eval-result]")).ToHaveCountAsync(20);
         await page.GetByRole(AriaRole.Link, new() { Name = "Next page", Exact = true }).PressAsync("Enter");
+        await Expect(page.Locator(".evaluation-paging").Filter(new() { HasText = "Page 2 of 50" })
+            .Or(page.Locator(".evaluation-finder [role='alert']")))
+            .ToBeVisibleAsync(new() { Timeout = ReadSettlementMilliseconds });
+        await Expect(page.Locator(".evaluation-finder [role='alert']")).ToHaveCountAsync(0);
         await Expect(page.Locator(".evaluation-paging")).ToContainTextAsync("Page 2 of 50");
+        await Expect(page.Locator("a[data-eval-result]")).ToHaveCountAsync(20);
         await CaptureAsync(page, "finder-landscape", fullPage: true, large.CampaignId, participants: 1000);
     }
 

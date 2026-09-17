@@ -15,7 +15,7 @@ namespace Nova.Unit.Tests.Players;
 /// <summary>
 /// Tests for <see cref="PlayerService.GetPlayerRosterAsync(GetPlayerRosterInput, CancellationToken)"/>.
 /// </summary>
-public sealed class PlayerServiceTests : IDisposable
+public sealed partial class PlayerServiceTests : IDisposable
 {
     private const long ClubAId = 100;
     private const long ClubBId = 101;

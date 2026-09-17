@@ -108,6 +108,11 @@ internal sealed partial class PlayerService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var offset = (long)(page - 1) * pageSize;
+        if (offset > int.MaxValue)
+        {
+            return new PagedResult<PlayerListItem>([], page, pageSize, totalCount);
+        }
         IQueryable<PlayerEntity> orderedQuery;
         List<RosterPageRow> pageRows;
         if (string.Equals(normalizedSortBy, "joinedAt", StringComparison.OrdinalIgnoreCase))
@@ -130,7 +135,7 @@ internal sealed partial class PlayerService(
                     : joinedRows.OrderBy(player => player.CreatedAt).ThenBy(player => player.PlayerId);
 
                 pageRows = orderedJoinedRows
-                    .Skip((page - 1) * pageSize)
+                    .Skip((int)offset)
                     .Take(pageSize)
                     .ToList();
             }
@@ -140,7 +145,7 @@ internal sealed partial class PlayerService(
                     ? query.OrderByDescending(player => player.CreatedAt).ThenBy(player => player.PlayerId)
                     : query.OrderBy(player => player.CreatedAt).ThenBy(player => player.PlayerId);
                 pageRows = await orderedQuery
-                    .Skip((page - 1) * pageSize)
+                    .Skip((int)offset)
                     .Take(pageSize)
                     .Select(player => new RosterPageRow(
                         player.PlayerId,
@@ -156,7 +161,7 @@ internal sealed partial class PlayerService(
         {
             orderedQuery = BuildOrderedQuery(query, normalizedSortDirection);
             pageRows = await orderedQuery
-                .Skip((page - 1) * pageSize)
+                .Skip((int)offset)
                 .Take(pageSize)
                 .Select(player => new RosterPageRow(
                     player.PlayerId,

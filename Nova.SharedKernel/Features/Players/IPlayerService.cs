@@ -7,6 +7,14 @@ namespace Nova.SharedKernel.Features.Players;
 /// </summary>
 public interface IPlayerService
 {
+    /// <summary>Retrieves club-wide counts and filter choices, independently of roster discovery.</summary>
+    /// <param name="input">The authenticated club to summarize.</param>
+    /// <param name="cancellationToken">A token to cancel the read.</param>
+    /// <returns>The directory summary, or a validation/authorization problem.</returns>
+    Task<ServiceResult<PlayerDirectorySummary>> GetPlayerDirectorySummaryAsync(
+        GetPlayerDirectorySummaryInput input,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Retrieves a paged roster of active players for the requested club.
     /// </summary>

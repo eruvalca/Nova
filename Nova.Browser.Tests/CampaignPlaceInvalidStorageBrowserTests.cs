@@ -123,8 +123,11 @@ public sealed partial class CampaignPlaceBrowserTests
         var back = page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true });
         await Expect(back).ToHaveAttributeAsync("href", first);
         var cancel = page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true });
-        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Edit", Exact = true }), () => cancel.IsVisibleAsync());
+        // Edit now navigates to the routed form. Prove attachment with local confirmation state
+        // so the following query changes still exercise this mounted record and its history.
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Archive", Exact = true }), () => cancel.IsVisibleAsync());
         await cancel.ClickAsync();
+        await Expect(cancel).ToHaveCountAsync(0);
         const string Second = "/players?search=Changed";
         await page.EvaluateAsync("url => Blazor.navigateTo(url)", detail + Uri.EscapeDataString(Second));
         await page.WaitForURLAsync(url => url.Contains("Changed", StringComparison.Ordinal), new() { WaitUntil = WaitUntilState.Commit });

@@ -24,6 +24,14 @@ public static class GetPlayerRosterEndpoints
     /// </summary>
     public const string GetRosterRelative = "{clubId:long}/players/roster";
 
+    /// <summary>The member-authorized directory summary route.</summary>
+    public const string GetSummaryRelative = "{clubId:long}/players/summary";
+
+    /// <summary>Builds the URL for club-wide player counts and graduation-year choices.</summary>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <returns>The summary endpoint URL.</returns>
+    public static string GetSummaryUrl(long clubId) => $"{GroupPrefix}/{clubId}/players/summary";
+
     /// <summary>
     /// Builds a roster URL with optional filtering, sorting, and pagination query parameters.
     /// </summary>

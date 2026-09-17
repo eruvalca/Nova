@@ -1,0 +1,30 @@
+{
+  "base": "b8bc5532a8ddc9daafa3853660ab52bae5e8e279",
+  "capturedAt": "2026-09-17T17:15:48Z",
+  "fixture": "PlayersDirectoryEvidenceTests.CaptureDirectoryOnItsOwnShellAsync",
+  "data": "Synthetic club with 121 active players",
+  "cssViewports": [
+    "1440x1000",
+    "1280x1000",
+    "390x844"
+  ],
+  "devicePixelRatio": 1,
+  "fullPage": true,
+  "review": "finish-review.md",
+  "validation": "../../../docs/263-validation.md",
+  "laterChanges": "Creation completion ownership and browser synchronization fixes; markup and CSS unchanged from reviewed captures.",
+  "captures": [
+    {
+      "file": "desktop-1280.png",
+      "sha256": "7A375709415DEA7C0FAC972783496EBDC4FFAE09958406C01EEACBF404C7C787"
+    },
+    {
+      "file": "desktop.png",
+      "sha256": "B3F2E5269DFA8047C958A0E7ECD8488CE30D57906989731C5291FF3C7AC7F735"
+    },
+    {
+      "file": "mobile.png",
+      "sha256": "5A6AA880F1CA3451E0CD7CD12F9D78235711366B7F97A99B978D5A123418BE68"
+    }
+  ]
+}
