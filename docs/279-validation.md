@@ -6,16 +6,16 @@ Issue: [#279](https://github.com/eruvalca/Nova/issues/279). Base: `fc2c0053`.
 
 ## Revision and gate status
 
-Current review-round inputs: `56d9ab79aaa85b9336665d930a18da6ba8c479eb` plus the exact changes in
+Current review-round inputs: `2cdfcc477f48fd800963dec48751ab62562102c7` plus the exact changes in
 the commit containing this record, on `codex/279-player-command-recovery`, based on `fc2c0053`.
-This delta corrects malformed/future operation-ID classification with shared input validation,
-service classification, unit/HTTP/consumer regressions and this record. All changes for Copilot
-review `5230668363` are committed together once. The preceding SQLite cleanup disposition was
-completed in the documentation-only commit `56d9ab79`.
+This delta rejects contradictory structured errors in player creation-conflict evidence, corrects
+the profile-validation method documentation, and adds shared/client/component/browser regressions.
+All changes for Copilot review `5230833236`, including this record, are committed together once.
+The preceding operation-ID classification review was completed in `2cdfcc47`.
 Earlier implementation, production-review and conformance dispositions remain recorded below.
 
-Current gates and tested-input comparisons are recorded in the operation-ID review disposition.
-The changed shared input and HTTP classification have passing new full integration/browser evidence.
+Current gates and tested-input comparisons are recorded in the conflict-evidence review disposition.
+The shared evidence parser and browser-suite changes are covered by new passing integration/browser evidence.
 The prior round's diagnosed browser-observation
 failures remain resolved with the reproduced evidence and dispositions preserved below.
 Remote `main` remains `fc2c0053`; there are no incoming merge-input differences.
@@ -542,6 +542,85 @@ previous inspection using paginated APIs; this is the only new finding and it ha
 All five existing threads remain resolved. `git diff --check` and all 50 relative file links pass.
 The ten-file delta, including this record, is committed once for this review round. Fresh CI and
 automatic review of the pushed commit remain pending; no review is manually requested.
+
+## Copilot conflict-evidence review
+
+Source: [review 5230833236](https://github.com/eruvalca/Nova/pull/283#pullrequestreview-5230833236)
+at `2cdfcc47`, with two suppressed findings and no new inline thread. Both are valid.
+
+1. A matching duplicate marker and duplicate object could settle a pending creation even when the
+   same conflict contained contradictory structured errors. `IsNotCommitted`, `IsValidConflict`
+   and `TryGetDuplicate` now reject nonempty error maps; `IsExpired` inherits the envelope guard.
+   This covers duplicate, expiry and mismatch siblings consistently. Null and empty error maps
+   have no error entries and remain valid; genuine receipt-backed duplicate correction is preserved.
+2. `PlayerFormState.ToProfileInput`'s summary/return documentation incorrectly described a create
+   command. It now describes the shared profile-validation fields without operation metadata,
+   matching the method, call site and existing form recipe. No form behavior or ID allocation changed.
+
+| Requirement | Named evidence |
+| --- | --- |
+| Reject contradictory structured errors for every creation conflict reason | [`StructuredErrorsInvalidateCreationConflictEvidence`](../Nova.Unit.Tests/Features/Players/PlayerCreationProblemsTests.cs) covers duplicate/expiry/mismatch with direct and JSON-decoded extensions, checking all four evidence helpers and null duplicate output. |
+| Preserve valid duplicate evidence | `DuplicateWithoutStructuredErrorsRemainsDefinitive` covers null/empty error maps and direct/decoded extensions, asserting exact archived-player identity/status and matching operation settlement. Existing active-duplicate service/browser cases remain. |
+| Reject malformed HTTP evidence without releasing the operation | [`CreateRejectsContradictoryConflictEvidenceAsync`](../Nova.Unit.Tests/Players/HttpPlayerManagementServiceTests.Receipts.cs) adds the structured-error payload and expects a protocol failure with no definitive settlement. |
+| Preserve in-memory ownership after a direct-service contradiction | [`PlayersRetainsPendingCreationAfterContradictoryDuplicateAsync`](../Nova.Unit.Tests/Players/PlayerComponentsTests.CreationRecovery.cs) exercises lost acknowledgement, contradictory duplicate, attempted replacement input and success. It retains the same command object/profile and keeps fields disabled. Existing validation cases reuse the same outcome assertions. |
+| Prove the composed WASM retry path | [`PlayerFormRetriesSameOperationAfterLostAcknowledgementAsync`](../Nova.Browser.Tests/PlayerFormBrowserTests.Recovery.cs) now includes a contradictory 409 after a real committed-but-aborted first response. Its marker uses the original request ID and actual committed player ID. The browser shows a protocol failure, retains disabled fields, sends three identical request bodies and recovers exactly one player/receipt. The original plain-retry and malformed-422 scenarios remain. |
+
+Sibling inspection traced every player evidence-helper caller: the WASM client validates conflicts
+before returning them, and the page requires definitive evidence before clearing its pending command
+or exposing duplicate feedback. Creation's three conflict factories never produce structured errors.
+Placement/evaluation receipts intentionally support field-validation rejections with structured errors;
+this creation-specific restriction must not be imposed on those different contracts. Their behavior
+is unchanged. Repository search found only the one stale `ToProfileInput` documentation pair.
+
+Guidance applied: the existing C#, API, validation, service, Blazor and testing rules;
+`add-feature-slice`'s WASM contract reference, `add-blazor-ui` form/state references, and `nova-testing`
+transition, component and browser guidance; focused `code-testing-agent` and native MTP `run-tests`.
+No general instruction, skill, diagnostic suppression or test gate changed.
+
+Failure dispositions: the initial solution build completed the unit-test assembly but reported two
+browser-test diagnostics: MA0051 (41 statements against a 40-statement limit) and CA1861 (array
+argument). Combining the completion read with its assignment and using the existing collection-
+expression convention resolved both without removing assertions. Before the evidence guard changed,
+the freshly compiled focused unit run passed 100 and failed eight: six shared-helper cases, the HTTP
+case and the component's disabled-field check. The fixed build is clean and all 108 focused cases pass.
+
+The initial format check also reported CHARSET for the new pure test file's missing UTF-8 BOM.
+`dotnet format Nova.slnx --no-restore --include Nova.Unit.Tests/Features/Players/PlayerCreationProblemsTests.cs`
+corrected it; normalized before/after text comparison proved only encoding/line-ending changes.
+The source-writing formatter finished before further edits/builds. The final solution build, full
+unit rerun and global format verification pass. Integration and focused browser results still cover
+unchanged application/suite inputs; the only later source change was that isolated unit file's encoding.
+
+All current gates cover `2cdfcc47` plus this round's six source/test files and this record. Build-capable
+commands and machine-wide Aspire suites were serialized; the final browser run kept source fixed.
+
+| Check | Command and result |
+| --- | --- |
+| Final build | `dotnet build Nova.slnx --no-restore` — pass, zero warnings/errors. |
+| Focused unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*PlayerCreationProblemsTests' --filter-class '*HttpPlayerManagementServiceTests' --filter-class '*PlayerComponentsTests'` — 108 passed, zero failed/skipped. |
+| Focused browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-method '*PlayerFormRetriesSameOperationAfterLostAcknowledgementAsync'` — three passed, zero failed/skipped. |
+| Final full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — 3,703 passed, zero failed/skipped. |
+| Final format | `dotnet format Nova.slnx --verify-no-changes --no-restore --verbosity diagnostic` — pass, zero files changed. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — 669 passed, zero failed/skipped. |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — 209 passed, zero failed, eight existing opt-in capture skips (217 total). |
+
+Selected the full browser suite because shared recovery evidence affects pending-command ownership
+across HTTP/WASM creation flows. The expanded scenario reuses the identical existing WASM warmup
+helper, preserving its Cancel/render synchronization. The new pure test file is included in the
+source-diff evidence. Model/migration/provider configuration are unchanged, so migration-model
+evidence at `c9c1d7e` remains applicable.
+
+The source-diff SHA-256 before and after the full browser run was
+`BFA620B5AAD3844F63A83E955DDC4309427B1E6CB4E0C817319AD3E1CF6071A4`;
+generated CSS remained
+`559EC45DA0B8540B2DA715B171FC23B565F133D733E9A4C2E727F265495807DC`.
+Only this validation record changed after the run. Full review bodies, conversation comments,
+inline comments and nested thread replies were checked with pagination; no additional findings
+appeared, and all five existing threads remain resolved. This round has no inline thread to resolve.
+The complete round diff received a focused self-review against its two findings, the conflict
+factories and all evidence consumers. Both suppressed findings are addressed; remote CI and a fresh
+automatic review must still cover the pushed commit. `git diff --check` and all 54 relative file
+links in this record pass. No review was requested and no checks were weakened.
 
 ## Browser history validation incident
 

@@ -78,6 +78,7 @@ public sealed partial class HttpPlayerManagementServiceTests
     [InlineData("missingDuplicate")]
     [InlineData("invalidDuplicate")]
     [InlineData("missingReason")]
+    [InlineData("structuredErrors")]
     public async Task CreateRejectsContradictoryConflictEvidenceAsync(string defect)
     {
         var input = CreateInput();
@@ -95,6 +96,10 @@ public sealed partial class HttpPlayerManagementServiceTests
         };
         if (defect is "missingDuplicate") { body.Remove(PlayerCreationProblems.DuplicateExtension); }
         if (defect is "missingReason") { body.Remove(PlayerCreationProblems.ReasonExtension); }
+        if (defect is "structuredErrors")
+        {
+            body["errors"] = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["FirstName"] = ["Invalid value"] };
+        }
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict) { Content = JsonContent.Create(body) };
         using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };

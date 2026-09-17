@@ -10,22 +10,18 @@ public sealed partial class PlayerFormBrowserTests
 {
     /// <summary>A browser-lost acknowledgement retries the exact command and recovers one committed player.</summary>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PlayerFormRetriesSameOperationAfterLostAcknowledgementAsync(bool malformedValidationOnRetry)
+    [InlineData(null)]
+    [InlineData("validation")]
+    [InlineData("conflict")]
+    public async Task PlayerFormRetriesSameOperationAfterLostAcknowledgementAsync(string? retryProblem)
     {
         var ct = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(ct);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
-        await OpenPlayersAsync(page);
-        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page, async () =>
-        {
-            await OpenCreationFormAsync(page);
-            await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
-            await Expect(page.Locator("#player-first-name")).ToHaveCountAsync(0);
-        });
+        await OpenPlayersInWebAssemblyAsync(page);
         var requests = new ConcurrentQueue<string>();
+        long committedPlayerId = 0;
         await page.RouteAsync("**/api/players", async route =>
         {
             if (!string.Equals(route.Request.Method, "POST", StringComparison.Ordinal)) { await route.ContinueAsync(); return; }
@@ -34,12 +30,16 @@ public sealed partial class PlayerFormBrowserTests
             {
                 var committed = await route.FetchAsync();
                 committed.Status.ShouldBe(201);
+                committedPlayerId = JsonSerializer.Deserialize<PlayerCreationCompletion>(await committed.TextAsync(), JsonSerializerOptions.Web)
+                    .ShouldNotBeNull().Player.PlayerId;
                 await committed.DisposeAsync();
                 await route.AbortAsync("failed");
             }
-            else if (malformedValidationOnRetry && requests.Count == 2)
+            else if (retryProblem is not null && requests.Count == 2)
             {
-                await route.FulfillAsync(new() { Status = 422, ContentType = "application/json", Body = "{not-json" });
+                var validation = string.Equals(retryProblem, "validation", StringComparison.Ordinal);
+                var body = validation ? "{not-json" : ContradictoryDuplicateBody(route.Request.PostData!, committedPlayerId);
+                await route.FulfillAsync(new() { Status = validation ? 422 : 409, ContentType = "application/json", Body = body });
             }
             else { await route.ContinueAsync(); }
         });
@@ -49,7 +49,7 @@ public sealed partial class PlayerFormBrowserTests
         await Expect(page.Locator("[role=alert]")).ToContainTextAsync("retry it unchanged");
         await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        if (malformedValidationOnRetry)
+        if (retryProblem is not null)
         {
             await Expect(page.Locator("[role=alert]")).ToContainTextAsync("invalid player creation evidence");
             await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
@@ -57,11 +57,22 @@ public sealed partial class PlayerFormBrowserTests
         }
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
         var sent = requests.ToArray();
-        sent.Length.ShouldBe(malformedValidationOnRetry ? 3 : 2);
+        sent.Length.ShouldBe(retryProblem is not null ? 3 : 2);
         sent.ShouldAllBe(request => string.Equals(request, sent[0], StringComparison.Ordinal));
         await using var db = fixture.AppHost.CreateAdminContext();
         (await db.Players.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(1);
         (await db.PlayerCreationReceipts.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(1);
+    }
+
+    private static string ContradictoryDuplicateBody(string request, long playerId)
+    {
+        var input = JsonSerializer.Deserialize<CreatePlayerInput>(request, JsonSerializerOptions.Web).ShouldNotBeNull();
+        var duplicate = PlayerCreationProblems.Duplicate(input.OperationId, playerId, Nova.SharedKernel.Enums.LifecycleStatus.Active);
+        return JsonSerializer.Serialize(new Dictionary<string, object?>(duplicate.Extensions!, StringComparer.Ordinal)
+        {
+            ["status"] = 409,
+            ["errors"] = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["FirstName"] = ["Invalid value"] }
+        });
     }
 
     /// <summary>Expiry explains directory reconciliation while the original uncertain command stays retained.</summary>

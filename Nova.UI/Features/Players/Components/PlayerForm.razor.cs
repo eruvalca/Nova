@@ -151,9 +151,9 @@ public sealed class PlayerFormState : IValidatableObject
     }
 
     /// <summary>
-    /// Converts this form state to a create-player input payload.
+    /// Converts this form state to the shared profile-validation payload without operation metadata.
     /// </summary>
-    /// <returns>A create-player input payload.</returns>
+    /// <returns>The profile fields used to validate a new player before allocating its operation identity.</returns>
     public PlayerProfileInput ToProfileInput() => new()
     {
         FirstName = FirstName,

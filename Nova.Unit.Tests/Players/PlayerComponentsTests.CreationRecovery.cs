@@ -20,6 +20,16 @@ public sealed partial class PlayerComponentsTests
     [InlineData("FirstName")]
     [InlineData("OperationId")]
     public async Task PlayersRetainsPendingCreationAfterValidationFailureAsync(string field)
+        => await AssertPendingCreationRetainedAsync(_ => ServiceProblem.Validation(field, "Unexpected validation response"));
+
+    [Fact]
+    public async Task PlayersRetainsPendingCreationAfterContradictoryDuplicateAsync()
+        => await AssertPendingCreationRetainedAsync(input => PlayerCreationProblems.Duplicate(input.OperationId, 7, LifecycleStatus.Active) with
+        {
+            Errors = new Dictionary<string, string[]>(StringComparer.Ordinal) { ["FirstName"] = ["Invalid value"] }
+        });
+
+    private async Task AssertPendingCreationRetainedAsync(Func<CreatePlayerInput, ServiceProblem> retryProblem)
     {
         var commands = new List<CreatePlayerInput>();
         var service = Substitute.For<IPlayerManagementService>();
@@ -30,7 +40,7 @@ public sealed partial class PlayerComponentsTests
             ServiceResult<PlayerCreationCompletion> result = commands.Count switch
             {
                 1 => ServiceProblem.ServerError("Lost acknowledgement"),
-                2 => ServiceProblem.Validation(field, "Unexpected validation response"),
+                2 => retryProblem(input),
                 _ => CreationCompletion(input)
             };
             return Task.FromResult(result);

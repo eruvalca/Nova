@@ -37,6 +37,7 @@ public static class PlayerCreationProblems
     /// <summary>Recognizes definitive rejection only for the retained operation, including HTTP-decoded extensions.</summary>
     public static bool IsNotCommitted(ServiceProblem problem, Guid operationId)
         => operationId != Guid.Empty && problem.Kind == ServiceProblemKind.Conflict
+            && problem.Errors is null or { Count: 0 }
             && problem.Extensions is not null
             && problem.Extensions.TryGetValue(ReasonExtension, out var reason)
             && string.Equals(ReadString(reason), "possibleDuplicate", StringComparison.Ordinal)
@@ -47,7 +48,7 @@ public static class PlayerCreationProblems
     /// <summary>Rejects missing or contradictory conflict evidence before a consumer releases pending work.</summary>
     public static bool IsValidConflict(ServiceProblem problem, Guid operationId)
     {
-        if (problem.Kind != ServiceProblemKind.Conflict || problem.Extensions is null
+        if (problem.Kind != ServiceProblemKind.Conflict || problem.Errors is { Count: > 0 } || problem.Extensions is null
             || !problem.Extensions.TryGetValue(ReasonExtension, out var reason)) { return false; }
         return ReadString(reason) switch
         {
@@ -69,7 +70,7 @@ public static class PlayerCreationProblems
     public static bool TryGetDuplicate(ServiceProblem problem, out PlayerCreationDuplicate? duplicate)
     {
         duplicate = null;
-        if (problem.Kind != ServiceProblemKind.Conflict || problem.Extensions is null
+        if (problem.Kind != ServiceProblemKind.Conflict || problem.Errors is { Count: > 0 } || problem.Extensions is null
             || !problem.Extensions.TryGetValue(DuplicateExtension, out var value)) { return false; }
         try
         {
