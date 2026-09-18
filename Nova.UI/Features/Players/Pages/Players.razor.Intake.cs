@@ -470,7 +470,10 @@ public partial class Players
         // This read can also land a retained command, so withhold input until it settles; focus is
         // requested once it has, so it lands in a field the member can actually use.
         _recoveryChecked = false;
-        _recoveryScope = null;
+        // Claim the scope before awaiting so this read has exactly one owner. Releasing it here would
+        // let the render that precedes the await start a second read, whose landed command could
+        // overwrite input the member typed meanwhile.
+        _recoveryScope = CurrentScope;
         await RestoreRecoveryAsync();
         _board?.RequestFocusOnFirstField();
     }

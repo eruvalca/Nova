@@ -626,6 +626,34 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.FindAll("#archive-confirmation").Count.ShouldBe(0);
     }
 
+    /// <summary>A detail read that finished after the claimed club changed cannot repopulate the view.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresADetailReadThatFinishedAfterTheClaimedClubChangedAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+
+        // The previous club's read answers last and must not overwrite the new scope's player.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Avery", lastName: "Johnson"))));
+
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+    }
+
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,

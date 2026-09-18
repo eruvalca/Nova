@@ -529,6 +529,35 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check, findings 1-2 | With both fixes reverted (the retry clearing without ownership, and the page computing its authority only in `OnInitializedAsync` with no subscription or disposal), the three new cases reported **3 failed, 0 passed** — on the erased storage report and on both detail-page authority paths. Restored from a byte-identical snapshot with timestamps touched before the rebuild. |
 | Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, with the signature captured last round (the record page's back link still resolving to the innermost return destination when the 5s `ToHaveAttributeAsync` window closed), and it **passed alone on the same build** (**1 total, 1 passed**). The second run was clean: **228 total, 218 passed, 0 failed, 10 skipped**, which satisfies the before-merge row for this revision; the ten skips are the pre-existing env-gated captures. This section was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, fifth pass (PR #285, on `f7a3c593`)
+
+Copilot reviewed `f7a3c593` and raised **one inline finding** plus **three suppressed findings**. Two
+are dispositioned with code and a test, one with the contract narrowing the finding itself offered,
+and one with a guard whose race the unit harness cannot drive — kept for the invariant and disclosed
+rather than pinned by a case that does not discriminate.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 (inline) | Player detail's club rebind cleared the detail and started a replacement load without invalidating the previous `LoadDetailAsync` or lifecycle mutation, so a late response from the old club could repopulate `_detail` or publish an archive/restore result | **Fixed.** A club-scope generation (`_clubScopeVersion`) is incremented when the claimed club changes, and `LoadDetailAsync`, `ConfirmArchiveAsync` and `RestorePlayerAsync` re-check it before applying any state; the rebind also clears the in-flight mutation flag so the new scope's controls are not left disabled. New case `PlayerDetailIgnoresADetailReadThatFinishedAfterTheClaimedClubChangedAsync` holds the first club's read open, rebinds to the next club, answers the stale read last and asserts the new scope's player survives. |
+| 2 (suppressed) | A same-owner authentication refresh preserved only the pending/recovery fields while `ResetIdentityState` cleared `_receipt`, `_unreleasedOperationId` and `_storageUnavailable`, so a role refresh after a successful create replaced the receipt (and its release retry) with a blank form, losing **Add another**/**View player** and re-presenting the record as unresolved | **Fixed.** The preserved intake state now carries the settled receipt and its release state for the same owner (`CaptureIntakeState`/`RestoreIntakeState`), and `ApplyRouteState` resets only at a real boundary — a path change or an owner change — because the identity reset also clears the route flags that keep the board on the form. New case `PlayersPreservesTheSettledReceiptAndRetryAcrossARoleRefreshAsync`. |
+| 3 (suppressed) | Starting another addition released the recovery scope claim before its read awaited, so the render that precedes the await could start a second read whose landed command overwrote input typed meanwhile | **Fixed, with no discriminating test.** The re-read claims `CurrentScope` before awaiting, exactly as the initial recovery path does, and `RestoreRecoveryAsync` still releases the claim on a version mismatch, so no board can be left stuck shut. The case written for it **passed with the guard removed** — the harness cannot produce the render-between-await the race needs — so it was deleted rather than kept as false evidence, as the intake-context guard in round 3 was. |
+| 4 (suppressed) | The departure guard intercepts same-origin link clicks and document unload but not browser Back/Forward (`popstate`/Navigation API), so history traversal can discard typed input without the confirmation | **Contract narrowed, which the finding's own alternative allows.** Protecting traversal needs the Navigation API dance `evaluationNavigationGuard.js` performs (restore the origin entry, marshal the prompt, replay the permit) — a feature of its own rather than a review-round fix. The module now names the gap beside its click listener, and the limitations below record it with the rationale; document unload and same-origin link departure remain the guard's stated contract. |
+
+### Confirming evidence (Copilot fifth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`f7a3c593`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. Two earlier builds of this pass failed: `MA0051` (the identity handler exceeded 40 statements, corrected by extracting the intake-state record and its two helpers) and a leftover unused local during the negative check. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3832 total, 3832 passed, 0 failed, 0 skipped**. The previous full pass was 3830, so the two new cases are the entire delta. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*' --filter-class '*PlayerDetailBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check, findings 1-3 | With the three guards reverted together (no club-scope generation, the receipt/release state not preserved and `ApplyRouteState` resetting unconditionally, and the scope claim released before the re-read), the run reported **2 failed, 1 passed**. The two failures are findings 1 and 2; the third case is the one described above that cannot discriminate, and it was deleted. Restored from a byte-identical snapshot with timestamps touched before the rebuild. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **228 total, 218 passed, 0 failed, 10 skipped** on the first attempt: the clean pass the before-merge row requires, with the ten skips being the pre-existing env-gated captures. The paragraphs of this section were written after that pass and change no application or browser-suite input, so the pass still covers the tested revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -688,6 +717,14 @@ evidence above is unchanged by it.
 - `IPlayerIntakeInterop` is public because a Razor component's constructor must be public; the
   interface and its result types are therefore part of `Nova.UI`'s public surface. This is a
   deliberate trade-off for testability and is recorded rather than hidden.
+- **The uncommitted-departure guard does not intercept browser Back/Forward.** It covers document
+  unload and same-origin link departure, which is the contract the module's own comment states; a
+  history traversal therefore discards typed input without the confirmation those two paths give.
+  Closing it needs the Navigation API pattern `evaluationNavigationGuard.js` implements — restore the
+  origin entry, marshal the prompt across interop, replay the permitted traversal — which is a feature
+  of its own, offered by review round 5 as the finding's alternative to narrowing the contract, and
+  taken as such. The module names the gap beside its click listener so a reader does not infer the
+  wider coverage.
 
 ## Design evidence
 

@@ -86,6 +86,12 @@ public partial class PlayerDetail(
     private long? _clubId;
 
     /// <summary>
+    /// The club scope generation. Detail reads and lifecycle mutations re-check it before applying
+    /// state, so a response that belongs to a scope this page has left cannot repopulate the view.
+    /// </summary>
+    private int _clubScopeVersion;
+
+    /// <summary>
     /// Indicates whether the archive confirmation panel is open.
     /// </summary>
     private bool _showArchiveConfirm;
@@ -168,8 +174,11 @@ public partial class PlayerDetail(
 
         if (_clubId != previousClub)
         {
-            // Rebind to the newly claimed club: drop the stale detail and reload against the new
-            // scope, which re-authorizes server-side and redirects when the claim no longer allows it.
+            // Rebind to the newly claimed club: invalidate every in-flight scope-bound response,
+            // drop the stale detail and reload against the new scope, which re-authorizes
+            // server-side and redirects when the claim no longer allows it.
+            ++_clubScopeVersion;
+            _isMutating = false;
             _detail = null;
             _error = null;
             _isNotFound = false;
@@ -215,11 +224,18 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when loading and state updates are finished.</returns>
     private async Task LoadDetailAsync()
     {
+        var version = _clubScopeVersion;
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
         var result = await playerDetailService.GetPlayerDetailAsync(PlayerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // This read belongs to a club scope the page has left.
+            return;
+        }
+
         result.Switch(
             detail =>
             {
@@ -287,11 +303,18 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
+        var version = _clubScopeVersion;
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];
 
         var result = await playerLifecycleService.ArchiveAsync(_archiveSubjectId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The outcome belongs to a club scope the page has left.
+            return;
+        }
+
         result.Switch(
             _ =>
             {
@@ -321,10 +344,17 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task RestorePlayerAsync()
     {
+        var version = _clubScopeVersion;
         _isMutating = true;
         _mutationError = null;
 
         var result = await playerLifecycleService.RestoreAsync(PlayerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The outcome belongs to a club scope the page has left.
+            return;
+        }
+
         result.Switch(
             _ => _statusMessage = PlayerLifecycleCopy.RestoredResult,
             problem => _mutationError = problem.Detail ?? "Could not restore player.");

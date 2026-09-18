@@ -837,7 +837,8 @@ public sealed partial class PlayerComponentsTests
         await submission;
 
         // The stale continuation belongs to the identity that dispatched the command, so it must
-        // neither erase the preserved state nor report another club's refusal or storage trouble.
+        // neither erase the preserved state nor report another club's refusal. The storage report is
+        // cleared by the refresh's own successful read, not by the late release.
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
         cut.FindAll("#intake-duplicate").Count.ShouldBe(0);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
@@ -971,6 +972,36 @@ public sealed partial class PlayerComponentsTests
         // The late continuation belongs to the operation it released, so it neither clears the newer
         // report nor claims a storage state for a page it no longer owns.
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1);
+    }
+
+    /// <summary>A same-owner refresh keeps the settled receipt and the release retry it left.</summary>
+    [Fact]
+    public async Task PlayersPreservesTheSettledReceiptAndRetryAcrossARoleRefreshAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // A role-only refresh is the same owner's intake: it must not replace the settled receipt (and
+        // the actions it carries) with a blank form, nor hide the record it could not release. The
+        // refresh's own read fails here, which is the state the member then sees.
+        Interop.FailReads = true;
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        cut.FindAll("#intake-add-another").Count.ShouldBe(1);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
     }
 
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)

@@ -132,6 +132,11 @@ export function attachDepartureGuard(root, receiver, lease) {
         event.returnValue = "";
     }, options);
 
+    // Known gap: browser Back/Forward (history traversal) is not intercepted, so it is the one
+    // departure path that can discard typed input without this prompt. Protecting it needs the
+    // Navigation API traversal dance the evaluation surface's guard implements, which is a feature of
+    // its own and is not part of this board's contract (document unload and same-origin link
+    // departure are).
     document.addEventListener("click", event => {
         if (activeGuard !== state || !state.dirty || !state.root.isConnected || event.defaultPrevented
             || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

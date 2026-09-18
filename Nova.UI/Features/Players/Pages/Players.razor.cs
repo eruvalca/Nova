@@ -58,10 +58,22 @@ public partial class Players(
     private int _authenticationVersion;
     private bool _identityApplied;
     private string CurrentScope => $"{_userId}:{_clubId}:{_isClubAdmin}";
+
+    /// <summary>
+    /// The club-and-member identity that owns route-scoped state. Capabilities are deliberately
+    /// excluded: a role change is the same owner's view, so its transient state survives the refresh.
+    /// </summary>
+    private string CurrentOwner => $"{_userId}:{_clubId}";
     private string _searchDraft = string.Empty;
     private PlayersUrlState _urlState = new();
     private string? _locationKey;
     private string? _loadedQuery;
+
+    /// <summary>The route path whose per-route reset was last applied.</summary>
+    private string? _appliedRoutePath;
+
+    /// <summary>The club-and-member owner the per-route reset was last applied for.</summary>
+    private string? _appliedRouteOwner;
     private bool _metadataStarted;
     private PlayerFormState _createForm = PlayerFormState.CreateDefault();
     private PlayerFormState? _editForm;
@@ -187,14 +199,7 @@ public partial class Players(
             && admin == _isClubAdmin && member == _canManagePlayers) { return; }
         var previousIdentity = _identityApplied;
         var sameOwner = previousIdentity && club == _clubId && string.Equals(user, _userId, StringComparison.Ordinal);
-        // A retained command keeps its bytes and its identity across a role-only change, which
-        // invalidates visible capabilities without settling unresolved work.
-        var pending = sameOwner ? _pendingCreate : null;
-        var recovery = sameOwner ? _recoveryState : PlayerCreationRecoveryState.None;
-        var invalid = sameOwner ? _invalidRetainedValue : null;
-        var retainedName = sameOwner ? _retainedPlayerName : null;
-        var form = _createForm;
-        var status = sameOwner ? _statusMessage : null;
+        var intake = CaptureIntakeState(sameOwner);
         ++_identityVersion;
         CancelSource(ref _identitySource);
         _identitySource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
@@ -206,12 +211,7 @@ public partial class Players(
         if (previousIdentity)
         {
             ResetIdentityState();
-            _pendingCreate = pending;
-            _recoveryState = recovery;
-            _invalidRetainedValue = invalid;
-            _retainedPlayerName = retainedName;
-            if (pending is not null) { _createForm = form; }
-            _statusMessage = status;
+            RestoreIntakeState(intake);
             if (!sameOwner)
             {
                 _urlState = new();
@@ -220,6 +220,64 @@ public partial class Players(
         }
         StateHasChanged();
         await ReconcileLocationAsync();
+    }
+
+    /// <summary>
+    /// The intake state one identity owns, carried across a same-owner refresh. A role-only change
+    /// invalidates visible capabilities without settling retained or already settled work.
+    /// </summary>
+    /// <param name="Pending">The retained command, when one is held.</param>
+    /// <param name="Recovery">The recovery state that command implies.</param>
+    /// <param name="InvalidValue">The exact unreadable retained bytes, when they were inspected.</param>
+    /// <param name="RetainedName">The retained command's player name.</param>
+    /// <param name="Form">The board's form state.</param>
+    /// <param name="Status">The page's status message.</param>
+    /// <param name="Receipt">The settled receipt, when the operation has one.</param>
+    /// <param name="UnreleasedOperationId">The settled operation whose record the browser still holds.</param>
+    /// <param name="StorageUnavailable">Whether the browser's recovery storage was unavailable.</param>
+    private sealed record IntakeState(
+        CreatePlayerInput? Pending,
+        PlayerCreationRecoveryState Recovery,
+        string? InvalidValue,
+        string? RetainedName,
+        PlayerFormState Form,
+        string? Status,
+        PlayerCreationCompletion? Receipt,
+        Guid? UnreleasedOperationId,
+        bool StorageUnavailable);
+
+    /// <summary>Captures the intake state this owner keeps across an identity refresh.</summary>
+    /// <param name="sameOwner">Whether the refresh belongs to the same club and member.</param>
+    /// <returns>The state to restore, with another owner's values already dropped.</returns>
+    private IntakeState CaptureIntakeState(bool sameOwner)
+        => new(
+            sameOwner ? _pendingCreate : null,
+            sameOwner ? _recoveryState : PlayerCreationRecoveryState.None,
+            sameOwner ? _invalidRetainedValue : null,
+            sameOwner ? _retainedPlayerName : null,
+            _createForm,
+            sameOwner ? _statusMessage : null,
+            sameOwner ? _receipt : null,
+            sameOwner ? _unreleasedOperationId : null,
+            sameOwner && _storageUnavailable);
+
+    /// <summary>
+    /// Restores the captured intake state after the identity reset. A retained command keeps its bytes,
+    /// and a settled receipt keeps its release retry, so neither a role-only refresh nor a document
+    /// reload can present the member with a blank form over work that still needs an outcome.
+    /// </summary>
+    /// <param name="state">The state captured before the reset.</param>
+    private void RestoreIntakeState(IntakeState state)
+    {
+        _pendingCreate = state.Pending;
+        _recoveryState = state.Recovery;
+        _invalidRetainedValue = state.InvalidValue;
+        _retainedPlayerName = state.RetainedName;
+        if (state.Pending is not null) { _createForm = state.Form; }
+        _statusMessage = state.Status;
+        _receipt = state.Receipt;
+        _unreleasedOperationId = state.UnreleasedOperationId;
+        _storageUnavailable = state.StorageUnavailable;
     }
 
     private void ResetIdentityState()
@@ -306,8 +364,23 @@ public partial class Players(
     /// <summary>Resets per-route feedback and transient mutation state at a real navigation boundary.</summary>
     private void ApplyRouteState(string path)
     {
+        // Which route this is always derives from the path: the identity reset clears these flags with
+        // the rest of the state, so the view must be re-derived even when nothing else is reset.
         _showCreateForm = string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase);
         _isEditRoute = path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase);
+
+        // The transient resets belong to a real boundary: the same path applied again for the same
+        // owner — an authentication refresh, or a repeated location notification — is the same view,
+        // and resetting it would replace a settled receipt (with its release retry) with a blank form.
+        var routeChanged = !string.Equals(_appliedRoutePath, path, StringComparison.OrdinalIgnoreCase);
+        var ownerChanged = !string.Equals(_appliedRouteOwner, CurrentOwner, StringComparison.Ordinal);
+        if (!routeChanged && !ownerChanged)
+        {
+            return;
+        }
+
+        _appliedRoutePath = path;
+        _appliedRouteOwner = CurrentOwner;
         _editForm = null;
         _receipt = null;
         _fieldErrors = null;
