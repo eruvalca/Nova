@@ -61,43 +61,59 @@ export function readRecovery(actorUserId, clubId) {
     }
 }
 
+// localStorage has no compare-and-swap, so every read-then-write pair here is a cross-tab race: two
+// same-owner tabs can both observe an empty record and each persist a different command (the loser's
+// acknowledgement then has no recoverable record), and a removal that validated one operation can
+// delete a newer one written in between. Web Locks makes each read/validate/write one critical section
+// per owner, which is what the reservation and both removals need. Where the API is absent the work
+// runs unguarded: the boundary stays usable and the single-tab contract is unchanged.
+function withOwnerLock(actorUserId, clubId, work) {
+    const locks = globalThis.navigator?.locks;
+    return locks?.request ? locks.request(ownerKey(actorUserId, clubId), work) : work();
+}
+
 export function writePending(actorUserId, clubId, json) {
     const value = validate(json);
     if (value.actorUserId !== actorUserId || value.payload.clubId !== clubId) {
         throw new Error("Stored player creation belongs to another owner.");
     }
 
-    const key = ownerKey(actorUserId, clubId);
-    const existing = readRecovery(actorUserId, clubId);
-    if (existing.invalidValue !== null) {
-        throw new Error("Set aside the retained player creation before starting another.");
-    }
-    if (existing.json !== null) {
-        const current = validate(existing.json);
-        if (current.payload.operationId.toLowerCase() !== value.payload.operationId.toLowerCase()) {
-            throw new Error("Recover the existing player creation before starting another.");
+    return withOwnerLock(actorUserId, clubId, () => {
+        const existing = readRecovery(actorUserId, clubId);
+        if (existing.invalidValue !== null) {
+            throw new Error("Set aside the retained player creation before starting another.");
         }
-    }
+        if (existing.json !== null) {
+            const current = validate(existing.json);
+            if (current.payload.operationId.toLowerCase() !== value.payload.operationId.toLowerCase()) {
+                throw new Error("Recover the existing player creation before starting another.");
+            }
+        }
 
-    localStorage.setItem(key, json);
-    return json;
+        localStorage.setItem(ownerKey(actorUserId, clubId), json);
+        return json;
+    });
 }
 
 export function clearPending(actorUserId, clubId, operationId) {
-    const current = readRecovery(actorUserId, clubId);
-    if (current.json === null || !operationId) return false;
-    if (validate(current.json).payload.operationId.toLowerCase() !== operationId.toLowerCase()) return false;
-    localStorage.removeItem(ownerKey(actorUserId, clubId));
-    return true;
+    return withOwnerLock(actorUserId, clubId, () => {
+        const current = readRecovery(actorUserId, clubId);
+        if (current.json === null || !operationId) return false;
+        if (validate(current.json).payload.operationId.toLowerCase() !== operationId.toLowerCase()) return false;
+        localStorage.removeItem(ownerKey(actorUserId, clubId));
+        return true;
+    });
 }
 
 export function discardInvalidPending(actorUserId, clubId, expectedValue) {
-    const key = ownerKey(actorUserId, clubId);
-    const raw = localStorage.getItem(key);
-    // Compare the exact inspected bytes; repaired or replaced evidence stays recoverable.
-    if (raw === null || raw !== expectedValue) return false;
-    localStorage.removeItem(key);
-    return true;
+    return withOwnerLock(actorUserId, clubId, () => {
+        const key = ownerKey(actorUserId, clubId);
+        const raw = localStorage.getItem(key);
+        // Compare the exact inspected bytes; repaired or replaced evidence stays recoverable.
+        if (raw === null || raw !== expectedValue) return false;
+        localStorage.removeItem(key);
+        return true;
+    });
 }
 
 // One board owns the guard at a time. It is keyed by the caller's lease, not by an element

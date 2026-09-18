@@ -55,10 +55,11 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             const created = Number.parseInt(payload.operationId.replaceAll('-', '').slice(0, 12), 16);
             const json = JSON.stringify({ actorUserId: 101,
                 recoveryExpiresAt: new Date(created + 86400000).toISOString(), payload });
-            m.writePending(101, 42, json);
+            // The reservation and the removals take the cross-tab lock, so they answer with a promise.
+            await m.writePending(101, 42, json);
             const read = m.readRecovery(101, 42);
             const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
-            const cleared = m.clearPending(101, 42, payload.operationId);
+            const cleared = await m.clearPending(101, 42, payload.operationId);
             const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
             return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
                 m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked'].join('|');

@@ -558,6 +558,37 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check, findings 1-3 | With the three guards reverted together (no club-scope generation, the receipt/release state not preserved and `ApplyRouteState` resetting unconditionally, and the scope claim released before the re-read), the run reported **2 failed, 1 passed**. The two failures are findings 1 and 2; the third case is the one described above that cannot discriminate, and it was deleted. Restored from a byte-identical snapshot with timestamps touched before the rebuild. |
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **228 total, 218 passed, 0 failed, 10 skipped** on the first attempt: the clean pass the before-merge row requires, with the ten skips being the pre-existing env-gated captures. The paragraphs of this section were written after that pass and change no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, sixth pass (PR #285, on `51436be9`)
+
+Copilot reviewed `51436be9` and raised **two inline findings**, both on the collocated storage module's
+cross-tab behaviour, and both dispositioned below.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `writePending`'s owner check and `localStorage.setItem` were a cross-tab check-then-set: two same-owner tabs could both observe an empty record, persist different operation ids and dispatch, and the last write would overwrite the first — so a lost acknowledgement for the first command had no recoverable record | **Fixed with the platform's own primitive.** `writePending` now runs its read/validate/write inside a Web Locks critical section keyed by the owner (`navigator.locks.request(ownerKey, …)`), so the reservation is atomic across tabs of the same origin. Where the API is absent the work runs unguarded, exactly as before, so the boundary stays usable and single-tab behaviour is unchanged. |
+| 2 | `clearPending` had the same TOCTOU — read and validate one operation, then remove the key later — so a removal that raced another tab's new write could delete the newer command's record; `discardInvalidPending` shared it | **Fixed.** Both removals now perform their read, validate and `removeItem` inside the same owner-scoped lock, so a removal can only delete the operation it validated. |
+
+The module's storage entry points therefore answer with a promise when the lock is taken. That is a
+contract change only at the boundary the C# side already awaits (`IPlayerIntakeInterop` is
+`Task`-returning and `PlayerCreationRecoveryStore` awaits every call), and the suite's own probe was
+updated to await the reservation and removal it drives directly.
+
+### Confirming evidence (Copilot sixth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`51436be9`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Module contract in a real browser | `--filter-method '*IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync*'` — **1 total, 1 passed**, driving the module's own `writePending`/`readRecovery`/`clearPending`/`discardInvalidPending` contract directly. Its first run after the change failed on that probe reading a promise as a value (`[object Promise]`), which is the correction recorded above, not a module defect. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped** on the re-run. The first run of the same selection reported three failures: the module probe above, plus the two long directory journeys this record tracks as load-sensitive; both of those passed in this re-run. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3832 total, 3832 passed** on `51436be9`'s inputs; this pass changes no unit-test input (the module is exercised by the browser suite), so that result still covers it. |
+| Full integration | **678 total, 678 passed** on `51436be9`'s inputs, unchanged by this pass for the same reason. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Cross-tab atomicity coverage | **None automated, and stated as such.** The lock is verified by reading the module and by the single-tab contract the browser suite exercises; a genuine two-tab test would need a second browser context racing the same origin, which this suite does not do. The behaviour the lock changes (last-write-wins on a raced reservation, a stale removal deleting a newer record) is therefore reasoned, not pinned. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **228 total, 216 passed, 2 failed, 10 skipped**. Both failures are the two long directory journeys this record tracks as load-sensitive (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` at 8s and `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` at 32s); both passed in the affected selection's re-run on this same build (**21 total, 20 passed, 0 failed**), which is the isolated-pass evidence this record uses for that class. The before-merge clean full pass is therefore outstanding for this revision, and the last clean pass covers `51436be9`. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
