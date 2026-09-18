@@ -605,6 +605,44 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         await detailService.Received(2).GetPlayerDetailAsync(7, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Another member of the same club is a different caller, so the scope rebinds.</summary>
+    [Fact]
+    public async Task PlayerDetailRebindsScopeWhenAnotherMemberOfTheSameClubTakesOverAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<Success>>();
+        var reads = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++reads == 1
+                ? Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail()))
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => held.Task);
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        var archive = cut.Find("#archive-commit").ClickAsync(new());
+
+        // Another member of the same club takes over while the archive is still in flight.
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, userId: "202")));
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<Success>(new Success())));
+        await archive;
+
+        // The club is the same but the caller is not: the reviewed panel closes, the detail is re-read for
+        // the caller now on screen, and the previous caller's completed mutation reports nothing here.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(0));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Markup.ShouldNotContain("Player archived.");
+        reads.ShouldBe(2);
+    }
+
     /// <summary>Losing club membership closes the reviewed panel and its controls.</summary>
     [Fact]
     public async Task PlayerDetailClosesTheReviewedPanelWhenMembershipIsRevokedAsync()
@@ -751,11 +789,12 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             Notes: notes ?? [],
             TagApplications: tagApplications ?? []);
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true, long clubId = 42)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true, long clubId = 42,
+        string userId = "101")
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101")
+            new(ClaimTypes.NameIdentifier, userId)
         };
 
         if (hasClubMembership)

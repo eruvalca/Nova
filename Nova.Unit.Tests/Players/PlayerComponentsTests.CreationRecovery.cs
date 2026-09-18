@@ -67,6 +67,45 @@ public sealed partial class PlayerComponentsTests
         }
     }
 
+    /// <summary>A creation that answers after the member left the form keeps its exact request recoverable.</summary>
+    [Fact]
+    public async Task PlayersKeepsACommittedCreationRecoverableWhenTheRouteChangesMidFlightAsync()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlayerCreationCompletion>>();
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            return pending.Task;
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var save = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => commands.Count.ShouldBe(1));
+
+        // The member leaves the form while the request is still in flight, and the server commits it.
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => pending.SetResult(new(CreationCompletion(commands[0]))));
+        await save;
+
+        // Nothing about the committed operation is published into the directory view, and its exact
+        // command is still retained: that record is what makes the receipt recoverable rather than lost.
+        await cut.WaitForAssertionAsync(() => Interop.Read(101, 42).ShouldNotBeNull());
+        cut.FindAll("#intake-view-player").Count.ShouldBe(0);
+        cut.Markup.ShouldNotContain("Player created.");
+
+        // Returning to the form recovers the same operation and settles it from the server's receipt.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Replay the retained addition"));
+        await cut.Find("#intake-submit").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Enrolled in Original campaign."));
+        commands.Count.ShouldBe(2);
+        commands[1].ShouldBeSameAs(commands[0]);
+        Interop.Read(101, 42).ShouldBeNull();
+    }
+
     /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("FirstName")]
@@ -911,14 +950,71 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
 
-        // Every other profiled field renders its server messages beside its control; Gender must too,
-        // or a server error keyed to it is omitted from the per-field feedback contract. The invalid
-        // state is carried by the class, because InputSelect drops unmatched aria-* attributes where
-        // the other inputs splat them.
+        // Every other profiled field renders its server messages beside its control; Gender must too, or a
+        // server error keyed to it is omitted from the per-field feedback contract. The invalid state is
+        // carried by the class, because these form components own aria-invalid and report only the
+        // validation their own edit context holds, while the message the server keyed to this field is
+        // named by the attribute the control carries.
         await service.Received(1).CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Choose a listed gender."));
         cut.Find("#player-gender").ParentElement!.TextContent.ShouldContain("Choose a listed gender.");
         cut.Find("#player-gender").GetAttribute("class").ShouldNotBeNull().ShouldContain("is-invalid");
+        cut.Find("#player-gender").GetAttribute("aria-describedby").ShouldBe("player-gender-error");
+        cut.Find("#player-gender-error").TextContent.ShouldContain("Choose a listed gender.");
+    }
+
+    /// <summary>A field with server feedback names the region holding that message.</summary>
+    [Fact]
+    public async Task PlayersDescribesAServerFieldMessageFromItsControlAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                ServiceProblem.Validation(nameof(PlayerProfileInput.FirstName), "Use the name the club records."))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+
+        // Nothing to describe yet, so the field names no region it does not have.
+        cut.Find("#player-first-name").HasAttribute("aria-describedby").ShouldBeFalse();
+
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        // The control that carries the refusal names the region its message renders in, so the reason is
+        // available where the field is marked, rather than only as text elsewhere on the page. The mark is
+        // the class: the form component reports only the validation its own edit context holds, so a
+        // message the server keyed to this field never reaches its aria-invalid.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Use the name the club records."));
+        cut.Find("#player-first-name").GetAttribute("class").ShouldNotBeNull().ShouldContain("is-invalid");
+        cut.Find("#player-first-name").GetAttribute("aria-describedby").ShouldBe("player-first-name-error");
+        cut.Find("#player-first-name-error").TextContent.ShouldContain("Use the name the club records.");
+    }
+
+    /// <summary>A message the form produced before any request is described the same way.</summary>
+    [Fact]
+    public async Task PlayersDescribesItsOwnValidationMessageFromItsControlAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+
+        // An untouched form is refused before any request is made, so the messages the browser produced
+        // are the only feedback there is — and the control still points at them.
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name")
+            .GetAttribute("aria-describedby").ShouldBe("player-first-name-error"));
+        // This refusal is the edit context's own, so the form component reports it on the control itself.
+        cut.Find("#player-first-name").GetAttribute("aria-invalid").ShouldBe("true");
+        cut.Find("#player-first-name-error").TextContent.ShouldNotBeNullOrWhiteSpace();
+        await service.DidNotReceive().CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>A refused operation whose bytes cannot be released stays blocked with the retry.</summary>

@@ -86,8 +86,17 @@ public partial class PlayerDetail(
     private long? _clubId;
 
     /// <summary>
-    /// The club scope generation. Detail reads and lifecycle mutations re-check it before applying
-    /// state, so a response that belongs to a scope this page has left cannot repopulate the view.
+    /// The authenticated caller's identity from the current principal's claims. Tracked beside the club
+    /// because the scope this page binds belongs to one member of one club: another member of the same
+    /// club is a different caller, and neither the reviewed panel nor an in-flight mutation of the
+    /// previous caller may be left attached to them.
+    /// </summary>
+    private string? _userId;
+
+    /// <summary>
+    /// The scope generation, which identifies the caller's club scope. Detail reads and lifecycle
+    /// mutations re-check it before applying state, so a response that belongs to a scope this page has
+    /// left — another club, or another member of this club — cannot repopulate the view.
     /// </summary>
     private int _clubScopeVersion;
 
@@ -154,6 +163,7 @@ public partial class PlayerDetail(
         var club = ReadClubIdClaim(principal);
         var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         _clubId = club;
+        _userId = user;
         _canManagePlayers = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
         return _canManagePlayers;
     }
@@ -165,8 +175,9 @@ public partial class PlayerDetail(
 
     /// <summary>
     /// Applies an authentication-state change: closes management state the change may have revoked and
-    /// rebinds the club-scoped detail, so a page that stays mounted cannot keep showing the previous
-    /// scope's player or offer its lifecycle controls.
+    /// rebinds the scoped detail, so a page that stays mounted cannot keep showing the previous scope's
+    /// player or offer its lifecycle controls. The scope is the caller's club scope, so it changes when
+    /// either the club or the member changes.
     /// </summary>
     /// <param name="stateTask">The authentication state task produced by the change event.</param>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
@@ -180,12 +191,15 @@ public partial class PlayerDetail(
         }
 
         var previousClub = _clubId;
+        var previousCaller = _userId;
         var canManage = ApplyAuthority(authState.User);
+        var scopeChanged = _clubId != previousClub || !string.Equals(_userId, previousCaller, StringComparison.Ordinal);
 
-        if (!canManage || _clubId != previousClub)
+        if (!canManage || scopeChanged)
         {
-            // A reviewed panel belongs to the authority that opened it: neither a revoked membership
-            // nor another club's claim may leave it actionable.
+            // A reviewed panel belongs to the caller that opened it: a revoked membership, another
+            // club's claim, or another member of this club may not leave it actionable, and neither may
+            // the previous caller's outcome messages stay on screen for a caller they do not describe.
             CancelArchive();
             _archiveSubjectId = 0;
             _archiveSubjectName = string.Empty;
@@ -193,9 +207,9 @@ public partial class PlayerDetail(
             _statusMessage = null;
         }
 
-        if (_clubId != previousClub)
+        if (scopeChanged)
         {
-            // Rebind to the newly claimed club: invalidate every in-flight scope-bound response,
+            // Rebind to the newly claimed scope: invalidate every in-flight scope-bound response,
             // drop the stale detail and reload against the new scope, which re-authorizes
             // server-side and redirects when the claim no longer allows it.
             ++_clubScopeVersion;

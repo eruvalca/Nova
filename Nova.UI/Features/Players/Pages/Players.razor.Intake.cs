@@ -205,6 +205,32 @@ public partial class Players
         }
 
         _isMutating = false;
+        await ApplyCreationOutcomeAsync(result, command);
+    }
+
+    /// <summary>
+    /// Applies one creation outcome to the view that dispatched it. A member who left the create form
+    /// while the request was in flight is told nothing about it here: the exact command stays retained,
+    /// because it is the only durable evidence of a dispatch that may well have committed, and the same
+    /// operation identity recovers the same receipt server-side when they return.
+    /// </summary>
+    /// <param name="result">The outcome the server returned for the retained command.</param>
+    /// <param name="command">The exact retained command the outcome belongs to.</param>
+    /// <returns>A task that completes when the outcome has been applied.</returns>
+    private async Task ApplyCreationOutcomeAsync(ServiceResult<PlayerCreationCompletion> result, CreatePlayerInput command)
+    {
+        if (!_showCreateForm)
+        {
+            // A committed creation still refreshes the directory, which is the one place its new player
+            // is visible to the member who walked away from the form.
+            if (result.IsSuccess)
+            {
+                await RefreshDirectoryAsync();
+            }
+
+            return;
+        }
+
         if (result.IsSuccess)
         {
             await SettleCommittedAsync(result.Value, command);

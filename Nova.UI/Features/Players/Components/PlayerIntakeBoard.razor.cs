@@ -206,12 +206,16 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     protected bool HasNothingUnsaved => !CanManage || ShowsReceipt || IsEntryBlocked || (IsFrozen && !_setAsidePending);
 
     /// <summary>
-    /// Gets the gender select's class. The invalid state is carried here rather than as an
-    /// <c>aria-invalid</c> attribute because <see cref="InputSelect"/> drops unmatched attributes,
-    /// while the inputs that splat them carry the attribute directly.
+    /// Gets a profile field's class, marking the invalid state Bootstrap styles. The form components own
+    /// <c>aria-invalid</c> and ignore one supplied to them, and they report only the validation their own
+    /// edit context holds, so a message the server keyed to this field has to be shown as the class the
+    /// surface's own invalid state uses.
     /// </summary>
-    protected string GenderSelectClass
-        => FieldErrorsFor(nameof(PlayerFormState.Gender)).Count > 0 ? "form-select is-invalid" : "form-select";
+    /// <param name="field">The profile field name.</param>
+    /// <param name="baseClass">The class the field carries when it has nothing to correct.</param>
+    /// <returns>The field class, with the invalid state while the field has feedback.</returns>
+    protected string FieldClass(string field, string baseClass)
+        => FieldHasError(field) ? $"{baseClass} is-invalid" : baseClass;
 
     /// <summary>
     /// Gets the id of the note that explains the field set's current refusal, or null when the fields
@@ -332,6 +336,18 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     protected IReadOnlyList<string> FieldErrorsFor(string field)
         => FieldErrors is not null && FieldErrors.TryGetValue(field, out var messages) ? messages : [];
 
+    /// <summary>
+    /// Gets whether a profile field has feedback to describe. The bound form's own validation message and
+    /// the server's per-field messages both render inside the field's error region, so the control names
+    /// that region whenever either has something to say: assistive technology hears what to correct
+    /// rather than only that the field is invalid.
+    /// </summary>
+    /// <param name="field">The profile field name.</param>
+    /// <returns><see langword="true"/> when the field has a message to describe.</returns>
+    protected bool FieldHasError(string field)
+        => FieldErrorsFor(field).Count > 0
+            || _editContext.GetValidationMessages(new FieldIdentifier(Model, field)).Any();
+
     /// <summary>Projects the duplicate record into its destination link.</summary>
     /// <returns>The duplicate destination, or null when there is nothing to inspect.</returns>
     protected Uri? DuplicateUrl => Duplicate is { } duplicate && DetailUrlFactory is not null
@@ -363,6 +379,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (!_subscribed)
         {
             _editContext.OnFieldChanged += OnFieldChanged;
+            _editContext.OnValidationStateChanged += OnValidationStateChanged;
             _subscribed = true;
         }
 
@@ -508,6 +525,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (_subscribed)
         {
             _editContext.OnFieldChanged -= OnFieldChanged;
+            _editContext.OnValidationStateChanged -= OnValidationStateChanged;
         }
 
         // An attach this mounting started and never saw the answer to is still its own to settle:
@@ -555,6 +573,17 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         _dirty = true;
         _ = SyncDirtyAsync();
     }
+
+    /// <summary>
+    /// Re-renders when field feedback changes, because the controls carry <c>aria-invalid</c> and
+    /// <c>aria-describedby</c>. A form that refused a submission before any request was made produces its
+    /// messages without re-rendering this component, so without this the attributes would keep describing
+    /// the field as it was before validation.
+    /// </summary>
+    /// <param name="sender">The edit context that raised the change.</param>
+    /// <param name="args">The validation state that changed.</param>
+    private void OnValidationStateChanged(object? sender, ValidationStateChangedEventArgs args)
+        => _ = InvokeAsync(StateHasChanged);
 
     private async Task SyncDirtyAsync()
     {

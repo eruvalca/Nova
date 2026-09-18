@@ -266,45 +266,53 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 <div class="intake-field-row">
                     <div class="intake-field">
                         <label class="form-label" for="player-first-name">First name <span class="intake-required">required</span></label>
-                        <InputText id="player-first-name" class="form-control" @bind-Value="Model.FirstName"
-                                   aria-invalid="@(FieldErrorsFor(nameof(PlayerFormState.FirstName)).Count > 0 ? "true" : null)" />
-                        <ValidationMessage For="() => Model.FirstName" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.FirstName)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <InputText id="player-first-name" class="@FieldClass(nameof(PlayerFormState.FirstName), "form-control")" @bind-Value="Model.FirstName"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.FirstName)) ? "player-first-name-error" : null)" />
+                        <div id="player-first-name-error">
+                            <ValidationMessage For="() => Model.FirstName" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.FirstName)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                     <div class="intake-field">
                         <label class="form-label" for="player-last-name">Last name <span class="intake-required">required</span></label>
-                        <InputText id="player-last-name" class="form-control" @bind-Value="Model.LastName"
-                                   aria-invalid="@(FieldErrorsFor(nameof(PlayerFormState.LastName)).Count > 0 ? "true" : null)" />
-                        <ValidationMessage For="() => Model.LastName" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.LastName)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <InputText id="player-last-name" class="@FieldClass(nameof(PlayerFormState.LastName), "form-control")" @bind-Value="Model.LastName"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.LastName)) ? "player-last-name-error" : null)" />
+                        <div id="player-last-name-error">
+                            <ValidationMessage For="() => Model.LastName" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.LastName)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                 </div>
                 <div class="intake-field-row">
                     <div class="intake-field">
                         <label class="form-label" for="player-dob">Date of birth <span class="intake-required">required</span></label>
-                        <InputDate id="player-dob" class="form-control" @bind-Value="Model.DateOfBirth"
-                                   aria-invalid="@(FieldErrorsFor(nameof(PlayerFormState.DateOfBirth)).Count > 0 ? "true" : null)" />
-                        <ValidationMessage For="() => Model.DateOfBirth" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.DateOfBirth)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <InputDate id="player-dob" class="@FieldClass(nameof(PlayerFormState.DateOfBirth), "form-control")" @bind-Value="Model.DateOfBirth"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.DateOfBirth)) ? "player-dob-error" : null)" />
+                        <div id="player-dob-error">
+                            <ValidationMessage For="() => Model.DateOfBirth" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.DateOfBirth)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                     <div class="intake-field">
                         <label class="form-label" for="player-grad-year">Graduation year <span class="intake-required">required</span></label>
-                        <InputNumber id="player-grad-year" class="form-control" @bind-Value="Model.GraduationYear"
-                                     aria-invalid="@(FieldErrorsFor(nameof(PlayerFormState.GraduationYear)).Count > 0 ? "true" : null)" />
-                        <ValidationMessage For="() => Model.GraduationYear" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.GraduationYear)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <InputNumber id="player-grad-year" class="@FieldClass(nameof(PlayerFormState.GraduationYear), "form-control")" @bind-Value="Model.GraduationYear"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.GraduationYear)) ? "player-grad-year-error" : null)" />
+                        <div id="player-grad-year-error">
+                            <ValidationMessage For="() => Model.GraduationYear" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.GraduationYear)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                 </div>
                 @if (GraduationYearBlockers.Count > 0)
@@ -323,28 +331,33 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 <div class="intake-field-row">
                     <div class="intake-field">
                         <label class="form-label" for="player-gender">Gender <span class="intake-optional">optional</span></label>
-                        <InputSelect id="player-gender" class="@GenderSelectClass" @bind-Value="Model.Gender">
+                        <InputSelect id="player-gender" class="@FieldClass(nameof(PlayerFormState.Gender), "form-select")" @bind-Value="Model.Gender"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.Gender)) ? "player-gender-error" : null)">
                             <option value="">Not specified</option>
                             @foreach (var option in GenderOptions)
                             {
                                 <option value="@option">@option</option>
                             }
                         </InputSelect>
-                        <ValidationMessage For="() => Model.Gender" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.Gender)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <div id="player-gender-error">
+                            <ValidationMessage For="() => Model.Gender" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.Gender)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                     <div class="intake-field">
                         <label class="form-label" for="player-jersey">Jersey number <span class="intake-optional">optional</span></label>
-                        <InputNumber id="player-jersey" class="form-control" @bind-Value="Model.JerseyNumber"
-                                     aria-invalid="@(FieldErrorsFor(nameof(PlayerFormState.JerseyNumber)).Count > 0 ? "true" : null)" />
-                        <ValidationMessage For="() => Model.JerseyNumber" class="intake-field-error" />
-                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.JerseyNumber)))
-                        {
-                            <p class="intake-field-error">@message</p>
-                        }
+                        <InputNumber id="player-jersey" class="@FieldClass(nameof(PlayerFormState.JerseyNumber), "form-control")" @bind-Value="Model.JerseyNumber"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.JerseyNumber)) ? "player-jersey-error" : null)" />
+                        <div id="player-jersey-error">
+                            <ValidationMessage For="() => Model.JerseyNumber" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.JerseyNumber)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
                     </div>
                 </div>
             </fieldset>
