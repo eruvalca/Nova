@@ -184,6 +184,15 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         && RecoveryChecked;
 
     /// <summary>
+    /// Gets whether the board's state leaves nothing unsaved, so departing can lose nothing the member
+    /// could still act on. A settled receipt and a blocked entry state hold only bytes the member
+    /// cannot resend, and an unavailable member cannot enter anything; a frozen board's fields are the
+    /// retained addition itself rather than unsaved input, so a frozen board holds something only while
+    /// its own set-aside decision is open, which is the one control it has left.
+    /// </summary>
+    protected bool HasNothingUnsaved => !CanManage || ShowsReceipt || IsEntryBlocked || (IsFrozen && !_setAsidePending);
+
+    /// <summary>
     /// Gets the gender select's class. The invalid state is carried here rather than as an
     /// <c>aria-invalid</c> attribute because <see cref="InputSelect"/> drops unmatched attributes,
     /// while the inputs that splat them carry the attribute directly.
@@ -333,8 +342,9 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         }
 
 
-        // A receipt, a blocked entry state, or an unavailable member makes input lossless.
-        if ((ShowsReceipt || IsEntryBlocked || !CanManage) && _dirty)
+        // A lossless transition — including the freeze a failed acknowledgement leaves behind — makes
+        // input unsaveable, so it can no longer be what the departure guard speaks for.
+        if (HasNothingUnsaved && _dirty)
         {
             _dirty = false;
             // The guard's own state must follow, or a later departure still prompts for input that
@@ -446,7 +456,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (!string.Equals(lease, _guardLease, StringComparison.Ordinal)) { return; }
         // The module observes DOM input, including controls outside the EditForm, so it decides
         // whether a prompt is due; the board only refuses when nothing could be lost.
-        if (ShowsReceipt || IsEntryBlocked || !CanManage)
+        if (HasNothingUnsaved)
         {
             // The module already cancelled this click, so refusing here would leave it inert.
             _dirty = false;
@@ -490,7 +500,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
 
     private void OnFieldChanged(object? sender, FieldChangedEventArgs args)
     {
-        if (ShowsReceipt || IsEntryBlocked || !CanManage) { return; }
+        if (HasNothingUnsaved) { return; }
         if (_dirty) { return; }
         _dirty = true;
         _ = SyncDirtyAsync();

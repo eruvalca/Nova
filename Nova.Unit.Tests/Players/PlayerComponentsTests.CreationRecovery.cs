@@ -557,6 +557,42 @@ public sealed partial class PlayerComponentsTests
         Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players?view=archived");
     }
 
+    /// <summary>A frozen board holds the exact addition that was sent, so leaving it loses nothing.</summary>
+    [Fact]
+    public async Task PlayersPerformsTheDepartureWhenTheFrozenRetainedAdditionCannotBeLostAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                ServiceProblem.ServerError("Lost acknowledgement"))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+
+        // The member types, so the guard speaks for input that is still unsaved.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
+        await cut.WaitForAssertionAsync(() => Interop.Dirty.ShouldBeTrue());
+
+        // The acknowledgement never arrives, which freezes the board on the exact command it retained.
+        await cut.Find("#intake-submit").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+
+        // The frozen fields are the retained addition, not unsaved work, so the guard must stop
+        // warning about them: a prompt here would claim input could be discarded that is never
+        // discarded, and that the member cannot even edit.
+        await cut.WaitForAssertionAsync(() => Interop.Dirty.ShouldBeFalse());
+
+        await cut.InvokeAsync(() => cut.FindComponent<PlayerIntakeBoard>().Instance
+            .OnBoardDepartureAttemptAsync(Interop.GuardLease!, "/players"));
+
+        cut.FindAll("#intake-departure").Count.ShouldBe(0);
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players");
+    }
+
     /// <summary>An operation whose own window has closed cannot be replayed and is never discarded.</summary>
     [Fact]
     public async Task PlayersTreatsAnExpiredRetainedOperationAsUnrecoverableAsync()

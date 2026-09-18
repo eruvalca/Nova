@@ -672,6 +672,33 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check | With the early return reverted, `PlayerDetailDoesNotLoadDetailFromAStaleStartupAuthenticationReadAsync` reports **1 failed, 0 passed** on `calls` (2 instead of 1). **One earlier attempt at this check was invalid and is recorded rather than dropped:** a scripted file rewrite silently failed to apply, so the run tested the fixed build and reported a pass. Redone with the edit tool, the result above is the valid one. Restored from a byte-identical snapshot with its timestamp touched before the rebuild. |
 | Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` (7.2s), one of the two long directory journeys this record tracks as load-sensitive. The second was clean: **228 total, 218 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, eleventh pass (PR #285, on `ec9d86b2`)
+
+Copilot reported **two suppressed findings** on the tenth pass's head; neither carried an inline
+thread, so the dispositions are here and in the triage comment on the PR.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | A create response that leaves the command `Unresolved` or `Expired` freezes the fields but left `_dirty` true and never cleared the module's dirty flag, so the board intercepted the top-level Return/Review links and opened "Leave with uncommitted player details?" even though the exact request is already retained and cannot be edited | **Fixed.** One predicate — `HasNothingUnsaved` — now states what the guard speaks for, and all three gates use it: the freeze clears the stale `_dirty` and syncs the module, `OnFieldChanged` no longer marks a frozen board dirty, and a departure the module asks about proceeds instead of prompting. A frozen board's fields *are* the retained addition, so it holds unsaved work only while its own set-aside decision is open (`_setAsidePending`), the one control it has left; that exception is round 2's finding, so its case `PlayersPromptsOnDepartureAfterTheSetAsideAcknowledgementAloneAsync` and the round-3 focus case still pass unchanged. New case `PlayersPerformsTheDepartureWhenTheFrozenRetainedAdditionCannotBeLostAsync` types, holds the module dirty, submits into an unresolved outcome, and asserts both the cleared flag and a departure with no panel. |
+| 2 | The guard leaves Back/Forward unprotected, and the finding offers either the evaluation surface's rollback/approval implementation or "narrow the board contract and add a tested limitation for this departure path" | **Narrowed, and now tested, with the implementation ruled out by measurement rather than by preference.** Two implementations were built and driven in the real browser before being reverted. (a) A module-level `popstate` guard that restores the board's own entry through the Navigation API and prompts from the restoration's own `popstate`: instrumented, the guard was attached with `dirty: true`, `connected: true` and `origin` equal to the current entry, `traverseTo` and `currentEntry.key` present, and its handler ran **0 times** for the traversal that landed on `/players` — while a synthetic `popstate` dispatched at the same moment *did* invoke it, proving the listener was live. The router handles the traversal and disposes the board (the module's `detachActiveGuard` runs before `popstate` is delivered), so no listener the board installs can act on it. (b) A page-level `NavigationLock` whose `OnBeforeInternalNavigation` calls `PreventNavigation()`: the traversal was not prevented either, reproducing this record's earlier finding that traversal paths do not run `NavigationLock` callbacks. Both were reverted; `PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync` pins the limitation for the *same* typed value that the link path prompts for, so the gap is pinned by a test instead of asserted only in prose. The module's comment now names the verified mechanism. |
+
+### Confirming evidence (Copilot eleventh pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`ec9d86b2`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3838 total, 3838 passed, 0 failed, 0 skipped** (3837 before; the new case is the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **22 total, 21 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
+| Negative check, finding 1 (clearing) | With `HasNothingUnsaved` reduced to the pre-fix `ShowsReceipt \|\| IsEntryBlocked \|\| !CanManage`, `PlayersPerformsTheDepartureWhenTheFrozenRetainedAdditionCannotBeLostAsync` fails on `Interop.Dirty` — the stale flag the finding describes. **1 failed, 0 passed.** |
+| Negative check, finding 1 (guard) | With only the callback guard's condition reverted to the pre-fix form (property restored), the same case fails on `#intake-departure` (count 1 instead of 0). **1 failed, 0 passed.** Both halves are therefore discriminated separately. Fix restored and rebuilt before the runs above. |
+| Finding 2 evidence | Instrumented probes on the real build (temporary, deleted): with the module's popstate guard installed and the board dirty at the moment of the traversal, the handler's run counter stayed at **0** while a synthetic `popstate` incremented it, and the page ended at `/players` with the board disposed (`activeGuard` null). With the page-level `NavigationLock` preventing navigation while `_createForm.FirstName` was set, the same traversal still landed on `/players`. Both probes are recorded rather than kept, and no diagnostic code remains in the module or the page. |
+| Full browser suite | Two runs on this revision. The first reported **229 total, 218 passed, 1 failed, 10 skipped** — `CampaignCloseoutBrowserTests.CloseoutFailureShowsRetryAndRetryRecoversAsync`, whose failure is a transport error, not an assertion: `Microsoft.Playwright.PlaywrightException : net::ERR_NETWORK_CHANGED` while `BrowserSuiteFixture.SignInAsync` navigated to `/Account/Login`, so the scenario never reached the code under test and nothing in this diff is in its path. The retry was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures, and the new history-limitation case is the delta in the total. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -839,14 +866,21 @@ evidence above is unchanged by it.
   answers is the right contract, but it supersedes the round-2 decision that deliberately reopened the
   board after a failed read, so that case must be rewritten and re-verified with it. Both are
   implemented-and-reverted in the seventh pass's tree; the shipped revision leaves them as they are.
-- The departure guard does not intercept browser Back/Forward. It covers document unload and
-  same-origin link departure, which is the contract the module's own comment states; a history
-  traversal therefore discards typed input without the confirmation those two paths give. Closing it
-  needs the Navigation API pattern `evaluationNavigationGuard.js` implements — restore the origin
-  entry, marshal the prompt across interop, replay the permitted traversal — which is a feature of its
-  own, offered by review round 5 as the finding's alternative to narrowing the contract, and taken as
-  such. The module names the gap beside its click listener so a reader does not infer the wider
-  coverage.
+- The departure guard does not intercept browser Back/Forward, and that narrowing is now **tested
+  rather than only documented**: `PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync`
+  proves the guard is attached and dirty for the same typed value by having the link path prompt for
+  it, then pins that the traversal leaves without one. The guard covers document unload and
+  same-origin link departure, which is the contract the module's own comment states. Review round 11
+  asked again for the `evaluationNavigationGuard.js` rollback/approval pattern, so two
+  implementations were built and measured in the real browser before being reverted, and **neither
+  can protect this board**: a module-level `popstate` guard is never invoked for the traversal (the
+  router handles it and disposes the board first — instrumented: attached, `dirty: true`, `origin`
+  current, listener live for a synthetic `popstate`, **0** handler runs for the traversal), and a
+  page-level `NavigationLock` with `PreventNavigation()` does not stop it either. The evaluation
+  surface's pattern works there because its panel outlives the traversal; this board's owner does
+  not, so closing the gap needs the traversal handled where the owner survives it — a feature of its
+  own, not a review-round fix. The module names the verified mechanism beside its click listener so a
+  reader does not infer wider coverage.
 
 ## Design evidence
 

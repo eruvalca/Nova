@@ -148,11 +148,15 @@ export function attachDepartureGuard(root, receiver, lease) {
         event.returnValue = "";
     }, options);
 
-    // Known gap: browser Back/Forward (history traversal) is not intercepted, so it is the one
-    // departure path that can discard typed input without this prompt. Protecting it needs the
-    // Navigation API traversal dance the evaluation surface's guard implements, which is a feature of
-    // its own and is not part of this board's contract (document unload and same-origin link
-    // departure are).
+    // Known gap, verified in the browser: Back/Forward (history traversal) is not intercepted, so it is
+    // the one departure path that can discard typed input without this prompt. A traversal of the
+    // board's own entry leaves the route, so the router disposes the board and aborts these listeners
+    // before popstate is delivered (`runs: 0` with the guard still live and dirty at the last moment
+    // before the traversal), and a page-level NavigationLock's OnBeforeInternalNavigation is not
+    // consulted for the traversal either. Protecting it therefore needs the traversal handled where the
+    // owner outlives it — the evaluated surfaces' rollback/approval path, which their persistent panel
+    // makes possible — and is not part of this board's contract, which is document unload and
+    // same-origin link departure.
     document.addEventListener("click", event => {
         if (activeGuard !== state || !state.dirty || !state.root.isConnected || event.defaultPrevented
             || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

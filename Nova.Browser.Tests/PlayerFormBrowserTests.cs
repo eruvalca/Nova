@@ -199,6 +199,48 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
     }
 
+    /// <summary>
+    /// Back/Forward is the board's documented unguarded departure path, and this pins the limitation
+    /// rather than its desirability: the router owns a traversal of the board's own entry and leaves the
+    /// route before any listener the board installs can run, so the typed value goes with it. The
+    /// guard's contract covers document unload and same-origin link departure, which the scenario above
+    /// and this one's own first half prove are live for the same typed value.
+    /// </summary>
+    [Fact]
+    public async Task PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenPlayersInWebAssemblyAsync(page);
+        var departure = page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true });
+        var firstName = $"History {Guid.NewGuid():N}";
+
+        // The guard is attached and speaks for this value: the link departure asks before discarding.
+        await InteractionHelpers.ActUntilAsync(page,
+            async () =>
+            {
+                if (!string.Equals(new Uri(page.Url).AbsolutePath, "/players/new", StringComparison.Ordinal))
+                {
+                    await OpenCreationFormAsync(page);
+                }
+
+                await page.Locator("#player-first-name").FillAsync(firstName);
+                await departure.ClickAsync(new() { Timeout = 3000 });
+            },
+            () => page.Locator("#intake-departure").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // The same board, still dirty, cannot intercept the traversal: it leaves without a prompt.
+        await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+    }
+
     [Fact]
     public async Task PlayerDetailActiveCampaignBadgeMeetsContrastThresholdAsync()
     {
