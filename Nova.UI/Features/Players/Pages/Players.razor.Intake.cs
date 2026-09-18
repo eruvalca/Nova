@@ -424,7 +424,18 @@ public partial class Players
         // browser kept rather than re-reading a decision that is already made.
         if (_unreleasedOperationId is { } unreleased && _board is not null)
         {
-            if (await _board.ClearAsync(unreleased, _identitySource?.Token ?? ComponentCancellationToken))
+            var version = _identityVersion;
+            var cleared = await _board.ClearAsync(unreleased, _identitySource?.Token ?? ComponentCancellationToken);
+            if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+            {
+                // The clear crossed a re-scope, so its outcome belongs to the identity that asked for
+                // it; the page now on screen owns its own retry state.
+                return;
+            }
+
+            // A newer settled operation owns the retry state now, so only this exact record's release
+            // may report success for it.
+            if (cleared && _unreleasedOperationId == unreleased)
             {
                 _unreleasedOperationId = null;
                 _storageUnavailable = false;

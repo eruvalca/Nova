@@ -80,6 +80,12 @@ public partial class PlayerDetail(
     private bool _canManagePlayers;
 
     /// <summary>
+    /// The club identifier from the current principal's claims, used to detect club-membership changes
+    /// while the page is mounted and rebind club-scoped state accordingly.
+    /// </summary>
+    private long? _clubId;
+
+    /// <summary>
     /// Indicates whether the archive confirmation panel is open.
     /// </summary>
     private bool _showArchiveConfirm;
@@ -108,16 +114,71 @@ public partial class PlayerDetail(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        var principal = authState.User;
-        // Membership, not the admin role, is what the server's mutation gate requires — the same
-        // authority the Players directory derives, so both hosts offer the same lifecycle control.
-        var club = ReadClubIdClaim(principal);
-        var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _canManagePlayers = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
+        ApplyAuthority(authState.User);
 
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
         await LoadDetailAsync();
+    }
+
+    /// <summary>
+    /// Recomputes the club scope and the management permission from one principal. Membership, not the
+    /// admin role, is what the server's mutation gate requires — the same authority the Players
+    /// directory derives, so both hosts offer the same lifecycle control.
+    /// </summary>
+    /// <param name="principal">The authenticated principal to read.</param>
+    /// <returns><see langword="true"/> when the principal may manage this club's players.</returns>
+    private bool ApplyAuthority(ClaimsPrincipal principal)
+    {
+        var club = ReadClubIdClaim(principal);
+        var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _clubId = club;
+        _canManagePlayers = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
+        return _canManagePlayers;
+    }
+
+    /// <summary>Recomputes this page's club-scoped authority when the authentication state changes.</summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
+
+    /// <summary>
+    /// Applies an authentication-state change: closes management state the change may have revoked and
+    /// rebinds the club-scoped detail, so a page that stays mounted cannot keep showing the previous
+    /// scope's player or offer its lifecycle controls.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var authState = await stateTask;
+        var previousClub = _clubId;
+        var canManage = ApplyAuthority(authState.User);
+
+        if (!canManage || _clubId != previousClub)
+        {
+            // A reviewed panel belongs to the authority that opened it: neither a revoked membership
+            // nor another club's claim may leave it actionable.
+            CancelArchive();
+            _archiveSubjectId = 0;
+            _archiveSubjectName = string.Empty;
+            _mutationError = null;
+            _statusMessage = null;
+        }
+
+        if (_clubId != previousClub)
+        {
+            // Rebind to the newly claimed club: drop the stale detail and reload against the new
+            // scope, which re-authorizes server-side and redirects when the claim no longer allows it.
+            _detail = null;
+            _error = null;
+            _isNotFound = false;
+            _isLoading = true;
+            await InvokeAsync(StateHasChanged);
+            await LoadDetailAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <inheritdoc />
@@ -273,6 +334,13 @@ public partial class PlayerDetail(
         {
             await LoadDetailAsync();
         }
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        await base.DisposeAsyncCore();
     }
 
     /// <summary>

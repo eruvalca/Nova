@@ -504,6 +504,31 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check, findings 1-3 | With the three fixes reverted (the live subject passed to the panel and its confirm, `&& !ShowsReceipt` restored on the storage panel, and `RetainAsync` publishing without ownership) and the solution rebuilt, the three new cases reported **3 failed, 0 passed** — on the archived id, on the hidden panel, and on the published stale failure. Restored from a byte-identical snapshot with timestamps touched before the rebuild. |
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **228 total, 218 passed, 0 failed, 10 skipped**: the clean full pass the before-merge row requires, on this revision. The ten skips are the pre-existing env-gated captures, so no behavioural scenario is skipped. |
 
+## GitHub Copilot code review, fourth pass (PR #285, on `6fece48b`)
+
+Copilot reviewed `6fece48b` and raised **one inline finding** plus **one suppressed finding**. Both are
+consequences of the previous two rounds' own fixes, and both are dispositioned below.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 (inline) | The release retry awaited a browser clear and then unconditionally cleared `_unreleasedOperationId`/`_storageUnavailable`, so a continuation that finished after a re-scope — or after another settled operation — could erase the state the newer page or operation owns | **Fixed.** The retry captures `_identityVersion` before the clear and re-checks it after, returning without touching state when the page was re-scoped; it also only reports the release for the exact operation it cleared, so a newer settled operation keeps its own retry state. New case `PlayersDoesNotLetAStaleReleaseClearTheRefreshedStorageReportAsync` holds the release open, refreshes the page, breaks storage for the identity now on screen (which reports that truthfully), releases the gate and asserts the newer report survives. Both halves of the guard are needed for it to hold; reverting the guard makes it fail. |
+| 2 (suppressed) | The membership-based authority on Player detail was computed only in `OnInitializedAsync`, so a claim change while the `InteractiveAuto` page stayed mounted left `_detail` and the Archive/Restore controls showing the previous scope, with an open confirmation still actionable | **Fixed.** The page now mirrors the directory and `TeamDetail`: it subscribes to `AuthenticationStateChanged` (unsubscribing in `DisposeAsyncCore`), recomputes the club scope and management permission from the new principal, closes the archive confirmation and clears its reviewed subject, and — when the claimed club changes — drops the stale detail and reloads so the server re-authorizes the read. New cases `PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync` (a club change closes the panel and re-reads the detail) and `PlayerDetailClosesTheReviewedPanelWhenMembershipIsRevokedAsync` (a revoked membership removes the control and closes the panel). |
+
+### Confirming evidence (Copilot fourth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`6fece48b`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. An earlier build of this pass failed on three test-side errors (`Change` missing on the detail page's fake authentication provider, and a missing `System.Globalization` import); both corrections are in the tests only. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3830 total, 3830 passed, 0 failed, 0 skipped**. The previous full pass was 3827, so the three new cases are the entire delta. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*' --filter-class '*PlayerDetailBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped**; the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture. No load-sensitive journey failed in this pass. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check, findings 1-2 | With both fixes reverted (the retry clearing without ownership, and the page computing its authority only in `OnInitializedAsync` with no subscription or disposal), the three new cases reported **3 failed, 0 passed** — on the erased storage report and on both detail-page authority paths. Restored from a byte-identical snapshot with timestamps touched before the rebuild. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **228 total, 217 passed, 1 failed, 10 skipped**. The failure is `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, with the signature captured last round: the record page's back link still resolving to the innermost return destination when the 5s `ToHaveAttributeAsync` window closes, and it **passed alone on the same build** (**1 total, 1 passed**). It is the tracked load-sensitive journey, so the before-merge row is outstanding for this revision; the clean full pass recorded above covers `6fece48b`. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction

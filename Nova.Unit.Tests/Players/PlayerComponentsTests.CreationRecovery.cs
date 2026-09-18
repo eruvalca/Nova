@@ -937,6 +937,42 @@ public sealed partial class PlayerComponentsTests
         await service.DidNotReceive().CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A release retry that finishes after a refresh does not clear the new storage report.</summary>
+    [Fact]
+    public async Task PlayersDoesNotLetAStaleReleaseClearTheRefreshedStorageReportAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // The release is retried and stays open while the page is refreshed and storage then breaks
+        // for the identity on screen, which reports that as its own state.
+        Interop.ClearGate = new TaskCompletionSource();
+        Interop.FailClears = false;
+        var release = cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => Interop.ClearAttempts.ShouldBe(2));
+        Interop.FailReads = true;
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        await cut.InvokeAsync(() => Interop.ClearGate.SetResult());
+        await release;
+
+        // The late continuation belongs to the operation it released, so it neither clears the newer
+        // report nor claims a storage state for a page it no longer owns.
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1);
+    }
+
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));

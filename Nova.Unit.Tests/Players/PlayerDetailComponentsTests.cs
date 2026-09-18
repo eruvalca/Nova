@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -580,6 +581,51 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         await lifecycleService.DidNotReceive().ArchiveAsync(21, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
+    [Fact]
+    public async Task PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(1);
+
+        // The claimed club changes while the page stays mounted.
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+
+        // The reviewed panel belonged to the previous scope, and the detail is re-read for the new one.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(0));
+        await detailService.Received(2).GetPlayerDetailAsync(7, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Losing club membership closes the reviewed panel and its controls.</summary>
+    [Fact]
+    public async Task PlayerDetailClosesTheReviewedPanelWhenMembershipIsRevokedAsync()
+    {
+        RegisterServices(isClubAdmin: false, hasClubMembership: true);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(false));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(1);
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false, hasClubMembership: false)));
+
+        // A revoked membership must not leave the confirmation actionable on a page the member can no
+        // longer mutate.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain("Archive"));
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(0);
+    }
+
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,
@@ -618,7 +664,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             Notes: notes ?? [],
             TagApplications: tagApplications ?? []);
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true, long clubId = 42)
     {
         var claims = new List<Claim>
         {
@@ -627,7 +673,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
 
         if (hasClubMembership)
         {
-            claims.Add(new Claim(NovaClaimTypes.ClubId, "42"));
+            claims.Add(new Claim(NovaClaimTypes.ClubId, clubId.ToString(CultureInfo.InvariantCulture)));
         }
 
         if (isClubAdmin)
@@ -644,8 +690,19 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
+        /// <summary>The currently published authentication state.</summary>
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
         /// <inheritdoc />
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+            _state;
+
+        /// <summary>Publishes a changed principal to mounted components.</summary>
+        /// <param name="newPrincipal">The replacement authenticated principal.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+        {
+            _state = Task.FromResult(new AuthenticationState(newPrincipal));
+            NotifyAuthenticationStateChanged(_state);
+        }
     }
 }
