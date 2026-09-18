@@ -34,6 +34,12 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets the number of departure-guard attach attempts that fail before one succeeds.</summary>
     public int FailGuardAttachAttempts { get; set; }
 
+    /// <summary>Gets or sets a gate that holds the departure-guard attach open, the way slow interop would.</summary>
+    public TaskCompletionSource? GuardAttachGate { get; set; }
+
+    /// <summary>Gets or sets the signal that completes once an attach has installed the guard.</summary>
+    public TaskCompletionSource? GuardAttachSettled { get; set; }
+
     /// <summary>Gets the number of departure-guard attach attempts, including failed ones.</summary>
     public int GuardAttachCount { get; private set; }
 
@@ -174,18 +180,26 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     }
 
     /// <inheritdoc />
-    public Task AttachDepartureGuardAsync(ElementReference root, object receiver, string lease, CancellationToken cancellationToken)
+    public async Task AttachDepartureGuardAsync(ElementReference root, object receiver, string lease, CancellationToken cancellationToken)
     {
         GuardAttachCount++;
+        if (GuardAttachGate is { } gate)
+        {
+            await gate.Task;
+        }
+
         if (FailGuardAttachAttempts > 0)
         {
             FailGuardAttachAttempts--;
             throw new JSException("The departure guard module could not be imported.");
         }
 
+        // The boundary installs the guard as soon as the module runs; a cancelled await loses the
+        // answer, not the installation, which is exactly the ownership disposal has to settle.
         GuardAttached = true;
         GuardLease = lease;
-        return Task.CompletedTask;
+        GuardAttachSettled?.TrySetResult();
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     /// <inheritdoc />
@@ -198,9 +212,13 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <inheritdoc />
     public Task DetachDepartureGuardAsync(string lease, CancellationToken cancellationToken)
     {
+        GuardDetachCount++;
         GuardAttached = false;
         return Task.CompletedTask;
     }
+
+    /// <summary>Gets the number of departure-guard detach calls, which tell a mounting's teardown apart from a missing attach.</summary>
+    public int GuardDetachCount { get; private set; }
 
     /// <inheritdoc />
     public Task FocusFirstFieldAsync(ElementReference root, CancellationToken cancellationToken) => Task.CompletedTask;

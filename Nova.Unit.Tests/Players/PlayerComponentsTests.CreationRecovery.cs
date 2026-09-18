@@ -690,6 +690,36 @@ public sealed partial class PlayerComponentsTests
         Interop.GuardAttachCount.ShouldBe(2);
     }
 
+    /// <summary>A mounting disposed while the guard attach is in flight still releases the lease it started.</summary>
+    [Fact]
+    public async Task PlayersReleasesTheGuardLeaseWhenDisposedDuringTheAttachAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.GuardAttachGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Interop.GuardAttachSettled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // Entering the board starts the attach, which this gate holds open.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttachCount.ShouldBe(1));
+
+        // Disposal lands while the boundary is still attaching. Cancellation cuts off the answer but not
+        // the browser, so a disposal that only checked the attached flag would skip the detach and leave
+        // the document holding a guard whose receiver it has already released, with no board left to
+        // remove it. Waiting for the attach is what lets the lease be released on its real outcome.
+        var board = cut.FindComponent<PlayerIntakeBoard>().Instance;
+        var disposal = board.DisposeAsync().AsTask();
+        Interop.GuardAttachGate.SetResult();
+        // The attach's own completion is what marks the guard attached when the mounting is already gone,
+        // so the assertion only means something once the boundary has finished installing it.
+        await Interop.GuardAttachSettled!.Task;
+        await disposal;
+
+        Interop.GuardDetachCount.ShouldBe(1);
+        Interop.GuardAttached.ShouldBeFalse();
+    }
+
     /// <summary>A replay is durably retained again before it is dispatched.</summary>
     [Fact]
     public async Task PlayersRetainsTheReplayedCommandAgainBeforeDispatchingItAsync()

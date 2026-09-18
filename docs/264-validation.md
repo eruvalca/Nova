@@ -727,6 +727,32 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Comp provenance | `.impeccable/mocks/issue-264-a.png.json` is valid JSON (the file is the sidecar `DESIGN.md` links) and now names `approvalBasis` and `designGate`; no raster changed, so the recorded measurement still applies. |
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **229 total, 219 passed, 0 failed, 10 skipped** on the first run, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after the pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, thirteenth pass (PR #285, on `135826d1`)
+
+Copilot reported **one suppressed finding**; it carried no inline thread, so the disposition is here
+and in the triage comment on the PR.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | A disposal that lands while `AttachDepartureGuardAsync` is still awaiting reads `_guardAttached == false` and skips the detach, so the continuation can leave a guard installed in the document over a receiver that disposal has already released | **Fixed as prescribed, by tracking the attach and settling it in disposal.** `PlayerIntakeBoard` records the attach it started (`_guardAttach`, assigned before the await) and `DisposeAsyncCore` waits for an attach that is still in flight and then releases that lease. Waiting is what makes the release correct: disposal cancels the component token — and `NovaComponentBase` cancels it *before* `DisposeAsyncCore` — which cuts off the answer without undoing what the browser already did, so the release is keyed on "an attach was in flight" as well as on the settled flag. Releasing a lease that is not the active guard is a no-op in the module, so this can never take another mounting's guard away, and the existing narrow `JSDisconnectedException` catch is unchanged. `PlayerIntakeInteropDouble` now models the real boundary: `GuardAttachGate` holds an attach open, a cancelled await still reports `GuardAttached = true` and then throws (as an interop call does), and `GuardAttachSettled` gives the case a deterministic point to assert from. New case `PlayersReleasesTheGuardLeaseWhenDisposedDuringTheAttachAsync`. |
+
+### Confirming evidence (Copilot thirteenth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`135826d1`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3841 total, 3841 passed, 0 failed, 0 skipped** (3840 before; the new case is the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — first run **22 total, 19 passed, 2 failed, 1 skipped**, both failures the tracked load-sensitive journeys (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` and `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`). Re-run on the same build: both in one run → the second passed; the first then passed **twice in isolation** (`2/2`). Recorded as the tracked flake, with the A/B below. |
+| Negative check | With the release half removed (the wait kept, so the reverted build still compiles under `S4487`), `PlayersReleasesTheGuardLeaseWhenDisposedDuringTheAttachAsync` fails on `Interop.GuardDetachCount` (**0 instead of 1**) — **1 failed, 0 passed**. Fix restored and rebuilt before the runs above. |
+| **Analysis trap, recorded because it produced two invalid results** | The first two attempts at that negative check reported a false pass: the reverted source left `_guardAttach` unread, so the build **failed** on `S4487` while `dotnet test --no-build` silently ran the previously built (fixed) assembly. This is the same trap this record names from the tenth pass, and the fix is the same discipline: read the build line before trusting a `--no-build` result, and revert in a form the analyzers accept. Both invalid runs are recorded rather than dropped. |
+| Flake A/B, recorded because it initially implicated the change | The failing journey's assertion is about the detail page's `← Back to roster` href, a step with no board on screen, so the change was checked against the previous revision: `135826d1` passed in one isolated run and this revision passed in two, which is why the failures are recorded as the tracked flake rather than as a regression. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
+| Full browser suite | Two runs on this revision. The first reported **229 total, 218 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, this time on the directory paging text (`.players-paging` read `Page 1 of 4` where the journey expects the retained draft context to put it on page 2), the same load-sensitive journey and the same class of failure the record already tracks. The retry was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs. Every failure of this journey seen in this pass is recorded rather than summarized away, and none reproduced in isolation on the same build. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction

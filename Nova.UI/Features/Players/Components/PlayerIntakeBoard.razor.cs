@@ -23,6 +23,11 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     private bool _dirty;
     private bool _guardAttached;
     private bool _guardAttachInFlight;
+    /// <summary>
+    /// The attach this mounting started, kept so disposal can settle the lease it produced rather than
+    /// reading a flag that a disposal in the middle of the attach would see as false.
+    /// </summary>
+    private Task? _guardAttach;
     private bool _departurePending;
     private string? _departureUrl;
     private bool _subscribed;
@@ -436,7 +441,12 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         _guardAttachInFlight = true;
         try
         {
-            await _interop.AttachDepartureGuardAsync(_root, _departureReceiver, _guardLease, ComponentCancellationToken);
+            // Recorded before the await: a disposal that lands while this call is in flight must be able
+            // to wait for it, because cancellation cuts off the answer without undoing what the browser
+            // did with the attach.
+            var attach = _interop.AttachDepartureGuardAsync(_root, _departureReceiver, _guardLease, ComponentCancellationToken);
+            _guardAttach = attach;
+            await attach;
             _guardAttached = true;
             await SyncDirtyAsync();
         }
@@ -491,7 +501,27 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             _editContext.OnFieldChanged -= OnFieldChanged;
         }
 
-        if (_guardAttached)
+        // An attach this mounting started and never saw the answer to is still its own to settle:
+        // disposal cancels the token, which cuts off the await but not the browser, so the boundary can
+        // hold a guard that no live board will ever release. Waiting for the attach lets that be decided
+        // on what the boundary actually did, and releasing a lease that is not the active guard is a
+        // no-op in the module, so this can never take another mounting's guard away.
+        var attachWasInFlight = _guardAttach is { IsCompleted: false };
+        if (attachWasInFlight)
+        {
+            try
+            {
+                await _guardAttach!;
+            }
+            catch (Exception exception) when (exception is JSException or InvalidOperationException
+                or OperationCanceledException or ObjectDisposedException)
+            {
+                // The attach already reported its own failure where it happened; disposal needs only
+                // the outcome that decides whether this lease has to be released.
+            }
+        }
+
+        if (_guardAttached || attachWasInFlight)
         {
             try
             {
