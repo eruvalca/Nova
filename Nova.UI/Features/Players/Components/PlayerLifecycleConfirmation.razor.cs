@@ -11,6 +11,11 @@ namespace Nova.UI.Features.Players.Components;
 public partial class PlayerLifecycleConfirmation : NovaComponentBase
 {
     private bool _acknowledged;
+    private long _acknowledgedSubject;
+
+    /// <summary>Gets or sets the subject whose archive this confirmation reviews.</summary>
+    [Parameter]
+    public long PlayerId { get; set; }
 
     /// <summary>Gets or sets the archived candidate's display name.</summary>
     [Parameter, EditorRequired]
@@ -31,6 +36,17 @@ public partial class PlayerLifecycleConfirmation : NovaComponentBase
     /// <summary>Gets or sets the callback invoked when the member cancels the confirmation.</summary>
     [Parameter]
     public EventCallback OnCancel { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        // A different subject is a different decision; an acknowledgement never carries across one.
+        if (_acknowledgedSubject != PlayerId)
+        {
+            _acknowledged = false;
+            _acknowledgedSubject = PlayerId;
+        }
+    }
 
     private Task ConfirmAsync() => _acknowledged ? OnConfirm.InvokeAsync() : Task.CompletedTask;
 }

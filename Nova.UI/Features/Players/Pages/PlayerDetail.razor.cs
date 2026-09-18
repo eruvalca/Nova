@@ -212,7 +212,7 @@ public partial class PlayerDetail(
         result.Switch(
             _ =>
             {
-                _statusMessage = "Player archived.";
+                _statusMessage = PlayerLifecycleCopy.ArchivedResult;
                 CancelArchive();
             },
             problem =>
@@ -243,7 +243,7 @@ public partial class PlayerDetail(
 
         var result = await playerLifecycleService.RestoreAsync(PlayerId, ComponentCancellationToken);
         result.Switch(
-            _ => _statusMessage = "Player restored. Missed campaign enrollment is not backfilled automatically.",
+            _ => _statusMessage = PlayerLifecycleCopy.RestoredResult,
             problem => _mutationError = problem.Detail ?? "Could not restore player.");
 
         _isMutating = false;

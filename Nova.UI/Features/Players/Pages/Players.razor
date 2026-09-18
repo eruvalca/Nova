@@ -185,7 +185,7 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
     @if (_canManagePlayers && _archiveCandidate is not null)
     {
         <div class="mb-3">
-            <PlayerLifecycleConfirmation DisplayName="@_archiveCandidate.DisplayName" Blockers="_archiveBlockers"
+            <PlayerLifecycleConfirmation PlayerId="@_archiveCandidate.PlayerId" DisplayName="@_archiveCandidate.DisplayName" Blockers="_archiveBlockers"
                                           IsBusy="_isMutating" OnConfirm="ConfirmArchiveAsync" OnCancel="CancelArchive" />
         </div>
     }

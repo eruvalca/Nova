@@ -2,9 +2,10 @@
 
 ## Scope and status
 
-**Status: implemented; build, format, full unit, full integration and full browser suites are green;
-the approved comp is locked with curated captures and the independent finish review is complete with
-all material fixes applied.**
+**Status: implemented and committed to PR #285; review round 1 is addressed.** On the round-1
+revision the build, format check, full unit suite and the affected browser selection are green (see
+[PR review round 1](#pr-review-round-1-pr-285)). Full integration and full browser runs on that
+revision, and the merge-stage reruns required before merge, are still outstanding.
 
 Delivered:
 
@@ -16,8 +17,11 @@ Delivered:
 
 ## Tested revision
 
-Uncommitted working tree on branch `eruvalca-player-form-crud`, based on `5df81800`
-(merged #284). No commit was created in this pass, so the revision is the working tree itself.
+Original implementation: uncommitted working tree on branch `eruvalca-player-form-crud`, based on
+`5df81800` (merged #284); the work was then committed as `b51558b2` and opened as PR #285. The
+review-round-1 fixes below are an uncommitted working tree on top of `b51558b2`, so that pass's
+revision is the working tree itself; the tree is the only revision a reader can reproduce from this
+record alone.
 
 ## Guidance actually read
 
@@ -55,7 +59,8 @@ Uncommitted working tree on branch `eruvalca-player-form-crud`, based on `5df818
   contradicts its own contract is also unusable evidence.
 - The exact command is persisted **before** dispatch on every submission path; a failed write blocks
   dispatch and nothing is sent. **The C# policy for this is unit-verified through the injected
-  boundary and browser-unverified — see the blocking limitation below.**
+  boundary; no browser assertion pins the retained bytes between dispatch and receipt — see the
+  limitation below.**
 - Outcomes classify as committed (immutable `PlayerCreationCompletion` receipt), definitively
   rejected (receipt-backed duplicate with the operation marker), or unresolved. Expiry never clears
   or re-identifies a retained command, and the set-aside action requires an explicit acknowledgement
@@ -81,10 +86,14 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
 ### 4. Shared lifecycle control
 
 `PlayerLifecycleConfirmation.razor` and `PlayerLifecycleCopy` now own the archive confirmation and
-every lifecycle sentence, consumed by **both** the Players directory and Player detail. The two
-duplicated implementations are gone, so the hosts cannot state different consequences for the same
-action. Confirmation state (including the acknowledgement) lives in the shared control, and the
-blockers are captured when the confirmation opens.
+the lifecycle sentences both hosts state on success, consumed by **both** the Players directory and
+Player detail: the confirmation heading, consequence, acknowledgement, commit label and blocker
+text, plus `ArchivedResult`, `RestoredResult` and `RestoreNote`. The two duplicated implementations
+are gone, so the hosts cannot state different consequences or different results for the same action.
+(Each host's fallback text for a lifecycle *failure* whose problem carries no detail — "Could not
+archive player." / "Could not restore player." — stays inline; the result sentences do not.)
+Confirmation state (including the acknowledgement) lives in the shared control, the acknowledgement
+is scoped to the subject it was given for, and the blockers are captured when the confirmation opens.
 
 ### 5. Correctness decisions worth recording
 
@@ -104,7 +113,7 @@ blockers are captured when the confirmation opens.
 | --- | --- |
 | Unprefixed string parameters passed to the board rendered the **field name** as literal text (`ErrorMessage="_mutationError"` produced an alert reading `_mutationError`) | Caught by the component tests' markup assertions. `@` added for the two `string` parameters. `blazor-architecture` already documents this trap; the draft violated an existing rule. |
 | The graduation-year blocker sentence rendered with a line break instead of a space, so `... requires graduation year 2034.` never matched | Caught by `PlayersShowsGraduationYearConflictBlockersWhenUpdateReturnsConflict`. The sentence is now emitted on one line. |
-| **Intermittent, two different long journey tests**: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` failed in full runs at 11s and 36s and once in a 7-test class run; `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` failed once at 33s in a later full run | **Unresolved cause, not attributable to a specific change.** Both are long multi-navigation directory journeys (30–46s) and both pass in isolation; the earlier failure of the first had a known cause (the stale departure guard blocking navigation) which was fixed before it next passed. Failing runs are load-sensitive under the suite's four test threads, and the failing step was not re-captured. A green full-suite pass was achieved on the app inputs immediately preceding the final diagnostic-only removal, so the app behaviour is not implicated, but a repeat failure must be investigated rather than re-run away. |
+| **Intermittent, two different long journey tests**: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` failed in full runs at 11s and 36s and once in a 7-test class run; `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` failed once at 33s in a later full run | **Unresolved cause, not attributable to a specific change.** Both are long multi-navigation directory journeys (30–46s) and both pass in isolation; the earlier failure of the first had a known cause (the stale departure guard blocking navigation) which was fixed before it next passed. Failing runs are load-sensitive under the suite's four test threads, and the failing step was not re-captured. A green full-suite pass was achieved on the app inputs immediately preceding the final diagnostic-only removal, so the app behaviour is not implicated, but a repeat failure must be investigated rather than re-run away. **Review round 1 reproduced both in its first selection run (13s 982ms and 33s 845ms); both passed in isolation on the same build and in the two selection runs after it.** |
 | The frozen-state note claimed "Profile entry is closed" while the fields were visible and frozen | Caught while reconciling the tests. The note now says the fields are frozen and why, and the closed-entry wording is limited to the genuinely unreadable state. |
 | The retained command was not restored when the board mounted after a route change (only on the page's first render) | Found by reasoning about the mount order; restore now runs once per owner scope after the board mounts, and re-reads on every entry to the board route. |
 
@@ -130,6 +139,47 @@ Named integration coverage: `IntakeContextNamesTheActiveCampaignForOrdinaryMembe
 Named unit coverage added beyond the intake read: the board's required/optional labelling and
 validation, the pre-commit consequence for both campaign cases, and
 `PlayersTreatsAnExpiredRetainedOperationAsUnrecoverableAsync` for the closed-window path.
+
+## PR review round 1 (PR #285)
+
+The review of PR #285 raised seven findings — one High, one Medium, four Low and one Nit. All are
+addressed on top of `b51558b2`; nothing was deferred and nothing was resolved by weakening a test.
+Each fix carries its own regression coverage where the finding had none.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | High | The departure guard *performed* the departure on an attempted same-origin link click instead of opening its confirmation, so `#intake-departure` was unreachable and typed input was discarded silently | **Fixed.** `PlayerIntakeBoard.OnBoardDepartureAttemptAsync` now records the attempt and renders (`await InvokeAsync(StateHasChanged)`); only the panel's **Leave and discard** raises `OnConfirmedDeparture`, which both hosts bind to `LeaveBoard`. Nothing in either suite asserted the panel, so `PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync` was added (see below). |
+| 2 | Medium | The archive acknowledgement was per-*instance*, so ticking it for player A and then opening the confirmation for player B left it ticked with the commit enabled | **Fixed inside the component**, so every host is protected: `PlayerLifecycleConfirmation` gained `[Parameter] PlayerId`, tracks the subject the acknowledgement was given for, and clears it in `OnParametersSet` when the subject changes. `Players.razor` passes `_archiveCandidate.PlayerId` and `PlayerDetail.razor` passes its route `PlayerId`. New bUnit case `PlayerLifecycleConfirmationRequiresAFreshAcknowledgementForAnotherPlayer`. |
+| 3 | Low | A failed recovery-storage read released an in-memory retained command, dropping the only evidence of an already-dispatched addition and then claiming "Nothing has been sent" | **Fixed.** `Players.razor.Intake.cs` keeps `_pendingCreate`/`_invalidRetainedValue` and resets `_recoveryState` only when there is genuinely nothing retained; the storage panel renders its "Nothing has been sent." sentence only when no retained evidence is shown. New bUnit case `PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync`. |
+| 4 | Low | `cut.Markup.ShouldNotContain("Player created successfully.")` no longer matched any copy, so the `oldSucceeded: true` leg of `PlayersIgnoresLateCreationResultWhileNewClubCreationIsPendingAsync` proved nothing | **Fixed.** Replaced with `cut.FindAll("#intake-receipt-heading").Count.ShouldBe(0)`. The assertion is not vacuous: without the identity guard the late club-42 success would reach `SettleCommittedAsync`, set `_receipt`, and the board would render `#intake-receipt-heading`. |
+| 5 | Low | `EvaluationNoteService` was registered twice in `Nova/Program.cs` and `IPlayerLifecycleService` twice in `Nova.Client/Program.cs`, both from a concatenated merge line | **Fixed** — one registration per line, matching their neighbours. Each of the four registrations now appears exactly once (verified by counting matches in both files). |
+| 6 | Low | `PlayerDetail.razor.cs` hardcoded two result sentences while §4 above claimed `PlayerLifecycleCopy` owns every lifecycle sentence | **Fixed.** Both literals are now `PlayerLifecycleCopy.ArchivedResult` and `PlayerLifecycleCopy.RestoredResult`, and §4 is restated precisely (the shared type owns the confirmation copy and both hosts' *success* sentences; each host's failure fallback when a problem carries no detail stays inline). |
+| 7 | Nit | `PlayerFormState.ResetForNextAddition()` and `ToCorrectedCreateInput(...)` had no callers, so the documented "reset only player-specific input" intent was not the code that ran | **Fixed.** `StartAnotherAdditionAsync` now calls `_createForm.ResetForNextAddition()`, and `ToCorrectedCreateInput` is deleted, because a retained payload is deliberately never corrected in place (its fields are frozen). |
+
+### Confirming evidence (round 1)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`b51558b2`, with no commit created in this pass.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3802 total, 3802 passed, 0 failed, 0 skipped**. The #264 baseline was 3800, so the two new cases are the entire delta and nothing regressed. |
+| Affected browser selection | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **21 total, 20 passed, 0 failed, 1 skipped**; the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture. |
+| New departure-guard scenario, named | `--filter-method '*PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync*'` — **1 total, 1 passed, 0 failed**. It proves, in WebAssembly: a typed first name plus a click on the nav rail's **Players** opens `#intake-departure` while the URL stays `/players/new`; **Keep editing** closes the panel and keeps the typed value; the next attempt plus **Leave and discard** navigates to `/players`; a board with no uncommitted input leaves without a prompt. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0** on the final edits. One `dotnet format Nova.slnx --no-restore` pass was required for a `CHARSET` fix on the new test file; `git status` confirms the formatter touched only the files this change edits. |
+| Negative check, finding 3 | With `Players.razor.Intake.cs` temporarily restored to the reviewed body, `PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync` **fails** (`#intake-unresolved` count `0`). The fix was restored and rebuilt before the runs above. |
+| Negative check, finding 1 | With `OnBoardDepartureAttemptAsync` temporarily restored to the reviewed body, `PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync` **fails** after 43s — `Interaction did not settle within the retry window`, URL `/players/new` with no `#intake-departure` — which is the discarded-input behaviour the finding describes. The fix was restored and rebuilt before the runs above. |
+
+First selection run of the round recorded **2 failed**, both of them the long directory journeys the
+failure table above already tracks: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`
+(13s 982ms, a player-record link `href` built from the directory's URL state) and
+`OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` (33s 845ms, a `Cancel` **button**
+click whose enhanced-navigation probe never started). Neither step is one the departure guard can
+mediate — it intercepts anchors only, and the failing assertions are URL-state and enhanced-navigation
+probe outcomes — and both tests passed in isolation on that same build (2 total, 2 passed), then in
+the re-run and final runs of the selection. They remain the documented load-sensitive flakes, not a
+consequence of these fixes.
 
 ## Independent finish review
 
@@ -202,9 +252,12 @@ evidence above is unchanged by it.
 
 ## Limitations and remaining work
 
-- **No commit and no PR.** The work is an uncommitted working tree, so the separate local review
-  required for persisted/recoverable and asynchronous-state changes has not been obtained, and no
-  PR-stage gate has been satisfied. The full-suite evidence above is tied to this working tree and
+- **The PR-stage gates are not yet complete.** The work is committed as `b51558b2` and opened as
+  PR #285, and the separate local review this change's persisted/recoverable and asynchronous-state
+  work requires has now been obtained: that review (round 1) is recorded above with a disposition for
+  every finding. Still outstanding before merge: a full integration run and a full browser run on the
+  final revision (round 1 changed one DI registration list and no provider, EF or domain behaviour),
+  plus the branch's CI. The earlier full-suite evidence above is tied to earlier working trees and
   must be re-established after any further edit.
 - **Approved comp locked: reference A.** Image generation was available through the user-scope
   `OPENAI_API_KEY` (my first check read the process scope, which does not inherit a user-level
@@ -225,26 +278,35 @@ evidence above is unchanged by it.
 - **Finish review complete; formal hero measurement still absent.** The independent review returned
   `fix` (ship with fixes) and all seven material fixes are addressed (see above). The surface has no
   hero measurement of its own, so its reproduction is proven by the recorded direct comparison against
-  the real build, not by the workflow's comp-diff gate.    - **The collocated module's storage contract is browser-verified; the departure guard's effect is
-    not.** `IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync` imports the module in a real browser
-    and drives its own contract: `writePending` retains the exact bytes under the owner-scoped key,
-    `readRecovery` reads them back as readable, `clearPending` removes them, and a different owner's key
-    reads empty. That is the durability boundary the issue actually needs, and it works.
-    The intervening probes and what they did and did not show:
-    - `_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js` **is** served (HTTP 200),
-      and the file parses and exports all nine functions under `node`.
-    - A `console.log` inside `attachDepartureGuard` **did** reach the browser console, proving Blazor's
-      interop invocation reaches the module — but a marker written on the next statement
-      (`document.documentElement.dataset`) was `MISSING` when read from Playwright, and the attach
-      reported success twice with **two different leases**. That points at two mountings across two
-      documents (server-interactive, then the WebAssembly reload) rather than at a broken call, but the
-      marker discrepancy was not run to ground.
-    - A probe for the board's *own* dispatch → storage path never got there: the submit produced
-      `posts=0` (no POST at all), so it proved nothing about retention and is recorded as inconclusive,
-      not as a failure.
-    **Consequence:** the guard must not be treated as delivered evidence, and the board's own
-    dispatch-writes-storage path still lacks a browser assertion even though the module underneath it is
-    now proven. Establishing that single assertion is the first thing a follow-up should do.
+  the real build, not by the workflow's comp-diff gate.    - **The collocated module's storage contract, and now the departure guard's own effect, are
+  browser-verified; the board's dispatch-writes-storage path is not.**
+  `IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync` imports the module in a real browser and
+  drives its own contract: `writePending` retains the exact bytes under the owner-scoped key,
+  `readRecovery` reads them back as readable, `clearPending` removes them, and a different owner's key
+  reads empty. That is the durability boundary the issue actually needs, and it works.
+  `PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync` (added in review round 1) proves the
+  guard's behaviour end to end in WebAssembly: with a typed first name, clicking a departure the board
+  does not mediate (the nav rail's **Players**) opens `#intake-departure` while the URL stays at
+  `/players/new`; **Keep editing** closes the panel and keeps the typed value; clicking the departure
+  again and choosing **Leave and discard** navigates to `/players`; and a board holding no uncommitted
+  input leaves without a prompt. Each attempt re-enters the board and retypes, so the guard's
+  attach-after-first-render window can neither pass nor fail the scenario by timing.
+  The board's own *dispatch* → storage path still lacks a browser assertion: retained bytes are
+  exercised through the module directly and through the injected boundary in unit tests, but no
+  browser journey asserts them between dispatch and receipt. The creation journeys that recover from a
+  lost acknowledgement show the path works; nothing pins it.
+  Earlier probes of the same boundary, kept here because they explain the record's history:
+  - `_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js` **is** served (HTTP 200),
+    and the file parses and exports all nine functions under `node`.
+  - A `console.log` inside `attachDepartureGuard` **did** reach the browser console, proving Blazor's
+    interop invocation reaches the module — but a marker written on the next statement
+    (`document.documentElement.dataset`) was `MISSING` when read from Playwright, and the attach
+    reported success twice with **two different leases**. That points at two mountings across two
+    documents (server-interactive, then the WebAssembly reload) rather than at a broken call, but the
+    marker discrepancy was not run to ground.
+  - A probe for the board's *own* dispatch → storage path never got there: the submit produced
+    `posts=0` (no POST at all), so it proved nothing about retention and is recorded as inconclusive,
+    not as a failure.
   - **Browser Back/Forward inside the SPA is not intercepted**, so history navigation can discard
     typed input without a prompt. The #270 evaluation guard solved this with history-traversal
     protection, which was not replicated here.

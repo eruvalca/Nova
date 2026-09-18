@@ -151,7 +151,7 @@ public sealed partial class PlayerComponentsTests
         await oldSubmit;
         cut.FindComponent<PlayerIntakeBoard>().Instance.IsSubmitting.ShouldBeTrue();
         cut.Markup.ShouldNotContain("Old failure");
-        cut.Markup.ShouldNotContain("Player created successfully.");
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(0);
         await cut.InvokeAsync(() => second.SetResult(ServiceProblem.ServerError("New uncertainty")));
         await newSubmit;
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
@@ -327,6 +327,37 @@ public sealed partial class PlayerComponentsTests
         commands[2].FirstName.ShouldBe("Taylor");
 
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    /// <summary>A failed storage read keeps the in-memory retained command and never claims nothing was sent.</summary>
+    [Fact]
+    public async Task PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Lost response")));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Replay the retained addition"));
+
+        // Re-entering the board re-reads storage for the same owner. That read now fails, which says
+        // nothing about the command this page already dispatched: it stays the only evidence of it.
+        Interop.FailReads = true;
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Taylor");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1);
+        cut.Find("#intake-storage-unavailable").TextContent.ShouldNotContain("Nothing has been sent");
+        commands.Count.ShouldBe(1);
     }
 
     /// <summary>An operation whose own window has closed cannot be replayed and is never discarded.</summary>

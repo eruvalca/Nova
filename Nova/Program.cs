@@ -131,7 +131,7 @@ builder.Services.AddScoped<IPlayerDetailService, PlayerDetailQueryService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<IPlayerService, PlayerService>();
-builder.Services.AddScoped<IPlayerIntakeContextService, PlayerIntakeContextService>(); builder.Services.AddScoped<EvaluationNoteService>();
+builder.Services.AddScoped<IPlayerIntakeContextService, PlayerIntakeContextService>();
 builder.Services.AddPlayerIntakeInterop();
 builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<ICampaignEvaluationNoteService>(services => services.GetRequiredService<EvaluationNoteService>());

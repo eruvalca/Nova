@@ -81,10 +81,13 @@ public partial class Players
         _recoveryScope = CurrentScope;
         if (read is null)
         {
+            // Unreadable storage does not disprove an earlier dispatch: an in-memory retained
+            // command is still the only evidence of it and must not be released.
             _storageUnavailable = true;
-            _recoveryState = PlayerCreationRecoveryState.None;
-            _pendingCreate = null;
-            _invalidRetainedValue = null;
+            if (_pendingCreate is null && _invalidRetainedValue is null)
+            {
+                _recoveryState = PlayerCreationRecoveryState.None;
+            }
             return;
         }
 
@@ -315,7 +318,8 @@ public partial class Players
     private async Task StartAnotherAdditionAsync()
     {
         _receipt = null;
-        _createForm = PlayerFormState.CreateDefault();
+        // Reset only player-specific input; the board's mode and identity stay with the instance.
+        _createForm.ResetForNextAddition();
         _fieldErrors = null;
         _mutationError = null;
         _statusMessage = null;

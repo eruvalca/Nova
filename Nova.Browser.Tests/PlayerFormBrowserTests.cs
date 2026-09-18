@@ -143,6 +143,57 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByText($"Form Player {suffix}")).ToBeVisibleAsync();
     }
 
+    /// <summary>
+    /// The uncommitted-departure guard asks before discarding typed input: an attempt only opens the
+    /// confirmation, <c>Keep editing</c> preserves the typed value, and only the confirmed departure leaves.
+    /// </summary>
+    [Fact]
+    public async Task PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenPlayersInWebAssemblyAsync(page);
+        var departure = page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true });
+        var firstName = $"Guardian {Guid.NewGuid():N}";
+
+        // The guard attaches after the board's first render, so an early click can still escape; each
+        // attempt re-enters the board and retypes until the click is intercepted.
+        await InteractionHelpers.ActUntilAsync(page,
+            async () =>
+            {
+                if (!string.Equals(new Uri(page.Url).AbsolutePath, "/players/new", StringComparison.Ordinal))
+                {
+                    await OpenCreationFormAsync(page);
+                }
+
+                await page.Locator("#player-first-name").FillAsync(firstName);
+                await departure.ClickAsync(new() { Timeout = 3000 });
+            },
+            () => page.Locator("#intake-departure").IsVisibleAsync());
+
+        // The attempt opened the confirmation instead of performing the departure.
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#intake-departure")).ToContainTextAsync("Leave with uncommitted player details?");
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        await InteractionHelpers.ClickUntilAsync(page, departure, () => page.Locator("#intake-departure").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+
+        // A board holding no uncommitted input leaves without asking.
+        await OpenCreationFormAsync(page);
+        await departure.ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+    }
+
     [Fact]
     public async Task PlayerDetailActiveCampaignBadgeMeetsContrastThresholdAsync()
     {

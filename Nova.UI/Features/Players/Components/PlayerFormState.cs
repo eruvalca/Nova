@@ -121,23 +121,6 @@ public sealed class PlayerFormState : IValidatableObject
         JerseyNumber = JerseyNumber
     };
 
-    /// <summary>Projects this state back onto the exact command payload it was frozen from.</summary>
-    /// <param name="command">The retained command whose profile fields were corrected.</param>
-    /// <returns>A command with the retained identity and the corrected profile fields.</returns>
-    public CreatePlayerInput ToCorrectedCreateInput(CreatePlayerInput command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        return command with
-        {
-            FirstName = FirstName,
-            LastName = LastName,
-            DateOfBirth = DateOfBirth,
-            GraduationYear = GraduationYear,
-            Gender = Gender,
-            JerseyNumber = JerseyNumber
-        };
-    }
-
     /// <summary>Projects the retained command back into editable state so a member can correct it.</summary>
     /// <param name="command">The retained command.</param>
     /// <returns>A create-mode state holding the retained payload.</returns>

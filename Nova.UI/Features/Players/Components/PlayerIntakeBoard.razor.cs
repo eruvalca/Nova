@@ -385,7 +385,10 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         }
     }
 
-    /// <summary>Records that the member attempted to leave with uncommitted input.</summary>
+    /// <summary>
+    /// Records that the member attempted to leave with uncommitted input and opens the departure
+    /// confirmation. The attempt never departs: only the panel's confirm raises the departure.
+    /// </summary>
     /// <param name="lease">The lease of the board mounting that raised the attempt.</param>
     /// <param name="url">The local destination the member chose.</param>
 #pragma warning disable CA1054 // The collocated module passes a browser location, which is text at the interop boundary.
@@ -396,11 +399,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (!string.Equals(lease, _guardLease, StringComparison.Ordinal) || !_dirty) { return; }
         _departurePending = true;
         _departureUrl = url;
-        await InvokeAsync(async () =>
-        {
-            StateHasChanged();
-            await OnConfirmedDeparture.InvokeAsync(url);
-        });
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <inheritdoc />

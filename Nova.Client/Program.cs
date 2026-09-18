@@ -52,7 +52,7 @@ builder.Services.AddScoped<ICropperCanvasExporter, CropperCanvasExporter>();
 builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();
 builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
 builder.Services.AddScoped<IPlayerService, HttpPlayerService>();
-builder.Services.AddScoped<IPlayerIntakeContextService, HttpPlayerIntakeContextService>(); builder.Services.AddScoped<IPlayerLifecycleService, HttpPlayerLifecycleService>();
+builder.Services.AddScoped<IPlayerIntakeContextService, HttpPlayerIntakeContextService>();
 builder.Services.AddPlayerIntakeInterop();
 builder.Services.AddScoped<IPlayerLifecycleService, HttpPlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, HttpPlayerManagementService>();

@@ -157,11 +157,13 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     {
         <div class="intake-attention" role="status" aria-live="polite" id="intake-storage-unavailable">
             <p class="fw-semibold mb-2">Retained additions could not be checked.</p>
-            <p class="mb-2">
-                This browser's recovery storage is unavailable, so an earlier addition cannot be
-                found or recovered from here. Nothing has been sent. An addition is still only
-                committed once its own request is retained, so continue once storage is available.
-            </p>
+            <p class="mb-2">This browser's recovery storage is unavailable, so an earlier addition cannot be found or recovered from here.</p>
+            @if (RecoveryState == PlayerCreationRecoveryState.None)
+            {
+                @* Retained evidence is shown above; only a board with none can claim nothing was sent. *@
+                <p class="mb-2">Nothing has been sent.</p>
+            }
+            <p class="mb-2">An addition is still only committed once its own request is retained, so continue once storage is available.</p>
             <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">Retry storage</button>
         </div>
     }
