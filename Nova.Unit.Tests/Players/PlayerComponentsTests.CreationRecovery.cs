@@ -491,9 +491,13 @@ public sealed partial class PlayerComponentsTests
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
     }
 
-    /// <summary>A failed storage read still settles the check, so a well-formed board is never stuck shut.</summary>
+    /// <summary>
+    /// A failed retained-command read keeps the board withheld until a read actually answers. This
+    /// supersedes round 2's reopen, which could not protect values typed before a later retry landed a
+    /// retained command over them.
+    /// </summary>
     [Fact]
-    public async Task PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync()
+    public async Task PlayersKeepsTheBoardWithheldWhenTheRetainedCommandReadFailsAsync()
     {
         RegisterServices(isClubAdmin: true);
         Interop.FailReads = true;
@@ -501,11 +505,45 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
 
-        // The board may speak only for itself: storage was not checked, and nothing left this board.
+        // Storage refused the read, so the owner's retained state is unknown. The board may speak only
+        // for itself about dispatch — nothing left this board — but it must not open its fields: values
+        // typed now would be replaced without warning by whatever a later retry lands.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
         cut.Find("#intake-storage-unavailable").TextContent.ShouldContain("Nothing has been sent from this board.");
-        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-checking-note").TextContent.ShouldContain("could not be checked");
+        cut.Find("fieldset").GetAttribute("aria-describedby").ShouldBe("intake-checking-note");
+
+        // The retry resolves it, and it is the only control that can: a read that answers opens the
+        // board, so the withholding is a state the member can leave rather than a dead end.
+        Interop.FailReads = false;
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.FindAll("#intake-checking-note").Count.ShouldBe(0);
+    }
+
+    /// <summary>A retry whose read fails again keeps the board withheld instead of reopening it.</summary>
+    [Fact]
+    public async Task PlayersKeepsTheBoardWithheldWhenTheRetryReadFailsAgainAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.FailReads = true;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+
+        // The second failure proves just as little as the first, so the fields stay closed and the check
+        // stays unsettled rather than reopening the form over retained state nobody has read.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-checking-note").TextContent.ShouldContain("could not be checked");
     }
 
     /// <summary>The board names a check in progress instead of a campaign fact while the read is open.</summary>

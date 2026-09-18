@@ -39,7 +39,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     @if (!RecoveryChecked && !IsEntryBlocked && !IsFrozen && !ShowsReceipt && CanManage)
     {
         <p class="intake-blocked-note" id="intake-checking-note" role="status">
-            Checking this browser for a retained addition…
+            @RetainedCheckNote
         </p>
     }
 

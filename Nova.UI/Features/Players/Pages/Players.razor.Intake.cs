@@ -100,14 +100,13 @@ public partial class Players
             return;
         }
 
-        // Every path below has now examined the owner's retained command, so the board may accept
-        // input; a board that could not be checked this way would be stuck refusing input.
-        _recoveryChecked = true;
         _recoveryScope = CurrentScope;
         if (read is null)
         {
-            // Unreadable storage does not disprove an earlier dispatch: an in-memory retained
-            // command is still the only evidence of it and must not be released.
+            // Storage refused the read, so the owner's retained state is still unknown and the board
+            // keeps withholding input: opening it would let a later retry land a retained command over
+            // values typed meanwhile. Unreadable storage does not disprove an earlier dispatch, so an
+            // in-memory retained command stays the only evidence of it and is never released.
             _storageUnavailable = true;
             if (_pendingCreate is null && _invalidRetainedValue is null)
             {
@@ -117,6 +116,10 @@ public partial class Players
             return;
         }
 
+        // The owner's retained command has actually been examined — for this scope, by a read that
+        // answered — so the board may accept input now. A read that fails leaves that unproven, which is
+        // what keeps a failed retry or refresh from reopening the form over unknown retained state.
+        _recoveryChecked = true;
         _storageUnavailable = false;
         ApplyRecoveryRead(read);
     }

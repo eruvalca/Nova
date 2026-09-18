@@ -753,6 +753,31 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
 | Full browser suite | Two runs on this revision. The first reported **229 total, 218 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, this time on the directory paging text (`.players-paging` read `Page 1 of 4` where the journey expects the retained draft context to put it on page 2), the same load-sensitive journey and the same class of failure the record already tracks. The retry was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs. Every failure of this journey seen in this pass is recorded rather than summarized away, and none reproduced in isolation on the same build. |
 
+## GitHub Copilot code review, fourteenth pass (PR #285, on `21e5b6ba`)
+
+Copilot raised the **failed-read withholding** finding again, this time with the specific line and a
+prescription. It carried no inline thread, so the disposition is here and in the triage comment on the
+PR. **This closes the open item the record has carried since the seventh/eighth passes.**
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `RestoreRecoveryAsync` marks the check settled even when `ReadRecoveryAsync` returned null, so the board opens while the owner's retained state is unknown; values typed after that failure are silently replaced when a later retry lands a retained command (`Players.razor.Intake.cs:121`) | **Fixed as prescribed.** A read that refuses now leaves `RecoveryChecked` false, so the board stays withheld until a read actually answers; the settle moved to after the null check, which is the same rule for every reader (entry, retry, same-owner refresh, **Add another**): input is offered only once the owner's retained command has been examined for this scope by a read that answered. Nothing typed can therefore be replaced, because nothing can be typed while the state is unknown. The withheld state is named for the failure it actually is — `RetainedCheckNote` now distinguishes a check in progress from one storage refused ("could not be checked. Retry storage to continue."), which matters because the refused state persists instead of passing in a frame as the in-flight one does — and the storage panel beside it keeps the retry. **The round-2 decision is superseded, not silently dropped:** that case asserted the board reopens so a broken browser is not a dead end, and it is rewritten as `PlayersKeepsTheBoardWithheldWhenTheRetainedCommandReadFailsAsync`, which now also proves the withholding is escapable (a read that answers opens the board and clears the notice). New case `PlayersKeepsTheBoardWithheldWhenTheRetryReadFailsAgainAsync` pins that a second failure does not reopen either. The replay is withheld with it while storage is unreadable, which is stricter than before by the same rule. |
+
+### Confirming evidence (Copilot fourteenth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`21e5b6ba`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3842 total, 3842 passed, 0 failed, 0 skipped** (3841 before; the rewritten case plus the new retry case net one). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **22 total, 21 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the load-sensitive journey passing in this run. No players browser scenario breaks the storage boundary — only the campaign and evaluation suites override `Storage.prototype.getItem`, and neither touches the intake board — so the withholding cannot reach them. |
+| Negative check | With `_recoveryChecked = true` restored inside the refused-read branch (the build re-verified as successful first), both cases fail on `fieldset` `disabled` — **2 failed, 0 passed**. Fix restored and rebuilt before the runs above. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **229 total, 219 passed, 0 failed, 10 skipped** on the first run, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after the pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -912,15 +937,20 @@ evidence above is unchanged by it.
 - `IPlayerIntakeInterop` is public because a Razor component's constructor must be public; the
   interface and its result types are therefore part of `Nova.UI`'s public surface. This is a
   deliberate trade-off for testability and is recorded rather than hidden.
-- **One review finding from the seventh/eighth passes remains open, and it is a contract change that
-  needs its own test-update pass rather than a rushed edit:** after a **failed storage read** the board
-  stays editable, so a later retry can land a retained command over values typed meanwhile —
-  withholding input until storage answers is the right contract, but it supersedes the round-2 decision
-  that deliberately reopened the board after a failed read, so that case must be rewritten and
-  re-verified with it. It is implemented-and-reverted in the seventh pass's tree; the shipped revision
-  leaves it as it is. **The other open item from that pair — the enrollment consequence rendering for
-  the edit board — is closed**: the twelfth pass made the consequence the create host's opt-in, so the
-  edit board states none (`PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync`).
+- **The last review finding carried from the seventh/eighth passes is closed, and the two open items
+  from that pair are now both resolved.** One was the enrollment consequence rendering for the edit
+  board, closed by making the consequence the create host's opt-in (twelfth pass,
+  `PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync`). The other was that a **failed storage
+  read** left the board editable, so a later retry could land a retained command over values typed
+  meanwhile; the fourteenth pass closed it by keeping `RecoveryChecked` false whenever a read refuses,
+  so input is offered only once the owner's retained command has been examined by a read that
+  answered (`PlayersKeepsTheBoardWithheldWhenTheRetainedCommandReadFailsAsync` and
+  `PlayersKeepsTheBoardWithheldWhenTheRetryReadFailsAgainAsync`). That **supersedes round 2's reopen
+  decision deliberately**, and the trade-off is now the record's: with storage refusing both reads and
+  writes, the form is unusable until storage answers again — which is honest rather than lenient,
+  because a dispatch needs that same storage, and the member keeps the retry that resolves it. The
+  rule is uniform across readers (entry, retry, same-owner refresh, **Add another**), so a failed
+  same-owner refresh also keeps the board withheld until a read answers.
 - The departure guard does not intercept browser Back/Forward, and that narrowing is now **tested
   rather than only documented**: `PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync`
   proves the guard is attached and dirty for the same typed value by having the link path prompt for

@@ -235,6 +235,15 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             || (RecoveryState == PlayerCreationRecoveryState.Unresolved && CanReplay));
 
     /// <summary>
+    /// Gets the sentence that names why the board is withholding input. A refused check is not a check
+    /// in progress, and it is the state that persists until storage answers again, so it says which
+    /// action the member has.
+    /// </summary>
+    protected string RetainedCheckNote => StorageUnavailable
+        ? "This browser's retained addition could not be checked. Retry storage to continue."
+        : "Checking this browser for a retained addition…";
+
+    /// <summary>
     /// Gets the commit control's label. The replay label appears only where a replay is actually
     /// offered, so a retained command that can no longer be sent is not named as an action.
     /// </summary>
