@@ -92,6 +92,12 @@ public partial class PlayerDetail(
     private int _clubScopeVersion;
 
     /// <summary>
+    /// The authentication generation. Every applied state re-checks it, so a startup read that
+    /// resolves after a notification cannot overwrite the newer principal.
+    /// </summary>
+    private int _authenticationVersion;
+
+    /// <summary>
     /// Indicates whether the archive confirmation panel is open.
     /// </summary>
     private bool _showArchiveConfirm;
@@ -121,8 +127,13 @@ public partial class PlayerDetail(
     protected override async Task OnInitializedAsync()
     {
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        var version = _authenticationVersion;
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        ApplyAuthority(authState.User);
+        if (version == _authenticationVersion && !ComponentCancellationToken.IsCancellationRequested)
+        {
+            // A notification that arrived while this read was pending already owns the page.
+            ApplyAuthority(authState.User);
+        }
 
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
         await LoadDetailAsync();
@@ -157,7 +168,14 @@ public partial class PlayerDetail(
     /// <param name="stateTask">The authentication state task produced by the change event.</param>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
+        var version = ++_authenticationVersion;
         var authState = await stateTask;
+        if (version != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // A newer notification already applied its state; this one is stale.
+            return;
+        }
+
         var previousClub = _clubId;
         var canManage = ApplyAuthority(authState.User);
 

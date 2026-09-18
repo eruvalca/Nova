@@ -654,6 +654,30 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Avery Johnson");
     }
 
+    /// <summary>A startup read that resolves after a notification cannot overwrite the new principal.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresAStartupAuthenticationReadThatResolvedAfterANotificationAsync()
+    {
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        RegisterServices(isClubAdmin: true);
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // A notification for a club member arrives while the startup read is still pending, and the
+        // page binds to it: the lifecycle controls are offered.
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(true, clubId: 43)))));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Archive"));
+
+        // The startup read then resolves as a principal with no club membership; it must not win.
+        await cut.InvokeAsync(() => pending.SetResult(
+            new AuthenticationState(CreatePrincipal(false, hasClubMembership: false))));
+
+        cut.Markup.ShouldContain("Archive");
+    }
+
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,
@@ -710,6 +734,18 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    /// <summary>Provides a pending authentication state that a notification can overtake.</summary>
+    /// <param name="pending">The state the startup read awaits.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> pending) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => pending;
+
+        /// <summary>Publishes a notification, as the framework does when the state changes.</summary>
+        /// <param name="state">The replacement state.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
     }
 
     /// <summary>

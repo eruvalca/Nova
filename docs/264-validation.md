@@ -625,6 +625,30 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check, findings 2-4 | With those three fixes reverted (the minimal departure handler, no gate re-arming, and no focus requests), the run reported **3 failed, 0 passed** on the three new cases. The fourth case (finding 1) passed with its fix reverted, which is why it was deleted. |
 | Full browser suite | Not run in this pass: the previous clean pass covers `1ba6713e`, this revision adds these fixes, so the before-merge row is outstanding for it and is listed as an open item. |
 
+## GitHub Copilot code review, ninth pass (PR #285, on `23bde443`)
+
+Copilot raised **one inline finding** on the previous round's own Player detail work, and it is fixed
+here.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The initial authentication read was applied without an ownership generation, so a notification arriving while `GetAuthenticationStateAsync()` was pending could be overwritten by the stale startup principal — leaving the page showing lifecycle controls, or reloading the wrong club, for a member whose authority had just changed | **Fixed.** The page now carries the monotonic `_authenticationVersion` the directory uses: the startup read captures it and applies the principal only when it is still current, and every notification bumps it and re-checks after its own await, so a stale state can never win. New case `PlayerDetailIgnoresAStartupAuthenticationReadThatResolvedAfterANotificationAsync` — a notification for a club member arrives while the startup read is pending, the read then resolves as a principal with no club membership, and the lifecycle controls must survive. It fails when the guard is reverted. |
+
+### Confirming evidence (Copilot ninth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`23bde443`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3836 total, 3836 passed, 0 failed, 0 skipped** (3835 before; the new case is the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with no load-sensitive journey failing in this pass. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check | With the version guard reverted, `PlayerDetailIgnoresAStartupAuthenticationReadThatResolvedAfterANotificationAsync` reports **1 failed, 0 passed** on `cut.Markup` — the stale read drops the lifecycle controls, which is the defect. Restored from a byte-identical snapshot with its timestamp touched before the rebuild. |
+| Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` (6.4s), one of the two long directory journeys this record tracks as load-sensitive, which had **passed in the affected selection on this same build**. The second was clean: **228 total, 218 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
