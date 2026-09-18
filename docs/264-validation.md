@@ -778,6 +778,32 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **229 total, 219 passed, 0 failed, 10 skipped** on the first run, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after the pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, fifteenth pass (PR #285, on `ee59fc76`, fixed in `4f72ccf9`)
+
+Copilot raised one inline finding and reported two more in the review body. All three are addressed in
+`4f72ccf9`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | Scope invalidation keys only on `_clubId`, so a different member of the same club inherits the previous caller's reviewed confirmation and any in-flight detail/lifecycle completion (`PlayerDetail.razor.cs:196`, **inline thread**) | **Fixed as prescribed.** The page tracks the caller beside the club and treats either change as a scope change: the reviewed panel closes, the previous caller's outcome messages are cleared, `_clubScopeVersion` increments, and the detail reloads against the new scope — so a completion that belongs to the previous caller can no longer publish into the view now on screen. New case `PlayerDetailRebindsScopeWhenAnotherMemberOfTheSameClubTakesOverAsync` drives a same-club takeover *while an archive is in flight* and proves the panel closes, the detail is re-read, and the completed archive leaves no status on the new caller's page. |
+| 2 | Field-level server errors render as free-standing `<p>` elements, and no control points at its own message with `aria-describedby` (`PlayerIntakeBoard.razor:274`) | **Fixed, with a measured correction to the premise.** Every profiled control now names its field's error region by a stable id and renders both the form's own validation message and the server messages inside it — `PlayersDescribesAServerFieldMessageFromItsControlAsync` and `PlayersDescribesItsOwnValidationMessageFromItsControlAsync` prove both sources, and the gender case asserts the same for the select. **The premise that the controls already `aria-invalid` does not hold in the built app:** these form components own `aria-invalid`, render it from their own edit context, and ignore one supplied to them ([`InputBase`](https://source.dot.net/Microsoft.AspNetCore.Components.Web/Forms/InputBase.cs.html)) — the new cases measured exactly that, `null` for a server-keyed error while `aria-describedby` rendered, and `"true"` for the form's own message. The dead `aria-invalid` expressions are therefore replaced by the class the surface already uses for its invalid state (`is-invalid`), so a server-keyed error marks its field as well as naming its message, and the board re-renders on validation-state change so those attributes describe the field validation actually left it in. |
+| 3 | `CreatePlayerAsync` guards only `_identityVersion` after the await, so a member who leaves the form mid-flight gets the receipt stored into a view that clears it at the next boundary while the retained record is released — the committed operation loses both pieces of evidence (`Players.razor.Intake.cs:204`) | **Fixed as prescribed.** The outcome is now applied only where the create form is showing: a request that answers after the member left the form publishes nothing, and the exact command stays retained, so the same operation identity recovers the same receipt server-side on their return. `PlayersKeepsACommittedCreationRecoverableWhenTheRouteChangesMidFlightAsync` leaves the form while the request is held, releases it with a committed completion, and proves the command is still retained, no receipt is published into the directory, and returning to the form replays the *same* command into the receipt and its release. A committed creation still refreshes the directory, where its player is the one effect this view can honestly report. |
+
+### Confirming evidence (Copilot fifteenth pass)
+
+Tested revision: `4f72ccf9` — the three fixes, pushed as the next commit on the branch. The
+documentation-only edit that recorded this evidence changed no application or browser-suite input.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3846 total, 3846 passed, 0 failed, 0 skipped** (3842 before; the four new cases are the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check | With the four product files restored to their `ee59fc76` content — the revert **build re-verified as successful (0 warnings, 0 errors) before the run**, the trap this record names twice — **all five new cases fail**: the three field-feedback cases, the same-club takeover case, and the route-changed creation case (**5 failed, 3841 passed**). The fixes were restored, rebuilt and re-run green before the suites below. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-method "*DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync"` — **1 total, 1 passed** in isolation on this revision, which is the journey the change can reach and the one that failed inside the first two full runs. |
+| Full browser suite | Three runs on this revision. The first reported **229 total, 217 passed, 2 failed, 10 skipped** and the second **229 total, 218 passed, 1 failed, 10 skipped**; in both, `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — the journey this record has tracked as load-sensitive since the eleventh pass — failed on absent paging text (`element(s) not found 'Page 2 of 4'` in `.players-paging`), the same class of failure the thirteenth and fourteenth passes recorded (there, reading `Page 1 of 4`). The third run was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs. The failing journey exercises the directory's draft/paging return path, not the field markup, the caller scope or the route-changed settlement this pass changed, it passed in isolation on this revision, and it has failed and passed on unchanged revisions before — so the evidence does not attribute it to this change. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -966,6 +992,15 @@ evidence above is unchanged by it.
   not, so closing the gap needs the traversal handled where the owner survives it — a feature of its
   own, not a review-round fix. The module names the verified mechanism beside its click listener so a
   reader does not infer wider coverage.
+- **The form components own `aria-invalid`, so a server-keyed field error cannot set it.** Blazor's
+  `InputBase` renders `aria-invalid` from its own `EditContext` and ignores one supplied to it, which the
+  fifteenth pass measured directly: the attribute was absent for a server-keyed error while
+  `aria-describedby` rendered, and the framework set it on its own for the form's message. A *server's*
+  field error therefore marks its control with the class Bootstrap styles (`is-invalid`) and names the
+  message with `aria-describedby`, so the semantic invalid state for that case rides on the described
+  message rather than on an attribute the component will not render; the `EditContext`'s own refusals are
+  announced by the framework itself. Re-adding `aria-invalid` markup to these controls would be dead code
+  that reads as coverage.
 
 ## Design evidence
 
