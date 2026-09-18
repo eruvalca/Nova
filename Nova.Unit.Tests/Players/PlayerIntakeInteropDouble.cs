@@ -19,8 +19,23 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets a gate that holds every read open, the way slow storage would.</summary>
     public TaskCompletionSource? ReadGate { get; set; }
 
+    /// <summary>Gets or sets a gate that holds every write open, the way slow storage would.</summary>
+    public TaskCompletionSource? WriteGate { get; set; }
+
     /// <summary>Gets or sets whether writes fail the way an unavailable browser storage would.</summary>
     public bool FailWrites { get; set; }
+
+    /// <summary>Gets or sets whether clears report that no matching record was removed.</summary>
+    public bool FailClears { get; set; }
+
+    /// <summary>Gets or sets the number of departure-guard attach attempts that fail before one succeeds.</summary>
+    public int FailGuardAttachAttempts { get; set; }
+
+    /// <summary>Gets the number of departure-guard attach attempts, including failed ones.</summary>
+    public int GuardAttachCount { get; private set; }
+
+    /// <summary>Gets the number of write attempts, including ones a gate is still holding.</summary>
+    public int WriteAttempts { get; private set; }
 
     /// <summary>Gets the number of accepted writes.</summary>
     public int WriteCount { get; private set; }
@@ -85,9 +100,15 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     }
 
     /// <inheritdoc />
-    public Task WriteAsync(PendingPlayerCreation pending, CancellationToken cancellationToken)
+    public async Task WriteAsync(PendingPlayerCreation pending, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(pending);
+        WriteAttempts++;
+        if (WriteGate is { } writeGate)
+        {
+            await writeGate.Task;
+        }
+
         if (FailWrites)
         {
             throw new JSException("Storage is unavailable.");
@@ -108,14 +129,15 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         _pending[key] = pending;
         WriteCount++;
         LastWriteJson = pending.ToJson();
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public Task<bool> ClearAsync(long actorUserId, long clubId, Guid operationId, CancellationToken cancellationToken)
     {
         var key = OwnerKey(actorUserId, clubId);
-        if (!_pending.TryGetValue(key, out var existing) || existing.Payload.OperationId != operationId)
+        if (FailClears
+            || !_pending.TryGetValue(key, out var existing)
+            || existing.Payload.OperationId != operationId)
         {
             return Task.FromResult(false);
         }
@@ -142,6 +164,13 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <inheritdoc />
     public Task AttachDepartureGuardAsync(ElementReference root, object receiver, string lease, CancellationToken cancellationToken)
     {
+        GuardAttachCount++;
+        if (FailGuardAttachAttempts > 0)
+        {
+            FailGuardAttachAttempts--;
+            throw new JSException("The departure guard module could not be imported.");
+        }
+
         GuardAttached = true;
         GuardLease = lease;
         return Task.CompletedTask;

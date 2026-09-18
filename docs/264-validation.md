@@ -386,6 +386,65 @@ so both merge-stage gates now cover the final inputs.
 This section was added after the browser pass and changes no application or browser-suite input, so
 that pass still covers the tested revision.
 
+## GitHub Copilot code review (PR #285, on `e84cd1ef`)
+
+Once the PR was un-drafted, GitHub Copilot code review posted **six inline findings** against this
+change's own new code on `e84cd1ef`: four on the asynchronous ownership of the browser boundary, one
+repository-convention violation, and one missing HTTP-boundary assertion. All six are dispositioned
+below on top of `e84cd1ef`; nothing was deferred and nothing was resolved by weakening a test. Each
+code fix carries a case that fails when it is reverted (see the negative check), and the four
+boundary findings share one invariant — a boundary await must not mutate or dispatch for an identity
+and a recovery record that no longer hold.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The departure guard was attached inside the `firstRender` branch only, so a transient import or attach failure left typed input without a same-origin departure prompt for the rest of the mount | **Fixed.** `PlayerIntakeBoard.OnAfterRenderAsync` now attempts the attachment on every render while `_guardAttached` is false, gated by `_guardAttachInFlight` so concurrent renders cannot stack attempts. `TryAttachDepartureGuardAsync` issues a fresh lease per attempt, re-pushes the dirty flag on success, and relies on the module's own `attachDepartureGuard`, which aborts any active guard first — so a retry supersedes the previous listeners instead of duplicating them. A failed attempt schedules no render of its own, so retries follow real interaction rather than a hot loop. New case `PlayersRetriesTheDepartureGuardAfterATransientAttachFailureAsync`. |
+| 2 | The replay path skipped `RetainAsync`, so it could dispatch a retained command whose record another tab had released, leaving a lost reply unrecoverable | **Fixed.** `CreatePlayerAsync` now retains the exact command on every dispatch, fresh or replay. The storage module already accepts a same-operation rewrite and still refuses a *different* operation, so the replay re-establishes the record before the request leaves without ever changing its operation identity. New cases `PlayersRetainsTheReplayedCommandAgainBeforeDispatchingItAsync` (the second write is the evidence: `WriteCount` 1 → 2) and `PlayersDispatchesNoReplayWhenTheRetainedRequestCannotBeWrittenAgainAsync` (nothing is dispatched, and the storage panel and its retry appear instead). |
+| 3 | The dispatch path did not re-check the captured `_identityVersion` after the retention await, so a page re-scoped while storage was written could dispatch a club-42 command with the club-43 identity source and mutate the new page state | **Fixed.** The version/cancellation check now runs immediately after `RetainAsync` and before either `_pendingCreate = command` or `CreateAsync`, matching the check the HTTP await already carried. New case `PlayersDispatchesNoCreationWhoseIdentityChangedWhileTheRetainedWriteRanAsync` holds the write open through a new `WriteGate` on the interop double, changes the principal to club 43, releases the gate and asserts no dispatch and no receipt. |
+| 4 | The set-aside ignored both the removal result and ownership changes, then cleared the in-memory retained command, so a refused release left bytes the page had forgotten | **Fixed.** `SetAsideRetainedAsync` now treats the removal as the decision: it captures `_identityVersion`, re-checks it after the await, and keeps the retained state blocked — with the storage panel, its retry and an explicit message — when `ClearAsync`/`DiscardInvalidAsync` report that the bytes were not released. Sibling paths fixed for the same invariant: `ReleaseRetainedAsync` attempts the release before clearing state and reports a refusal, and `SettleCommittedAsync` reports an unreleased record instead of claiming it. New case `PlayersKeepsTheRetainedAdditionWhenItsSetAsideCannotBeReleasedAsync`, which also proves the decision completes after **Retry storage**. |
+| 5 | `AddPlayerIntakeInterop` was a classic `this`-parameter extension method, which the repository's current C# convention forbids for new extension members | **Fixed.** It is now a C# 14 `extension(IServiceCollection services)` block, matching `.github/instructions/csharp-conventions.instructions.md` and its canonical examples. The `CA1034` suppression the rule requires of a **public** extension class follows `Nova.SharedKernel/Results/HttpResponseMessageExtensions.cs`; both call sites (`Nova/Program.cs`, `Nova.Client/Program.cs`) are in other assemblies, so the class stays public. |
+| 6 | The new endpoint declared `ProducesValidationProblem()` while the HTTP suite covered only 200, 401 and 403, so route binding and endpoint-layer validation were unproven | **Fixed.** `IntakeContextRejectsAnInvalidClubRouteValueAsync` requests `/api/clubs/0/players/intake-context` as an authenticated club member and asserts the 400, the `application/problem+json` media type, `status`, a non-empty `ClubId` error array and a non-empty `traceId`. The member passes `RequireClubMember` (which requires only the club claim), so the route value itself is what the request exercises; validation runs first inside the service, before the club-ownership check. |
+
+### Confirming evidence (Copilot round)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`e84cd1ef`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. One earlier build failed with a single `CA1034` on the new public extension block; that suppression is the correction, and the rebuild is the clean one recorded here. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3820 total, 3820 passed, 0 failed, 0 skipped**. The round-4 baseline was 3815, so the five new cases are the entire delta. |
+| Intake-context HTTP class | `--filter-method '*IntakeContext*'` — **4 total, 4 passed, 0 failed, 0 skipped**, the new 400 case included. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. The previous full pass was 677, so the new route-value case is the delta, and both merge-stage integration gates now cover the final inputs. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped**; the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check, all four boundary fixes | With the four fixes reverted together (attachment gated on `firstRender` again, replay skipping retention, no post-retention identity check, unconditional set-aside release) and the solution rebuilt, the five new cases reported **5 failed, 0 passed** — on `Interop.GuardAttached` false, `Interop.WriteCount` 1, `commands` not empty and `#intake-storage-unavailable` absent respectively. The fixes were then restored from a byte-identical snapshot (SHA-256 compared before and after) and rebuilt; the runs above are on the restored build. |
+| Full browser suite | Three runs of `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` on this revision. **See the note below** — no run repeated the same victim, and every failing journey passed alone on the same build. |
+
+**A stale-build trap this round turned up, recorded because it first looked like five real failures.**
+The first full-unit run after restoring the reverted files reported **5 failed**; the assembly under
+test was the *reverted* one. `Copy-Item` restores a file with its original, older `LastWriteTime`, so
+MSBuild judged the restored sources up to date and skipped recompiling. The same trap had already
+turned one negative-check attempt into a false pass (the reverted condition did not compile, the build
+failed, and the test run silently reused the previous assembly). **Both times the fix was to touch the
+restored sources before rebuilding and to require a successful build before reading any test result.**
+Recorded with the round because an unrecompiled assembly is indistinguishable from a real regression
+in the test output.
+
+**Full browser suite on this revision.** Run 3 — the run that covers the final inputs — reported
+**228 total, 218 passed, 0 failed, 10 skipped**, which is the clean pass the before-merge row
+requires. Runs 1 and 2 reported `228 total, 217 passed, 1 failed, 10 skipped` with a **different**
+victim each time: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — one of
+the two load-sensitive journeys this record already tracks — and
+`CampaignWorkspaceBrowserTests.InheritedPlacementContextStaysBesideDiscoveryAndBecomesMobileDialogAsync`,
+a campaign-workspace focus assertion (`#participant-drawer-close` "inactive" within 5s) on a surface
+this change does not touch. Both passed alone on the same build (**1 total, 1 passed** each). Neither
+victim repeated, and two unrelated surfaces failing at one test apiece is the shape of the
+load-sensitivity class this record already documents rather than a diff-caused regression. The ten
+skips remain the pre-existing env-gated captures, so no behavioural scenario is skipped. These
+paragraphs were written after run 3 and change no application or browser-suite input, so that pass
+still covers the tested revision.
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction

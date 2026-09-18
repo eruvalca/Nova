@@ -22,6 +22,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     private string? _guardLease;
     private bool _dirty;
     private bool _guardAttached;
+    private bool _guardAttachInFlight;
     private bool _departurePending;
     private string? _departureUrl;
     private bool _subscribed;
@@ -357,22 +358,13 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !_guardAttached)
+        // Attached here and retried on every later render until it succeeds, because a transient
+        // import or attach failure must not leave typed input unprotected for the rest of the mount.
+        // A failed attempt schedules no render of its own, so retries follow real interaction rather
+        // than a hot loop, and the in-flight gate keeps concurrent renders from stacking attempts.
+        if (!_guardAttached && !_guardAttachInFlight)
         {
-            _departureReceiver ??= DotNetObjectReference.Create(this);
-            _guardLease = Guid.CreateVersion7().ToString("N");
-            try
-            {
-                await _interop.AttachDepartureGuardAsync(_root, _departureReceiver, _guardLease, ComponentCancellationToken);
-                _guardAttached = true;
-                await SyncDirtyAsync();
-            }
-            catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
-                && exception is JSException or InvalidOperationException or OperationCanceledException)
-            {
-                // The guard is an enhancement. Both native document departures and the commit path
-                // still protect the member's input, so the board stays usable without it.
-            }
+            await TryAttachDepartureGuardAsync();
         }
 
         if (_dirtySyncRequested)
@@ -400,6 +392,34 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             {
                 // Focus is an enhancement; the board stays usable when the browser refuses it.
             }
+        }
+    }
+
+    /// <summary>
+    /// Attaches the uncommitted-departure guard under a fresh lease. The module replaces whatever
+    /// guard is active on attach, so a later attempt supersedes the previous listeners instead of
+    /// duplicating them, and the current dirty flag is pushed again to match the new lease.
+    /// </summary>
+    private async Task TryAttachDepartureGuardAsync()
+    {
+        _departureReceiver ??= DotNetObjectReference.Create(this);
+        _guardLease = Guid.CreateVersion7().ToString("N");
+        _guardAttachInFlight = true;
+        try
+        {
+            await _interop.AttachDepartureGuardAsync(_root, _departureReceiver, _guardLease, ComponentCancellationToken);
+            _guardAttached = true;
+            await SyncDirtyAsync();
+        }
+        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
+            && exception is JSException or InvalidOperationException or OperationCanceledException)
+        {
+            // The guard is an enhancement. Both native document departures and the commit path
+            // still protect the member's input, so the board stays usable without it.
+        }
+        finally
+        {
+            _guardAttachInFlight = false;
         }
     }
 

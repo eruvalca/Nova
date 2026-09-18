@@ -598,6 +598,163 @@ public sealed partial class PlayerComponentsTests
         commands.ShouldBeEmpty();
     }
 
+    /// <summary>A guard whose first attachment fails is retried once the boundary answers again.</summary>
+    [Fact]
+    public async Task PlayersRetriesTheDepartureGuardAfterATransientAttachFailureAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.FailGuardAttachAttempts = 1;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        // The mount's own retention read proves the boundary works again, and that is what re-arms
+        // the attachment. Without the retry, typed input would stay unprotected for the whole mount
+        // because the very first attempt failed.
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+        Interop.GuardAttachCount.ShouldBe(2);
+    }
+
+    /// <summary>A replay is durably retained again before it is dispatched.</summary>
+    [Fact]
+    public async Task PlayersRetainsTheReplayedCommandAgainBeforeDispatchingItAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            return Task.FromResult(commands.Count == 1
+                ? new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Lost response"))
+                : new ServiceResult<PlayerCreationCompletion>(CreationCompletion(input)));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        Interop.WriteCount.ShouldBe(1);
+
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => commands.Count.ShouldBe(2));
+        commands[1].ShouldBeSameAs(commands[0]);
+        // The record's presence is what makes a lost reply recoverable, so the second write is the
+        // evidence that no replay is dispatched without one.
+        Interop.WriteCount.ShouldBe(2);
+    }
+
+    /// <summary>A replay whose request cannot be retained again is not dispatched at all.</summary>
+    [Fact]
+    public async Task PlayersDispatchesNoReplayWhenTheRetainedRequestCannotBeWrittenAgainAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Lost response")));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        Interop.FailWrites = true;
+
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        commands.Count.ShouldBe(1);
+        cut.FindAll("#intake-unresolved").Count.ShouldBe(1);
+        cut.Markup.ShouldContain("could not be retained safely");
+    }
+
+    /// <summary>A creation is abandoned when its page is re-scoped while the retained write runs.</summary>
+    [Fact]
+    public async Task PlayersDispatchesNoCreationWhoseIdentityChangedWhileTheRetainedWriteRanAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(CreationCompletion(call.Arg<CreatePlayerInput>())));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.WriteGate = new TaskCompletionSource();
+        var submission = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => Interop.WriteAttempts.ShouldBe(1));
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => Interop.WriteGate.SetResult());
+
+        await submission;
+
+        // Retaining crosses the browser boundary, so the club-42 command must not be dispatched with
+        // the club-43 identity that replaced it, and the new page must keep its own empty state.
+        commands.ShouldBeEmpty();
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(0);
+        // The identity change moves the page back to the directory, so the abandoned submission
+        // leaves no form behind for the new owner either.
+        cut.FindAll("#intake-submit").Count.ShouldBe(0);
+    }
+
+    /// <summary>An addition whose set-aside cannot be released stays retained and recoverable.</summary>
+    [Fact]
+    public async Task PlayersKeepsTheRetainedAdditionWhenItsSetAsideCannotBeReleasedAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        Interop.FailClears = true;
+
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        // The decision is durable only once the bytes are gone, so a refused removal keeps the
+        // addition in front of the member instead of reporting a set-aside storage did not record.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        cut.FindAll("#intake-unresolved").Count.ShouldBe(1);
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldContain("was not set aside");
+
+        // A working boundary completes the same decision: retry storage, then set aside again.
+        Interop.FailClears = false;
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(0));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+    }
+
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));

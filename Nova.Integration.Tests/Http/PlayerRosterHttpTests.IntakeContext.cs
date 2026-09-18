@@ -82,4 +82,30 @@ public sealed partial class PlayerRosterHttpTests
             TestContext.Current.CancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
+
+    /// <summary>An out-of-range route value fails binding validation instead of reaching the read.</summary>
+    [Fact]
+    public async Task IntakeContextRejectsAnInvalidClubRouteValueAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("intake-context-invalid");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, ct);
+        await UpdateUserAsync(email, "Robin", "IntakeInvalid", null, ct);
+        await CreateClubAsync(client, "Invalid Intake Club", "Reno", "NV", ct);
+        await RefreshClubMembershipCookieAsync(client, ct);
+
+        // A club member passes the endpoint's authorization, so the route value itself is what the
+        // request exercises: the attribute on the bound input must reject it before any read.
+        using var response = await client.GetAsync(
+            new Uri(GetPlayerRosterEndpoints.GetIntakeContextUrl(0), UriKind.Relative), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("errors").TryGetProperty("ClubId", out var clubErrors).ShouldBeTrue();
+        clubErrors.GetArrayLength().ShouldBeGreaterThan(0);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
 }

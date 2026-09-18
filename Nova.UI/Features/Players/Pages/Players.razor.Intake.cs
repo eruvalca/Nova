@@ -150,12 +150,20 @@ public partial class Players
         _graduationYearBlockers = [];
 
         // One logical creation keeps one identity: a retained command is replayed unchanged, and a
-        // replacement identity is allocated only when nothing is retained.
-        var adoptingRetainedCommand = _pendingCreate is null;
+        // replacement identity is allocated only when nothing is retained. A replay is retained
+        // again before it is dispatched, because another tab may have released the record, and a
+        // dispatch whose exact request is no longer recoverable leaves its outcome unknowable.
         var command = _pendingCreate ?? _createForm.ToCreateInput(Guid.CreateVersion7(), clubId);
-        if (adoptingRetainedCommand && !await RetainAsync(command))
+        if (!await RetainAsync(command))
         {
             _isMutating = false;
+            return;
+        }
+
+        // Retaining crosses the browser boundary, so this page may have been re-scoped while it
+        // ran. The captured identity still owns this request, or nothing is dispatched or mutated.
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
             return;
         }
 
@@ -217,7 +225,13 @@ public partial class Players
 
         if (_board is not null)
         {
-            await _board.ClearAsync(command.OperationId, _identitySource!.Token);
+            if (!await _board.ClearAsync(command.OperationId, _identitySource!.Token))
+            {
+                // The receipt settles this operation, so it is shown regardless; the unreleased
+                // bytes are reported instead of pretending the browser released what it did not.
+                _storageUnavailable = true;
+            }
+
             _board.MarkCommittedOrClosed();
         }
 
@@ -267,12 +281,16 @@ public partial class Players
     /// <summary>Removes the retained request only after the operation is settled or provably unexecuted.</summary>
     private async Task ReleaseRetainedAsync(Guid operationId)
     {
+        // The release is attempted before the in-memory state is cleared, so a browser that refuses
+        // it is reported instead of leaving bytes that a later mount would show as unresolved
+        // again. The settlement itself stands: only a receipt-backed result reaches this method.
+        var released = _board is null || await _board.ClearAsync(operationId, _identitySource!.Token);
         _pendingCreate = null;
         _retainedPlayerName = null;
         _recoveryState = PlayerCreationRecoveryState.None;
-        if (_board is not null)
+        if (!released)
         {
-            await _board.ClearAsync(operationId, _identitySource!.Token);
+            _storageUnavailable = true;
         }
     }
 
@@ -287,15 +305,32 @@ public partial class Players
             return;
         }
 
+        var version = _identityVersion;
         var operationId = _pendingCreate?.OperationId;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
+        var released = true;
         if (_invalidRetainedValue is { } invalid)
         {
-            _ = await _board.DiscardUnreadableAsync(invalid, token);
+            released = await _board.DiscardUnreadableAsync(invalid, token);
         }
         else if (operationId is { } id)
         {
-            _ = await _board.ClearAsync(id, token);
+            released = await _board.ClearAsync(id, token);
+        }
+
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (!released)
+        {
+            // The member's decision is durable only once the bytes are gone. A browser that refused
+            // the removal still holds the exact request, so the board keeps showing it and offers
+            // the storage retry rather than reporting a set-aside that did not happen.
+            _storageUnavailable = true;
+            _mutationError = "This addition was not set aside because the browser kept the retained request. Retry storage.";
+            return;
         }
 
         _pendingCreate = null;

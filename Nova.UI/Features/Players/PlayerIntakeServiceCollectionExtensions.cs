@@ -6,16 +6,20 @@ namespace Nova.UI.Features.Players;
 /// <summary>Registers the manual intake board's browser boundary for both hosts.</summary>
 public static class PlayerIntakeServiceCollectionExtensions
 {
-    /// <summary>
-    /// Registers the owner-scoped creation recovery store and the uncommitted-departure guard
-    /// implementation used by <see cref="Components.PlayerIntakeBoard"/>.
-    /// </summary>
-    /// <param name="services">The service collection to extend.</param>
-    /// <returns>The same service collection for chaining.</returns>
-    public static IServiceCollection AddPlayerIntakeInterop(this IServiceCollection services)
+#pragma warning disable CA1034 // Nested types should not be visible
+    extension(IServiceCollection services)
+#pragma warning restore CA1034 // Nested types should not be visible
     {
-        ArgumentNullException.ThrowIfNull(services);
-        services.AddScoped<IPlayerIntakeInterop, PlayerCreationRecoveryStore>();
-        return services;
+        /// <summary>
+        /// Registers the owner-scoped creation recovery store and the uncommitted-departure guard
+        /// implementation used by <see cref="Components.PlayerIntakeBoard"/>.
+        /// </summary>
+        /// <returns>The same service collection for chaining.</returns>
+        public IServiceCollection AddPlayerIntakeInterop()
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            services.AddScoped<IPlayerIntakeInterop, PlayerCreationRecoveryStore>();
+            return services;
+        }
     }
 }
