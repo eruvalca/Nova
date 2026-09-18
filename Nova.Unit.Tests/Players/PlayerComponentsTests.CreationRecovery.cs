@@ -1004,6 +1004,86 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
     }
 
+    /// <summary>Discarding typed input on departure leaves nothing for a later visit to resurrect.</summary>
+    [Fact]
+    public async Task PlayersDiscardsTypedValuesWhenTheDepartureIsConfirmedAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+
+        // The module asks before a same-origin departure; confirming it is an explicit discard.
+        await cut.InvokeAsync(() => cut.FindComponent<PlayerIntakeBoard>().Instance
+            .OnBoardDepartureAttemptAsync(Interop.GuardLease!, "/players"));
+        await cut.Find("#intake-departure button.btn-warning").ClickAsync(new());
+
+        // Returning to the board shows nothing: the confirmation said the details would be lost.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBeNullOrEmpty();
+    }
+
+    /// <summary>Both confirmations move focus into the panel they open.</summary>
+    [Fact]
+    public async Task PlayersMovesFocusIntoEachConfirmationPanelAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // The set-aside confirmation is the next step, so focus must land in it.
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => Interop.FocusRegions.ShouldContain(region => region == "#intake-set-aside-heading"));
+
+        // As must the departure panel, whose own actions are what the member now needs.
+        await cut.InvokeAsync(() => cut.FindComponent<PlayerIntakeBoard>().Instance
+            .OnBoardDepartureAttemptAsync(Interop.GuardLease!, "/players"));
+        await cut.WaitForAssertionAsync(() => Interop.FocusRegions.ShouldContain(region => region == "#intake-departure-heading"));
+    }
+
+    /// <summary>A same-owner refresh re-arms the withhold gates before its replacement reads.</summary>
+    [Fact]
+    public async Task PlayersWithholdsTheBoardWhileASameOwnerRefreshReReadsAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+
+        Interop.ReadGate = new TaskCompletionSource();
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+
+        // The replacement read is open, so the board must refuse input and name the check rather than
+        // let a landed command or campaign result land over what the member types meanwhile.
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-checking-note").Count.ShouldBe(1));
+    }
+
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));

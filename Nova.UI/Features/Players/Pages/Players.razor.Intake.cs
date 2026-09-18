@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Microsoft.JSInterop;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Results;
 using Nova.UI.Features.Players.Components;
@@ -112,10 +113,18 @@ public partial class Players
             {
                 _recoveryState = PlayerCreationRecoveryState.None;
             }
+
             return;
         }
 
         _storageUnavailable = false;
+        ApplyRecoveryRead(read);
+    }
+
+    /// <summary>Applies one settled recovery read to the board's retained state.</summary>
+    /// <param name="read">The read to apply.</param>
+    private void ApplyRecoveryRead(PlayerCreationRecoveryRead read)
+    {
         switch (read.Kind)
         {
             case PlayerCreationRecoveryKind.Pending when read.Pending is { } pending:
@@ -255,31 +264,28 @@ public partial class Players
             ? $"Player created. Enrolled in {enrollment.CampaignName}."
             : "Player created. Ready for the next campaign opening.";
 
-        if (_board is not null)
+        var released = await ClearRetainedAsync(command.OperationId, _identitySource!.Token);
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
-            var released = await _board.ClearAsync(command.OperationId, _identitySource!.Token);
-            if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
-            {
-                // The release crossed the boundary and this page has since been re-scoped, so the
-                // continuation must not close the guard, refresh the new owner's data or move focus
-                // into a form that no longer holds this receipt.
-                return;
-            }
-
-            if (!released)
-            {
-                // The receipt settles this operation, so it is shown regardless; the unreleased
-                // bytes are reported instead of pretending the browser released what it did not.
-                _storageUnavailable = true;
-                _unreleasedOperationId = command.OperationId;
-            }
-            else
-            {
-                _unreleasedOperationId = null;
-            }
-
-            _board.MarkCommittedOrClosed();
+            // The release crossed the boundary and this page has since been re-scoped, so the
+            // continuation must not close the guard, refresh the new owner's data or move focus into a
+            // form that no longer holds this receipt.
+            return;
         }
+
+        if (!released)
+        {
+            // The receipt settles this operation, so it is shown regardless; the unreleased bytes are
+            // reported instead of pretending the browser released what it did not.
+            _storageUnavailable = true;
+            _unreleasedOperationId = command.OperationId;
+        }
+        else
+        {
+            _unreleasedOperationId = null;
+        }
+
+        _board?.MarkCommittedOrClosed();
 
         await RefreshDirectoryAsync();
         await LoadIntakeContextAsync();
@@ -330,6 +336,33 @@ public partial class Players
         _mutationError = problem.Detail ?? "The addition did not return a result.";
     }
 
+    /// <summary>
+    /// Releases the exact retained operation through the board when it is rendered, or straight
+    /// through the browser boundary when it is not: the durable record outlives the board, so a
+    /// settlement that arrives after a route change must still be able to clear it.
+    /// </summary>
+    /// <param name="operationId">The settled operation identity.</param>
+    /// <param name="cancellationToken">A token that cancels the release.</param>
+    /// <returns><see langword="true"/> when the matching record was removed.</returns>
+    private async Task<bool> ClearRetainedAsync(Guid operationId, CancellationToken cancellationToken)
+    {
+        if (_board is not null)
+        {
+            return await _board.ClearAsync(operationId, cancellationToken);
+        }
+
+        try
+        {
+            return await intakeInterop.ClearAsync(OwnerUserId, _clubId ?? 0, operationId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+        {
+            // Nothing in memory holds the record now, so an unreachable boundary means it stays in
+            // storage and the caller must report that rather than claim a release.
+            return false;
+        }
+    }
+
     /// <summary>Removes the retained request only after the operation is settled or provably unexecuted.</summary>
     /// <returns><see langword="true"/> when this continuation still owns the page it started on.</returns>
     private async Task<bool> ReleaseRetainedAsync(Guid operationId)
@@ -337,7 +370,7 @@ public partial class Players
         // The release is attempted before the settled state is cleared, so a browser that refuses it
         // is reported instead of leaving bytes that a later mount would show as unresolved again.
         var version = _identityVersion;
-        var released = _board is null || await _board.ClearAsync(operationId, _identitySource!.Token);
+        var released = await ClearRetainedAsync(operationId, _identitySource!.Token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             // The clear crossed the boundary and this page has since been re-scoped: the outcome
@@ -481,7 +514,18 @@ public partial class Players
     /// <summary>Leaves the board for the member's chosen destination after an explicit confirmation.</summary>
     private void LeaveBoard(string url)
     {
+        // "Leave and discard" is an explicit discard, so the typed values must not be waiting when the
+        // member returns. A durable retained command is untouched: its own frozen copy is what the
+        // board shows for it, and no confirmation was shown about that.
         _statusMessage = null;
+        _fieldErrors = null;
+        _mutationError = null;
+        _graduationYearBlockers = [];
+        _creationDuplicate = null;
+        _createForm = _pendingCreate is { } retained
+            ? PlayerFormState.FromPendingCommand(retained)
+            : PlayerFormState.CreateDefault();
+        _editForm = null;
         navigationManager.NavigateTo(url);
     }
 

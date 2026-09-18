@@ -456,6 +456,9 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         _dirty = true;
         _departurePending = true;
         _departureUrl = url;
+        // The panel is the destination now: a keyboard or screen-reader member must land in it rather
+        // than stay on the link whose navigation was cancelled.
+        _focusRequest = "#intake-departure-heading";
         await InvokeAsync(StateHasChanged);
     }
 
@@ -473,9 +476,11 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             {
                 await _interop.DetachDepartureGuardAsync(_guardLease!, CancellationToken.None);
             }
-            catch (JSException)
+            catch (JSDisconnectedException)
             {
-                // A torn-down browser context has already released the guard's listeners.
+                // A torn-down browser context has already released the guard's listeners. Any other
+                // failure is real: swallowing it would leave the document listeners and the module's
+                // active guard installed with a receiver that no longer exists.
             }
         }
 
@@ -525,6 +530,8 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     {
         _setAsidePending = true;
         _setAsideAcknowledged = false;
+        // The confirmation's own controls are the next step, so focus moves into it.
+        _focusRequest = "#intake-set-aside-heading";
     }
 
     private void CancelSetAside()

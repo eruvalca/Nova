@@ -139,7 +139,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     @if (_setAsidePending && RecoveryState is PlayerCreationRecoveryState.Unresolved or PlayerCreationRecoveryState.Expired)
     {
         <div class="intake-attention" role="alertdialog" aria-labelledby="intake-set-aside-heading" id="intake-set-aside">
-            <p class="fw-semibold mb-2" id="intake-set-aside-heading">Set aside this unresolved addition?</p>
+            <p class="fw-semibold mb-2" id="intake-set-aside-heading" tabindex="-1">Set aside this unresolved addition?</p>
             <p class="mb-2">
                 Setting it aside removes the retained request so you can add a player again. It does
                 <strong>not</strong> undo anything: the earlier attempt's result stays unknown, and a
@@ -336,7 +336,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
 
     @if (_departurePending)
     {        <div class="intake-attention" role="alertdialog" aria-labelledby="intake-departure-heading" id="intake-departure">
-            <p class="fw-semibold mb-2" id="intake-departure-heading">Leave with uncommitted player details?</p>
+        <p class="fw-semibold mb-2" id="intake-departure-heading" tabindex="-1">Leave with uncommitted player details?</p>
             <p class="mb-2">Details entered here have not been saved and will be lost.</p>
             <div class="intake-actions">
                 <button type="button" class="btn btn-outline-secondary" @onclick="CancelDepartureAsync">Keep editing</button>

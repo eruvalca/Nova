@@ -205,8 +205,15 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <inheritdoc />
     public Task FocusFirstFieldAsync(ElementReference root, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>Gets the region selectors focus was requested for, in order.</summary>
+    public List<string> FocusRegions { get; } = [];
+
     /// <inheritdoc />
-    public Task FocusRegionAsync(ElementReference root, string selector, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task FocusRegionAsync(ElementReference root, string selector, CancellationToken cancellationToken)
+    {
+        FocusRegions.Add(selector);
+        return Task.CompletedTask;
+    }
 
     private static string OwnerKey(long actorUserId, long clubId) => $"{actorUserId}:{clubId}";
 }

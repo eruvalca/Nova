@@ -234,7 +234,7 @@ internal sealed class PlayerCreationRecoveryStore(IJSRuntime js) : IPlayerIntake
                 var module = await load;
                 await module.DisposeAsync();
             }
-            catch (JSException)
+            catch (JSDisconnectedException)
             {
                 // A disposed browser context cannot release the module; nothing is left to clean up.
             }

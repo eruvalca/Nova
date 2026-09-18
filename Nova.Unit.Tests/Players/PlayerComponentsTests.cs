@@ -987,7 +987,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
         IPlayerLifecycleService lifecycle, IPlayerDetailService details,
         ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation,
         Microsoft.Extensions.Logging.ILogger<PlayersPage> logger)
-        : PlayersPage(roster, management, lifecycle, details, Substitute.For<IPlayerIntakeContextService>(), tags, authentication, navigation, logger)
+        : PlayersPage(roster, management, lifecycle, details, Substitute.For<IPlayerIntakeContextService>(),
+            Substitute.For<IPlayerIntakeInterop>(), tags, authentication, navigation, logger)
     {
         /// <summary>Gets or sets the scope serialized with the old roster.</summary>
         [Parameter] public string? RestoredScope { get; set; }

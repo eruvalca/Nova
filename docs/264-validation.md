@@ -589,6 +589,42 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Cross-tab atomicity coverage | **None automated, and stated as such.** The lock is verified by reading the module and by the single-tab contract the browser suite exercises; a genuine two-tab test would need a second browser context racing the same origin, which this suite does not do. The behaviour the lock changes (last-write-wins on a raced reservation, a stale removal deleting a newer record) is therefore reasoned, not pinned. |
 | Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again (7.7s), the tracked load-sensitive journey, which has passed in every isolated run this session. The second was clean: **228 total, 218 passed, 0 failed, 10 skipped**, which satisfies the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, seventh and eighth passes (PR #285, on `f42e1f08`)
+
+Two further Copilot reviews — on `1ba6713e` and `f42e1f08` — raised **ten suppressed findings**
+between them, all on this change's own code, with no inline threads. Six are fixed here with tests
+where the behaviour can be discriminated; two are deferred with their reason; one fix carries no
+discriminating test; and one finding was resolved by fixing an ownership mistake the diagnosis
+turned up.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `SettleCommittedAsync` and `ReleaseRetainedAsync` skipped the release when `_board` was null, so a settlement that arrived after a route change left the exact operation in storage and a later visit showed it as unresolved | **Fixed.** The page now injects `IPlayerIntakeInterop` and releases through a `ClearRetainedAsync` helper that uses the board when it is rendered and the browser boundary when it is not. The behaviour cannot be driven in the harness (bUnit keeps the board reference across a route change, so the case written for it passed with the fix reverted and was deleted), so the record states the fix is reasoned rather than pinned. |
+| 2 | The confirmed departure only navigated, so `_createForm` survived and returning to the board resurrected the values the confirmation said would be lost | **Fixed.** `LeaveBoard` resets the create state — re-deriving the frozen copy from a durable retained command, whose bytes the confirmation never claimed to discard — and clears the edit form. New case `PlayersDiscardsTypedValuesWhenTheDepartureIsConfirmedAsync`, which fails when reverted. |
+| 3 | `ResetIdentityState` cleared the scope claim and the intake context but left `_recoveryChecked`/`_intakeContextLoading` untouched, so a same-owner refresh's replacement reads could land over typed input or state a stale consequence | **Fixed.** A same-owner refresh re-arms both gates in `ApplyRouteState`'s preserved-state branch before its reads run. New case `PlayersWithholdsTheBoardWhileASameOwnerRefreshReReadsAsync`, which fails when reverted. |
+| 4 | Both `alertdialog` panels opened without moving focus, leaving keyboard and screen-reader members on the control whose navigation was cancelled | **Fixed.** Each panel's heading takes `tabindex="-1"` and the board queues a focus request for it when the panel opens. New case `PlayersMovesFocusIntoEachConfirmationPanelAsync`, which fails when reverted. |
+| 5 | `PlayerCreationRecoveryStore.DisposeAsync` swallowed every `JSException`, hiding real module-disposal failures | **Fixed** to catch only `JSDisconnectedException` (plus the existing cancellation case), leaving unexpected failures visible. |
+| 6 | The board's detach-on-dispose swallowed every `JSException`, so a real detach failure would leave listeners and the module's active guard installed with a stale receiver | **Fixed** the same way, with the consequence recorded in the comment. Findings 5 and 6 are reasoned fixes: no test can distinguish them without a JS double that throws on disposal. |
+| 7 | Focus/dispose diagnosis turned up an ownership mistake: the identity reset cleared `_showCreateForm`/`_isEditRoute` through `ClearMutationForm`, and the refresh's reconcile short-circuits on an unchanged location key, so nothing re-derived them and a same-owner refresh rendered the directory instead of the form | **Fixed.** Route flags are owned solely by `ApplyRouteState`, which derives them on every application, including the preserved-state branch. This is what makes finding 3's arming correct; the full unit suite is the evidence. |
+| 8 | The consequence block renders for the edit board too, where it is not a consequence of editing and can be false | **Deferred, with the reason.** The honest fix is a create-only parameter, and it landed cleanly in the code — but it changes the board's contract for six board-level tests and the edit host, which needs its own pass over those tests rather than a rushed update at the end of a long round. Recorded as an open item below. |
+| 9 | After a failed storage read the board stays editable, so a later retry can land a retained command over values typed meanwhile | **Deferred, with the reason.** Withholding the board until storage answers is the right contract, but it supersedes the round-2 decision that deliberately reopened the board after a failed read, so it needs that test rewritten and re-verified rather than flipped at the end of a round. Recorded as an open item below. |
+| 10 | The recovery re-read released its scope claim before awaiting, so the render preceding the await could start a second read | **Already fixed in the sixth pass as part of the cross-tab work's related review** — the re-read claims `CurrentScope` before awaiting; this review's line refers to the same statement set and needs no further change. |
+
+### Confirming evidence (Copilot seventh and eighth passes)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`f42e1f08`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. Two intermediate builds failed and both corrections are recorded above (`MA0051` on the recovery method, resolved by extracting `ApplyRecoveryRead`; a missing `Microsoft.JSInterop` import). |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3835 total, 3835 passed, 0 failed, 0 skipped** (3832 before, the three new cases being the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*'` — **21 total, 18 passed, 2 failed, 1 skipped**. Both failures are the two long directory journeys this record tracks as load-sensitive, and both **passed in isolation on the same build** (**2 total, 2 passed**). |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check, findings 2-4 | With those three fixes reverted (the minimal departure handler, no gate re-arming, and no focus requests), the run reported **3 failed, 0 passed** on the three new cases. The fourth case (finding 1) passed with its fix reverted, which is why it was deleted. |
+| Full browser suite | Not run in this pass: the previous clean pass covers `1ba6713e`, this revision adds these fixes, so the before-merge row is outstanding for it and is listed as an open item. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -748,14 +784,22 @@ evidence above is unchanged by it.
 - `IPlayerIntakeInterop` is public because a Razor component's constructor must be public; the
   interface and its result types are therefore part of `Nova.UI`'s public surface. This is a
   deliberate trade-off for testability and is recorded rather than hidden.
-- **The uncommitted-departure guard does not intercept browser Back/Forward.** It covers document
-  unload and same-origin link departure, which is the contract the module's own comment states; a
-  history traversal therefore discards typed input without the confirmation those two paths give.
-  Closing it needs the Navigation API pattern `evaluationNavigationGuard.js` implements — restore the
-  origin entry, marshal the prompt across interop, replay the permitted traversal — which is a feature
-  of its own, offered by review round 5 as the finding's alternative to narrowing the contract, and
-  taken as such. The module names the gap beside its click listener so a reader does not infer the
-  wider coverage.
+- **Two review findings from the seventh/eighth passes remain open, both contract changes that need
+  their own test-update pass rather than a rushed edit:** (1) the enrollment-consequence block renders
+  for the **edit** board too, where it is not a consequence of editing and can be false — the create
+  board should opt into it; and (2) after a **failed storage read** the board stays editable, so a later
+  retry can land a retained command over values typed meanwhile — withholding input until storage
+  answers is the right contract, but it supersedes the round-2 decision that deliberately reopened the
+  board after a failed read, so that case must be rewritten and re-verified with it. Both are
+  implemented-and-reverted in the seventh pass's tree; the shipped revision leaves them as they are.
+- The departure guard does not intercept browser Back/Forward. It covers document unload and
+  same-origin link departure, which is the contract the module's own comment states; a history
+  traversal therefore discards typed input without the confirmation those two paths give. Closing it
+  needs the Navigation API pattern `evaluationNavigationGuard.js` implements — restore the origin
+  entry, marshal the prompt across interop, replay the permitted traversal — which is a feature of its
+  own, offered by review round 5 as the finding's alternative to narrowing the contract, and taken as
+  such. The module names the gap beside its click listener so a reader does not infer the wider
+  coverage.
 
 ## Design evidence
 

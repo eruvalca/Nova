@@ -24,6 +24,7 @@ public partial class Players(
     IPlayerLifecycleService playerLifecycleService,
     IPlayerDetailService playerDetailService,
     IPlayerIntakeContextService intakeContextService,
+    IPlayerIntakeInterop intakeInterop,
     ITagDefinitionQueryService tagDefinitionQueryService,
     AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager,
@@ -376,6 +377,16 @@ public partial class Players(
         var ownerChanged = !string.Equals(_appliedRouteOwner, CurrentOwner, StringComparison.Ordinal);
         if (!routeChanged && !ownerChanged)
         {
+            // A same-owner refresh re-runs this route's reads without resetting its transient state,
+            // so the gates those reads need are armed here rather than at the boundary below: the
+            // board must refuse input, and name the consequence as unread, until they settle.
+            if (_showCreateForm)
+            {
+                _recoveryChecked = false;
+                _recoveryScope = null;
+                _intakeContextLoading = true;
+            }
+
             return;
         }
 
@@ -614,7 +625,8 @@ public partial class Players(
     private void CancelMutationForm() => navigationManager.NavigateTo(_urlState.ToDirectoryUrl());
     private void ClearMutationForm()
     {
-        _showCreateForm = _isEditRoute = false;
+        // Route flags belong to ApplyRouteState, which re-derives them from the path: clearing them
+        // here would leave a same-owner refresh with no form to render and nothing to re-derive it.
         _editForm = null;
         _mutationError = null;
         _creationDuplicate = null;
