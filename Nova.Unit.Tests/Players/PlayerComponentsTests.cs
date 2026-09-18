@@ -709,6 +709,44 @@ public sealed partial class PlayerComponentsTests : BunitContext
         cut.Markup.ShouldContain("joins the roster when the next campaign opens");
     }
 
+    /// <summary>An unread retained command withholds entry instead of offering a form a recovery would replace.</summary>
+    [Fact]
+    public void IntakeBoardWithholdsEntryUntilTheRetainedCommandIsChecked()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, false)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    /// <summary>The board names a check in progress rather than guessing a campaign fact.</summary>
+    [Fact]
+    public void IntakeBoardNamesTheEnrollmentCheckWhileTheConsequenceIsUnread()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+            .Add(component => component.IntakeContextLoading, true)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence");
+        cut.Find("p.intake-consequence").TextContent.ShouldNotContain("No campaign is Active");
+        cut.Markup.ShouldNotContain("No campaign is Active");
+    }
+
     [Fact]
     public void PlayerDetailUsesPlayersFallbackWhenReturnUrlIsExternal()
     {
@@ -788,7 +826,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
         IPlayerService? rosterService = null,
         IPlayerManagementService? managementService = null,
         IPlayerLifecycleService? lifecycleService = null,
-        IPlayerDetailService? detailService = null)
+        IPlayerDetailService? detailService = null,
+        IPlayerIntakeContextService? intakeContextService = null)
     {
         if (rosterService is null)
         {
@@ -824,9 +863,13 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton(detailService);
-        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
-        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        var intakeContext = intakeContextService ?? Substitute.For<IPlayerIntakeContextService>();
+        if (intakeContextService is null)
+        {
+            intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        }
+
         Services.AddSingleton(intakeContext);
         Services.AddSingleton<IPlayerIntakeInterop>(Interop);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));

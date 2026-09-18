@@ -314,10 +314,15 @@ public partial class Players(
         _graduationYearBlockers = [];
         _formLoading = false;
         _mutationError = null;
+        // The route boundary is where the board first renders, and rendering is synchronous at this
+        // boundary, so the consequence must be named as unread here rather than when the read starts.
+        _intakeContextLoading = _showCreateForm;
         if (_showCreateForm)
         {
-            // Every entry to the board re-reads the owner's retained command.
+            // Every entry to the board re-reads the owner's retained command, and the board refuses
+            // input until that read settles so a landed recovery cannot replace typed values.
             _recoveryScope = null;
+            _recoveryChecked = false;
         }
 
         CancelArchive();

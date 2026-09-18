@@ -160,8 +160,9 @@ FORM: One bounded board; server field errors sit under their control, blockers a
             <p class="mb-2">This browser's recovery storage is unavailable, so an earlier addition cannot be found or recovered from here.</p>
             @if (RecoveryState == PlayerCreationRecoveryState.None)
             {
-                @* Retained evidence is shown above; only a board with none can claim nothing was sent. *@
-                <p class="mb-2">Nothing has been sent.</p>
+                @* The board can only speak for what it has seen: it never proves an earlier addition
+                   was not dispatched, only that nothing left this board. *@
+                <p class="mb-2">Nothing has been sent from this board.</p>
             }
             <p class="mb-2">An addition is still only committed once its own request is retained, so continue once storage is available.</p>
             <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">Retry storage</button>
@@ -191,7 +192,12 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     @if (!ShowsReceipt && !IsEntryBlocked)
     {
         <p class="intake-consequence" aria-live="polite">
-            @if (IntakeContextUnavailable)
+            @if (IntakeContextLoading)
+            {
+                @* A check in progress is not a campaign fact: never guess the consequence. *@
+                <span>Checking the enrollment consequence…</span>
+            }
+            else if (IntakeContextUnavailable)
             {
                 <span>The enrollment consequence could not be read. Submission reports the real result.</span>
             }

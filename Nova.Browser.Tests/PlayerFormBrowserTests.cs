@@ -129,6 +129,10 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
 
+        // The board withholds input until it has checked the owner's retained addition, so a
+        // keyboard entry can only land once the fields are enabled.
+        await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
+
         var suffix = Guid.NewGuid().ToString("N");
         await page.Locator("#player-first-name").FocusAsync();
         await page.Keyboard.TypeAsync("Form");

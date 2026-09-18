@@ -356,8 +356,116 @@ public sealed partial class PlayerComponentsTests
         cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Taylor");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1);
-        cut.Find("#intake-storage-unavailable").TextContent.ShouldNotContain("Nothing has been sent");
+        cut.Find("#intake-storage-unavailable").TextContent.ShouldNotContain("Nothing has been sent from this board.");
         commands.Count.ShouldBe(1);
+    }
+
+    /// <summary>Entry withholds input until the retained command has actually been checked.</summary>
+    [Fact]
+    public async Task PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync()
+    {
+        Interop.ReadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // Until the read settles, the form must not offer input a landed recovery would replace.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        Interop.ReadGate.SetResult();
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+
+        // Re-entry re-reads the retained command, so the board withholds input again until it lands.
+        Interop.ReadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        Interop.ReadGate.SetResult();
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>A failed storage read still settles the check, so a well-formed board is never stuck shut.</summary>
+    [Fact]
+    public async Task PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.FailReads = true;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        // The board may speak only for itself: storage was not checked, and nothing left this board.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        cut.Find("#intake-storage-unavailable").TextContent.ShouldContain("Nothing has been sent from this board.");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>The board names a check in progress instead of a campaign fact while the read is open.</summary>
+    [Fact]
+    public async Task PlayersNamesTheEnrollmentCheckWhileTheIntakeConsequenceReadIsOpenAsync()
+    {
+        var context = new TaskCompletionSource<ServiceResult<PlayerIntakeContext>>();
+        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
+        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => context.Task);
+        RegisterServices(isClubAdmin: false, intakeContextService: intakeContext);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        await cut.WaitForAssertionAsync(() =>
+            cut.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence"));
+        cut.Markup.ShouldNotContain("No campaign is Active");
+
+        await cut.InvokeAsync(() => context.SetResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldNotContain("Checking the enrollment consequence");
+    }
+
+    /// <summary>The set-aside acknowledgement lives outside the EditForm, so only the module sees that input.</summary>
+    [Fact]
+    public async Task PlayersPromptsOnDepartureAfterTheSetAsideAcknowledgementAloneAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.Find("#intake-set-aside button.btn-warning").HasAttribute("disabled").ShouldBeFalse();
+        // The acknowledgement never reaches the EditContext, so the board's own dirty flag stays clear.
+        Interop.Dirty.ShouldBeFalse();
+
+        // The module decides a prompt is due and calls back with its own lease, exactly as the
+        // browser module does; the attempt must open the panel rather than swallow the click.
+        await cut.InvokeAsync(() => cut.FindComponent<PlayerIntakeBoard>().Instance
+            .OnBoardDepartureAttemptAsync(Interop.GuardLease!, "/players"));
+
+        cut.FindAll("#intake-departure").Count.ShouldBe(1);
     }
 
     /// <summary>An operation whose own window has closed cannot be replayed and is never discarded.</summary>

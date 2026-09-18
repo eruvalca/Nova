@@ -16,6 +16,9 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets whether reads fail the way an unavailable browser storage would.</summary>
     public bool FailReads { get; set; }
 
+    /// <summary>Gets or sets a gate that holds every read open, the way slow storage would.</summary>
+    public TaskCompletionSource? ReadGate { get; set; }
+
     /// <summary>Gets or sets whether writes fail the way an unavailable browser storage would.</summary>
     public bool FailWrites { get; set; }
 
@@ -33,6 +36,9 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
 
     /// <summary>Gets whether the departure guard is currently attached.</summary>
     public bool GuardAttached { get; private set; }
+
+    /// <summary>Gets the lease of the currently attached departure guard, as the module would call back with.</summary>
+    public string? GuardLease { get; private set; }
 
     /// <summary>Gets whether the mounted board currently holds uncommitted input.</summary>
     public bool Dirty { get; private set; }
@@ -55,8 +61,13 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         => _pending.TryGetValue(OwnerKey(actorUserId, clubId), out var pending) ? pending : null;
 
     /// <inheritdoc />
-    public Task<PlayerCreationRecoveryRead> ReadAsync(long actorUserId, long clubId, CancellationToken cancellationToken)
+    public async Task<PlayerCreationRecoveryRead> ReadAsync(long actorUserId, long clubId, CancellationToken cancellationToken)
     {
+        if (ReadGate is { } gate)
+        {
+            await gate.Task;
+        }
+
         if (FailReads)
         {
             throw new JSException("Storage is unavailable.");
@@ -65,12 +76,12 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         var key = OwnerKey(actorUserId, clubId);
         if (_unreadable.TryGetValue(key, out var raw))
         {
-            return Task.FromResult(new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Unreadable, null, raw));
+            return new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Unreadable, null, raw);
         }
 
-        return Task.FromResult(_pending.TryGetValue(key, out var pending)
+        return _pending.TryGetValue(key, out var pending)
             ? new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Pending, pending, null)
-            : new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Empty, null, null));
+            : new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Empty, null, null);
     }
 
     /// <inheritdoc />
@@ -132,6 +143,7 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     public Task AttachDepartureGuardAsync(ElementReference root, object receiver, string lease, CancellationToken cancellationToken)
     {
         GuardAttached = true;
+        GuardLease = lease;
         return Task.CompletedTask;
     }
 

@@ -69,8 +69,8 @@ internal sealed class PlayerCreationRecoveryStore(IJSRuntime js) : IPlayerIntake
 {
     private const string ModulePath = "./_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js";
 
-    private readonly Lazy<Task<IJSObjectReference>> _module =
-        new(() => js.InvokeAsync<IJSObjectReference>("import", ModulePath).AsTask());
+    private readonly IJSRuntime _js = js;
+    private Task<IJSObjectReference>? _moduleLoad;
 
     /// <summary>Reads the owner's retained command without dispatching or mutating it.</summary>
     /// <param name="actorUserId">The authenticated member owning the command.</param>
@@ -209,7 +209,17 @@ internal sealed class PlayerCreationRecoveryStore(IJSRuntime js) : IPlayerIntake
 
     private async Task<IJSObjectReference> LoadAsync(CancellationToken cancellationToken)
     {
-        var load = _module.Value;
+        if (_moduleLoad is { IsFaulted: true })
+        {
+            // A cached fault would poison the whole circuit: one transient import failure would
+            // make every later read and write fail, keep storage "unavailable" forever, and leave
+            // Retry storage a no-op. Dropping it here makes the next attempt a real re-import.
+            // Both this clear and the assignment below run on the circuit's dispatcher, so no
+            // concurrent import can be dropped.
+            _moduleLoad = null;
+        }
+
+        var load = _moduleLoad ??= _js.InvokeAsync<IJSObjectReference>("import", ModulePath).AsTask();
         return await load.WaitAsync(cancellationToken)
             ?? throw new InvalidOperationException("The player intake board module could not be imported.");
     }
@@ -217,23 +227,21 @@ internal sealed class PlayerCreationRecoveryStore(IJSRuntime js) : IPlayerIntake
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (!_module.IsValueCreated)
+        if (_moduleLoad is { IsCompletedSuccessfully: true } load)
         {
-            return;
-        }
-
-        try
-        {
-            var module = await _module.Value;
-            await module.DisposeAsync();
-        }
-        catch (JSException)
-        {
-            // A disposed browser context cannot release the module; nothing is left to clean up.
-        }
-        catch (OperationCanceledException)
-        {
-            // The circuit ended before the module load finished; nothing is left to clean up.
+            try
+            {
+                var module = await load;
+                await module.DisposeAsync();
+            }
+            catch (JSException)
+            {
+                // A disposed browser context cannot release the module; nothing is left to clean up.
+            }
+            catch (OperationCanceledException)
+            {
+                // The circuit ended before the module load finished; nothing is left to clean up.
+            }
         }
     }
 }

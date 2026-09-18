@@ -66,6 +66,10 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     [Parameter]
     public PlayerIntakeContext? IntakeContext { get; set; }
 
+    /// <summary>Gets or sets whether the enrollment consequence read is still in flight.</summary>
+    [Parameter]
+    public bool IntakeContextLoading { get; set; }
+
     /// <summary>Gets or sets whether the enrollment consequence could not be read.</summary>
     [Parameter]
     public bool IntakeContextUnavailable { get; set; }
@@ -98,17 +102,17 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     [Parameter]
     public PlayerCreationDuplicate? Duplicate { get; set; }
 
-    /// <summary>Gets or sets the parent-built duplicate destination, including the current return context.</summary>
-    [Parameter]
-    public Uri? DuplicateDetailUrl { get; set; }
-
     /// <summary>Gets or sets what the board knows about an unresolved or unreadable retained command.</summary>
     [Parameter]
     public PlayerCreationRecoveryState RecoveryState { get; set; }
 
-    /// <summary>Gets or sets the exact unreadable retained bytes, when <see cref="RecoveryState"/> is unreadable.</summary>
+    /// <summary>
+    /// Gets or sets whether the owner's retained command has actually been checked. Until it has,
+    /// the board refuses input rather than offering a pristine form that a landed recovery read
+    /// would replace without the member's knowledge.
+    /// </summary>
     [Parameter]
-    public string? InvalidRetainedValue { get; set; }
+    public bool RecoveryChecked { get; set; } = true;
 
     /// <summary>Gets or sets whether owner-scoped recovery storage is currently unavailable.</summary>
     [Parameter]
@@ -175,13 +179,14 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     protected bool IsFrozen => RecoveryState is PlayerCreationRecoveryState.Unresolved or PlayerCreationRecoveryState.Expired;
 
     /// <summary>Gets whether the permanent fields accept input.</summary>
-    protected bool IsEditable => !IsEntryBlocked && !ShowsReceipt && !IsFrozen && CanManage && !IsSubmitting;
+    protected bool IsEditable => !IsEntryBlocked && !ShowsReceipt && !IsFrozen && CanManage && !IsSubmitting
+        && RecoveryChecked;
 
     /// <summary>
     /// Gets whether the commit control is available. A retained command inside its window is
     /// replayed through the same control, so the member has exactly one way to settle it.
     /// </summary>
-    protected bool CanCommit => !IsEntryBlocked && !ShowsReceipt && CanManage && !IsSubmitting
+    protected bool CanCommit => !IsEntryBlocked && !ShowsReceipt && CanManage && !IsSubmitting && RecoveryChecked
         && (RecoveryState == PlayerCreationRecoveryState.None
             || (RecoveryState == PlayerCreationRecoveryState.Unresolved && CanReplay));
 
@@ -396,7 +401,11 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     public async Task OnBoardDepartureAttemptAsync(string lease, string url)
 #pragma warning restore CA1054
     {
-        if (!string.Equals(lease, _guardLease, StringComparison.Ordinal) || !_dirty) { return; }
+        if (!string.Equals(lease, _guardLease, StringComparison.Ordinal)) { return; }
+        // The module observes DOM input, including controls outside the EditForm, so it decides
+        // whether a prompt is due; the board only refuses when nothing could be lost.
+        if (ShowsReceipt || IsEntryBlocked || !CanManage) { return; }
+        _dirty = true;
         _departurePending = true;
         _departureUrl = url;
         await InvokeAsync(StateHasChanged);

@@ -114,7 +114,7 @@ public sealed partial class PlayerFormBrowserTests
         await Expect(page.Locator("#intake-unresolved")).ToContainTextAsync("Replay the retained addition");
         await page.GetByRole(AriaRole.Button, new() { Name = "Replay the retained addition", Exact = true }).ClickAsync();
         await Expect(page.Locator("#intake-expired")).ToContainTextAsync("Review the Players directory");
-        await Expect(page.Locator("#intake-expired")).Not.ToContainTextAsync("Replay the retained addition");
+        await Expect(page.Locator("#intake-submit")).ToHaveTextAsync("Create player");
         await Expect(page.Locator("#intake-expired")).ToContainTextAsync("retained the exact addition");
         await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
         await CancelCreationFormAsync(page);

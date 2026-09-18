@@ -2,9 +2,10 @@
 
 ## Scope and status
 
-**Status: implemented and committed to PR #285; review round 1 is addressed.** On the round-1
-revision the build, format check, full unit suite and the affected browser selection are green (see
-[PR review round 1](#pr-review-round-1-pr-285)). Full integration and full browser runs on that
+**Status: implemented and committed to PR #285; review rounds 1 and 2 are addressed.** On the
+round-2 revision the build, format check, full unit suite and the affected browser selection are
+green (see [PR review round 2](#pr-review-round-2-pr-285)); each intermittent browser failure seen
+on the way is named there with its isolated re-run. Full integration and full browser runs on that
 revision, and the merge-stage reruns required before merge, are still outstanding.
 
 Delivered:
@@ -19,9 +20,10 @@ Delivered:
 
 Original implementation: uncommitted working tree on branch `eruvalca-player-form-crud`, based on
 `5df81800` (merged #284); the work was then committed as `b51558b2` and opened as PR #285. The
-review-round-1 fixes below are an uncommitted working tree on top of `b51558b2`, so that pass's
-revision is the working tree itself; the tree is the only revision a reader can reproduce from this
-record alone.
+review-round-1 fixes below were an uncommitted working tree on top of `b51558b2`, and round 1 was
+then committed as `cb88a1b9`. The review-round-2 fixes below are an uncommitted working tree on top
+of `cb88a1b9`, so that pass's revision is the working tree itself; the tree is the only revision a
+reader can reproduce from this record alone.
 
 ## Guidance actually read
 
@@ -61,6 +63,9 @@ record alone.
   dispatch and nothing is sent. **The C# policy for this is unit-verified through the injected
   boundary; no browser assertion pins the retained bytes between dispatch and receipt — see the
   limitation below.**
+- The collocated module is imported once per circuit but a **failed import is never cached**: the
+  next attempt re-imports, so one transient failure cannot make every later read and write fail and
+  leave *Retry storage* a permanent no-op for the life of the circuit.
 - Outcomes classify as committed (immutable `PlayerCreationCompletion` receipt), definitively
   rejected (receipt-backed duplicate with the operation marker), or unresolved. Expiry never clears
   or re-identifies a retained command, and the set-aside action requires an explicit acknowledgement
@@ -72,6 +77,11 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
 `PlayerGraduationYearBlockers` was extracted from the page into a shared helper.
 
 - Required/optional language on every permanent field; no photo field (owned by #278).
+- **Unsettled evidence is named, never guessed.** The enrollment consequence states a *check in
+  progress* ("Checking the enrollment consequence…") until the club's Active campaign has actually
+  been read — it never falls through to the no-campaign sentence in that window — and the fields and
+  the commit control are withheld until the owner's retained command has been read, so input typed
+  during that window cannot be silently replaced by a landed recovery payload.
 - Per-field server errors; graduation-year and archive blockers beside the fields they concern.
 - A retained unresolved addition keeps its fields **visible but frozen** (the #279 handoff's
   contract) and replays through the same commit control, whose label names the action. An operation
@@ -81,7 +91,10 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
   **View player** and **Return to players**; the directory preserves a success message on return.
 - Possible duplicates block with no override and link to the existing active or archived record.
 - The uncommitted-departure guard warns on document unload and same-origin link departure while the
-  board holds typed input, released on commit, cancel and set-aside.
+  board holds typed input, released on commit, cancel and set-aside. The module observes DOM input
+  (including controls outside the `EditForm`, such as the set-aside acknowledgement) and decides
+  whether a prompt is due; the board refuses the attempt only when it holds nothing that could be
+  lost.
 
 ### 4. Shared lifecycle control
 
@@ -113,7 +126,7 @@ is scoped to the subject it was given for, and the blockers are captured when th
 | --- | --- |
 | Unprefixed string parameters passed to the board rendered the **field name** as literal text (`ErrorMessage="_mutationError"` produced an alert reading `_mutationError`) | Caught by the component tests' markup assertions. `@` added for the two `string` parameters. `blazor-architecture` already documents this trap; the draft violated an existing rule. |
 | The graduation-year blocker sentence rendered with a line break instead of a space, so `... requires graduation year 2034.` never matched | Caught by `PlayersShowsGraduationYearConflictBlockersWhenUpdateReturnsConflict`. The sentence is now emitted on one line. |
-| **Intermittent, two different long journey tests**: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` failed in full runs at 11s and 36s and once in a 7-test class run; `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` failed once at 33s in a later full run | **Unresolved cause, not attributable to a specific change.** Both are long multi-navigation directory journeys (30–46s) and both pass in isolation; the earlier failure of the first had a known cause (the stale departure guard blocking navigation) which was fixed before it next passed. Failing runs are load-sensitive under the suite's four test threads, and the failing step was not re-captured. A green full-suite pass was achieved on the app inputs immediately preceding the final diagnostic-only removal, so the app behaviour is not implicated, but a repeat failure must be investigated rather than re-run away. **Review round 1 reproduced both in its first selection run (13s 982ms and 33s 845ms); both passed in isolation on the same build and in the two selection runs after it.** |
+| **Intermittent, two different long journey tests**: `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` failed in full runs at 11s and 36s and once in a 7-test class run; `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` failed once at 33s in a later full run | **Unresolved cause, not attributable to a specific change.** Both are long multi-navigation directory journeys (30–46s) and both pass in isolation; the earlier failure of the first had a known cause (the stale departure guard blocking navigation) which was fixed before it next passed. Failing runs are load-sensitive under the suite's four test threads, and the failing step was not re-captured. A green full-suite pass was achieved on the app inputs immediately preceding the final diagnostic-only removal, so the app behaviour is not implicated, but a repeat failure must be investigated rather than re-run away. **Review round 1 reproduced both in its first selection run (13s 982ms and 33s 845ms); both passed in isolation on the same build and in the two selection runs after it.** Round 2 met the same class on three other journeys plus a repeat of the first; that pass's own table names each one with its isolated result. |
 | The frozen-state note claimed "Profile entry is closed" while the fields were visible and frozen | Caught while reconciling the tests. The note now says the fields are frozen and why, and the closed-entry wording is limited to the genuinely unreadable state. |
 | The retained command was not restored when the board mounted after a route change (only on the page's first render) | Found by reasoning about the mount order; restore now runs once per owner scope after the board mounts, and re-reads on every entry to the board route. |
 
@@ -180,6 +193,52 @@ mediate — it intercepts anchors only, and the failing assertions are URL-state
 probe outcomes — and both tests passed in isolation on that same build (2 total, 2 passed), then in
 the re-run and final runs of the selection. They remain the documented load-sensitive flakes, not a
 consequence of these fixes.
+
+## PR review round 2 (PR #285)
+
+The second review of PR #285 raised six findings — two Medium, three Low and one Nit. All are
+addressed on top of `cb88a1b9`; nothing was deferred and nothing was resolved by weakening a test.
+Each fix carries its own regression coverage, and each piece that could be reverted without a
+compile error was reverted temporarily to watch its new test fail (see below).
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Medium | The board had no *checking* state: it rendered "No campaign is Active…" and a pristine, submittable form before `LoadIntakeContextAsync`/`RestoreRecoveryAsync` landed, so input typed in that window was silently replaced | **Fixed.** `PlayerIntakeBoard` gained `IntakeContextLoading` and `RecoveryChecked` (`true` by default) and both gates `IsEditable` and `CanCommit`. The loading state renders one bounded line in the same `p.intake-consequence` region with its `aria-live` intact — `Checking the enrollment consequence…` — and never a campaign fact. `Players` arms `_intakeContextLoading` at the route boundary in `ApplyRouteState` (a synchronous render happens there, so arming it only "immediately before the read" was too late — the first test run of this fix failed exactly that way) and clears it in both settled branches of the read; `_recoveryChecked` is armed `false` on every entry to the board route and set `true` only once `RestoreRecoveryAsync` has examined the owner's retained command. Five new cases: `IntakeBoardWithholdsEntryUntilTheRetainedCommandIsChecked`, `IntakeBoardNamesTheEnrollmentCheckWhileTheConsequenceIsUnread`, `PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync` (first entry *and* re-entry, through a new `ReadGate` on the interop double), `PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync` and `PlayersNamesTheEnrollmentCheckWhileTheIntakeConsequenceReadIsOpenAsync` (a held-open NSubstitute read, as the existing recovery tests hold the create call). |
+| 2 | Medium | The departure guard's two dirty gates disagreed: the module marks dirty on any DOM input inside the board, but `OnBoardDepartureAttemptAsync` re-gated on the .NET flag, which only `EditContext` field changes set — so the set-aside acknowledgement (a plain `@bind` input outside the `EditForm`) made the module prompt and the board swallow the click | **Fixed** exactly as prescribed: the module owns whether a prompt is due, and the board refuses only when it holds nothing that could be lost (`ShowsReceipt || IsEntryBlocked || !CanManage`) before recording the attempt as dirty. New case `PlayersPromptsOnDepartureAfterTheSetAsideAcknowledgementAloneAsync`: with an unresolved retained command it opens the set-aside confirmation, toggles `#set-aside-acknowledge` (asserting the .NET flag stayed clear), then calls the public `OnBoardDepartureAttemptAsync` with the lease the module actually holds — captured by `PlayerIntakeInteropDouble` from `AttachDepartureGuardAsync`, so no production surface was widened — and asserts `#intake-departure` opens. |
+| 3 | Low | A migrated assertion asserted that `#intake-expired` does not contain "Replay the retained addition", but that label lives on the submit button in a sibling `EditForm`, so it could never match | **Fixed** to `await Expect(page.Locator("#intake-submit")).ToHaveTextAsync("Create player");` in `PlayerFormExpiryRetainsCommandWithoutRetryGuidanceAsync`; the existing `#player-first-name` disabled assertion is kept. Non-vacuity proved by temporarily labelling the expired commit control with the replay label: the new assertion fails on `#intake-submit` ("Replay the retained addition" vs "Create player") — see the negative checks. |
+| 4 | Low | "Nothing has been sent." is unknowable from `RecoveryState == None`, which proves only that *this instance* knows of nothing retained | **Fixed** to the scoped claim **"Nothing has been sent from this board."**, which is what the board can actually know. `PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync` was updated to the new wording (still asserting the sentence is absent while retained evidence is shown), and `PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync` now pins the sentence positively in the state that legitimately renders it. |
+| 5 | Low | A faulted module import was cached by `Lazy<Task<IJSObjectReference>>` for the life of the circuit, so one transient `import` failure made every later read and write fail, kept storage reported unavailable, made **Retry storage** a permanent no-op, and blocked creation until a full page reload | **Fixed.** `PlayerCreationRecoveryStore` now holds a nullable cached `Task<IJSObjectReference>` that drops a faulted load, so the next attempt re-imports; `DisposeAsync` disposes only a reference that actually loaded (`IsCompletedSuccessfully`). New case `PlayerCreationRecoveryStoreTests.RecoveryStoreReimportsTheModuleAfterATransientImportFailureAsync`, driving a hand-written `IJSRuntime`/`IJSObjectReference` double (the pattern this repo already uses for the campaign panel's storage boundary) whose first import throws and whose second succeeds, and asserting the second read succeeds with two imports. |
+| 7 | Nit | `DuplicateDetailUrl` and `InvalidRetainedValue` were never read by `PlayerIntakeBoard` | **Fixed.** Both parameters and their two attribute values in `Players.razor` are deleted (`DuplicateUrl` is recomputed from `DetailUrlFactory`, and the unreadable panel uses `OnDiscardUnreadable` with the page's own field). The duplicate-detail return-context browser scenario, `PlayerFormDuplicateDetailPreservesRosterReturnContextAsync`, passed in the selection run below, so the `DetailUrlFactory` path is unaffected. |
+
+### Confirming evidence (round 2)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`cb88a1b9`, with no commit created in this pass.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3809 total, 3809 passed, 0 failed, 0 skipped**. The round-1 baseline was 3802, so the seven new cases are the entire delta and nothing regressed. |
+| Affected browser selection | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — final run **21 total, 20 passed, 0 failed, 1 skipped** (the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture). Earlier runs of the same selection on earlier revisions of this pass reported 1 and 3 failures; every failure is named under *intermittent journeys* below with its isolated re-run, and each passed in isolation. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0** on the final edits. |
+| Negative check, finding 1 (board gates) | With `&& RecoveryChecked` removed from `IsEditable`/`CanCommit` and the loading branch removed from the consequence paragraph: `IntakeBoardWithholdsEntryUntilTheRetainedCommandIsChecked` fails (`fieldset` `disabled` **should be but was not**), `IntakeBoardNamesTheEnrollmentCheckWhileTheConsequenceIsUnread` fails (`p.intake-consequence` should contain "Checking the enrollment consequence"), and the two page-level cases fail the same way — **4 failed, 0 passed**. Fix restored and rebuilt before the runs above. |
+| Negative check, finding 1 (route-boundary arming) | With `_recoveryChecked = false` removed from `ApplyRouteState`, only the re-entry half of `PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync` fails (`fieldset` `disabled` should be but was not after the second entry) — **1 failed, 1 passed**, which is why that case enters the board twice. |
+| Negative check, findings 1, 2, 4 and 5 | With `_recoveryChecked = true` removed from `RestoreRecoveryAsync`, the wording reverted to "Nothing has been sent.", `!_dirty` restored in the departure gate, and the faulted-import drop removed: `PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync` fails (sentence absent *and* the board never reopens), `PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync` fails (never enabled), `PlayersPromptsOnDepartureAfterTheSetAsideAcknowledgementAloneAsync` fails (`#intake-departure` count 0) and `RecoveryStoreReimportsTheModuleAfterATransientImportFailureAsync` fails the second read — **4 failed, 0 passed**. Fixes restored, files touched and the full solution rebuilt before the runs above. |
+| Negative check, finding 3 | With `CommitLabel` temporarily returning the replay label for the expired state too, `PlayerFormExpiryRetainsCommandWithoutRetryGuidanceAsync` fails on `Locator("#intake-submit")` expected "Create player" but received "Replay the retained addition" — the new assertion targets the control that can carry the label. Restored and rebuilt before the runs above. |
+| Non-fix observation, finding 1 | Paging the page's `RecoveryChecked` wiring to a literal instead of `_recoveryChecked` does not compile: `CS0414`/`S4487` report the field as assigned but never read. The wiring is therefore enforced by the build, not only by a test. |
+
+**Intermittent journeys seen during this pass.** All three are the load-sensitive class the
+limitations below already track; each was re-run alone on the same build and passed. They are
+recorded rather than re-run away, and the round-2 change does add one new reason for load
+sensitivity: a creation form is now unusable until the interactive circuit has attached *and*
+checked browser storage, where the pre-change form was submittable from its server-rendered markup.
+
+| Journey | In the selection run | Alone |
+| --- | --- | --- |
+| `PlayerFormKeyboardTabAndEnterSubmitsAsync` | failed (21s 215ms) on `#intake-receipt-heading` never containing "Player added" — the first keystrokes were typed into the board's still-withheld field and never landed | **passed** (1 total, 1 passed). Its interaction now waits for `#player-first-name` to be **enabled**, which is the board's actual contract, instead of only for it to be visible; it passed in every later selection run. |
+| `PlayerFormResponsivePreservesInputsAcrossViewportsAsync` | failed twice (41s 469ms, 42s 204ms) with `Timeout 30000ms exceeded` from `FillAsync` — Playwright waited for "visible, enabled and editable" while the input was detached and re-resolved, i.e. the board was not editable for 30s under a loaded four-thread suite | **passed** (1 total, 1 passed). **Unresolved cause:** the captured log shows the wait, not the circuit state, so it is not established whether the circuit attach, the storage check or hydration churn consumed the window; the run that succeeded was on the same build. |
+| `PlayerFormDuplicateCanBeCorrectedWithoutOverrideAsync` | failed once (41s 486ms) | **passed** (1 total, 1 passed). |
+| `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` | failed once (38s 120ms) | not re-run in this pass: it is one of the two journeys the round-1 record already names as load-sensitive, and the round-1 pass had already recorded its isolated pass on that build. |
 
 ## Independent finish review
 
@@ -252,13 +311,21 @@ evidence above is unchanged by it.
 
 ## Limitations and remaining work
 
-- **The PR-stage gates are not yet complete.** The work is committed as `b51558b2` and opened as
-  PR #285, and the separate local review this change's persisted/recoverable and asynchronous-state
-  work requires has now been obtained: that review (round 1) is recorded above with a disposition for
-  every finding. Still outstanding before merge: a full integration run and a full browser run on the
-  final revision (round 1 changed one DI registration list and no provider, EF or domain behaviour),
-  plus the branch's CI. The earlier full-suite evidence above is tied to earlier working trees and
-  must be re-established after any further edit.
+- **The PR-stage gates are not yet complete.** The work is committed as `b51558b2`, opened as
+  PR #285 and committed for review round 1 as `cb88a1b9`; the separate local reviews this change's
+  persisted/recoverable and asynchronous-state work requires have now been obtained for both rounds,
+  and each is recorded above with a disposition for every finding. Still outstanding before merge: a
+  full integration run and a full browser run on the final revision (round 2 changed no provider, EF
+  or domain behaviour), plus the branch's CI. The earlier full-suite evidence above is tied to
+  earlier working trees and must be re-established after any further edit.
+- **The board's input is now gated on the interactive circuit, by design.** A creation form is
+  unusable until the circuit has attached *and* the owner's retained command has been read from
+  browser storage, where the pre-change form was submittable from its server-rendered markup. That is
+  the point of the round-2 fix — input can no longer be replaced by a landed recovery payload — but
+  it moves a slice of the board's readiness behind interactivity, which is why the affected browser
+  selection is more load-sensitive than before (see the *intermittent journeys* table). The named
+  keyboard journey now waits for the field to be enabled instead of merely visible; the other
+  journeys rely on Playwright's own enabled-actionability wait.
 - **Approved comp locked: reference A.** Image generation was available through the user-scope
   `OPENAI_API_KEY` (my first check read the process scope, which does not inherit a user-level
   variable — corrected). Three structural candidates were generated on the board's own captured

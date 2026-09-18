@@ -14,10 +14,12 @@ public partial class Players
 {
     private PlayerIntakeBoard? _board;
     private PlayerIntakeContext? _intakeContext;
+    private bool _intakeContextLoading;
     private bool _intakeContextUnavailable;
     private int _intakeContextVersion;
     private PlayerCreationRecoveryState _recoveryState;
     private string? _invalidRetainedValue;
+    private bool _recoveryChecked;
     private bool _storageUnavailable;
     private string? _recoveryScope;
     private PlayerCreationCompletion? _receipt;
@@ -46,6 +48,9 @@ public partial class Players
             return;
         }
 
+        // Both settled outcomes — read and unread — stop the board naming a check in progress; the
+        // route boundary armed it, so the board never guesses a campaign fact while this read runs.
+        _intakeContextLoading = false;
         result.Switch(
             context =>
             {
@@ -67,6 +72,8 @@ public partial class Players
     {
         if (_board is null || !_canManagePlayers)
         {
+            // No board is displayed to refuse input, so no scope stays claimed as unchecked.
+            _recoveryScope = null;
             return;
         }
 
@@ -75,9 +82,15 @@ public partial class Players
         var read = await _board.ReadRecoveryAsync(token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
+            // This read proved nothing for the current identity, so release the scope claim rather
+            // than leaving the board refusing input forever behind an unsettled read.
+            _recoveryScope = null;
             return;
         }
 
+        // Every path below has now examined the owner's retained command, so the board may accept
+        // input; a board that could not be checked this way would be stuck refusing input.
+        _recoveryChecked = true;
         _recoveryScope = CurrentScope;
         if (read is null)
         {
