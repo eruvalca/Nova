@@ -28,6 +28,9 @@ public sealed class PlayerIntakeBoardEvidenceTests(BrowserSuiteFixture fixture)
         await page.SetViewportSizeAsync(1440, 1000);
         await page.GotoAsync(new Uri(fixture.BaseUri, "/players/new").ToString());
         await Expect(page.Locator("#player-first-name")).ToBeVisibleAsync();
+        // The board withholds input until it has checked the owner's retained addition, so the
+        // capture must wait for the settled board rather than the withheld one.
+        await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
         await Expect(page.Locator(".intake-consequence")).ToContainTextAsync("joins");
         await page.Locator(".intake-heading").ClickAsync();
         // The comp frame is the viewport, so the reference is captured without full-page growth.

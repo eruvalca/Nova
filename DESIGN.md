@@ -334,7 +334,10 @@ The manual intake board is a flat Paper White field sheet hosted by `/players/ne
   it is required or optional. Beneath the heading, one bordered consequence band states the
   authoritative enrollment result in words — naming the Active campaign, or stating that the player
   joins the roster when the next campaign opens. Unreadable consequence evidence is named as
-  unavailable rather than replaced with a guess.
+  unavailable rather than replaced with a guess. Entry is withheld until the browser has actually been
+  checked for the owner's retained addition, and that withheld state is written in words
+  (*Checking this browser for a retained addition…*) rather than left as an unexplained disabled
+  field set.
 - **Fields:** Paper White inputs, one Roster Hairline, `0.25rem` corners and at least `2.75rem`
   height. Required and optional fields group into separate bands, and long values wrap. Server field
   errors sit directly beneath their owning control at the operational `0.875rem` step; graduation-year

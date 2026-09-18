@@ -1,4 +1,6 @@
 ﻿
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.SharedKernel.Enums;
@@ -72,7 +74,8 @@ public partial class PlayerDetail(
     private bool _isMutating;
 
     /// <summary>
-    /// Indicates whether the current user can manage (edit/archive/restore) players.
+    /// Indicates whether the current user may commit player lifecycle mutations. The server's gate is
+    /// club membership, so the record offers what an approved member may actually do.
     /// </summary>
     private bool _canManagePlayers;
 
@@ -96,7 +99,11 @@ public partial class PlayerDetail(
     {
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
-        _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
+        // Membership, not the admin role, is what the server's mutation gate requires — the same
+        // authority the Players directory derives, so both hosts offer the same lifecycle control.
+        var club = ReadClubIdClaim(principal);
+        var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _canManagePlayers = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
 
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
         await LoadDetailAsync();
@@ -252,6 +259,15 @@ public partial class PlayerDetail(
             await LoadDetailAsync();
         }
     }
+
+    /// <summary>
+    /// Reads the authenticated club id from the principal, as the Players directory does.
+    /// </summary>
+    /// <param name="principal">The authenticated principal.</param>
+    /// <returns>The club identifier, or <see langword="null"/> when the claim is absent or unusable.</returns>
+    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+        => long.TryParse(principal.FindFirst(NovaClaimTypes.ClubId)?.Value, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Normalizes the inbound return URL to a safe local path within this application.

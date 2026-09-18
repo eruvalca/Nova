@@ -2,11 +2,12 @@
 
 ## Scope and status
 
-**Status: implemented and committed to PR #285; review rounds 1 and 2 are addressed.** On the
-round-2 revision the build, format check, full unit suite and the affected browser selection are
-green (see [PR review round 2](#pr-review-round-2-pr-285)); each intermittent browser failure seen
-on the way is named there with its isolated re-run. Full integration and full browser runs on that
-revision, and the merge-stage reruns required before merge, are still outstanding.
+**Status: implemented and committed to PR #285; review rounds 1, 2 and 3 are addressed.** On the
+round-3 revision the build, format check, full unit suite, the affected browser selection and the
+env-gated capture scenario are green (see [PR review round 3](#pr-review-round-3-pr-285)); each
+intermittent browser failure seen on the way is named where it occurred with its isolated re-run.
+Full integration and full browser runs on that revision, and the merge-stage reruns required before
+merge, are still outstanding.
 
 Delivered:
 
@@ -23,7 +24,9 @@ Original implementation: uncommitted working tree on branch `eruvalca-player-for
 review-round-1 fixes below were an uncommitted working tree on top of `b51558b2`, and round 1 was
 then committed as `cb88a1b9`. The review-round-2 fixes below are an uncommitted working tree on top
 of `cb88a1b9`, so that pass's revision is the working tree itself; the tree is the only revision a
-reader can reproduce from this record alone.
+reader can reproduce from this record alone. The review-round-3 fixes below are an uncommitted
+working tree on top of `aa22450d`, so that pass's revision is likewise the working tree itself, and
+that tree is also what regenerated the three curated rasters.
 
 ## Guidance actually read
 
@@ -33,6 +36,10 @@ reader can reproduce from this record alone.
   `.agents/skills/impeccable/SKILL.md` and `reference/new-work.md` (comp-led vs code-led path).
 - `.impeccable/surfaces/player-intake.md`, `DESIGN.md`, `PRODUCT.md`,
   `docs/279-validation.md` (consumer handoff), `docs/263-validation.md`, `AGENTS.md`.
+- Review round 3 re-read `blazor-architecture`, `ui-design`, `csharp-conventions` and `testing` from
+  the same set (the round-3 edits touch a component, a page, component tests and the browser capture
+  scenario), plus the live PR #285 review bodies for rounds 1-3 to reconcile each finding's wording
+  with this record.
 
 ## What was implemented
 
@@ -81,7 +88,11 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
   progress* ("Checking the enrollment consequence…") until the club's Active campaign has actually
   been read — it never falls through to the no-campaign sentence in that window — and the fields and
   the commit control are withheld until the owner's retained command has been read, so input typed
-  during that window cannot be silently replaced by a landed recovery payload.
+  during that window cannot be silently replaced by a landed recovery payload. The withheld state is
+  itself named — **Checking this browser for a retained addition…**, in the same note position as the
+  frozen and blocked notes — and the withheld field set points at that note through its
+  `aria-describedby`, so an unexplained disabled board is not a state the member meets (review round
+  3, finding 2).
 - Per-field server errors; graduation-year and archive blockers beside the fields they concern.
 - A retained unresolved addition keeps its fields **visible but frozen** (the #279 handoff's
   contract) and replays through the same commit control, whose label names the action. An operation
@@ -93,8 +104,9 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
 - The uncommitted-departure guard warns on document unload and same-origin link departure while the
   board holds typed input, released on commit, cancel and set-aside. The module observes DOM input
   (including controls outside the `EditForm`, such as the set-aside acknowledgement) and decides
-  whether a prompt is due; the board refuses the attempt only when it holds nothing that could be
-  lost.
+  whether a prompt is due. A board that holds nothing that could be lost **completes the departure
+  the module already cancelled** rather than refusing the attempt, so a cancelled click is inert in
+  no state (review round 3, finding 1).
 
 ### 4. Shared lifecycle control
 
@@ -107,6 +119,9 @@ are gone, so the hosts cannot state different consequences or different results 
 archive player." / "Could not restore player." — stays inline; the result sentences do not.)
 Confirmation state (including the acknowledgement) lives in the shared control, the acknowledgement
 is scoped to the subject it was given for, and the blockers are captured when the confirmation opens.
+Both hosts also derive the *authority* that control requires from authenticated club membership —
+the server's own mutation gate — so Player detail no longer narrows archive and restore to the
+club-admin role while the directory offers them to every member (review round 3, finding 6).
 
 ### 5. Correctness decisions worth recording
 
@@ -196,10 +211,12 @@ consequence of these fixes.
 
 ## PR review round 2 (PR #285)
 
-The second review of PR #285 raised six findings — two Medium, three Low and one Nit. All are
-addressed on top of `cb88a1b9`; nothing was deferred and nothing was resolved by weakening a test.
-Each fix carries its own regression coverage, and each piece that could be reverted without a
-compile error was reverted temporarily to watch its new test fail (see below).
+The second review of PR #285 raised seven findings — two Medium, four Low and one Nit. All are
+dispositioned on top of `cb88a1b9`; nothing was deferred and nothing was resolved by weakening a
+test. Each code fix carries its own regression coverage, and each piece that could be reverted
+without a compile error was reverted temporarily to watch its new test fail (see below). Row 6 was a
+PR-body correction rather than code, so it carries the body/record reconciliation check below
+instead, and the residual revision claim it left behind is round 3's row 5.
 
 | # | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
@@ -208,6 +225,7 @@ compile error was reverted temporarily to watch its new test fail (see below).
 | 3 | Low | A migrated assertion asserted that `#intake-expired` does not contain "Replay the retained addition", but that label lives on the submit button in a sibling `EditForm`, so it could never match | **Fixed** to `await Expect(page.Locator("#intake-submit")).ToHaveTextAsync("Create player");` in `PlayerFormExpiryRetainsCommandWithoutRetryGuidanceAsync`; the existing `#player-first-name` disabled assertion is kept. Non-vacuity proved by temporarily labelling the expired commit control with the replay label: the new assertion fails on `#intake-submit` ("Replay the retained addition" vs "Create player") — see the negative checks. |
 | 4 | Low | "Nothing has been sent." is unknowable from `RecoveryState == None`, which proves only that *this instance* knows of nothing retained | **Fixed** to the scoped claim **"Nothing has been sent from this board."**, which is what the board can actually know. `PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync` was updated to the new wording (still asserting the sentence is absent while retained evidence is shown), and `PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync` now pins the sentence positively in the state that legitimately renders it. |
 | 5 | Low | A faulted module import was cached by `Lazy<Task<IJSObjectReference>>` for the life of the circuit, so one transient `import` failure made every later read and write fail, kept storage reported unavailable, made **Retry storage** a permanent no-op, and blocked creation until a full page reload | **Fixed.** `PlayerCreationRecoveryStore` now holds a nullable cached `Task<IJSObjectReference>` that drops a faulted load, so the next attempt re-imports; `DisposeAsync` disposes only a reference that actually loaded (`IsCompletedSuccessfully`). New case `PlayerCreationRecoveryStoreTests.RecoveryStoreReimportsTheModuleAfterATransientImportFailureAsync`, driving a hand-written `IJSRuntime`/`IJSObjectReference` double (the pattern this repo already uses for the campaign panel's storage boundary) whose first import throws and whose second succeeds, and asserting the second read succeeds with two imports. |
+| 6 | Low | The PR body contradicted the revision it described: it still called the departure guard's browser effect unverified and "not delivered", listed "No separate local review yet", and quoted a merge gate the record already recorded as met, while the diff added `PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync` and this record already carried the round-1 review | **Fixed in the body, with a residual that round 3 caught.** Item 1 moved the guard to delivered-with-evidence (naming the browser scenario), item 4 was replaced by the round-1 dispositions, and the review checklist line was retargeted. The residual — the body still named `cb88a1b9` and the round-1 unit count — is round 3's row 5, and the body now names `aa22450d` with the round-2 counts. Recorded because `AGENTS.md` requires each finding once with source, disposition and evidence, and the body and record to agree. |
 | 7 | Nit | `DuplicateDetailUrl` and `InvalidRetainedValue` were never read by `PlayerIntakeBoard` | **Fixed.** Both parameters and their two attribute values in `Players.razor` are deleted (`DuplicateUrl` is recomputed from `DetailUrlFactory`, and the unreadable panel uses `OnDiscardUnreadable` with the page's own field). The duplicate-detail return-context browser scenario, `PlayerFormDuplicateDetailPreservesRosterReturnContextAsync`, passed in the selection run below, so the `DetailUrlFactory` path is unaffected. |
 
 ### Confirming evidence (round 2)
@@ -226,6 +244,7 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check, findings 1, 2, 4 and 5 | With `_recoveryChecked = true` removed from `RestoreRecoveryAsync`, the wording reverted to "Nothing has been sent.", `!_dirty` restored in the departure gate, and the faulted-import drop removed: `PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync` fails (sentence absent *and* the board never reopens), `PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync` fails (never enabled), `PlayersPromptsOnDepartureAfterTheSetAsideAcknowledgementAloneAsync` fails (`#intake-departure` count 0) and `RecoveryStoreReimportsTheModuleAfterATransientImportFailureAsync` fails the second read — **4 failed, 0 passed**. Fixes restored, files touched and the full solution rebuilt before the runs above. |
 | Negative check, finding 3 | With `CommitLabel` temporarily returning the replay label for the expired state too, `PlayerFormExpiryRetainsCommandWithoutRetryGuidanceAsync` fails on `Locator("#intake-submit")` expected "Create player" but received "Replay the retained addition" — the new assertion targets the control that can carry the label. Restored and rebuilt before the runs above. |
 | Non-fix observation, finding 1 | Paging the page's `RecoveryChecked` wiring to a literal instead of `_recoveryChecked` does not compile: `CS0414`/`S4487` report the field as assigned but never read. The wiring is therefore enforced by the build, not only by a test. |
+| Body/record agreement, finding 6 | The PR body's open items, review-history paragraph and checklist were read against this record and the pushed revision: the round-1 status claims were replaced, the guard's browser scenario was named as delivered, and the checklist line that claimed the local reviews were outstanding was retargeted. The residual stale-revision claims the body kept are round 3's row 5, which resolves them in the body. |
 
 **Intermittent journeys seen during this pass.** All three are the load-sensitive class the
 limitations below already track; each was re-run alone on the same build and passed. They are
@@ -239,6 +258,46 @@ checked browser storage, where the pre-change form was submittable from its serv
 | `PlayerFormResponsivePreservesInputsAcrossViewportsAsync` | failed twice (41s 469ms, 42s 204ms) with `Timeout 30000ms exceeded` from `FillAsync` — Playwright waited for "visible, enabled and editable" while the input was detached and re-resolved, i.e. the board was not editable for 30s under a loaded four-thread suite | **passed** (1 total, 1 passed). **Unresolved cause:** the captured log shows the wait, not the circuit state, so it is not established whether the circuit attach, the storage check or hydration churn consumed the window; the run that succeeded was on the same build. |
 | `PlayerFormDuplicateCanBeCorrectedWithoutOverrideAsync` | failed once (41s 486ms) | **passed** (1 total, 1 passed). |
 | `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` | failed once (38s 120ms) | not re-run in this pass: it is one of the two journeys the round-1 record already names as load-sensitive, and the round-1 pass had already recorded its isolated pass on that build. |
+
+## PR review round 3 (PR #285)
+
+The third review of PR #285 raised six findings — four Low inline, one Nit in the review body, and
+one further Low marked **pre-existing** (Player detail's authority for archive and restore) — with
+nothing above Low remaining, and verified round-2 findings 1-5 and 7 as genuinely fixed, each with a
+test that fails when the fix is reverted. All six are dispositioned on top of `aa22450d`; nothing was
+deferred and nothing was resolved by weakening a test. The review also judged the round-2
+withholding trade-off acceptable; this record keeps that as a limitation rather than re-arguing it.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Low | A refused departure attempt still swallowed the click: the collocated module cancels the click *before* asking the board, so the board's lossless refusal left the link inert — the symptom round 2 set out to remove — and the module's own dirty flag is cleared through a separate interop round trip that can lag or fail | **Fixed.** `PlayerIntakeBoard.OnBoardDepartureAttemptAsync` now performs the departure when the board holds nothing that could be lost (`ShowsReceipt || IsEntryBlocked || !CanManage`): it clears `_dirty` and raises the same `OnConfirmedDeparture` the panel's confirm raises. No `_dirty` gate was re-added, so the round-2 finding stays fixed. New case `PlayersPerformsTheDepartureWhenTheAttemptCannotLoseAnythingAsync` asks a receipt-state board through the real invokable with the lease `PlayerIntakeInteropDouble` captured from `AttachDepartureGuardAsync`, and asserts the navigation manager lands on the attempted destination with no `#intake-departure` panel. |
+| 2 | Low | The withheld board was unexplained once the consequence read settled: the prerendered HTML shows the settled consequence sentence above a disabled field set and a disabled **Create player**, with no line saying why and nothing naming the state for assistive technology | **Fixed.** A named checking note — `#intake-checking-note`, `Checking this browser for a retained addition…` — renders in the same place as the blocked and frozen notes, and the field set's `aria-describedby` resolves to `intake-recovery-note` when blocked or frozen, `intake-checking-note` while the retention check is unsettled, and nothing once it settles. **Deviation from the prescribed diff:** the nested conditional operator the finding prescribes is rejected by SonarAnalyzer `S3358` in this build, so the same three-case mapping lives in the `FieldsDescription` property as an if-chain and the markup reads `aria-describedby="@FieldsDescription"` — identical rendering, analyzer-clean. `DESIGN.md`'s **Manual Player Intake Board** rule and the brief's state enumeration now name the checking/withheld state. New case `IntakeBoardNamesTheRetainedCommandCheckWhileItWithholdsEntry` asserts the note and the attribute while `RecoveryChecked` is false, and their absence once it is true. |
+| 3 | Low | The capture scenario — the sole producer of the curated rasters that lock the approved comp — waited only for the consequence read, so it could screenshot the *withheld* board, a composition the committed rasters do not depict and the comp does not cover | **Fixed and re-executed.** The scenario now waits for `#player-first-name` to be **enabled** before its first click, so the gate itself fails a permanently withheld board instead of photographing it. The three tracked rasters were re-captured on this revision (sizes and timestamps below), and the ignored full-page capture was regenerated with them. |
+| 4 | Low | The record omitted a round-2 finding and miscounted: the prose said six findings (two Medium, three Low, one Nit) and the round-2 table ran 1, 2, 3, 4, 5, 7 with no row 6, while the PR body said round 2 raised seven (two Medium, four Low, one Nit) | **Fixed.** Row 6 — the PR-body/revision contradiction — is recorded in the round-2 table with its disposition and its body/record reconciliation evidence, and the round-2 prose now reads seven findings (two Medium, four Low and one Nit), matching the body. |
+| 5 | Nit | The PR body's revision and round-2 status were stale: it named `cb88a1b9` and the round-1 unit count while the head was `aa22450d`, and open item 1 still listed the two round-2 fixes as outstanding work | **Addressed in the body, not the diff.** This is the residual of round-2 row 6; the body now names `aa22450d` with the round-2 counts and lists the round-3 items as the open work. Recorded here because round 3 verified it in the body rather than on a changed line. |
+| 6 | Low (pre-existing) | Player detail withheld archive/restore from ordinary members: `PlayerDetail.razor.cs` gated on `IsInRole(Roles.ClubAdmin)`, while the server's mutation gate is membership-only and the directory uses the member flag — so an ordinary member saw **Archive/Restore** on directory rows but not on the record, contradicting #264's authority contract and this change's own claim that both hosts reach one shared lifecycle control | **Fixed in the direction the brief requires.** The flag is now derived exactly as `Players.razor.cs` derives it — the `NovaClaimTypes.ClubId` claim through the same `ReadClubIdClaim` helper shape, the `NameIdentifier` claim, and an authenticated identity — so both hosts grant the authority the server actually enforces. `PlayerDetailHidesAdminActionsForEvaluator` becomes `PlayerDetailHidesLifecycleActionsWithoutClubMembership` and asserts only the genuinely unauthorised case (no club claim), and two new cases prove an ordinary member reaches both controls: `PlayerDetailShowsArchiveForOrdinaryClubMember` and `PlayerDetailShowsRestoreForOrdinaryClubMemberOnAnArchivedRecord`. |
+
+### Confirming evidence (round 3)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`aa22450d`, with no commit created in this pass.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — **passed, 0 warnings, 0 errors**. The first build of this pass failed with a single `S3358` on the prescribed nested conditional operator (finding 2); the `FieldsDescription` property is that correction, and the rebuild is the clean one recorded here. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3813 total, 3813 passed, 0 failed, 0 skipped**. The round-2 baseline was 3809, so the four new cases (one departure, one withheld-note, two authority) are the entire delta; the replaced authority test was renamed rather than dropped, so no case was lost. |
+| Affected browser selection | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **21 total, 20 passed, 0 failed, 1 skipped**; the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture. **No intermittent journey failed in this pass**, so none needed an isolated re-run. |
+| Capture scenario (finding 3) | `$env:NOVA_PLAYERS_EVIDENCE = '<worktree>\.impeccable\review\issue-264\captures'` then `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerIntakeBoardEvidenceTests'` — **1 total, 1 passed, 0 failed, 0 skipped**; the class holds only `CaptureIntakeBoardStatesAsync`, and with the flag set it is not skipped. The three tracked rasters were rewritten — `intake-board-desktop.png` **44,534 bytes** (was 44,418), `intake-board-mobile.png` **27,692** (was 27,610), `intake-board-receipt.png` **43,853** (was 43,787), all at 2026-09-18 02:18 local — and the ignored `intake-board-desktop-full.png` was regenerated too (44,534 bytes, untracked, `git status` lists only the three tracked rasters as modified). |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0** on the final edits, after one `dotnet format Nova.slnx --no-restore` pass whose only change was restoring the `CHARSET` BOM on `PlayerDetail.razor.cs`; the formatter created no artifact of its own. |
+| Negative check, findings 1, 2 and 6 | With the departure gate restored to the reviewed `if (ShowsReceipt \|\| IsEntryBlocked \|\| !CanManage) { return; }`, the checking note and its `aria-describedby` case removed, and `_canManagePlayers` re-gated on `IsInRole(Roles.ClubAdmin)`, `dotnet test … --no-build` over the four new cases reported **4 failed, 0 passed**: `PlayersPerformsTheDepartureWhenTheAttemptCannotLoseAnythingAsync` failed on `NavigationManager().Uri` "should end with `/players?view=archived` but was `http://localhost/players/new`"; `IntakeBoardNamesTheRetainedCommandCheckWhileItWithholdsEntry` failed with `Bunit.ElementNotFoundException: No elements were found that matches the selector '#intake-checking-note'`; `PlayerDetailShowsArchiveForOrdinaryClubMember` and `PlayerDetailShowsRestoreForOrdinaryClubMemberOnAnArchivedRecord` both failed their control counts (0). Fixes restored, the full solution rebuilt (0 warnings, 0 errors) and the full unit suite re-run before the runs above. |
+| Composition check re-measured (consequence of the re-capture) | `node .impeccable/review/issue-264/comp-measure.mjs` against the re-captured settled board: A still leads on both measures — shell 0.0224 (B 0.0237, C 0.0261), field 0.0273 (B 0.0343, C 0.0336), two-board rows 33.8% (C 76.4%) — so the locked reference is unchanged; the approval-time figures against the earlier capture were 0.0223 / 0.0272 with the same ordering. The script's module import resolved one directory short and could not run as committed, so that path was corrected in this pass and the record's claim that it reproduces every figure is now true. |
+
+After those runs, the only further edits were documentation, the one-line import correction in
+`comp-measure.mjs`, the re-captured rasters themselves, and a restore of one doc comment and blank
+line in `Nova.Unit.Tests/Players/PlayerComponentsTests.cs`; the application and browser-suite inputs
+are unchanged from the revision the browser runs covered, so that selection and that capture pass are
+reused rather than repeated (a documentation-only difference, as `AGENTS.md` allows with the
+comparison recorded).
 
 ## Independent finish review
 
@@ -258,7 +317,7 @@ All seven material fixes are addressed:
 | 1 | Three labels pointed at ids that do not exist (`player-date-of-birth`, `player-graduation-year`, `player-jersey-number`), leaving those fields without an accessible name and orphaning their required/optional words | **Fixed.** The three `for` values now match their ids (`player-dob`, `player-grad-year`, `player-jersey`). |
 | 2 | Both acknowledgement checkboxes missed the 2.75rem target | **Fixed.** Both stylesheets now carry the established `.form-check` flex/min-height rule from `CampaignCreateForm.razor.css`. |
 | 3 | The archive entry control on Player detail was a `btn-sm` (~30px) while the directory host raises its controls to 2.75rem | **Fixed.** `PlayerDetail.razor.css` now raises every `a.btn`/`button.btn` inside the page container to 2.75rem. |
-| 4 | The frozen fieldset was not associated with its own explanation | **Fixed.** `aria-describedby` now applies for `IsEntryBlocked || IsFrozen`. |
+| 4 | The frozen fieldset was not associated with its own explanation | **Fixed.** `aria-describedby` now applies for `IsEntryBlocked \|\| IsFrozen`; review round 3 extended the same association to the withheld/unsettled field set (`intake-checking-note`) — see the round-3 table. |
 | 5 | The expired state labelled a disabled control with a status sentence, not an action | **Fixed.** `CommitLabel` now returns the action label for every state; the `#intake-expired` region carries the window-closed explanation. |
 | 6 | Graduation-year blockers rendered above the whole field set instead of beside the field to correct | **Fixed.** The region now sits immediately after the date-of-birth/graduation-year row. |
 | 7 | The shared confirmation was a live region that also wrapped its own controls, so it could announce nothing or re-announce on churn | **Fixed.** `aria-live` removed; the panel is `aria-labelledby` its heading, and the heading takes focus on open via `tabindex="-1" autofocus`. |
@@ -312,32 +371,37 @@ evidence above is unchanged by it.
 ## Limitations and remaining work
 
 - **The PR-stage gates are not yet complete.** The work is committed as `b51558b2`, opened as
-  PR #285 and committed for review round 1 as `cb88a1b9`; the separate local reviews this change's
-  persisted/recoverable and asynchronous-state work requires have now been obtained for both rounds,
-  and each is recorded above with a disposition for every finding. Still outstanding before merge: a
-  full integration run and a full browser run on the final revision (round 2 changed no provider, EF
-  or domain behaviour), plus the branch's CI. The earlier full-suite evidence above is tied to
-  earlier working trees and must be re-established after any further edit.
+  PR #285 and committed for review round 1 as `cb88a1b9` and round 2 as `aa22450d`; the separate
+  local reviews this change's persisted/recoverable and asynchronous-state work requires have now
+  been obtained for all three rounds, and each is recorded above with a disposition for every
+  finding. Still outstanding before merge: a full integration run and a full browser run on the
+  final revision (round 3 changed no provider, EF or domain behaviour), plus the branch's CI. The
+  earlier full-suite evidence above is tied to earlier working trees and must be re-established
+  after any further edit.
 - **The board's input is now gated on the interactive circuit, by design.** A creation form is
   unusable until the circuit has attached *and* the owner's retained command has been read from
   browser storage, where the pre-change form was submittable from its server-rendered markup. That is
   the point of the round-2 fix — input can no longer be replaced by a landed recovery payload — but
   it moves a slice of the board's readiness behind interactivity, which is why the affected browser
-  selection is more load-sensitive than before (see the *intermittent journeys* table). The named
-  keyboard journey now waits for the field to be enabled instead of merely visible; the other
-  journeys rely on Playwright's own enabled-actionability wait.
+  selection is more load-sensitive than before (see the *intermittent journeys* table). Review round
+  3 removed the unexplained half of that trade-off: the withheld board now names its check, so no
+  state the member meets is unlabelled. The named keyboard journey waits for the field to be enabled
+  instead of merely visible; the other journeys rely on Playwright's own enabled-actionability wait.
 - **Approved comp locked: reference A.** Image generation was available through the user-scope
   `OPENAI_API_KEY` (my first check read the process scope, which does not inherit a user-level
   variable — corrected). Three structural candidates were generated on the board's own captured
   shell, and **A was locked on the user's explicit delegation** ("Please choose the comp candidate
   based on your best judgement") using a measured composition check rather than a thumbnail: A
-  retains the incumbent shell most faithfully (normalised mean absolute luminance difference 0.0223
-  vs 0.0241 for B and 0.0260 for C) and its main field is closest to the composition the brief
-  commits to (0.0272 vs 0.0343 and 0.0336), with only 33.8% of main-field rows showing two separated
-  ink clusters — the single bounded field sheet — against C's 76.4%. The measurement script
-  (`.impeccable/review/issue-264/comp-measure.mjs`) reproduces every figure. **The formal
-  comp-spec/comp-diff gate was not run**, so these are direct comparisons against the real build, not
-  the workflow's hero measurement.
+  retains the incumbent shell most faithfully (normalised mean absolute luminance difference 0.0224
+  vs 0.0237 for B and 0.0261 for C) and its main field is closest to the composition the brief
+  commits to (0.0273 vs 0.0343 and 0.0336), with only 33.8% of main-field rows showing two separated
+  ink clusters — the single bounded field sheet — against C's 76.4%. Those figures were re-measured
+  on review round 3 against the re-captured settled board; the approval-time measurement against the
+  earlier capture read 0.0223 and 0.0272 for A with the same ordering, so the lock holds on the
+  shipped composition. The measurement script (`.impeccable/review/issue-264/comp-measure.mjs`)
+  reproduces every figure; its module import resolved one directory short and was corrected in
+  round 3, since it could not run as committed. **The formal comp-spec/comp-diff gate was not run**,
+  so these are direct comparisons against the real build, not the workflow's hero measurement.
 - **The agent could not perceptually inspect the rasters.** The image tool reports success without
   yielding viewable content in this environment, so the composition check rests on the measurements
   above, on the prompts each candidate committed to, and on A being the composition the shipped build
@@ -391,10 +455,14 @@ evidence above is unchanged by it.
 **Approved reference:** [`.impeccable/mocks/issue-264-a.png`](../.impeccable/mocks/issue-264-a.png)
 with its prompt (`.prompt.txt`) and provenance/composition check (`.png.json`), generated with the
 board's own viewport capture as the reference image. Curated captures:
-`.impeccable/review/issue-264/captures/intake-board-desktop.png` (1440 × 1000, the comp frame),
-`intake-board-mobile.png` (390 × 844) and `intake-board-receipt.png` (the committed receipt), plus
-`comp-measure.mjs`, which reproduces the composition figures. `.gitignore` carries narrow exceptions
-for exactly these files; rejected candidates B and C remain local working artifacts.
+`.impeccable/review/issue-264/captures/intake-board-desktop.png` (1440 × 1000, the comp frame,
+44,534 bytes after the review-round-3 re-capture), `intake-board-mobile.png` (390 × 844, 27,692
+bytes) and `intake-board-receipt.png` (the committed receipt, 43,853 bytes), plus `comp-measure.mjs`,
+which reproduces the composition figures. `.gitignore` carries narrow exceptions for exactly these
+files; rejected candidates B and C remain local working artifacts. The re-capture was required by
+round 3 because the scenario previously waited only for the consequence read and could photograph
+the withheld board; the provenance JSON keeps the measurement taken when the comp was approved,
+while the re-measured figures are recorded above.
 
 `.impeccable/surfaces/player-intake.md` records the `#264 manual intake board delivery` with the
 approved reference, the measured composition check and the delivery boundary (CSV stays with #218,

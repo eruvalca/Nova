@@ -16,7 +16,8 @@ namespace Nova.Unit.Tests.Players;
 
 /// <summary>
 /// Component-level tests for the <see cref="PlayerDetailPage"/> covering profile display, campaign history,
-/// role matrix, admin mutations with refresh, attribution, archived data, and error/empty states.
+/// the authority matrix (admin, ordinary member, no club), mutations with refresh, attribution, archived data,
+/// and error/empty states.
 /// </summary>
 public sealed class PlayerDetailComponentsTests : BunitContext
 {
@@ -305,7 +306,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         });
     }
 
-    // ── Role matrix: admin sees actions ──────────────────────────────────────
+    // ── Role matrix: any authenticated club member reaches the lifecycle actions ──
 
     [Fact]
     public void PlayerDetailShowsAdminActionsForClubAdmin()
@@ -338,12 +339,39 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         });
     }
 
-    // ── Role matrix: evaluator is read-only ───────────────────────────────────
+    // ── Role matrix: membership, not the admin role, reaches the record's lifecycle actions ──
 
     [Fact]
-    public void PlayerDetailHidesAdminActionsForEvaluator()
+    public void PlayerDetailShowsArchiveForOrdinaryClubMember()
     {
         RegisterServices(isClubAdmin: false);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        cut.WaitForAssertion(() => cut.FindAll("button.btn-outline-warning").Count.ShouldBe(1));
+        cut.Markup.ShouldNotContain("btn-outline-success");
+    }
+
+    [Fact]
+    public void PlayerDetailShowsRestoreForOrdinaryClubMemberOnAnArchivedRecord()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                CreatePlayerDetail(lifecycleStatus: LifecycleStatus.Archived))));
+
+        RegisterServices(detailService: detailService, isClubAdmin: false);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        cut.WaitForAssertion(() => cut.FindAll("button.btn-outline-success").Count.ShouldBe(1));
+        cut.Markup.ShouldNotContain("btn-outline-warning");
+    }
+
+    // ── Role matrix: a principal without club authority is read-only ──────────
+
+    [Fact]
+    public void PlayerDetailHidesLifecycleActionsWithoutClubMembership()
+    {
+        RegisterServices(isClubAdmin: false, hasClubMembership: false);
 
         var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
         cut.WaitForAssertion(() =>
@@ -503,7 +531,8 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         bool isClubAdmin = false,
         IPlayerDetailService? detailService = null,
         IPlayerManagementService? managementService = null,
-        IPlayerLifecycleService? lifecycleService = null)
+        IPlayerLifecycleService? lifecycleService = null,
+        bool hasClubMembership = true)
     {
         if (detailService is null)
         {
@@ -519,7 +548,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton<AuthenticationStateProvider>(
-            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, hasClubMembership)));
     }
 
     private static PlayerDetailDto CreatePlayerDetail(
@@ -557,13 +586,17 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             Notes: notes ?? [],
             TagApplications: tagApplications ?? []);
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true)
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(ClaimTypes.NameIdentifier, "101")
         };
+
+        if (hasClubMembership)
+        {
+            claims.Add(new Claim(NovaClaimTypes.ClubId, "42"));
+        }
 
         if (isClubAdmin)
         {

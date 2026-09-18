@@ -1,4 +1,4 @@
-import { loadRaster } from '../.agents/skills/impeccable/scripts/lib/png.mjs';
+import { loadRaster } from '../../../.agents/skills/impeccable/scripts/lib/png.mjs';
 
 const REF = '.impeccable/review/issue-264/captures/intake-board-desktop.png';
 

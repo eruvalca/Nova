@@ -468,6 +468,30 @@ public sealed partial class PlayerComponentsTests
         cut.FindAll("#intake-departure").Count.ShouldBe(1);
     }
 
+    /// <summary>A board holding nothing that could be lost performs the departure its module cancelled.</summary>
+    [Fact]
+    public async Task PlayersPerformsTheDepartureWhenTheAttemptCannotLoseAnythingAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+
+        // The module cancels the click and asks the board. The board has held a receipt since the
+        // commit, so nothing can be lost: the cancelled click must depart rather than go inert.
+        await cut.InvokeAsync(() => cut.FindComponent<PlayerIntakeBoard>().Instance
+            .OnBoardDepartureAttemptAsync(Interop.GuardLease!, "/players?view=archived"));
+
+        cut.FindAll("#intake-departure").Count.ShouldBe(0);
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players?view=archived");
+    }
+
     /// <summary>An operation whose own window has closed cannot be replayed and is never discarded.</summary>
     [Fact]
     public async Task PlayersTreatsAnExpiredRetainedOperationAsUnrecoverableAsync()

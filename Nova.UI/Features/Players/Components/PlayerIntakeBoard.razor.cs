@@ -183,6 +183,19 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         && RecoveryChecked;
 
     /// <summary>
+    /// Gets the id of the note that explains the field set's current refusal, or null when the fields
+    /// accept input, so the frozen and withheld states stay named for assistive technology.
+    /// </summary>
+    protected string? FieldsDescription
+    {
+        get
+        {
+            if (IsEntryBlocked || IsFrozen) { return "intake-recovery-note"; }
+            return RecoveryChecked ? null : "intake-checking-note";
+        }
+    }
+
+    /// <summary>
     /// Gets whether the commit control is available. A retained command inside its window is
     /// replayed through the same control, so the member has exactly one way to settle it.
     /// </summary>
@@ -392,7 +405,8 @@ public partial class PlayerIntakeBoard : NovaComponentBase
 
     /// <summary>
     /// Records that the member attempted to leave with uncommitted input and opens the departure
-    /// confirmation. The attempt never departs: only the panel's confirm raises the departure.
+    /// confirmation. A board that holds nothing that could be lost departs instead, because the
+    /// module has already cancelled the click this attempt represents.
     /// </summary>
     /// <param name="lease">The lease of the board mounting that raised the attempt.</param>
     /// <param name="url">The local destination the member chose.</param>
@@ -404,7 +418,13 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (!string.Equals(lease, _guardLease, StringComparison.Ordinal)) { return; }
         // The module observes DOM input, including controls outside the EditForm, so it decides
         // whether a prompt is due; the board only refuses when nothing could be lost.
-        if (ShowsReceipt || IsEntryBlocked || !CanManage) { return; }
+        if (ShowsReceipt || IsEntryBlocked || !CanManage)
+        {
+            // The module already cancelled this click, so refusing here would leave it inert.
+            _dirty = false;
+            await OnConfirmedDeparture.InvokeAsync(url);
+            return;
+        }
         _dirty = true;
         _departurePending = true;
         _departureUrl = url;

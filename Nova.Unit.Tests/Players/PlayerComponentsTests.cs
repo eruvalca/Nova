@@ -728,6 +728,38 @@ public sealed partial class PlayerComponentsTests : BunitContext
         cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
     }
 
+    /// <summary>The withheld board names the retained-command check, and that note leaves with it.</summary>
+    [Fact]
+    public void IntakeBoardNamesTheRetainedCommandCheckWhileItWithholdsEntry()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var withheld = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, false)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        withheld.Find("#intake-checking-note").TextContent.ShouldContain("Checking this browser for a retained addition");
+        withheld.Find("fieldset").GetAttribute("aria-describedby").ShouldBe("intake-checking-note");
+
+        var settled = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, true)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        settled.FindAll("#intake-checking-note").Count.ShouldBe(0);
+        settled.Find("fieldset").HasAttribute("aria-describedby").ShouldBeFalse();
+    }
+
     /// <summary>The board names a check in progress rather than guessing a campaign fact.</summary>
     [Fact]
     public void IntakeBoardNamesTheEnrollmentCheckWhileTheConsequenceIsUnread()

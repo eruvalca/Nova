@@ -89,14 +89,17 @@ and the raster is 1536 × 1024, scaled to the recorded viewport for comparison.
 
 The composition check is measured, not asserted from a thumbnail. Against the real capture on the
 same normalization, A retains the incumbent shell most faithfully (normalised mean absolute
-luminance difference **0.0223**, against 0.0241 for B and 0.0260 for C) and its main working field
-is closest to the composition this brief commits to (**0.0272**, against 0.0343 for B and 0.0336 for
+luminance difference **0.0224**, against 0.0237 for B and 0.0261 for C) and its main working field
+is closest to the composition this brief commits to (**0.0273**, against 0.0343 for B and 0.0336 for
 C). Only **33.8%** of main-field rows show two ink clusters separated by a wide quiet gap — the
 single bounded field sheet — where C measures 76.4%, confirming its second board. `comp-measure.mjs`
-in the same review directory reproduces every figure. The rejected candidates added composition this
-brief does not ask for: B a second required/optional labelling system over the per-field required and
-optional words, and C a second board that The Board, Not Cards Rule and "a bounded field sheet holds
-manual entry" both disfavour.
+in the same review directory reproduces every figure. These figures were re-measured on review round
+3 against the re-captured settled board (the capture gate added there also means the raster can no
+longer show the withheld board); the approval-time measurement against the earlier capture read
+0.0223 and 0.0272 for A with the same ordering, and the mock's own provenance records that original
+measurement. The rejected candidates added composition this brief does not ask for: B a second
+required/optional labelling system over the per-field required and optional words, and C a second
+board that The Board, Not Cards Rule and "a bounded field sheet holds manual entry" both disfavour.
 
 The choice was made on the user's explicit delegation, and the formal comp-spec/comp-diff gate was
 **not** run: the recorded figures are a direct comparison against the real build, not the workflow's
@@ -137,11 +140,11 @@ in place rather than stacking a second board above them.
 **FINISH:** unreviewed and undocumented is unfinished; this build ends with the independent finish
 review, its recorded verdict, the `DESIGN.md` component rules, and curated captures.
 
-Every state the brief lists is covered: pristine, invalid, saving, saved receipt, recoverable failure,
-ambiguous-result recovery, possible duplicate, role-changed, Active-campaign-changed, cancellation,
-set-aside, and a discarded unreadable retained command. Archive and restore are reached from the
-directory rows and from Player detail through one shared lifecycle control, so both hosts state the
-same consequence in the same words.
+Every state the brief lists is covered: pristine, invalid, checking, saving, saved receipt,
+recoverable failure, ambiguous-result recovery, possible duplicate, role-changed,
+Active-campaign-changed, cancellation, set-aside, and a discarded unreadable retained command.
+Archive and restore are reached from the directory rows and from Player detail through one shared
+lifecycle control, so both hosts state the same consequence in the same words.
 
 ## Authority and lifecycle contract
 

@@ -36,6 +36,13 @@ FORM: One bounded board; server field errors sit under their control, blockers a
         <h2 class="intake-heading" id="intake-heading">@Heading</h2>
     }
 
+    @if (!RecoveryChecked && !IsEntryBlocked && !IsFrozen && !ShowsReceipt && CanManage)
+    {
+        <p class="intake-blocked-note" id="intake-checking-note" role="status">
+            Checking this browser for a retained addition…
+        </p>
+    }
+
     @if (ShowsReceipt && Receipt is { } receipt)
     {
         <div class="intake-receipt" role="status" aria-live="polite">
@@ -213,7 +220,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
 
         <EditForm EditContext="_editContext" OnValidSubmit="OnSubmit">
             <DataAnnotationsValidator />
-            <fieldset class="intake-fields" disabled="@(!IsEditable)" aria-describedby="@(IsEntryBlocked || IsFrozen ? "intake-recovery-note" : null)">
+            <fieldset class="intake-fields" disabled="@(!IsEditable)" aria-describedby="@FieldsDescription">
                 <div class="intake-field-row">
                     <div class="intake-field">
                         <label class="form-label" for="player-first-name">First name <span class="intake-required">required</span></label>
