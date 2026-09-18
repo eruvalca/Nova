@@ -649,6 +649,29 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Negative check | With the version guard reverted, `PlayerDetailIgnoresAStartupAuthenticationReadThatResolvedAfterANotificationAsync` reports **1 failed, 0 passed** on `cut.Markup` — the stale read drops the lifecycle controls, which is the defect. Restored from a byte-identical snapshot with its timestamp touched before the rebuild. |
 | Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` (6.4s), one of the two long directory journeys this record tracks as load-sensitive, which had **passed in the affected selection on this same build**. The second was clean: **228 total, 218 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
 
+## GitHub Copilot code review, tenth pass (PR #285, on `c0a50b33`)
+
+Copilot raised **one inline follow-up** on the ninth pass's own fix, and it is fixed here.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | Only `ApplyAuthority` was guarded by `_authenticationVersion`: after a stale startup authentication read, `OnInitializedAsync` still continued into `LoadDetailAsync()`, and because both the notification's load and that one capture the same `_clubScopeVersion`, the stale continuation could apply its own detail over the current scope's | **Fixed.** A stale startup read now returns before its load, so it applies neither its principal nor its detail; the return-URL normalization stays ahead of the check because it is not authentication-derived. New case `PlayerDetailDoesNotLoadDetailFromAStaleStartupAuthenticationReadAsync` holds the notification's detail read open, resolves the startup read as the old club, and asserts the page loaded exactly once — with the guard reverted it reports `calls should be 1 but was 2`, which is the race. |
+
+### Confirming evidence (Copilot tenth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`c0a50b33`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3837 total, 3837 passed, 0 failed, 0 skipped** (3836 before; the new case is the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests*' --filter-class '*PlayersDirectoryBrowserTests*'` — **21 total, 20 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Negative check | With the early return reverted, `PlayerDetailDoesNotLoadDetailFromAStaleStartupAuthenticationReadAsync` reports **1 failed, 0 passed** on `calls` (2 instead of 1). **One earlier attempt at this check was invalid and is recorded rather than dropped:** a scripted file rewrite silently failed to apply, so the run tested the fixed build and reported a pass. Redone with the edit tool, the result above is the valid one. Restored from a byte-identical snapshot with its timestamp touched before the rebuild. |
+| Full browser suite | Two runs on this revision. The first reported **228 total, 217 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` (7.2s), one of the two long directory journeys this record tracks as load-sensitive. The second was clean: **228 total, 218 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after that pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction

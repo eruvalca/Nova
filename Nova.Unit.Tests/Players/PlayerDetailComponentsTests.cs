@@ -678,6 +678,41 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.Markup.ShouldContain("Archive");
     }
 
+    /// <summary>A startup read that lost the race loads neither its principal nor its detail.</summary>
+    [Fact]
+    public async Task PlayerDetailDoesNotLoadDetailFromAStaleStartupAuthenticationReadAsync()
+    {
+        var pendingAuth = new TaskCompletionSource<AuthenticationState>();
+        var currentScopeLoad = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? currentScopeLoad.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Stale", lastName: "Read"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new DeferredAuthentication(pendingAuth.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The notification rebinds the page to club 43 and starts its load, which stays open.
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(true, clubId: 43)))));
+        await cut.WaitForAssertionAsync(() => calls.ShouldBe(1));
+
+        // The startup read then resolves as the old club. Its own load must not run: both loads share
+        // the club-scope generation, so a stale one would win the race to apply.
+        await cut.InvokeAsync(() => pendingAuth.SetResult(new AuthenticationState(CreatePrincipal(true))));
+        calls.ShouldBe(1);
+
+        await cut.InvokeAsync(() => currentScopeLoad.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Markup.ShouldNotContain("Stale Read");
+    }
+
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,

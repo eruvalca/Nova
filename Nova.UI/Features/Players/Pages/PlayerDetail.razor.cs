@@ -129,13 +129,16 @@ public partial class PlayerDetail(
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         var version = _authenticationVersion;
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (version == _authenticationVersion && !ComponentCancellationToken.IsCancellationRequested)
+        _returnUrl = NormalizeReturnUrl(ReturnUrl);
+        if (version != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
         {
-            // A notification that arrived while this read was pending already owns the page.
-            ApplyAuthority(authState.User);
+            // A notification overtook this read: it already bound the page to its club and started its
+            // own load, so this read applies neither its principal nor its detail — the two loads share
+            // the club-scope generation, so the stale one would otherwise win the race to apply.
+            return;
         }
 
-        _returnUrl = NormalizeReturnUrl(ReturnUrl);
+        ApplyAuthority(authState.User);
         await LoadDetailAsync();
     }
 
