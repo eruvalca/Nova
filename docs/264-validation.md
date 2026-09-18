@@ -2,12 +2,15 @@
 
 ## Scope and status
 
-**Status: implemented and committed to PR #285; review rounds 1, 2, 3 and 4 are addressed.** On the
-round-4 revision the build, format check, full unit suite and the affected browser selection are
-green (see [PR review round 4](#pr-review-round-4-pr-285)); each
-intermittent browser failure seen on the way is named where it occurred with its isolated re-run.
-Full integration and full browser runs on that revision, and the merge-stage reruns required before
-merge, are still outstanding.
+**Status: implemented, committed to PR #285, and reviewed to a clean result; the merge candidate
+passes every gate.** Five fresh-context review rounds have run, each verifying the previous round's
+fixes; rounds 1-4 each raised findings that are all addressed, and **round 5 returned "No issues
+found"**. On the merge candidate `639c97f6` the build, format check, full unit suite, **full
+integration suite** and **full browser suite** are all green (see
+[Final validation on the merge candidate](#final-validation-on-the-merge-candidate-639c97f6)); each
+intermittent browser failure seen on the way is named where it occurred with its isolated re-run, and
+none fired in the final browser pass. What remains is the merge itself, plus re-establishing these
+results after any further edit.
 
 Delivered:
 
@@ -28,7 +31,8 @@ reader can reproduce from this record alone. The review-round-3 fixes below are 
 working tree on top of `aa22450d`, so that pass's revision is likewise the working tree itself, and
 that tree is also what regenerated the three curated rasters. The review-round-4 fixes below are an
 uncommitted working tree on top of `9e9c0706`, so that pass's revision is likewise the working tree
-itself.
+itself; they were then committed as `639c97f6`, which is the **merge candidate** the final evidence
+below covers.
 
 ## Guidance actually read
 
@@ -352,6 +356,36 @@ the sole browser click on **Add another** — passed in isolation too (**1 total
 re-run does not resolve an unexplained failure, so this stays a limitation: a repeat needs its
 identity captured (a file-captured console or a TRX report) rather than another re-run.
 
+## Final validation on the merge candidate (`639c97f6`)
+
+**Round-5 review: "No issues found."** Round 5 verified both round-4 fixes — including a complete
+sweep of every `RestoreRecoveryAsync` call site and of every assignment of `_createForm`, confirming
+no read path is ungated, and confirming that the load-bearing assertion in the two new cases is the
+withheld window rather than the typed-value line, which this record already states — and found
+nothing at Low or above across the whole diff. It independently reproduced the build (0 warnings,
+0 errors), the full unit suite (**3815/3815**) and the composition figures. The review is submitted
+on the PR as a Comment verdict with no inline findings.
+
+**Final gates, all on `639c97f6`:**
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` | 0 warnings, 0 errors |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` | exit 0 |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` | **3815 total, 3815 passed, 0 failed** |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` | **677 total, 677 passed, 0 failed** |
+| Full browser | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` | **228 total, 218 passed, 0 failed, 10 skipped** |
+
+The ten browser skips are the pre-existing env-gated capture tests (`NOVA_A11Y_SCREENSHOTS`,
+`NOVA_PLACE_EVIDENCE`, `NOVA_PLAYERS_EVIDENCE`), including the two player-surface captures added
+here; no behavioural scenario is skipped. The two tracked intermittent journeys did **not** fire in
+this pass, and the full browser suite produced 0 failures on the merge candidate. These runs are the
+first full integration and full browser evidence taken after the round-1 server change (`Nova/Program.cs`),
+so both merge-stage gates now cover the final inputs.
+
+This section was added after the browser pass and changes no application or browser-suite input, so
+that pass still covers the tested revision.
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -423,14 +457,15 @@ evidence above is unchanged by it.
 
 ## Limitations and remaining work
 
-- **The PR-stage gates are not yet complete.** The work is committed as `b51558b2`, opened as
-  PR #285 and committed for review rounds 1-3 as `cb88a1b9`, `aa22450d` and `9e9c0706`; the separate
-  local reviews this change's persisted/recoverable and asynchronous-state work requires have now
-  been obtained for all four rounds, and each is recorded above with a disposition for every
-  finding. Still outstanding before merge: a full integration run and a full browser run on the
-  final revision (rounds 3 and 4 changed no provider, EF or domain behaviour), plus the branch's CI.
-  The earlier full-suite evidence above is tied to earlier working trees and must be re-established
-  after any further edit.
+- **The PR-stage gates are complete on the merge candidate, except the merge itself.** The work is
+  committed as `b51558b2`, opened as PR #285, committed for review rounds 1-4 as `cb88a1b9`,
+  `aa22450d`, `9e9c0706` and `639c97f6`, and reviewed in five fresh-context rounds. The separate
+  local reviews this change's persisted/recoverable and asynchronous-state work requires have been
+  obtained for all five rounds, each recorded above with a disposition for every finding, and round 5
+  returned no findings. The full integration and full browser suites have both been run on the merge
+  candidate and pass (see "Final validation on the merge candidate"); CI passes on every pushed
+  revision. What remains is the merge itself, plus re-establishing these results after any further
+  edit.
 - **The board's input is now gated on the interactive circuit, by design.** A creation form is
   unusable until the circuit has attached *and* the owner's retained command has been read from
   browser storage, where the pre-change form was submittable from its server-rendered markup. That is
