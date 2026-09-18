@@ -85,6 +85,17 @@ public partial class PlayerDetail(
     private bool _showArchiveConfirm;
 
     /// <summary>
+    /// The subject the open archive confirmation reviews. Captured when the panel opens so a later
+    /// route or refresh change cannot show one player while the confirm archives another.
+    /// </summary>
+    private long _archiveSubjectId;
+
+    /// <summary>
+    /// The reviewed subject's display name, captured with <see cref="_archiveSubjectId"/>.
+    /// </summary>
+    private string _archiveSubjectName = string.Empty;
+
+    /// <summary>
     /// Structured archive blockers returned from a failed archive attempt.
     /// </summary>
     private IReadOnlyList<PlayerArchiveBlocker> _archiveBlockers = [];
@@ -190,6 +201,10 @@ public partial class PlayerDetail(
     /// </summary>
     private void BeginArchive()
     {
+        // Snapshot the reviewed subject: the panel reviews one player, and only that player may be
+        // archived, however the route or the loaded detail changes while the panel is open.
+        _archiveSubjectId = PlayerId;
+        _archiveSubjectName = _detail is { } detail ? $"{detail.FirstName} {detail.LastName}" : string.Empty;
         _showArchiveConfirm = true;
         _archiveBlockers = [];
         _mutationError = null;
@@ -215,7 +230,7 @@ public partial class PlayerDetail(
         _mutationError = null;
         _archiveBlockers = [];
 
-        var result = await playerLifecycleService.ArchiveAsync(PlayerId, ComponentCancellationToken);
+        var result = await playerLifecycleService.ArchiveAsync(_archiveSubjectId, ComponentCancellationToken);
         result.Switch(
             _ =>
             {

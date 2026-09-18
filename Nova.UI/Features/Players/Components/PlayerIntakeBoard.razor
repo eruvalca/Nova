@@ -160,19 +160,34 @@ FORM: One bounded board; server field errors sit under their control, blockers a
         </div>
     }
 
-    @if (StorageUnavailable && !ShowsReceipt && !IsEntryBlocked)
+    @if (StorageUnavailable && !IsEntryBlocked)
     {
         <div class="intake-attention" role="status" aria-live="polite" id="intake-storage-unavailable">
-            <p class="fw-semibold mb-2">Retained additions could not be checked.</p>
-            <p class="mb-2">This browser's recovery storage is unavailable, so an earlier addition cannot be found or recovered from here.</p>
-            @if (RecoveryState == PlayerCreationRecoveryState.None)
+            @if (ShowsReceipt)
             {
-                @* The board can only speak for what it has seen: it never proves an earlier addition
-                   was not dispatched, only that nothing left this board. *@
-                <p class="mb-2">Nothing has been sent from this board.</p>
+                @* A settled receipt still owns its release: the bytes it left behind would come back as
+                   an unresolved addition on the next mount, so the retry stays available beside it. *@
+                <p class="fw-semibold mb-2">The retained request for this player was not released.</p>
+                <p class="mb-2">
+                    This player was created, but this browser did not release the request retained for
+                    it. Until it is released, that addition can come back as unresolved.
+                </p>
             }
-            <p class="mb-2">An addition is still only committed once its own request is retained, so continue once storage is available.</p>
-            <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">Retry storage</button>
+            else
+            {
+                <p class="fw-semibold mb-2">Retained additions could not be checked.</p>
+                <p class="mb-2">This browser's recovery storage is unavailable, so an earlier addition cannot be found or recovered from here.</p>
+                @if (RecoveryState == PlayerCreationRecoveryState.None)
+                {
+                    @* The board can only speak for what it has seen: it never proves an earlier addition
+                       was not dispatched, only that nothing left this board. *@
+                    <p class="mb-2">Nothing has been sent from this board.</p>
+                }
+                <p class="mb-2">An addition is still only committed once its own request is retained, so continue once storage is available.</p>
+            }
+            <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">
+                @(ShowsReceipt ? "Release retained request" : "Retry storage")
+            </button>
         </div>
     }
 

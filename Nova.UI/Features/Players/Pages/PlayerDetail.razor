@@ -107,7 +107,7 @@
         @if (_showArchiveConfirm)
         {
             <div class="mb-3">
-                <PlayerLifecycleConfirmation PlayerId="@PlayerId" DisplayName="@(_detail.FirstName + " " + _detail.LastName)"
+                <PlayerLifecycleConfirmation PlayerId="@_archiveSubjectId" DisplayName="@_archiveSubjectName"
                                               Blockers="_archiveBlockers" IsBusy="_isMutating"
                                               OnConfirm="ConfirmArchiveAsync" OnCancel="CancelArchive" />
             </div>

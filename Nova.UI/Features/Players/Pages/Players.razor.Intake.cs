@@ -21,6 +21,13 @@ public partial class Players
     private string? _invalidRetainedValue;
     private bool _recoveryChecked;
     private bool _storageUnavailable;
+
+    /// <summary>
+    /// The settled operation whose record the browser could not release, or null when none is
+    /// outstanding. A receipt already proves its outcome, so the retry releases this exact record
+    /// instead of re-reading a decision that is already made.
+    /// </summary>
+    private Guid? _unreleasedOperationId;
     private string? _recoveryScope;
     private PlayerCreationCompletion? _receipt;
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
@@ -158,8 +165,15 @@ public partial class Players
         // again before it is dispatched, because another tab may have released the record, and a
         // dispatch whose exact request is no longer recoverable leaves its outcome unknowable.
         var command = _pendingCreate ?? _createForm.ToCreateInput(Guid.CreateVersion7(), clubId);
-        if (!await RetainAsync(command))
+        if (!await RetainAsync(command, version))
         {
+            if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+            {
+                // The retention outcome belongs to the identity that asked for it, so a failure here
+                // is not published into the page now on screen, which owns its own submission state.
+                return;
+            }
+
             _isMutating = false;
             return;
         }
@@ -189,8 +203,10 @@ public partial class Players
     }
 
     /// <summary>Persists the exact command before dispatch; a failed write never enables a commit.</summary>
+    /// <param name="command">The exact command to retain.</param>
+    /// <param name="version">The identity version that owns the command.</param>
     /// <returns><see langword="true"/> when the command is durably retained.</returns>
-    private async Task<bool> RetainAsync(CreatePlayerInput command)
+    private async Task<bool> RetainAsync(CreatePlayerInput command, int version)
     {
         if (!PlayerCreationOperation.TryGetDeadline(command.OperationId, DateTimeOffset.UtcNow, out var deadline))
         {
@@ -199,7 +215,16 @@ public partial class Players
             return false;
         }
 
-        if (_board is null || !await _board.PersistAsync(command, deadline, _identitySource!.Token))
+        var persisted = _board is not null
+            && await _board.PersistAsync(command, deadline, _identitySource!.Token);
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The write crossed the browser boundary, so what it returned belongs to the identity that
+            // asked for it: neither its failure nor its success is the replacement page's news.
+            return false;
+        }
+
+        if (!persisted)
         {
             _storageUnavailable = true;
             _mutationError = "This addition could not be retained safely, so nothing was sent. Retry storage before adding.";
@@ -246,6 +271,11 @@ public partial class Players
                 // The receipt settles this operation, so it is shown regardless; the unreleased
                 // bytes are reported instead of pretending the browser released what it did not.
                 _storageUnavailable = true;
+                _unreleasedOperationId = command.OperationId;
+            }
+            else
+            {
+                _unreleasedOperationId = null;
             }
 
             _board.MarkCommittedOrClosed();
@@ -390,6 +420,19 @@ public partial class Players
     /// <summary>Retries the browser storage boundary after it was reported unavailable.</summary>
     private async Task RetryStorageAsync()
     {
+        // A settled receipt already proves its outcome, so the retry releases the exact record the
+        // browser kept rather than re-reading a decision that is already made.
+        if (_unreleasedOperationId is { } unreleased && _board is not null)
+        {
+            if (await _board.ClearAsync(unreleased, _identitySource?.Token ?? ComponentCancellationToken))
+            {
+                _unreleasedOperationId = null;
+                _storageUnavailable = false;
+            }
+
+            return;
+        }
+
         // This read can also land a retained command, so withhold input until it settles rather
         // than letting a landed recovery replace values the member typed meanwhile.
         _recoveryChecked = false;

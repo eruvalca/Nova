@@ -551,14 +551,46 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, hasClubMembership)));
     }
 
+    /// <summary>The archive confirmation reviews the player it was opened for, not the current route.</summary>
+    [Fact]
+    public async Task PlayerDetailArchivesTheReviewedSubjectWhenTheRouteChangesWhileThePanelIsOpenAsync()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Avery Johnson");
+
+        // The routed detail is reused for another player while the panel is open.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+
+        // The panel still reviews Avery, and confirming archives Avery rather than the new route.
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Avery Johnson");
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#archive-commit").ClickAsync(new());
+
+        await lifecycleService.Received(1).ArchiveAsync(7, Arg.Any<CancellationToken>());
+        await lifecycleService.DidNotReceive().ArchiveAsync(21, Arg.Any<CancellationToken>());
+    }
+
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,
-        IReadOnlyList<PlayerCampaignHistoryDto>? campaignHistory = null)
+        IReadOnlyList<PlayerCampaignHistoryDto>? campaignHistory = null,
+        long playerId = 7,
+        string firstName = "Avery",
+        string lastName = "Johnson")
         => new(
-            7,
-            "Avery",
-            "Johnson",
+            playerId,
+            firstName,
+            lastName,
             new DateOnly(2012, 4, 1),
             Gender.Female,
             2032,

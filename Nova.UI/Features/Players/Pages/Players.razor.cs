@@ -241,6 +241,7 @@ public partial class Players(
         _invalidRetainedValue = null;
         _retainedPlayerName = null;
         _storageUnavailable = false;
+        _unreleasedOperationId = null;
         _recoveryScope = null;
         _receipt = null;
         _fieldErrors = null;

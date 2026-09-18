@@ -873,6 +873,70 @@ public sealed partial class PlayerComponentsTests
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
     }
 
+    /// <summary>A settled receipt still reports an unreleased record and offers the retry.</summary>
+    [Fact]
+    public async Task PlayersKeepsTheStorageRetryVisibleBesideASettledReceiptAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+
+        // The receipt proves the creation, but the browser kept its retained request. Suppressing the
+        // storage status behind the receipt would hide the reason it comes back as unresolved later,
+        // so the panel and its retry stay visible beside the receipt.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        cut.Find("#intake-storage-unavailable").TextContent.ShouldContain("was not released");
+
+        // A working boundary releases it: the action clears the exact settled record, so it cannot
+        // return as an unresolved addition on the next mount.
+        Interop.FailClears = false;
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
+        Interop.Read(101, 42).ShouldBeNull();
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+    }
+
+    /// <summary>A retention failure that belongs to a replaced identity is not published.</summary>
+    [Fact]
+    public async Task PlayersDoesNotPublishAStaleRetentionFailureIntoTheNewIdentityAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.WriteGate = new TaskCompletionSource();
+
+        var submission = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => Interop.WriteAttempts.ShouldBe(1));
+
+        // The page is refreshed while the retained write is still open, and the write then fails.
+        Interop.ReadGate = new TaskCompletionSource();
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        Interop.FailWrites = true;
+        await cut.InvokeAsync(() => Interop.WriteGate.SetResult());
+        await submission;
+
+        // The failure belongs to the identity that asked for the write, so the page now on screen is
+        // neither told about it nor left holding a submission it did not start.
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.FindAll("#intake-error").Count.ShouldBe(0);
+        await service.DidNotReceive().CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
+    }
+
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
