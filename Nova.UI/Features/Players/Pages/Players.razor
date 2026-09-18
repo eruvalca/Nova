@@ -56,16 +56,19 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
         }
         @if (_canManagePlayers && _showCreateForm)
         {
+            @* A receipt-backed refusal has already settled this operation as not committed, so its
+               retained command is never sent again while the browser still holds it. *@
             <PlayerIntakeBoard @ref="_board" Heading="Add player" SubmitLabel="Create player"
                                OwnerUserId="OwnerUserId" ClubId="@(_clubId ?? 0)" Model="_createForm"
                                CanManage="_canManagePlayers" IntakeContext="_intakeContext"
                                IntakeContextLoading="_intakeContextLoading"
-                               IntakeContextUnavailable="_intakeContextUnavailable" IsSubmitting="_isMutating"
+                               IntakeContextUnavailable="_intakeContextUnavailable"
+                               ShowsEnrollmentConsequence="true" IsSubmitting="_isMutating"
                                ErrorMessage="@_mutationError" FieldErrors="_fieldErrors"
                                GraduationYearBlockers="_graduationYearBlockers" Receipt="_receipt"
                                Duplicate="_creationDuplicate" RecoveryState="_recoveryState"
                                RecoveryChecked="_recoveryChecked" StorageUnavailable="_storageUnavailable"
-                               CanReplay="@(_recoveryState == PlayerCreationRecoveryState.Unresolved)"
+                               CanReplay="@(_recoveryState == PlayerCreationRecoveryState.Unresolved && _creationDuplicate is null)"
                                DetailUrlFactory="BuildIntakeDetailUrl" DirectoryUrl="@BuildIntakeDirectoryUrl()"
                                ReconcileUrl="@BuildReconcileUrl()"
                                OnSubmit="CreatePlayerAsync" OnCancel="CancelMutationForm"

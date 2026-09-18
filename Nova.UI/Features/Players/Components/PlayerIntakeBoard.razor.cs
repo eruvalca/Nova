@@ -75,6 +75,14 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     [Parameter]
     public bool IntakeContextUnavailable { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether the board states the enrollment consequence of adding a player. Only the
+    /// create host sets it: an edit changes an existing profile, enrolls nobody, and supplies no intake
+    /// context, so it must not fall through to the default campaign copy as if it had been read.
+    /// </summary>
+    [Parameter]
+    public bool ShowsEnrollmentConsequence { get; set; }
+
     /// <summary>Gets or sets whether the current member may commit profile mutations.</summary>
     [Parameter]
     public bool CanManage { get; set; }
@@ -221,10 +229,13 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         && (RecoveryState == PlayerCreationRecoveryState.None
             || (RecoveryState == PlayerCreationRecoveryState.Unresolved && CanReplay));
 
-    /// <summary>Gets the commit control's label, which names the action the current state performs.</summary>
+    /// <summary>
+    /// Gets the commit control's label. The replay label appears only where a replay is actually
+    /// offered, so a retained command that can no longer be sent is not named as an action.
+    /// </summary>
     protected string CommitLabel => RecoveryState switch
     {
-        PlayerCreationRecoveryState.Unresolved => "Replay the retained addition",
+        PlayerCreationRecoveryState.Unresolved when CanReplay => "Replay the retained addition",
         _ => SubmitLabel
     };
 

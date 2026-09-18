@@ -699,6 +699,34 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Finding 2 evidence | Instrumented probes on the real build (temporary, deleted): with the module's popstate guard installed and the board dirty at the moment of the traversal, the handler's run counter stayed at **0** while a synthetic `popstate` incremented it, and the page ended at `/players` with the board disposed (`activeGuard` null). With the page-level `NavigationLock` preventing navigation while `_createForm.FirstName` was set, the same traversal still landed on `/players`. Both probes are recorded rather than kept, and no diagnostic code remains in the module or the page. |
 | Full browser suite | Two runs on this revision. The first reported **229 total, 218 passed, 1 failed, 10 skipped** — `CampaignCloseoutBrowserTests.CloseoutFailureShowsRetryAndRetryRecoversAsync`, whose failure is a transport error, not an assertion: `Microsoft.Playwright.PlaywrightException : net::ERR_NETWORK_CHANGED` while `BrowserSuiteFixture.SignInAsync` navigated to `/Account/Login`, so the scenario never reached the code under test and nothing in this diff is in its path. The retry was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures, and the new history-limitation case is the delta in the total. |
 
+## GitHub Copilot code review, twelfth pass (PR #285, on `89e700b8`)
+
+Copilot reported **four suppressed findings**; none carried an inline thread, so the dispositions are
+here and in the triage comment on the PR.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | A committed operation whose cleanup failed leaves the retained record and `StorageUnavailable`, yet **Add another** stayed enabled: `StartAnotherAdditionAsync` clears the receipt and then re-reads that same committed record as unresolved, hiding the authoritative receipt and offering recovery for an operation already known to have committed | **Fixed** by the finding's first option. The receipt panel's **Add another** is disabled while `StorageUnavailable`, because the browser's own reservation refuses a second command for this owner until that record is released — the flow it starts cannot succeed, and running it drops the receipt and re-presents a committed addition as unresolved. The storage panel beside it already states that the request was not released and offers **Release retained request**. `PlayersPreservesTheSettledReceiptAndRetryAcrossARoleRefreshAsync` gained the disabled assertion; reverting the attribute fails it. |
+| 2 | A duplicate refusal whose `ClearAsync` failed left `_recoveryState` at `Unresolved`, so `CanReplay` still offered **Replay the retained addition** for a command the server had receipt-backed as not committed | **Fixed** as prescribed: `CanReplay` is gated on the terminal duplicate being absent, so a settled refusal is never resent. Because a withheld replay must not still be advertised, the commit label names a replay only where one is offered (`CommitLabel` requires `CanReplay`), and the frozen-state copy and the set-aside confirmation no longer claim an unknown outcome once the refusal settles it. New case `PlayersWithholdsReplayWhenTheRefusedRecordIsUnreleasedAsync` drives the two-attempt path (unknown outcome → replay → refusal) with the release failing, and asserts the disabled control, its non-replay label, the settled copy and that exactly two commands were sent. |
+| 3 | The **edit** board supplies no intake context, so it fell through to the creation consequence's default copy — "No campaign is Active… joins the roster when the next campaign opens" — which is unrelated to editing and can be false | **Fixed.** The consequence is now the create host's opt-in (`ShowsEnrollmentConsequence`, left unset by the edit host), so a board that read no consequence states none instead of guessing one; the create host passes the flag explicitly. The five board-level cases that model the create host now pass it too, and new case `PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync` renders the page on the edit route and asserts the paragraph is absent. This closes the open item recorded since the seventh/eighth passes. |
+| 4 | The comp provenance marked A `approved` and `locked` while also recording that the agent could not inspect the rasters and that the user should still eyeball the comp, which the new `AGENTS.md` rule says needs user confirmation before locking | **Resolved in the provenance, without claiming a passed gate.** The lock rests on the user's explicit delegation ("Please choose the comp candidate based on your best judgement"), which is the confirmation the rule asks for and matches the skill's convention (`.agents/skills/impeccable/scripts/concept-seed.mjs`: "one approved by the user through the decision page or structured question, sidecar `approved": true`"). What the sidecar lacked was the basis being legible beside the flag, so it now carries `approvalBasis` (delegated approval on the recorded measurement, not a perceptual review; the user's own eyeball is still open) and `designGate` ("not run — read `approved` as delegated approval, never as a passed visual gate"), with `approval` cross-referencing both. No new user confirmation is obtainable in this unattended pass, and the record claims no more than the delegation supports. |
+
+### Confirming evidence (Copilot twelfth pass)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`89e700b8`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3840 total, 3840 passed, 0 failed, 0 skipped** (3838 before; the two new cases are the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **22 total, 21 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0**. |
+| Negative check, all three code findings | With the three fixes reverted together (the `disabled` attribute, the `CanReplay` gate plus the label guard, and the consequence gate), exactly the three cases tied to them fail: `PlayersPreservesTheSettledReceiptAndRetryAcrossARoleRefreshAsync`, `PlayersWithholdsReplayWhenTheRefusedRecordIsUnreleasedAsync` and `PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync` — **3 failed, 105 passed**, one per finding, so each assertion discriminates its own revert. Fixes restored and rebuilt before the runs above. |
+| Comp provenance | `.impeccable/mocks/issue-264-a.png.json` is valid JSON (the file is the sidecar `DESIGN.md` links) and now names `approvalBasis` and `designGate`; no raster changed, so the recorded measurement still applies. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **229 total, 219 passed, 0 failed, 10 skipped** on the first run, satisfying the before-merge row for the final inputs; the ten skips are the pre-existing env-gated captures. This row was written after the pass and changes no application or browser-suite input, so the pass still covers the tested revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -858,14 +886,15 @@ evidence above is unchanged by it.
 - `IPlayerIntakeInterop` is public because a Razor component's constructor must be public; the
   interface and its result types are therefore part of `Nova.UI`'s public surface. This is a
   deliberate trade-off for testability and is recorded rather than hidden.
-- **Two review findings from the seventh/eighth passes remain open, both contract changes that need
-  their own test-update pass rather than a rushed edit:** (1) the enrollment-consequence block renders
-  for the **edit** board too, where it is not a consequence of editing and can be false — the create
-  board should opt into it; and (2) after a **failed storage read** the board stays editable, so a later
-  retry can land a retained command over values typed meanwhile — withholding input until storage
-  answers is the right contract, but it supersedes the round-2 decision that deliberately reopened the
-  board after a failed read, so that case must be rewritten and re-verified with it. Both are
-  implemented-and-reverted in the seventh pass's tree; the shipped revision leaves them as they are.
+- **One review finding from the seventh/eighth passes remains open, and it is a contract change that
+  needs its own test-update pass rather than a rushed edit:** after a **failed storage read** the board
+  stays editable, so a later retry can land a retained command over values typed meanwhile —
+  withholding input until storage answers is the right contract, but it supersedes the round-2 decision
+  that deliberately reopened the board after a failed read, so that case must be rewritten and
+  re-verified with it. It is implemented-and-reverted in the seventh pass's tree; the shipped revision
+  leaves it as it is. **The other open item from that pair — the enrollment consequence rendering for
+  the edit board — is closed**: the twelfth pass made the consequence the create host's opt-in, so the
+  edit board states none (`PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync`).
 - The departure guard does not intercept browser Back/Forward, and that narrowing is now **tested
   rather than only documented**: `PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync`
   proves the guard is attached and dirty for the same typed value by having the link path prompt for

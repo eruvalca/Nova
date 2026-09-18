@@ -686,6 +686,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
             .Add(component => component.SubmitLabel, "Create player"));
 
@@ -703,6 +704,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = null, CampaignName = null })
             .Add(component => component.SubmitLabel, "Create player"));
 
@@ -720,6 +722,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
             .Add(component => component.RecoveryChecked, false)
             .Add(component => component.SubmitLabel, "Create player"));
@@ -739,6 +742,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
             .Add(component => component.RecoveryChecked, false)
             .Add(component => component.SubmitLabel, "Create player"));
@@ -752,6 +756,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
             .Add(component => component.RecoveryChecked, true)
             .Add(component => component.SubmitLabel, "Create player"));
@@ -771,11 +776,30 @@ public sealed partial class PlayerComponentsTests : BunitContext
             .Add(component => component.ClubId, 42L)
             .Add(component => component.CanManage, true)
             .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
             .Add(component => component.IntakeContextLoading, true)
             .Add(component => component.SubmitLabel, "Create player"));
 
         cut.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence");
         cut.Find("p.intake-consequence").TextContent.ShouldNotContain("No campaign is Active");
+        cut.Markup.ShouldNotContain("No campaign is Active");
+    }
+
+    /// <summary>An edit board states no enrollment consequence: it enrolls nobody and reads no intake context.</summary>
+    [Fact]
+    public async Task PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-outline-primary[href*='/edit']"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Edit player"));
+
+        // The consequence is the create host's line, and only because it read one. An edit supplies no
+        // intake context, so falling through to the default copy would state that no campaign is Active
+        // and that this player joins the next opening — a fact about adding, not about editing.
+        cut.FindAll("p.intake-consequence").ShouldBeEmpty();
         cut.Markup.ShouldNotContain("No campaign is Active");
     }
 

@@ -329,6 +329,45 @@ public sealed partial class PlayerComponentsTests
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
     }
 
+    /// <summary>A receipt-backed refusal settles the operation, so its retained command is never resent.</summary>
+    [Fact]
+    public async Task PlayersWithholdsReplayWhenTheRefusedRecordIsUnreleasedAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            // The first attempt's outcome is unknown, which is what puts the replay on offer; the
+            // replay is then refused against the existing player.
+            return Task.FromResult(commands.Count == 1
+                ? new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Lost response"))
+                : new ServiceResult<PlayerCreationCompletion>(
+                    PlayerCreationProblems.Duplicate(input.OperationId, 21, LifecycleStatus.Active)));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        // The refusal is receipt-backed but its record cannot be released, so it stays retained.
+        Interop.FailClears = true;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Replay the retained addition"));
+
+        await cut.Find("#intake-submit").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-duplicate").Count.ShouldBe(1));
+
+        // The refusal proves this operation did not create, so the retained command is not offered back
+        // as a replay: sending it again could only be refused again. The set-aside and the directory
+        // remain the ways to resolve the record the browser still holds.
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").TextContent.ShouldBe("Create player");
+        cut.Find("#intake-unresolved").TextContent.ShouldNotContain("Replay the retained addition");
+        cut.Find("#intake-unresolved").TextContent.ShouldNotContain("result is unknown");
+        commands.Count.ShouldBe(2);
+        commands[1].ShouldBeSameAs(commands[0]);
+    }
+
     /// <summary>A failed storage read keeps the in-memory retained command and never claims nothing was sent.</summary>
     [Fact]
     public async Task PlayersKeepsInMemoryRetainedCommandWhenStorageReadFailsAsync()
@@ -1037,6 +1076,10 @@ public sealed partial class PlayerComponentsTests
 
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
         cut.FindAll("#intake-add-another").Count.ShouldBe(1);
+        // The record this receipt owns was never released, and the browser's own reservation refuses a
+        // second command for the owner until it is, so the flow that starts another one is not offered:
+        // pressing it would drop the receipt and read the committed command back as unresolved.
+        cut.Find("#intake-add-another").HasAttribute("disabled").ShouldBeTrue();
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
     }
 
