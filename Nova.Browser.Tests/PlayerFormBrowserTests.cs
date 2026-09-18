@@ -34,8 +34,37 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#player-first-name").FillAsync("   ");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
 
-        await Expect(page.Locator("div.text-danger").First).ToBeVisibleAsync();
+        await Expect(page.Locator("div.intake-field-error").First).ToBeVisibleAsync();
         await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's own contract in a real browser, independently of Blazor.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const payload = { operationId: '0198f0a1-7b2c-7def-8abc-0123456789ab', clubId: 42, firstName: 'Module',
+                lastName: 'Probe', dateOfBirth: '2012-04-01', graduationYear: 2031, gender: null, jerseyNumber: null };
+            const created = Number.parseInt(payload.operationId.replaceAll('-', '').slice(0, 12), 16);
+            const json = JSON.stringify({ actorUserId: 101,
+                recoveryExpiresAt: new Date(created + 86400000).toISOString(), payload });
+            m.writePending(101, 42, json);
+            const read = m.readRecovery(101, 42);
+            const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            const cleared = m.clearPending(101, 42, payload.operationId);
+            const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
+                m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked'].join('|');
+        }");
+
+        result.ShouldBe("readable|1|true|0|otherowner-empty");
     }
 
     [Fact]
@@ -59,7 +88,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#player-last-name").FillAsync(lastName);
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
 
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         await Expect(page.GetByText($"{firstName} {lastName}")).ToBeVisibleAsync();
     }
 
@@ -110,7 +139,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         await Expect(page.GetByText($"Form Player {suffix}")).ToBeVisibleAsync();
     }
 

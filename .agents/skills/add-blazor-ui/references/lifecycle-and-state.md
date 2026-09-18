@@ -206,6 +206,17 @@ path so both initial and recovery actions pass through it; recheck request owner
 as well as HTTP awaits. Reconcile with fresh authorized lifecycle data and the existing replay
 command. An already Active campaign may still need replay to obtain this operation's receipt.
 
+When the command's own server-side window outlives a tab — manual player creation keeps a receipt for
+24 hours — persist to `localStorage` under an actor-and-club-scoped key instead, and inject the
+storage-plus-departure-guard boundary (`IPlayerIntakeInterop`) so its semantics are directly testable
+without a browser. Validate retained bytes inside the module before they can become a command,
+preserve unreadable or foreign bytes for an explicit discard rather than dropping them, and let the
+client's own deadline check decide whether the retained command is still replayable while the server
+stays the authority on its outcome. Keep the frozen payload visible rather than hiding the fields:
+the member must be able to see exactly what was sent. `PlayerIntakeBoard.razor.js` and
+`PlayerCreationRecoveryStore` demonstrate this durable variant, with
+`PlayersTreatsAnExpiredRetainedOperationAsUnrecoverableAsync` covering the closed-window path.
+
 `CampaignEntry.razor.cs` demonstrates opening replay and receipt handoff; `NewCampaign.razor.cs`
 demonstrates retention of the original creation payload. `CampaignEntryTests` covers a failed storage
 write followed by confirmation, replay after opening, and unavailable data despite failed cleanup.

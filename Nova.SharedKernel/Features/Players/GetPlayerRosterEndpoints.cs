@@ -32,6 +32,14 @@ public static class GetPlayerRosterEndpoints
     /// <returns>The summary endpoint URL.</returns>
     public static string GetSummaryUrl(long clubId) => $"{GroupPrefix}/{clubId}/players/summary";
 
+    /// <summary>The member-authorized manual-intake enrollment context route.</summary>
+    public const string GetIntakeContextRelative = "{clubId:long}/players/intake-context";
+
+    /// <summary>Builds the URL for the club's manual-intake enrollment context.</summary>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <returns>The intake-context endpoint URL.</returns>
+    public static string GetIntakeContextUrl(long clubId) => $"{GroupPrefix}/{clubId}/players/intake-context";
+
     /// <summary>
     /// Builds a roster URL with optional filtering, sorting, and pagination query parameters.
     /// </summary>

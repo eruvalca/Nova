@@ -30,3 +30,9 @@
     border-left: 0.2rem solid var(--bs-border-color);
     padding-left: 0.75rem;
 }
+
+/* Record and lifecycle controls on this surface carry the shared 2.75rem target, including the
+   archive entry control that opens the shared confirmation. Layout is otherwise untouched. */
+.container :is(a.btn, button.btn) {
+    min-height: 2.75rem;
+}

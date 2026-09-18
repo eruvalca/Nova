@@ -82,11 +82,6 @@ public partial class PlayerDetail(
     private bool _showArchiveConfirm;
 
     /// <summary>
-    /// Indicates whether the archive confirmation checkbox is checked.
-    /// </summary>
-    private bool _archiveConfirmed;
-
-    /// <summary>
     /// Structured archive blockers returned from a failed archive attempt.
     /// </summary>
     private IReadOnlyList<PlayerArchiveBlocker> _archiveBlockers = [];
@@ -189,7 +184,6 @@ public partial class PlayerDetail(
     private void BeginArchive()
     {
         _showArchiveConfirm = true;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
         _mutationError = null;
         _statusMessage = null;
@@ -201,7 +195,6 @@ public partial class PlayerDetail(
     private void CancelArchive()
     {
         _showArchiveConfirm = false;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
     }
 
@@ -211,11 +204,6 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
-        if (!_archiveConfirmed)
-        {
-            return;
-        }
-
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];

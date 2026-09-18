@@ -1,0 +1,27 @@
+{
+  "prompt": "Create one high fidelity desktop web UI design reference for the Nova manual player intake board, OPTION A: single field sheet, as-built structure tightened. Use the attached actual current /players/new screenshot as the exact reference for the entire left shell (240 CSS px wide, Nova diamond, Nova Club operations, Dashboard, Club with wrapping name, Campaigns, Players active, Teams, bottom Manage and Logout), for the native system UI typography, and for the real tokens: teal #0E7C7B primary, pale sea glass #DDF2EC, ink #142F2E, pale background #F4F8F3, hairline borders. Keep EVERY shell item and their normal scale. Full viewport 1440x1000 CSS pixels, DPR1; output matching aspect and frame. Change only the main working field x300 to1380. At y48: Players 32px title left, teal Add player button right. At y120 a flat white 0.375rem-radius field sheet with one hairline border, no shadow, no nested cards. Inside it at y148 the heading 'Add player' 20px. At y184 one full-width bordered consequence band on pale sea glass reading 'With an Active campaign, this player joins Summer Tryouts immediately.' with the campaign name in semibold. From y250 two columns of labeled fields, label above input, 44px tall white inputs with hairline borders and 0.25rem corners: row one First name required and Last name required; row two Date of birth required and Graduation year required; row three Gender optional with a Not specified dropdown and Jersey number optional. Each label shows a small quiet required or optional word after it. Beneath each input an empty reserved line for a field error. At y600 a single teal primary button 'Create player' and an outlined 'Cancel' button beside it, both 44px, left aligned. Nothing else in the field: no summary rail, no metrics, no illustration, no photos, no eyebrow, no shadow, no gradient, no dark mode. Status colors always have words. This is an operational app screen, not artwork. The attached screen contributes real shell, real tokens and the real labels; its field ordering and spacing are tightened here.\r\n",
+  "createdAt": "2026-09-17T23:21:29.436Z",
+  "tool": "generate-image.mjs",
+  "model": "gpt-image-2",
+  "refs": [
+    ".impeccable/review/issue-264/captures/intake-board-desktop.png"
+  ],
+  "approved": true,
+  "source": "Built-in imagegen (generate-image.mjs, gpt-image-2, high); baseline viewport capture of the actual /players/new board on its own authenticated shell, taken at 1440x1000 CSS px, DPR 1",
+  "viewport": {
+    "width": 1440,
+    "height": 1000,
+    "dpr": 1
+  },
+  "raster": {
+    "width": 1536,
+    "height": 1024
+  },
+  "candidates": {
+    "a": "Single field sheet, as-built structure tightened (locked)",
+    "b": "Required and optional field bands split by grouping, consequence chip beside the heading",
+    "c": "Field sheet with a separate enrollment consequence rail on the right"
+  },
+  "compositionCheck": "Measured against the real viewport capture on the same normalization, not judged from a thumbnail: A retains the incumbent shell most faithfully (shell normalised mean absolute luminance difference 0.0223 vs 0.0241 for B and 0.0260 for C) and its main working field is closest to the composition the brief commits to (field difference 0.0272 vs 0.0343 for B and 0.0336 for C). Only 33.8% of main-field rows show two ink clusters separated by a wide quiet gap, i.e. the single bounded field sheet the brief requires; C measures 76.4%, confirming its second board. B and C each add composition the brief does not ask for: B a second required/optional labelling system on top of the per-field required and optional words, and C a second board that The Board, Not Cards Rule and \"a bounded field sheet holds manual entry\" both disfavour.",
+  "approval": "Chosen by the agent on the user's explicit delegation (\"Please choose the comp candidate based on your best judgement\") on 2026-09-17. Locked on the measured composition check above and because A is the composition the shipped, fully verified build already implements, so the approved comp and the build agree. The agent could not perceptually inspect the rasters in this environment; the user should still eyeball the locked comp. The formal comp-spec/comp-diff gate was not run."
+}

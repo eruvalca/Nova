@@ -77,6 +77,72 @@ Manual intake uses a dedicated, URL-backed working board inside the Players area
 
 Fieldhouse Wayfinding supplies the interaction language. Connected, fully labeled route stops orient the import; a bounded field sheet holds manual entry; compact roster rows and precise status language hold review. Wayfinding Teal marks the current route and primary commitment. Signal Amber identifies rows requiring attention, Copper identifies blocking errors, and every state is written in words and counts rather than color alone.
 
+### #264 manual intake board delivery
+
+The user approved **A — single field sheet, as-built structure tightened**. The approved reference is
+[`issue-264-a.png`](../mocks/issue-264-a.png), with its exact prompt, generation provenance and
+composition check in [`issue-264-a.png.json`](../mocks/issue-264-a.png.json). It was generated with
+the board's **own** captured shell as the reference image
+([`intake-board-desktop.png`](../review/issue-264/captures/intake-board-desktop.png), the real
+`/players/new` viewport at **1440 × 1000 CSS pixels, DPR 1**; mobile acceptance remains 390 × 844),
+and the raster is 1536 × 1024, scaled to the recorded viewport for comparison.
+
+The composition check is measured, not asserted from a thumbnail. Against the real capture on the
+same normalization, A retains the incumbent shell most faithfully (normalised mean absolute
+luminance difference **0.0223**, against 0.0241 for B and 0.0260 for C) and its main working field
+is closest to the composition this brief commits to (**0.0272**, against 0.0343 for B and 0.0336 for
+C). Only **33.8%** of main-field rows show two ink clusters separated by a wide quiet gap — the
+single bounded field sheet — where C measures 76.4%, confirming its second board. `comp-measure.mjs`
+in the same review directory reproduces every figure. The rejected candidates added composition this
+brief does not ask for: B a second required/optional labelling system over the per-field required and
+optional words, and C a second board that The Board, Not Cards Rule and "a bounded field sheet holds
+manual entry" both disfavour.
+
+The choice was made on the user's explicit delegation, and the formal comp-spec/comp-diff gate was
+**not** run: the recorded figures are a direct comparison against the real build, not the workflow's
+hero measurement. No new palette, type, spacing, radius, or acceptance-threshold token is introduced.
+
+This delivery redraws the manual intake and lifecycle surfaces that [#263](#263-directory-delivery)
+deliberately left alone. **CSV stays hidden for every role until #218 supplies a working destination**,
+photos stay with [#278](https://github.com/eruvalca/Nova/issues/278), and record/history identity stays
+with [#216](https://github.com/eruvalca/Nova/issues/216); creation never waits for a photo and the
+existing detail route remains the post-creation destination. Durable recovery, the reconciliation and
+set-aside interaction, and the uncommitted-departure warning are included here.
+
+### Direction contract — #264
+
+**THESIS:** One honest player-entry board that survives interruption — the staff member always knows
+what will happen before committing and what actually happened after.
+
+**OWN-WORLD:** Incumbent Fieldhouse Wayfinding: a flat Paper White field sheet inside the Players
+field, Roster Hairline borders, `0.25rem` control radii, Wayfinding Teal for the single commitment
+action, Signal Amber for attention, Copper for blocking errors, system typography, and written state
+in words and counts rather than colour alone.
+
+**STORY:** Arrive from the directory → read the enrollment consequence → enter the permanent fields →
+commit once → read the receipt and choose Add another, View player, or Return to players. When an
+outcome is uncertain, the same board explains exactly what is known, what is not, and what the next
+safe action is.
+
+**FIRST VIEWPORT:** The page identity and its Return to players action, then the board heading with
+required/optional language, the enrollment consequence sentence, and the first field. The commitment
+action sits at the end of the field set, never beside the discovery controls.
+
+**FORM:** A single bounded board. Fields group name, then date-of-birth/graduation-year, then the
+optional gender and jersey number, so required and optional groups read as separate bands. Server
+field errors sit under their owning control; graduation-year blockers and archive blockers appear as
+their own bordered attention regions beside the fields they concern. The receipt replaces the fields
+in place rather than stacking a second board above them.
+
+**FINISH:** unreviewed and undocumented is unfinished; this build ends with the independent finish
+review, its recorded verdict, the `DESIGN.md` component rules, and curated captures.
+
+Every state the brief lists is covered: pristine, invalid, saving, saved receipt, recoverable failure,
+ambiguous-result recovery, possible duplicate, role-changed, Active-campaign-changed, cancellation,
+set-aside, and a discarded unreadable retained command. Archive and restore are reached from the
+directory rows and from Player detail through one shared lifecycle control, so both hosts state the
+same consequence in the same words.
+
 ## Authority and lifecycle contract
 
 - Every approved club member may view the Players directory and player records, manually create a player, correct an active player's profile fields, archive a player, and restore an archived player.

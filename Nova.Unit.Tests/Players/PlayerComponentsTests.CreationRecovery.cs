@@ -6,9 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Results;
+using Nova.UI.Features.Players.Services;
 using NSubstitute;
 using Shouldly;
-using PlayerForm = Nova.UI.Features.Players.Components.PlayerForm;
+using PlayerIntakeBoard = Nova.UI.Features.Players.Components.PlayerIntakeBoard;
 using PlayersPage = Nova.UI.Features.Players.Pages.Players;
 
 namespace Nova.Unit.Tests.Players;
@@ -45,8 +46,13 @@ public sealed partial class PlayerComponentsTests
         await save;
         if (string.Equals(outcome, "success", StringComparison.Ordinal))
         {
+            // The board becomes the receipt in place; it does not navigate away.
             cut.Markup.ShouldContain("Enrolled in Original campaign.");
-            Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players");
+            cut.Find("#intake-add-another").ShouldNotBeNull();
+            cut.Find("#intake-view-player").ShouldNotBeNull();
+            cut.Find("#intake-return").ShouldNotBeNull();
+            Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players/new");
+            Interop.Read(101, 42).ShouldBeNull();
         }
         else if (string.Equals(outcome, "duplicate", StringComparison.Ordinal))
         {
@@ -56,7 +62,7 @@ public sealed partial class PlayerComponentsTests
         else
         {
             cut.Markup.ShouldContain("Lost acknowledgement");
-            cut.Markup.ShouldContain("retry it unchanged");
+            cut.Markup.ShouldContain("Replay the retained addition");
             cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         }
     }
@@ -96,11 +102,11 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
 
         await FillAndSubmitAsync(cut);
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        await cut.Find("#intake-submit").ClickAsync(new());
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        cut.Markup.ShouldContain("retry it unchanged");
-        cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Replacement must not escape";
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        cut.Markup.ShouldContain("Replay the retained addition");
+        cut.FindComponent<PlayerIntakeBoard>().Instance.Model.FirstName = "Replacement must not escape";
+        await cut.Find("#intake-submit").ClickAsync(new());
 
         commands.Count.ShouldBe(3);
         commands[1].ShouldBeSameAs(commands[0]);
@@ -143,13 +149,13 @@ public sealed partial class PlayerComponentsTests
             ? new ServiceResult<PlayerCreationCompletion>(CreationCompletion(commands[0]))
             : new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Old failure"))));
         await oldSubmit;
-        cut.FindComponent<PlayerForm>().Instance.IsSubmitting.ShouldBeTrue();
+        cut.FindComponent<PlayerIntakeBoard>().Instance.IsSubmitting.ShouldBeTrue();
         cut.Markup.ShouldNotContain("Old failure");
         cut.Markup.ShouldNotContain("Player created successfully.");
         await cut.InvokeAsync(() => second.SetResult(ServiceProblem.ServerError("New uncertainty")));
         await newSubmit;
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        await cut.Find("#intake-submit").ClickAsync(new());
         commands.Count.ShouldBe(3);
         commands[2].ShouldBeSameAs(commands[1]);
         commands[2].ClubId.ShouldBe(43);
@@ -180,13 +186,18 @@ public sealed partial class PlayerComponentsTests
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
         await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true)));
-        cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Programmatic edit";
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        cut.FindComponent<PlayerIntakeBoard>().Instance.Model.FirstName = "Programmatic edit";
+        await cut.Find("#intake-submit").ClickAsync(new());
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Enrolled in Original campaign."));
         commands.Count.ShouldBe(2);
         commands[1].ShouldBeSameAs(commands[0]);
         commands[1].FirstName.ShouldBe("Taylor");
-        await FillAndSubmitAsync(cut);
+
+        // The receipt offers another addition; only player-specific input resets.
+        await cut.Find("#intake-add-another").ClickAsync(new());
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
+        await cut.Find("#intake-submit").ClickAsync(new());
         commands.Count.ShouldBe(3);
         commands[2].OperationId.ShouldNotBe(commands[0].OperationId);
     }
@@ -216,14 +227,18 @@ public sealed partial class PlayerComponentsTests
             .ShouldBe($"/players/21?returnUrl={Uri.EscapeDataString(RosterUrl)}");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Corrected" });
-        await cut.Find("button[type='submit']").ClickAsync(new());
-        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Player created successfully."));
+        await cut.Find("#intake-submit").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Player added"));
         commands.Count.ShouldBe(2);
         commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
         commands[1].FirstName.ShouldBe("Corrected");
-        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "#intake-return"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll(".intake-receipt").Count.ShouldBe(0));
         cut.Markup.ShouldNotContain("View existing archived player");
-        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+
+        // The settled operation is not retained, so re-entering the board is unlocked.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
     }
 
     /// <summary>Closing a rejected form clears its duplicate feedback without retaining a settled operation.</summary>
@@ -245,14 +260,14 @@ public sealed partial class PlayerComponentsTests
         await FillAndSubmitAsync(cut);
         cut.Markup.ShouldContain("View existing player");
 
-        await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
+        await cut.Find("#intake-cancel").ClickAsync(new());
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
 
         cut.Markup.ShouldNotContain("View existing player");
-        cut.FindComponent<PlayerForm>().Instance.Duplicate.ShouldBeNull();
+        cut.FindComponent<PlayerIntakeBoard>().Instance.Duplicate.ShouldBeNull();
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Another" });
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        await cut.Find("#intake-submit").ClickAsync(new());
         commands.Count.ShouldBe(2);
         commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
         commands[1].FirstName.ShouldBe("Another");
@@ -288,28 +303,71 @@ public sealed partial class PlayerComponentsTests
         var cut = RenderPlayers();
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
         await FillAndSubmitAsync(cut);
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        await cut.Find("#intake-submit").ClickAsync(new());
         cut.Markup.ShouldContain(expired ? "has expired" : "Membership removed");
         if (expired)
         {
             cut.Markup.ShouldContain("Review the Players directory");
-            cut.Markup.ShouldNotContain("retry it unchanged");
+            cut.Markup.ShouldNotContain("Replay the retained addition");
         }
-        else { cut.Markup.ShouldContain("retry it unchanged"); }
-        cut.Markup.ShouldContain("The original addition is still retained");
+        else { cut.Markup.ShouldContain("Replay the retained addition"); }
+        cut.Markup.ShouldContain("retained the exact addition");
 
-        await cut.FindComponent<PlayerForm>().Find("button[type='button']").ClickAsync(new());
+        await cut.Find("#intake-cancel").ClickAsync(new());
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        cut.FindComponent<PlayerForm>().Instance.Model.FirstName = "Replacement must not escape";
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        cut.FindComponent<PlayerIntakeBoard>().Instance.Model.FirstName = "Replacement must not escape";
 
+        // The stored command is still inside the client's own 24-hour window, so it stays replayable
+        // and the server remains the authority on its outcome; nothing is inferred from the refusal.
+        await cut.Find("#intake-submit").ClickAsync(new());
         commands.Count.ShouldBe(3);
         commands[1].ShouldBeSameAs(commands[0]);
         commands[2].ShouldBeSameAs(commands[0]);
         commands[2].FirstName.ShouldBe("Taylor");
+
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        if (expired) { cut.Markup.ShouldNotContain("retry it unchanged"); }
+    }
+
+    /// <summary>An operation whose own window has closed cannot be replayed and is never discarded.</summary>
+    [Fact]
+    public async Task PlayersTreatsAnExpiredRetainedOperationAsUnrecoverableAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            commands.Add(call.Arg<CreatePlayerInput>());
+            return Task.FromResult(new ServiceResult<PlayerCreationCompletion>(CreationCompletion(call.Arg<CreatePlayerInput>())));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var expired = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(DateTimeOffset.UtcNow.AddHours(-25)),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(expired.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow,
+            Payload = expired
+        });
+
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("24-hour window has closed"));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldContain("retained the exact addition");
+        commands.ShouldBeEmpty();
     }
 
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
@@ -317,7 +375,7 @@ public sealed partial class PlayerComponentsTests
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
         await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
-        await cut.Find("button[type='submit']").ClickAsync(new());
+        await cut.Find("#intake-submit").ClickAsync(new());
     }
 
     private static PlayerCreationCompletion CreationCompletion(CreatePlayerInput input) => new()

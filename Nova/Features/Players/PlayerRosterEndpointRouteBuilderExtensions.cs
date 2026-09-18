@@ -29,6 +29,14 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetPlayerDirectorySummary");
+            group.MapGet(GetPlayerRosterEndpoints.GetIntakeContextRelative, GetPlayerIntakeContextHandlerAsync)
+                .Produces<PlayerIntakeContext>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName("GetPlayerIntakeContext");
             group.MapGet(GetPlayerRosterEndpoints.GetRosterRelative, GetPlayerRosterHandlerAsync)
                 .Produces<PagedResult<PlayerListItem>>()
                 .ProducesValidationProblem()
@@ -63,4 +71,17 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
         IPlayerService playerService,
         CancellationToken cancellationToken)
         => (await playerService.GetPlayerDirectorySummaryAsync(input, cancellationToken)).ToHttpResult();
+
+    /// <summary>
+    /// Handles manual-intake enrollment-context GET requests.
+    /// </summary>
+    /// <param name="input">The bound club input from the route.</param>
+    /// <param name="playerIntakeContextService">The intake-context service.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The HTTP result for the intake-context query.</returns>
+    private static async Task<IResult> GetPlayerIntakeContextHandlerAsync(
+        [AsParameters] GetPlayerIntakeContextInput input,
+        IPlayerIntakeContextService playerIntakeContextService,
+        CancellationToken cancellationToken)
+        => (await playerIntakeContextService.GetPlayerIntakeContextAsync(input, cancellationToken)).ToHttpResult();
 }

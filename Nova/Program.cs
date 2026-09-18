@@ -42,6 +42,7 @@ using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Features.Teams;
 using Nova.SharedKernel.Security;
 using Nova.UI.Common;
+using Nova.UI.Features.Players;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -130,6 +131,8 @@ builder.Services.AddScoped<IPlayerDetailService, PlayerDetailQueryService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<IPlayerService, PlayerService>();
+builder.Services.AddScoped<IPlayerIntakeContextService, PlayerIntakeContextService>(); builder.Services.AddScoped<EvaluationNoteService>();
+builder.Services.AddPlayerIntakeInterop();
 builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<ICampaignEvaluationNoteService>(services => services.GetRequiredService<EvaluationNoteService>());
 builder.Services.AddScoped<CampaignPlacementService>();

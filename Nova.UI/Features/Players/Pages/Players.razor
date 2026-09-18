@@ -1,4 +1,4 @@
-@page "/players"
+﻿@page "/players"
 @page "/players/new"
 @page "/players/{PlayerId:long}/edit"
 @rendermode InteractiveAuto
@@ -7,6 +7,7 @@
 @using Nova.SharedKernel.Enums
 @using Nova.SharedKernel.Security
 @using Nova.UI.Features.Players.Components
+@using Nova.UI.Features.Players.Services
 @*
 THESIS: One complete, bounded directory for approved club staff.
 OWN-WORLD: Fieldhouse Wayfinding; flat field sheet, teal destinations and semantic controls.
@@ -32,8 +33,9 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
         {
             <a class="btn btn-primary" href="@_urlState.ToFormUrl()">Add player</a>
         }
-        @if (IsFormRoute)
+        @if (IsFormRoute && _receipt is null)
         {
+            @* Exactly one Return to players affordance: the receipt provides its own once committed. *@
             <a class="btn btn-outline-primary" href="@BuildCurrentRosterUrl()">Return to players</a>
         }
     </div>
@@ -52,26 +54,36 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
             <div class="alert alert-danger" role="alert">@_mutationError</div>
             <button class="btn btn-outline-primary" type="button" @onclick="RetryEditAsync">Retry player</button>
         }
-    @if (_canManagePlayers && _showCreateForm)
-    {
-        <div class="mb-3">
-            <PlayerForm Heading="Add player" Model="_createForm" IsReadOnly="@(_pendingCreate is not null)" Duplicate="_creationDuplicate" SubmitButtonText="Create player" IsSubmitting="_isMutating"
-                        DuplicateDetailUrl="@(_creationDuplicate is { } duplicate ? new Uri(BuildPlayerDetailUrl(duplicate.PlayerId), UriKind.Relative) : null)"
-                        ErrorMessage="@_mutationError" GraduationYearBlockers="_graduationYearBlockers"
-                        OnValidSubmit="CreatePlayerAsync" OnCancel="CancelMutationForm" />
-        </div>
-    }
-
-    @if (_canManagePlayers && _editForm is not null)
-    {
-        <div class="mb-3">
-            <PlayerForm Heading="Edit player" Model="_editForm" SubmitButtonText="Save changes" IsSubmitting="_isMutating"
-                        ErrorMessage="@_mutationError" GraduationYearBlockers="_graduationYearBlockers"
-                        OnValidSubmit="UpdatePlayerAsync" OnCancel="CancelMutationForm" />
-        </div>
-    }
-
-
+        @if (_canManagePlayers && _showCreateForm)
+        {
+            <PlayerIntakeBoard @ref="_board" Heading="Add player" SubmitLabel="Create player"
+                               OwnerUserId="OwnerUserId" ClubId="@(_clubId ?? 0)" Model="_createForm"
+                               CanManage="_canManagePlayers" IntakeContext="_intakeContext"
+                               IntakeContextUnavailable="_intakeContextUnavailable" IsSubmitting="_isMutating"
+                               ErrorMessage="@_mutationError" FieldErrors="_fieldErrors"
+                               GraduationYearBlockers="_graduationYearBlockers" Receipt="_receipt"
+                               Duplicate="_creationDuplicate" RecoveryState="_recoveryState"
+                               InvalidRetainedValue="@_invalidRetainedValue" StorageUnavailable="_storageUnavailable"
+                               CanReplay="@(_recoveryState == PlayerCreationRecoveryState.Unresolved)"
+                               DetailUrlFactory="BuildIntakeDetailUrl" DirectoryUrl="@BuildIntakeDirectoryUrl()"
+                               ReconcileUrl="@BuildReconcileUrl()"
+                               DuplicateDetailUrl="@(_creationDuplicate is { } duplicate ? BuildIntakeDetailUrl(duplicate.PlayerId) : null)"
+                               OnSubmit="CreatePlayerAsync" OnCancel="CancelMutationForm"
+                               OnAddAnother="StartAnotherAdditionAsync"
+                               OnSetAside="SetAsideRetainedAsync" OnDiscardUnreadable="SetAsideRetainedAsync"
+                               OnRetryStorage="RetryStorageAsync" OnConfirmedDeparture="LeaveBoard" />
+        }
+        @if (_canManagePlayers && _editForm is { } editForm)
+        {
+            <PlayerIntakeBoard Heading="Edit player" SubmitLabel="Save changes"
+                               OwnerUserId="OwnerUserId" ClubId="@(_clubId ?? 0)" Model="editForm"
+                               CanManage="_canManagePlayers" IsSubmitting="_isMutating"
+                               ErrorMessage="@_mutationError" FieldErrors="_fieldErrors"
+                               GraduationYearBlockers="_graduationYearBlockers"
+                               DetailUrlFactory="BuildIntakeDetailUrl" DirectoryUrl="@BuildIntakeDirectoryUrl()"
+                               OnSubmit="UpdatePlayerAsync" OnCancel="CancelMutationForm"
+                               OnConfirmedDeparture="LeaveBoard" />
+        }
     }
     else
     {
@@ -172,41 +184,10 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
         }
     @if (_canManagePlayers && _archiveCandidate is not null)
     {
-        <section class="players-confirmation mb-3" aria-live="polite">
-            <div class="p-3">
-                <h2 class="h5">Archive @(_archiveCandidate.DisplayName)?</h2>
-                <p class="text-muted">
-                    Archiving preserves campaign history. Any unresolved active-campaign blockers must be resolved first.
-                </p>
-                @if (_archiveBlockers.Count > 0)
-                {
-                    <div class="alert alert-warning" role="alert">
-                        <div class="fw-semibold mb-2">Archive blockers:</div>
-                        <ul class="mb-0">
-                            @foreach (var blocker in _archiveBlockers)
-                            {
-                                <li>
-                                    @blocker.CampaignName (Campaign @blocker.CampaignId): participation IDs @string.Join(", ",
-                                    blocker.ParticipationIds)
-                                </li>
-                            }
-                        </ul>
-                    </div>
-                }
-                <div class="form-check mb-3">
-                    <input id="archive-confirm-checkbox" class="form-check-input" type="checkbox"
-                           @bind="_archiveConfirmed" />
-                    <label class="form-check-label" for="archive-confirm-checkbox">
-                        I understand this player will be moved to the archived roster.
-                    </label>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <button type="button" class="btn btn-warning" disabled="@(!_archiveConfirmed || _isMutating)"
-                            @onclick="ConfirmArchiveAsync">Archive player</button>
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelArchive">Cancel</button>
-                </div>
-            </div>
-        </section>
+        <div class="mb-3">
+            <PlayerLifecycleConfirmation DisplayName="@_archiveCandidate.DisplayName" Blockers="_archiveBlockers"
+                                          IsBusy="_isMutating" OnConfirm="ConfirmArchiveAsync" OnCancel="CancelArchive" />
+        </div>
     }
 
 
@@ -324,6 +305,6 @@ FORM: Native GET discovery and ordinary anchors; twenty rows inside a bounded sc
                 }
             </nav>
         }
-        <p class="players-lifecycle-note">Restoring reactivates the profile only; campaigns missed while archived are not backfilled automatically.</p>
+        <p class="players-lifecycle-note">@PlayerLifecycleCopy.RestoreNote</p>
     }
 </div>

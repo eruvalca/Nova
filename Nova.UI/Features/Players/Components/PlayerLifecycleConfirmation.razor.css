@@ -1,0 +1,54 @@
+﻿/* Fieldhouse Wayfinding: one flat inline archive confirmation for both hosts. */
+.lifecycle-confirmation {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    background-color: var(--bs-body-bg);
+    padding: 1rem;
+}
+
+.lifecycle-confirmation .h5 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.lifecycle-consequence {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.75rem;
+}
+
+.lifecycle-attention {
+    border: 1px solid var(--bs-warning-border-subtle);
+    border-radius: 0.25rem;
+    background-color: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.lifecycle-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.lifecycle-actions .btn {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* The archive acknowledgement is a deliberate gate, so it takes the full touch target. */
+.lifecycle-confirmation .form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+}
+
+@media (max-width: 575.98px) {
+    .lifecycle-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

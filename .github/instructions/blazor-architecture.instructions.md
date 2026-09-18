@@ -120,6 +120,10 @@ Nova.UI/
   `string` parameter is a literal unless it is marked as a C# expression. Use
   `ErrorMessage="@_formError"` to pass a backing field; `ErrorMessage="_formError"` renders the field
   name. This is separate from the rule that the receiving `[Parameter]` member is a public property.
+- **Keep running text that mixes literals with interpolated values on one markup line.** A line
+  break inside a sentence renders as whitespace rather than a space, so the rendered copy differs
+  from what was written and an exact-text assertion silently misses it. Join
+  `Campaign @id, Team @teamId requires year @year.` onto one line instead of wrapping it.
 - **Preserve mutation feedback across refreshes**: keep success, conflict and recovery feedback
   visible while affected data reloads; retaining a field is insufficient if a loading branch hides
   its markup. Clear feedback at an intentional user-action or ownership boundary.
