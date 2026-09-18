@@ -93,9 +93,12 @@ luminance difference **0.0224**, against 0.0237 for B and 0.0261 for C) and its 
 is closest to the composition this brief commits to (**0.0273**, against 0.0343 for B and 0.0336 for
 C). Only **33.8%** of main-field rows show two ink clusters separated by a wide quiet gap — the
 single bounded field sheet — where C measures 76.4%, confirming its second board. `comp-measure.mjs`
-in the same review directory reproduces every figure. These figures were re-measured on review round
-3 against the re-captured settled board (the capture gate added there also means the raster can no
-longer show the withheld board); the approval-time measurement against the earlier capture read
+in the same review directory reproduces these figures: the reference's and A's from the repository
+alone, and B's and C's when the locally retained rejected rasters (`issue-264-b.png`,
+`issue-264-c.png`, which are deliberately not committed) are present — a candidate whose raster is
+absent is reported as skipped rather than stopping the run. These figures were re-measured on review
+round 3 against the re-captured settled board (the capture gate added there also means the raster can
+no longer show the withheld board); the approval-time measurement against the earlier capture read
 0.0223 and 0.0272 for A with the same ordering, and the mock's own provenance records that original
 measurement. The rejected candidates added composition this brief does not ask for: B a second
 required/optional labelling system over the per-field required and optional words, and C a second

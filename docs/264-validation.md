@@ -2,9 +2,9 @@
 
 ## Scope and status
 
-**Status: implemented and committed to PR #285; review rounds 1, 2 and 3 are addressed.** On the
-round-3 revision the build, format check, full unit suite, the affected browser selection and the
-env-gated capture scenario are green (see [PR review round 3](#pr-review-round-3-pr-285)); each
+**Status: implemented and committed to PR #285; review rounds 1, 2, 3 and 4 are addressed.** On the
+round-4 revision the build, format check, full unit suite and the affected browser selection are
+green (see [PR review round 4](#pr-review-round-4-pr-285)); each
 intermittent browser failure seen on the way is named where it occurred with its isolated re-run.
 Full integration and full browser runs on that revision, and the merge-stage reruns required before
 merge, are still outstanding.
@@ -26,7 +26,9 @@ then committed as `cb88a1b9`. The review-round-2 fixes below are an uncommitted 
 of `cb88a1b9`, so that pass's revision is the working tree itself; the tree is the only revision a
 reader can reproduce from this record alone. The review-round-3 fixes below are an uncommitted
 working tree on top of `aa22450d`, so that pass's revision is likewise the working tree itself, and
-that tree is also what regenerated the three curated rasters.
+that tree is also what regenerated the three curated rasters. The review-round-4 fixes below are an
+uncommitted working tree on top of `9e9c0706`, so that pass's revision is likewise the working tree
+itself.
 
 ## Guidance actually read
 
@@ -40,6 +42,10 @@ that tree is also what regenerated the three curated rasters.
   the same set (the round-3 edits touch a component, a page, component tests and the browser capture
   scenario), plus the live PR #285 review bodies for rounds 1-3 to reconcile each finding's wording
   with this record.
+- Review round 4 re-read `blazor-architecture` and `testing` (the round-4 edits touch the page's two
+  re-read paths and the component tests) and `csharp-conventions` for the two edits themselves, plus
+  the live PR #285 round-4 review body, so each finding's wording is reconciled with what the fix
+  actually does.
 
 ## What was implemented
 
@@ -87,8 +93,9 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
 - **Unsettled evidence is named, never guessed.** The enrollment consequence states a *check in
   progress* ("Checking the enrollment consequence…") until the club's Active campaign has actually
   been read — it never falls through to the no-campaign sentence in that window — and the fields and
-  the commit control are withheld until the owner's retained command has been read, so input typed
-  during that window cannot be silently replaced by a landed recovery payload. The withheld state is
+  the commit control are withheld until the owner's retained command has   been read — on every entry to the board *and* on each re-read that can land one (**Add another** and
+  **Retry storage**), so input typed during any such window cannot be silently replaced by a landed
+  recovery payload (review round 4, finding 1). The withheld state is
   itself named — **Checking this browser for a retained addition…**, in the same note position as the
   frozen and blocked notes — and the withheld field set points at that note through its
   `aria-describedby`, so an unexplained disabled board is not a state the member meets (review round
@@ -290,7 +297,7 @@ Tested revision: the uncommitted working tree on branch `eruvalca-player-form-cr
 | Capture scenario (finding 3) | `$env:NOVA_PLAYERS_EVIDENCE = '<worktree>\.impeccable\review\issue-264\captures'` then `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerIntakeBoardEvidenceTests'` — **1 total, 1 passed, 0 failed, 0 skipped**; the class holds only `CaptureIntakeBoardStatesAsync`, and with the flag set it is not skipped. The three tracked rasters were rewritten — `intake-board-desktop.png` **44,534 bytes** (was 44,418), `intake-board-mobile.png` **27,692** (was 27,610), `intake-board-receipt.png` **43,853** (was 43,787), all at 2026-09-18 02:18 local — and the ignored `intake-board-desktop-full.png` was regenerated too (44,534 bytes, untracked, `git status` lists only the three tracked rasters as modified). |
 | Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0** on the final edits, after one `dotnet format Nova.slnx --no-restore` pass whose only change was restoring the `CHARSET` BOM on `PlayerDetail.razor.cs`; the formatter created no artifact of its own. |
 | Negative check, findings 1, 2 and 6 | With the departure gate restored to the reviewed `if (ShowsReceipt \|\| IsEntryBlocked \|\| !CanManage) { return; }`, the checking note and its `aria-describedby` case removed, and `_canManagePlayers` re-gated on `IsInRole(Roles.ClubAdmin)`, `dotnet test … --no-build` over the four new cases reported **4 failed, 0 passed**: `PlayersPerformsTheDepartureWhenTheAttemptCannotLoseAnythingAsync` failed on `NavigationManager().Uri` "should end with `/players?view=archived` but was `http://localhost/players/new`"; `IntakeBoardNamesTheRetainedCommandCheckWhileItWithholdsEntry` failed with `Bunit.ElementNotFoundException: No elements were found that matches the selector '#intake-checking-note'`; `PlayerDetailShowsArchiveForOrdinaryClubMember` and `PlayerDetailShowsRestoreForOrdinaryClubMemberOnAnArchivedRecord` both failed their control counts (0). Fixes restored, the full solution rebuilt (0 warnings, 0 errors) and the full unit suite re-run before the runs above. |
-| Composition check re-measured (consequence of the re-capture) | `node .impeccable/review/issue-264/comp-measure.mjs` against the re-captured settled board: A still leads on both measures — shell 0.0224 (B 0.0237, C 0.0261), field 0.0273 (B 0.0343, C 0.0336), two-board rows 33.8% (C 76.4%) — so the locked reference is unchanged; the approval-time figures against the earlier capture were 0.0223 / 0.0272 with the same ordering. The script's module import resolved one directory short and could not run as committed, so that path was corrected in this pass and the record's claim that it reproduces every figure is now true. |
+| Composition check re-measured (consequence of the re-capture) | `node .impeccable/review/issue-264/comp-measure.mjs` against the re-captured settled board: A still leads on both measures — shell 0.0224 (B 0.0237, C 0.0261), field 0.0273 (B 0.0343, C 0.0336), two-board rows 33.8% (C 76.4%) — so the locked reference is unchanged; the approval-time figures against the earlier capture were 0.0223 / 0.0272 with the same ordering. The script's module import resolved one directory short and could not run as committed, so that path was corrected in this pass and the record's claim that it reproduces every figure is now true. **Round 4 narrowed that claim's scope:** A's and the reference's figures reproduce from the repository, while B's and C's need the locally retained rejected rasters (round 4, row 2). |
 
 After those runs, the only further edits were documentation, the one-line import correction in
 `comp-measure.mjs`, the re-captured rasters themselves, and a restore of one doc comment and blank
@@ -298,6 +305,52 @@ line in `Nova.Unit.Tests/Players/PlayerComponentsTests.cs`; the application and 
 are unchanged from the revision the browser runs covered, so that selection and that capture pass are
 reused rather than repeated (a documentation-only difference, as `AGENTS.md` allows with the
 comparison recorded).
+
+## PR review round 4 (PR #285)
+
+The fourth review of PR #285 raised three findings — two Low (both inline) and one Nit in the review
+body — and **verified all six round-3 findings as fixed**, reproducing the build (**0 warnings, 0
+errors**), the full unit suite (**3813 total, 3813 passed, 0 failed, 0 skipped** on `9e9c0706`) and
+`node .impeccable/review/issue-264/comp-measure.mjs` itself. It found **nothing at Critical, High or
+Medium**; its three findings are dispositioned here on top of `9e9c0706`, nothing was deferred, and
+nothing was resolved by weakening a test. The review's *Not reached* section — the Aspire/PostgreSQL
+integration suite and the Playwright suites were not executed by the reviewer, and the rasters could
+not be inspected perceptually — matches the limitations this record already carries, so it is not
+re-argued.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Low | Two re-read paths replaced typed input without re-arming the withhold gate: `StartAnotherAdditionAsync` (**Add another**) and `RetryStorageAsync` (**Retry storage**) called `RestoreRecoveryAsync` with `_recoveryChecked` still `true`, so the fields stayed **enabled** while a read that can land a retained command was in flight and `_createForm = PlayerFormState.FromPendingCommand(pending.Payload)` could replace what the member typed meanwhile | **Fixed** in `Nova.UI/Features/Players/Pages/Players.razor.Intake.cs`: every read that can land a retained command now withholds input for its duration, not only the route boundary. `RetryStorageAsync` sets `_recoveryChecked = false` before its read; `StartAnotherAdditionAsync` sets `_recoveryChecked = false; _recoveryScope = null;` before its read. Releasing the scope is what keeps that safe: `RestoreRecoveryAsync` sets `_recoveryChecked = true` on every settled path (including `read is null`) and releases `_recoveryScope` on its version-mismatch exit, which makes `Players.OnAfterRenderAsync` re-claim and re-read — so no board can be left stuck shut. **Deviation from the prescribed diff, recorded:** `RequestFocusOnFirstField()` moves from before the read to after it. Left in place, its request is consumed by the render of the *withheld* board, where the browser refuses focus inside a disabled field set, so **Add another** would leave focus nowhere; requesting it once the read has settled lands focus in a field the member can actually use, and is the same no-op as before when the read freezes the board on a retained command. Two new cases, one per path — named in the evidence table. **Which of the finding's two acceptable forms was implemented:** the *typed-value-survives* form, because neither case seeds a retained command, so the settled read legitimately has nothing to replace; the assertion that actually pins the reported defect is the withheld window (the field is not editable while the read is open, so nothing a member could have typed can be replaced), and the negative check below shows both cases failing on exactly that assertion when the fix is reverted. |
+| 2 | Low | `comp-measure.mjs` could not reproduce its own figures from a clean checkout: only `issue-264-a.png` is tracked, B and C are gitignored on purpose, and `loadRaster`'s unguarded `fs.readFileSync` made the script die with `ENOENT` on `b` | **Fixed with both halves of the finding's either/or.** `comp-measure.mjs` imports `node:fs` and skips an absent candidate with a printed `skipped — candidate raster is not committed` line, so the run completes from a clean checkout; and the claim beside it is narrowed in `.impeccable/surfaces/player-intake.md`, this record's limitations bullet and its design-evidence section to state that the reference's and A's figures reproduce from the repository while B's and C's need the locally retained rejected rasters. Both runs are in the evidence table: with B and C present the published figures reproduce exactly, and with the two local rasters temporarily renamed away the script prints the two skip lines, exits 0 and does not throw (the rasters were restored byte-identically, SHA-256 compared). |
+| 3 | Nit | The PR body again named a stale revision, unit count and open-item status — the same class round 3 recorded as its row 5 — so the review prescribed a structural fix rather than another patch | **Addressed in the body, not the diff; the disposition belongs to the session: body restructured to state the method and defer revision and counts to this record.** Verified against the live body: the Validation section now states the method ("on the current branch head, `dotnet build Nova.slnx` is clean, `dotnet format Nova.slnx --verify-no-changes` exits 0, the full unit suite passes …"), names **no** revision and **no** case count (neither `aa22450d` nor `9e9c0706` nor either round's count appears in the body), and points at this record as the owner of both; open item 1 no longer claims round-3 work is outstanding; and the merge-condition line reads "Before merge: full browser-suite evidence covers the final inputs, or documented browser N/A applies. — left unchecked: the final inputs have not had one clean full pass (see open item 1)". **Still for the session:** the second *unchecked* line (guidance, sibling paths and reviews) gives its reason as "left unchecked until the current round's findings are pushed" rather than naming the remaining full integration/browser pass the review asked it to name; the record cannot edit the body, so this is the outstanding half of the finding. Recorded here because the review verified it in the body rather than on a changed line. |
+
+### Confirming evidence (round 4)
+
+Tested revision: the uncommitted working tree on branch `eruvalca-player-form-crud` on top of
+`9e9c0706`, with no commit created in this pass.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx --no-restore` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3815 total, 3815 passed, 0 failed, 0 skipped**. The round-3 baseline was 3813, so the two new cases are the entire delta and nothing regressed. |
+| Affected browser selection | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — second run, with the full output captured to a file, **21 total, 20 passed, 0 failed, 1 skipped**; the skip is the pre-existing env-gated `NOVA_A11Y_SCREENSHOTS` capture. The first run of the same selection on the same build reported **21 total, 19 passed, 1 failed, 1 skipped** — see the unresolved failure note below. |
+| Affected journeys in isolation | `--filter-method '*DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync*' --filter-method '*OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync*'` — **2 total, 2 passed, 0 failed** (the two long journeys this record already tracks as the intermittent class), and `--filter-method '*PlayerFormDuplicateCanBeCorrectedWithoutOverrideAsync*'` — **1 total, 1 passed, 0 failed**, the only browser journey that clicks **Add another** and therefore the only scenario this round's change can reach. All three on the same build as the selection runs. |
+| Format | `dotnet format Nova.slnx --verify-no-changes --no-restore` — **exit 0** on the final edits; no `dotnet format Nova.slnx --no-restore` pass was needed. |
+| New cases, named | `--filter-method '*PlayersWithholdsTheBoardWhileAddAnotherReReadsTheRetainedCommandAsync*' --filter-method '*PlayersWithholdsTheBoardWhileRetryStorageReReadsTheRetainedCommandAsync*'` — **2 total, 2 passed, 0 failed**. Each holds the interop double's `ReadGate` open, triggers its own path (**Add another** through `#intake-add-another`; **Retry storage** through `#intake-storage-unavailable button`, reached by making the retention write fail), asserts the window is withheld — `fieldset` and `#intake-submit` disabled, `#intake-checking-note` present — types into `#player-first-name`, releases the gate and asserts the settled read left the typed value (`Typed`) in place. The retry case also asserts the storage panel is gone, so a successful retry restores the board rather than stranding it. |
+| Negative check, finding 1 | With both gate-arming hunks temporarily restored to the reviewed body (`RetryStorageAsync` calling `RestoreRecoveryAsync` directly, `StartAnotherAdditionAsync` requesting focus before an unguarded read), the same two cases reported **2 failed, 0 passed**, both on `cut.Find("fieldset").HasAttribute("disabled")` **should be True but was False** — the field was editable while the read was open, which is the defect. Fix restored, the full solution rebuilt (0 warnings, 0 errors) and `git diff` confirming the restored file matches the fixed body, before the runs above. |
+| Composition script (finding 2), with B and C present | `node .impeccable/review/issue-264/comp-measure.mjs` from the repository root — `reference 1440 x 1000`; `a shellDiff 0.0224 fieldDiff 0.0273 inkRowPct 66.0 twoBoardRowPct 33.8`; `b shellDiff 0.0237 fieldDiff 0.0343 inkRowPct 75.4 twoBoardRowPct 32.8`; `c shellDiff 0.0261 fieldDiff 0.0336 inkRowPct 79.9 twoBoardRowPct 76.4` — the published figures, unchanged. |
+| Composition script (finding 2), clean-checkout simulation | The same command with `.impeccable/mocks/issue-264-b.png` and `issue-264-c.png` temporarily renamed away — the reference and A's lines print, then `b skipped — candidate raster is not committed` and `c skipped — candidate raster is not committed`, **exit 0**, no exception. Both rasters were renamed back and their SHA-256 hashes compared before and after: identical. |
+
+**Unresolved failure in the first selection run.** The first run of the selection reported one failure
+among the 21, and its identity was **not captured** — the console output was read only as its tail
+and the suite left no artifact (no `TestResults` directory, no trace file) — so it is recorded as
+unresolved rather than attributed. What the same build does show: the second, fully captured
+selection run was green at **21 total, 20 passed, 0 failed, 1 skipped**, the two long journeys this
+record already tracks as the intermittent class passed in isolation (**2 total, 2 passed**), and the
+one journey this round's change can reach — `PlayerFormDuplicateCanBeCorrectedWithoutOverrideAsync`,
+the sole browser click on **Add another** — passed in isolation too (**1 total, 1 passed**). A green
+re-run does not resolve an unexplained failure, so this stays a limitation: a repeat needs its
+identity captured (a file-captured console or a TRX report) rather than another re-run.
 
 ## Independent finish review
 
@@ -371,12 +424,12 @@ evidence above is unchanged by it.
 ## Limitations and remaining work
 
 - **The PR-stage gates are not yet complete.** The work is committed as `b51558b2`, opened as
-  PR #285 and committed for review round 1 as `cb88a1b9` and round 2 as `aa22450d`; the separate
+  PR #285 and committed for review rounds 1-3 as `cb88a1b9`, `aa22450d` and `9e9c0706`; the separate
   local reviews this change's persisted/recoverable and asynchronous-state work requires have now
-  been obtained for all three rounds, and each is recorded above with a disposition for every
+  been obtained for all four rounds, and each is recorded above with a disposition for every
   finding. Still outstanding before merge: a full integration run and a full browser run on the
-  final revision (round 3 changed no provider, EF or domain behaviour), plus the branch's CI. The
-  earlier full-suite evidence above is tied to earlier working trees and must be re-established
+  final revision (rounds 3 and 4 changed no provider, EF or domain behaviour), plus the branch's CI.
+  The earlier full-suite evidence above is tied to earlier working trees and must be re-established
   after any further edit.
 - **The board's input is now gated on the interactive circuit, by design.** A creation form is
   unusable until the circuit has attached *and* the owner's retained command has been read from
@@ -385,7 +438,11 @@ evidence above is unchanged by it.
   it moves a slice of the board's readiness behind interactivity, which is why the affected browser
   selection is more load-sensitive than before (see the *intermittent journeys* table). Review round
   3 removed the unexplained half of that trade-off: the withheld board now names its check, so no
-  state the member meets is unlabelled. The named keyboard journey waits for the field to be enabled
+  state the member meets is unlabelled. Review round 4 extended the same withholding to the two
+  re-read paths (**Add another** and **Retry storage**), so each of those interactions is also only
+  actionable once its own storage read has settled — one more window on the same interactivity
+  dependency, and the reason the withholding guarantee now holds for every read that can land a
+  retained command rather than for entries alone. The named keyboard journey waits for the field to be enabled
   instead of merely visible; the other journeys rely on Playwright's own enabled-actionability wait.
 - **Approved comp locked: reference A.** Image generation was available through the user-scope
   `OPENAI_API_KEY` (my first check read the process scope, which does not inherit a user-level
@@ -399,8 +456,12 @@ evidence above is unchanged by it.
   on review round 3 against the re-captured settled board; the approval-time measurement against the
   earlier capture read 0.0223 and 0.0272 for A with the same ordering, so the lock holds on the
   shipped composition. The measurement script (`.impeccable/review/issue-264/comp-measure.mjs`)
-  reproduces every figure; its module import resolved one directory short and was corrected in
-  round 3, since it could not run as committed. **The formal comp-spec/comp-diff gate was not run**,
+  reproduces the reference's and A's figures from the repository alone, and B's and C's when the
+  locally retained rejected rasters (`issue-264-b.png`, `issue-264-c.png`) are present; a candidate
+  whose raster is not committed is reported as skipped instead of stopping the run. Its module import
+  resolved one directory short and was corrected in round 3, since it could not run as committed, and
+  review round 4 made the absent-candidate case explicit so the published claim holds from a clean
+  checkout. **The formal comp-spec/comp-diff gate was not run**,
   so these are direct comparisons against the real build, not the workflow's hero measurement.
 - **The agent could not perceptually inspect the rasters.** The image tool reports success without
   yielding viewable content in this environment, so the composition check rests on the measurements
@@ -458,7 +519,8 @@ board's own viewport capture as the reference image. Curated captures:
 `.impeccable/review/issue-264/captures/intake-board-desktop.png` (1440 × 1000, the comp frame,
 44,534 bytes after the review-round-3 re-capture), `intake-board-mobile.png` (390 × 844, 27,692
 bytes) and `intake-board-receipt.png` (the committed receipt, 43,853 bytes), plus `comp-measure.mjs`,
-which reproduces the composition figures. `.gitignore` carries narrow exceptions for exactly these
+which reproduces the composition figures from the repository for the reference and A and needs the
+locally retained B and C rasters for those two candidates. `.gitignore` carries narrow exceptions for exactly these
 files; rejected candidates B and C remain local working artifacts. The re-capture was required by
 round 3 because the scenario previously waited only for the consequence read and could photograph
 the withheld board; the provenance JSON keeps the measurement taken when the comp was approved,

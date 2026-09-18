@@ -387,6 +387,71 @@ public sealed partial class PlayerComponentsTests
         cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
     }
 
+    /// <summary>Add another re-reads the retained command, so its fresh fields are withheld until it settles.</summary>
+    [Fact]
+    public async Task PlayersWithholdsTheBoardWhileAddAnotherReReadsTheRetainedCommandAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-add-another").Count.ShouldBe(1));
+
+        // Add another re-reads storage, and the key is owner-scoped rather than tab-scoped, so a
+        // command retained by another tab is exactly what this read can land.
+        Interop.ReadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var addAnother = cut.Find("#intake-add-another").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("#intake-checking-note").Count.ShouldBe(1);
+
+        // bUnit's static renderer still dispatches this change, where a browser refuses input inside
+        // a disabled field set: the field is withheld, so no member could have typed here at all.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Typed" });
+        Interop.ReadGate.SetResult();
+        await addAnother;
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+
+        // A read that finds nothing retained leaves the typed value exactly as it was.
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Typed");
+    }
+
+    /// <summary>Retry storage re-reads the retained command, so its fields are withheld until it settles.</summary>
+    [Fact]
+    public async Task PlayersWithholdsTheBoardWhileRetryStorageReReadsTheRetainedCommandAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.FailWrites = true;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // Retry storage re-reads, and a command retained by another tab can land in that read, so the
+        // fields those values would replace are withheld for its duration.
+        Interop.FailWrites = false;
+        Interop.ReadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retry = cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("#intake-checking-note").Count.ShouldBe(1);
+
+        // bUnit's static renderer still dispatches this change, where a browser refuses input inside
+        // a disabled field set: the field is withheld, so no member could have typed here at all.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Typed" });
+        Interop.ReadGate.SetResult();
+        await retry;
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+
+        // The succeeded retry restores the board rather than stranding it, and keeps the typed value.
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Typed");
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+    }
+
     /// <summary>A failed storage read still settles the check, so a well-formed board is never stuck shut.</summary>
     [Fact]
     public async Task PlayersReopensTheBoardWhenTheRetainedCommandReadFailsAsync()

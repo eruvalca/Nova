@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { loadRaster } from '../../../.agents/skills/impeccable/scripts/lib/png.mjs';
 
 const REF = '.impeccable/review/issue-264/captures/intake-board-desktop.png';
@@ -18,7 +19,14 @@ const ref = loadRaster(REF).image;
 console.log('reference', ref.width, 'x', ref.height);
 
 for (const id of ['a', 'b', 'c']) {
-  const img = loadRaster(`.impeccable/mocks/issue-264-${id}.png`).image;
+  const path = `.impeccable/mocks/issue-264-${id}.png`;
+  // Only candidate A is committed; B and C stay local working artifacts.
+  if (!fs.existsSync(path)) {
+    console.log(id, 'skipped — candidate raster is not committed');
+    continue;
+  }
+
+  const img = loadRaster(path).image;
   let shellSum = 0, shellN = 0, fieldSum = 0, fieldN = 0;
   const N = 240;
   for (let j = 0; j < N; j++) {

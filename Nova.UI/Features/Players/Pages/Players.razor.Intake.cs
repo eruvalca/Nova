@@ -320,6 +320,9 @@ public partial class Players
     /// <summary>Retries the browser storage boundary after it was reported unavailable.</summary>
     private async Task RetryStorageAsync()
     {
+        // This read can also land a retained command, so withhold input until it settles rather
+        // than letting a landed recovery replace values the member typed meanwhile.
+        _recoveryChecked = false;
         await RestoreRecoveryAsync();
         if (!_storageUnavailable)
         {
@@ -340,8 +343,12 @@ public partial class Players
         _creationDuplicate = null;
         _recoveryState = PlayerCreationRecoveryState.None;
         _board?.MarkCommittedOrClosed();
-        _board?.RequestFocusOnFirstField();
+        // This read can also land a retained command, so withhold input until it settles; focus is
+        // requested once it has, so it lands in a field the member can actually use.
+        _recoveryChecked = false;
+        _recoveryScope = null;
         await RestoreRecoveryAsync();
+        _board?.RequestFocusOnFirstField();
     }
 
     /// <summary>Leaves the board for the member's chosen destination after an explicit confirmation.</summary>
