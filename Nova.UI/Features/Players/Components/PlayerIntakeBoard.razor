@@ -281,7 +281,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 <div class="intake-field-row">
                     <div class="intake-field">
                         <label class="form-label" for="player-gender">Gender <span class="intake-optional">optional</span></label>
-                        <InputSelect id="player-gender" class="form-select" @bind-Value="Model.Gender">
+                        <InputSelect id="player-gender" class="@GenderSelectClass" @bind-Value="Model.Gender">
                             <option value="">Not specified</option>
                             @foreach (var option in GenderOptions)
                             {
@@ -289,6 +289,10 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                             }
                         </InputSelect>
                         <ValidationMessage For="() => Model.Gender" class="intake-field-error" />
+                        @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.Gender)))
+                        {
+                            <p class="intake-field-error">@message</p>
+                        }
                     </div>
                     <div class="intake-field">
                         <label class="form-label" for="player-jersey">Jersey number <span class="intake-optional">optional</span></label>

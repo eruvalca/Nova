@@ -184,6 +184,14 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         && RecoveryChecked;
 
     /// <summary>
+    /// Gets the gender select's class. The invalid state is carried here rather than as an
+    /// <c>aria-invalid</c> attribute because <see cref="InputSelect"/> drops unmatched attributes,
+    /// while the inputs that splat them carry the attribute directly.
+    /// </summary>
+    protected string GenderSelectClass
+        => FieldErrorsFor(nameof(PlayerFormState.Gender)).Count > 0 ? "form-select is-invalid" : "form-select";
+
+    /// <summary>
     /// Gets the id of the note that explains the field set's current refusal, or null when the fields
     /// accept input, so the frozen and withheld states stay named for assistive technology.
     /// </summary>

@@ -25,6 +25,9 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets whether writes fail the way an unavailable browser storage would.</summary>
     public bool FailWrites { get; set; }
 
+    /// <summary>Gets or sets a gate that holds every clear open, the way slow storage would.</summary>
+    public TaskCompletionSource? ClearGate { get; set; }
+
     /// <summary>Gets or sets whether clears report that no matching record was removed.</summary>
     public bool FailClears { get; set; }
 
@@ -131,20 +134,29 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         LastWriteJson = pending.ToJson();
     }
 
+    /// <summary>Gets the number of clear attempts, including ones a gate is still holding.</summary>
+    public int ClearAttempts { get; private set; }
+
     /// <inheritdoc />
-    public Task<bool> ClearAsync(long actorUserId, long clubId, Guid operationId, CancellationToken cancellationToken)
+    public async Task<bool> ClearAsync(long actorUserId, long clubId, Guid operationId, CancellationToken cancellationToken)
     {
+        ClearAttempts++;
+        if (ClearGate is { } clearGate)
+        {
+            await clearGate.Task;
+        }
+
         var key = OwnerKey(actorUserId, clubId);
         if (FailClears
             || !_pending.TryGetValue(key, out var existing)
             || existing.Payload.OperationId != operationId)
         {
-            return Task.FromResult(false);
+            return false;
         }
 
         _pending.Remove(key);
         ClearCount++;
-        return Task.FromResult(true);
+        return true;
     }
 
     /// <inheritdoc />

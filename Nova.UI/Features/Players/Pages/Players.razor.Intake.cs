@@ -38,13 +38,17 @@ public partial class Players
         }
 
         var version = ++_intakeContextVersion;
+        var identity = _identityVersion;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
         var result = await ReceiveDirectoryReadAsync(
             () => intakeContextService.GetPlayerIntakeContextAsync(new GetPlayerIntakeContextInput { ClubId = clubId }, token),
             "intake context",
             token);
-        if (version != _intakeContextVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (version != _intakeContextVersion || identity != _identityVersion
+            || ComponentCancellationToken.IsCancellationRequested)
         {
+            // The identity owns this consequence: a read that answered after a club or capability
+            // change must not state the previous club's campaign for the identity now on screen.
             return;
         }
 
@@ -211,6 +215,9 @@ public partial class Players
     /// <summary>Settles a committed operation from its immutable receipt, never from a later read.</summary>
     private async Task SettleCommittedAsync(PlayerCreationCompletion completion, CreatePlayerInput command)
     {
+        // Settlement continues across the release boundary, so it carries the ownership it started
+        // with: the caller has already proved this receipt belongs to the current identity.
+        var version = _identityVersion;
         _receipt = completion;
         _pendingCreate = null;
         _retainedPlayerName = null;
@@ -225,7 +232,16 @@ public partial class Players
 
         if (_board is not null)
         {
-            if (!await _board.ClearAsync(command.OperationId, _identitySource!.Token))
+            var released = await _board.ClearAsync(command.OperationId, _identitySource!.Token);
+            if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+            {
+                // The release crossed the boundary and this page has since been re-scoped, so the
+                // continuation must not close the guard, refresh the new owner's data or move focus
+                // into a form that no longer holds this receipt.
+                return;
+            }
+
+            if (!released)
             {
                 // The receipt settles this operation, so it is shown regardless; the unreleased
                 // bytes are reported instead of pretending the browser released what it did not.
@@ -246,7 +262,13 @@ public partial class Players
         if (PlayerCreationProblems.IsNotCommitted(problem, command.OperationId))
         {
             // Receipt-backed refusal: this operation provably did not create, so nothing is retained.
-            await ReleaseRetainedAsync(command.OperationId);
+            if (!await ReleaseRetainedAsync(command.OperationId))
+            {
+                // The release crossed a re-scope, so this refusal belongs to the identity that
+                // dispatched it; the new owner's page is not told about another club's outcome.
+                return;
+            }
+
             _mutationError = problem.Detail ?? "This addition was refused.";
             if (PlayerCreationProblems.TryGetDuplicate(problem, out var duplicate))
             {
@@ -279,19 +301,32 @@ public partial class Players
     }
 
     /// <summary>Removes the retained request only after the operation is settled or provably unexecuted.</summary>
-    private async Task ReleaseRetainedAsync(Guid operationId)
+    /// <returns><see langword="true"/> when this continuation still owns the page it started on.</returns>
+    private async Task<bool> ReleaseRetainedAsync(Guid operationId)
     {
-        // The release is attempted before the in-memory state is cleared, so a browser that refuses
-        // it is reported instead of leaving bytes that a later mount would show as unresolved
-        // again. The settlement itself stands: only a receipt-backed result reaches this method.
+        // The release is attempted before the settled state is cleared, so a browser that refuses it
+        // is reported instead of leaving bytes that a later mount would show as unresolved again.
+        var version = _identityVersion;
         var released = _board is null || await _board.ClearAsync(operationId, _identitySource!.Token);
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The clear crossed the boundary and this page has since been re-scoped: the outcome
+            // belongs to the identity that dispatched it, and the state now on screen is not ours.
+            return false;
+        }
+
+        if (!released)
+        {
+            // The operation stays blocked rather than released in name only: the browser still holds
+            // the exact request, so the member keeps the retry that can actually release it.
+            _storageUnavailable = true;
+            return true;
+        }
+
         _pendingCreate = null;
         _retainedPlayerName = null;
         _recoveryState = PlayerCreationRecoveryState.None;
-        if (!released)
-        {
-            _storageUnavailable = true;
-        }
+        return true;
     }
 
     /// <summary>

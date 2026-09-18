@@ -755,6 +755,124 @@ public sealed partial class PlayerComponentsTests
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
     }
 
+    /// <summary>A server field error keyed to Gender renders beside its own control.</summary>
+    [Fact]
+    public async Task PlayersRendersAGenderFieldErrorBesideItsControlAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                ServiceProblem.Validation(nameof(PlayerProfileInput.Gender), "Choose a listed gender."))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+
+        // Every other profiled field renders its server messages beside its control; Gender must too,
+        // or a server error keyed to it is omitted from the per-field feedback contract. The invalid
+        // state is carried by the class, because InputSelect drops unmatched aria-* attributes where
+        // the other inputs splat them.
+        await service.Received(1).CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Choose a listed gender."));
+        cut.Find("#player-gender").ParentElement!.TextContent.ShouldContain("Choose a listed gender.");
+        cut.Find("#player-gender").GetAttribute("class").ShouldNotBeNull().ShouldContain("is-invalid");
+    }
+
+    /// <summary>A refused operation whose bytes cannot be released stays blocked with the retry.</summary>
+    [Fact]
+    public async Task PlayersKeepsARefusedOperationBlockedWhenItsBytesCannotBeReleasedAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                PlayerCreationProblems.Duplicate(call.Arg<CreatePlayerInput>().OperationId, 21, LifecycleStatus.Active))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+
+        // The refusal stands, but the browser still holds the exact request: the board keeps the
+        // operation blocked and offers the retry instead of releasing it in name only.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("already exists"));
+        cut.FindAll("#intake-unresolved").Count.ShouldBe(1);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // A working boundary can still complete the release, so the blocked state is recoverable.
+        Interop.FailClears = false;
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(0));
+    }
+
+    /// <summary>A release that finished after a role refresh does not disturb the preserved work.</summary>
+    [Fact]
+    public async Task PlayersIgnoresAReleaseThatFinishedAfterTheIdentityRefreshedAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                PlayerCreationProblems.Duplicate(call.Arg<CreatePlayerInput>().OperationId, 21, LifecycleStatus.Active))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+        Interop.ClearGate = new TaskCompletionSource();
+
+        var submission = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => Interop.ClearAttempts.ShouldBe(1));
+
+        // A role-only refresh preserves this owner's retained addition, and the held read keeps the
+        // restored state observable instead of letting a later read land it again.
+        Interop.ReadGate = new TaskCompletionSource();
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        await cut.InvokeAsync(() => Interop.ClearGate.SetResult());
+        await submission;
+
+        // The stale continuation belongs to the identity that dispatched the command, so it must
+        // neither erase the preserved state nor report another club's refusal or storage trouble.
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.FindAll("#intake-duplicate").Count.ShouldBe(0);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+    }
+
+    /// <summary>A commit that released after a role refresh does not close the guard.</summary>
+    [Fact]
+    public async Task PlayersDoesNotCloseTheGuardWhenTheCommitSettlesAfterAnIdentityRefreshAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+        Interop.ClearGate = new TaskCompletionSource();
+
+        var submission = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Enrolled in Original campaign."));
+        await cut.WaitForAssertionAsync(() => Interop.ClearAttempts.ShouldBe(1));
+
+        Interop.ReadGate = new TaskCompletionSource();
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        await cut.InvokeAsync(() => Interop.ClearGate.SetResult());
+        await submission;
+
+        // Settlement continues across the release, so a refresh that lands mid-release must stop it:
+        // no storage claim and no receipt focus for a form that no longer holds this receipt.
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+    }
+
     private async Task FillAndSubmitAsync(IRenderedComponent<PlayersPage> cut)
     {
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
