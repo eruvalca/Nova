@@ -59,13 +59,20 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             await m.writePending(101, 42, json);
             const read = m.readRecovery(101, 42);
             const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            // One operation identity carries one exact command: a same-id write with different bytes is
+            // refused, and the retained bytes stay the ones the member's dispatch is accounted for by.
+            let refused = false;
+            try { await m.writePending(101, 42, json.replace('""firstName"":""Module""', '""firstName"":""Altered""')); }
+            catch { refused = true; }
+            const preserved = m.readRecovery(101, 42).json === json;
             const cleared = await m.clearPending(101, 42, payload.operationId);
             const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
             return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
-                m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked'].join('|');
+                m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked',
+                refused, preserved].join('|');
         }");
 
-        result.ShouldBe("readable|1|true|0|otherowner-empty");
+        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true");
     }
 
     /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>

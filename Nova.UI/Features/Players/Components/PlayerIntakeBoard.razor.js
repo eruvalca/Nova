@@ -88,6 +88,12 @@ export function writePending(actorUserId, clubId, json) {
             if (current.payload.operationId.toLowerCase() !== value.payload.operationId.toLowerCase()) {
                 throw new Error("Recover the existing player creation before starting another.");
             }
+            // One operation identity carries one exact command: a replay writes the retained bytes back, so
+            // different bytes under that identity are refused rather than allowed to replace the command the
+            // member's dispatch is accounted for by.
+            if (existing.json !== json) {
+                throw new Error("Recover the retained player creation before replacing its command.");
+            }
         }
 
         localStorage.setItem(ownerKey(actorUserId, clubId), json);

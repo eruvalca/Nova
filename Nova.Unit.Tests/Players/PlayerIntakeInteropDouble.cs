@@ -129,10 +129,20 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
             throw new JSException("Set aside the retained player creation before starting another.");
         }
 
-        if (_pending.TryGetValue(key, out var existing)
-            && existing.Payload.OperationId != pending.Payload.OperationId)
+        if (_pending.TryGetValue(key, out var existing))
         {
-            throw new JSException("Recover the existing player creation before starting another.");
+            if (existing.Payload.OperationId != pending.Payload.OperationId)
+            {
+                throw new JSException("Recover the existing player creation before starting another.");
+            }
+
+            // One operation identity carries one exact command: a replay writes the retained bytes back, so
+            // different bytes under that identity are refused rather than allowed to replace the command the
+            // dispatch is accounted for by, exactly as the module refuses them.
+            if (!string.Equals(existing.ToJson(), pending.ToJson(), StringComparison.Ordinal))
+            {
+                throw new JSException("Recover the retained player creation before replacing its command.");
+            }
         }
 
         _pending[key] = pending;
