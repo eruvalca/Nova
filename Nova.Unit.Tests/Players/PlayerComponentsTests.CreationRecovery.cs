@@ -438,6 +438,107 @@ public sealed partial class PlayerComponentsTests
         commands.Count.ShouldBe(1);
     }
 
+    /// <summary>A recovery read from an earlier visit cannot replace input a newer read enabled.</summary>
+    [Fact]
+    public async Task PlayersRejectsARecoveryReadThatLandsAfterTheBoardWasReEnteredAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Retained",
+            LastName = "Snapshot",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        var heldRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Interop.ReadGate = heldRead;
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // Entering the form starts a read the boundary holds open.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        // The member leaves and returns while that read is still open. The new visit's read answers, so the
+        // board offers its fields and the member types.
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        Interop.ReadGate = null;
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+
+        // The earlier read then answers with a retained command that appeared in storage since — the snapshot
+        // it carries belongs to the visit the member left, so it must not be published over their input.
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        await cut.InvokeAsync(() => heldRead.SetResult());
+
+        // Let the answer reach the page before judging what it did with it: the boundary's answer, then the two
+        // awaits it has to cross — the board's read, and the page's own continuation.
+        await cut.WaitForAssertionAsync(() => Interop.ReadCount.ShouldBe(2));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Taylor");
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>A removal that answers after the member left cannot rewrite the form they returned to.</summary>
+    [Fact]
+    public async Task PlayersKeepsInputTypedAfterASetAsideAnsweredOnAnotherVisitAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Retained",
+            LastName = "Snapshot",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // The browser removes the record but its answer stays in flight.
+        Interop.ClearResumeGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        var setAside = cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => Interop.Read(101, 42).ShouldBeNull());
+
+        // The member leaves and returns to a form with nothing retained, and types into it.
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+
+        // The answer then arrives. The set-aside stands — the bytes are gone — but the visit that typed is not
+        // the one that asked for it, so nothing it entered is rewritten and no report lands on it.
+        Interop.ClearResumeGate.SetResult();
+        await setAside;
+
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Taylor");
+        cut.Markup.ShouldNotContain("Retained addition set aside");
+    }
+
     /// <summary>Entry withholds input until the retained command has actually been checked.</summary>
     [Fact]
     public async Task PlayersWithholdsTheBoardUntilTheRetainedCommandIsCheckedAsync()

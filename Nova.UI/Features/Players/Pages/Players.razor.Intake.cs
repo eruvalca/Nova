@@ -37,6 +37,13 @@ public partial class Players
     /// <summary>The authenticated member's numeric identity, or zero before the claim is applied.</summary>
     private long OwnerUserId => long.TryParse(_userId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
 
+    /// <summary>
+    /// The recovery read that owns this visit. Every read takes the next generation, and only the newest one
+    /// may claim the board's readiness or publish its snapshot, so a read that answers after the member left
+    /// and re-entered the form cannot replace input the newer read has already enabled.
+    /// </summary>
+    private int _recoveryAttemptVersion;
+
     /// <summary>Reads the club's Active campaign so the board can state the enrollment consequence.</summary>
     private async Task LoadIntakeContextAsync()
     {
@@ -90,6 +97,8 @@ public partial class Players
         }
 
         var version = _identityVersion;
+        var route = _routeVersion;
+        var attempt = ++_recoveryAttemptVersion;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
         var read = await _board.ReadRecoveryAsync(token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
@@ -97,6 +106,15 @@ public partial class Players
             // This read proved nothing for the current identity, so release the scope claim rather
             // than leaving the board refusing input forever behind an unsettled read.
             _recoveryScope = null;
+            return;
+        }
+
+        if (attempt != _recoveryAttemptVersion || route != _routeVersion || !_showCreateForm)
+        {
+            // The member left and re-entered the form while this read was in flight, or a newer read for this
+            // visit superseded it, so what it carries belongs to a visit this one has left. Publishing it, or
+            // claiming the board's readiness for it, would let a stale storage snapshot replace input that
+            // the newer read has already enabled; the claim and the readiness belong to that newer read.
             return;
         }
 
@@ -433,6 +451,7 @@ public partial class Players
         }
 
         var version = _identityVersion;
+        var route = _routeVersion;
         var operationId = _pendingCreate?.OperationId;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
         var released = true;
@@ -450,25 +469,51 @@ public partial class Players
             return;
         }
 
+        await ApplySetAsideOutcomeAsync(released, route != _routeVersion || !_showCreateForm);
+    }
+
+    /// <summary>
+    /// Applies one answered set-aside. The removal is the member's decision and stands for whatever view is on
+    /// screen; only the visit that asked for it may rewrite the form, its messages or the departure guard.
+    /// </summary>
+    /// <param name="released">Whether the browser removed the retained record.</param>
+    /// <param name="leftTheForm">Whether the visit that asked for the removal has left the create form.</param>
+    /// <returns>A task that completes when the decision has been applied.</returns>
+    private async Task ApplySetAsideOutcomeAsync(bool released, bool leftTheForm)
+    {
         if (!released)
         {
-            // The member's decision is durable only once the bytes are gone. A browser that refused
-            // the removal still holds the exact request, so the board keeps showing it and offers
-            // the storage retry rather than reporting a set-aside that did not happen.
+            if (leftTheForm)
+            {
+                // The browser still holds the record and the visit that asked for its removal has left: the
+                // form now on screen owns its own report of that, and its input is none of this removal's
+                // business.
+                return;
+            }
+
+            // The member's decision is durable only once the bytes are gone. A browser that refused the
+            // removal still holds the exact request, so the board keeps showing it and offers the storage
+            // retry rather than reporting a set-aside that did not happen.
             _storageUnavailable = true;
             _mutationError = "This addition was not set aside because the browser kept the retained request. Retry storage.";
             return;
         }
 
+        // The bytes are gone, so nothing retained survives in memory either.
         _pendingCreate = null;
         _retainedPlayerName = null;
         _invalidRetainedValue = null;
         _recoveryState = PlayerCreationRecoveryState.None;
+        if (leftTheForm)
+        {
+            return;
+        }
+
         _mutationError = null;
         _fieldErrors = null;
         _createForm = PlayerFormState.CreateDefault();
-        _board.MarkCommittedOrClosed();
-        _board.RequestFocusOnFirstField();
+        _board?.MarkCommittedOrClosed();
+        _board?.RequestFocusOnFirstField();
         await ReconcileAfterSetAsideAsync();
     }
 

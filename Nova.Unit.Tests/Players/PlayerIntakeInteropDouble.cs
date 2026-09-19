@@ -31,6 +31,12 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets whether clears report that no matching record was removed.</summary>
     public bool FailClears { get; set; }
 
+    /// <summary>
+    /// Gets or sets a gate that holds the answer to a clear open after the record is already gone, the way a
+    /// busy circuit would deliver a removal that has already happened.
+    /// </summary>
+    public TaskCompletionSource? ClearResumeGate { get; set; }
+
     /// <summary>Gets or sets the number of departure-guard attach attempts that fail before one succeeds.</summary>
     public int FailGuardAttachAttempts { get; set; }
 
@@ -84,6 +90,9 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     public PendingPlayerCreation? Read(long actorUserId, long clubId)
         => _pending.TryGetValue(OwnerKey(actorUserId, clubId), out var pending) ? pending : null;
 
+    /// <summary>Gets the number of reads that returned an answer.</summary>
+    public int ReadCount { get; private set; }
+
     /// <inheritdoc />
     public async Task<PlayerCreationRecoveryRead> ReadAsync(long actorUserId, long clubId, CancellationToken cancellationToken)
     {
@@ -98,14 +107,20 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         }
 
         var key = OwnerKey(actorUserId, clubId);
+        PlayerCreationRecoveryRead read;
         if (_unreadable.TryGetValue(key, out var raw))
         {
-            return new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Unreadable, null, raw);
+            read = new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Unreadable, null, raw);
+        }
+        else
+        {
+            read = _pending.TryGetValue(key, out var pending)
+                ? new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Pending, pending, null)
+                : new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Empty, null, null);
         }
 
-        return _pending.TryGetValue(key, out var pending)
-            ? new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Pending, pending, null)
-            : new PlayerCreationRecoveryRead(PlayerCreationRecoveryKind.Empty, null, null);
+        ReadCount++;
+        return read;
     }
 
     /// <inheritdoc />
@@ -172,6 +187,11 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
 
         _pending.Remove(key);
         ClearCount++;
+        if (ClearResumeGate is { } resumeGate)
+        {
+            await resumeGate.Task;
+        }
+
         return true;
     }
 
