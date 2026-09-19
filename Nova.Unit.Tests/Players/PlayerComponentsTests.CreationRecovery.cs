@@ -311,6 +311,39 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
     }
 
+    /// <summary>A new operation does not inherit the previous refusal's duplicate panel.</summary>
+    [Fact]
+    public async Task PlayersStartsANewOperationWithoutThePreviousDuplicatePanelAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            return Task.FromResult(commands.Count == 1
+                ? new ServiceResult<PlayerCreationCompletion>(
+                    PlayerCreationProblems.Duplicate(input.OperationId, 21, LifecycleStatus.Active))
+                : new ServiceResult<PlayerCreationCompletion>(ServiceProblem.ServerError("Lost acknowledgement")));
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-duplicate").Count.ShouldBe(1));
+
+        // The corrected form starts a new operation, and that operation's outcome is its own: the earlier
+        // refusal's panel described input this attempt does not send, and while it stood it also withheld the
+        // replay this operation offers.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Corrected" });
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        cut.FindAll("#intake-duplicate").Count.ShouldBe(0);
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").TextContent
+            .ShouldContain("Replay the retained addition"));
+    }
+
     /// <summary>Closing a rejected form clears its duplicate feedback without retaining a settled operation.</summary>
     [Fact]
     public async Task PlayersClearsDuplicateWhenCancelledFormReopensAsync()

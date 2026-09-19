@@ -189,6 +189,10 @@ public partial class Players
         _fieldErrors = null;
         _receipt = null;
         _graduationYearBlockers = [];
+        // A submission publishes its own outcome: a previous refusal's duplicate panel describes an earlier
+        // operation, and the board withholds the replay while that panel stands, so neither may outlive the
+        // attempt it belonged to.
+        _creationDuplicate = null;
 
         // One logical creation keeps one identity: a retained command is replayed unchanged, and a
         // replacement identity is allocated only when nothing is retained. A replay is retained
@@ -595,10 +599,12 @@ public partial class Players
             return;
         }
 
-        // The bytes are gone, so nothing retained survives in memory either.
+        // The bytes are gone, so nothing retained survives in memory either, and the board is left holding no
+        // panel for an operation it no longer keeps.
         _pendingCreate = null;
         _retainedPlayerName = null;
         _invalidRetainedValue = null;
+        _creationDuplicate = null;
         _recoveryState = PlayerCreationRecoveryState.None;
         if (leftTheForm)
         {
