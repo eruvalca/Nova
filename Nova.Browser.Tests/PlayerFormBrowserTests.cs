@@ -70,12 +70,29 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             const preserved = m.readRecovery(101, 42).json === json;
             const cleared = await m.clearPending(101, 42, payload.operationId);
             const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            // An in-board anchor is a departure like any other while the board is dirty: the guard asks
+            // instead of letting the link navigate with the member's typing.
+            const guardRoot = document.createElement('div');
+            const inside = document.createElement('a');
+            inside.href = '/players?view=archived';
+            inside.textContent = 'Review players';
+            guardRoot.append(inside);
+            document.body.append(guardRoot);
+            const asked = [];
+            await m.attachDepartureGuard(guardRoot, {
+                invokeMethodAsync: (name, lease, url) => { asked.push(name + ' ' + url); return Promise.resolve(); }
+            }, 'probe-lease');
+            m.markDirty('probe-lease', true);
+            const attempt = new MouseEvent('click', { bubbles: true, cancelable: true });
+            inside.dispatchEvent(attempt);
+            m.detachDepartureGuard('probe-lease');
+            guardRoot.remove();
             return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
                 m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked',
-                refused, preserved, direct].join('|');
+                refused, preserved, direct, asked.length, asked[0] ?? '', attempt.defaultPrevented].join('|');
         }");
 
-        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true");
+        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true|1|OnBoardDepartureAttemptAsync /players?view=archived|true");
     }
 
     /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>
@@ -238,6 +255,14 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
         await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
         await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Cancel is a departure like any other: it asks about the same typed value rather than discarding it,
+        // and keeping editing leaves the member where they were with their value intact.
+        await page.Locator("#intake-cancel").ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
 
         await InteractionHelpers.ClickUntilAsync(page, departure, () => page.Locator("#intake-departure").IsVisibleAsync());
         await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();

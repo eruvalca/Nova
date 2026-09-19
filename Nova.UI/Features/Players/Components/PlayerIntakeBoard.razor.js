@@ -168,10 +168,10 @@ export function attachDepartureGuard(root, receiver, lease) {
             || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         if (!anchor || anchor.hasAttribute("download") || (anchor.target && anchor.target !== "_self")) return;
-        // The board's own controls are intentional, board-mediated transitions: Cancel returns to the
-        // directory, and the duplicate/receipt actions are the resolutions the board offers. Only a
-        // departure outside the board abandons input the member did not choose to leave.
-        if (state.root.contains(anchor)) return;
+        // Every same-origin link a dirty board holds departs from it, the board's own included: the links the
+        // board offers as resolutions navigate away like any other, so the prompt is what tells the member
+        // their typing goes with them. A board with nothing to lose is not dirty at all, so its receipt and
+        // frozen links never reach this listener with a prompt to give.
         const target = new URL(anchor.href, location.href);
         if (target.origin !== location.origin || !/^https?:$/.test(target.protocol)) return;
         // Same-destination clicks never discard input.

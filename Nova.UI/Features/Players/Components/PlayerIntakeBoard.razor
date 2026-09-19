@@ -373,7 +373,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                     }
                     @CommitLabel
                 </button>
-                <button type="button" class="btn btn-outline-secondary" id="intake-cancel" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" id="intake-cancel" disabled="@IsSubmitting" @onclick="CancelFormAsync">Cancel</button>
             </div>
         </EditForm>
     }

@@ -365,12 +365,19 @@ public sealed partial class PlayerComponentsTests
         cut.Markup.ShouldContain("View existing player");
 
         await cut.Find("#intake-cancel").ClickAsync(new());
+
+        // Cancel with typed input asks first, and the confirmed departure is the deliberate close this case is
+        // about: the refusal's feedback goes with the input it described.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        await cut.Find("#intake-departure button.btn-warning").ClickAsync(new());
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
 
         cut.Markup.ShouldNotContain("View existing player");
         cut.FindComponent<PlayerIntakeBoard>().Instance.Duplicate.ShouldBeNull();
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
         await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Another" });
+        await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
         await cut.Find("#intake-submit").ClickAsync(new());
         commands.Count.ShouldBe(2);
         commands[1].OperationId.ShouldNotBe(commands[0].OperationId);
@@ -1743,6 +1750,54 @@ public sealed partial class PlayerComponentsTests
         await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
         await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
         cut.Find("#player-first-name").GetAttribute("value").ShouldBeNullOrEmpty();
+    }
+
+    /// <summary>Cancel asks before it discards what the member typed.</summary>
+    [Fact]
+    public async Task PlayersAsksBeforeCancelDiscardsTypedInputAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Guardian" });
+
+        await cut.Find("#intake-cancel").ClickAsync(new());
+
+        // Cancel is a departure like any other: the typed value is not the click's to lose, so the panel the
+        // guard opens asks first and the member stays on the form while they decide.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players/new");
+
+        await cut.Find("#intake-departure button.btn-outline-secondary").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(0));
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBe("Guardian");
+
+        // Only the confirmed departure discards it, and it leaves nothing for a later visit to resurrect.
+        await cut.Find("#intake-cancel").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        await cut.Find("#intake-departure button.btn-warning").ClickAsync(new());
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#player-first-name").GetAttribute("value").ShouldBeNullOrEmpty();
+    }
+
+    /// <summary>Cancel with nothing typed leaves at once, because it can lose nothing.</summary>
+    [Fact]
+    public async Task PlayersCancelsImmediatelyWhenNothingWasTypedAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+
+        await cut.Find("#intake-cancel").ClickAsync(new());
+
+        cut.FindAll("#intake-departure").Count.ShouldBe(0);
+        await cut.WaitForAssertionAsync(() =>
+            Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players"));
     }
 
     /// <summary>Both confirmations move focus into the panel they open.</summary>

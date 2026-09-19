@@ -157,7 +157,8 @@ public sealed partial class PlayerFormBrowserTests
         await OpenCreationFormAsync(page);
         await Expect(page.Locator("#intake-view-existing")).ToHaveCountAsync(0);
         await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
-        await page.Locator("#player-first-name").FillAsync("Corrected");
+        // The confirmed discard took the refused input with it, so the correction is entered afresh.
+        await FillCreationFormAsync(page, "Corrected");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
         await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         await InteractionHelpers.NavigateEnhancedAsync(page,
@@ -192,6 +193,9 @@ public sealed partial class PlayerFormBrowserTests
         await Expect(duplicateLink).ToContainTextAsync("View existing player");
         (await duplicateLink.GetAttributeAsync("href")).ShouldNotBeNullOrWhiteSpace();
         await duplicateLink.ClickAsync();
+        // The detail link departs from a board that holds the refused input, so the guard asks first.
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Original Recovery", Exact = true })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
@@ -217,6 +221,12 @@ public sealed partial class PlayerFormBrowserTests
     private static async Task CancelCreationFormAsync(IPage page)
     {
         await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+        // A board holding typed input asks before it discards, so the deliberate close confirms the warning.
+        if (await page.Locator("#intake-departure").IsVisibleAsync())
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
+        }
+
         // The open helper's initial visibility probe must not accept the form being closed.
         await Expect(page.Locator("#player-first-name")).ToHaveCountAsync(0);
     }

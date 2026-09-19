@@ -550,6 +550,28 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     }
 
     /// <summary>
+    /// Leaves the form. A board whose member has typed something makes this a departure like any other, so the
+    /// member decides about their typing in the panel the guard opens rather than losing it to one click; a
+    /// board with nothing typed leaves immediately, because cancelling it can lose nothing.
+    /// </summary>
+    /// <returns>A task that completes when the departure has been requested.</returns>
+    private async Task CancelFormAsync()
+    {
+        if (!_dirty || DirectoryUrl is not { } directoryUrl)
+        {
+            await OnCancel.InvokeAsync();
+            return;
+        }
+
+        _departurePending = true;
+        _departureUrl = directoryUrl.ToString();
+        // The panel is the destination now, for the same reason the guard's own attempt focuses it: a
+        // keyboard or screen-reader member must land in the question rather than on the control they pressed.
+        _focusRequest = "#intake-departure-heading";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
     /// Records that the member attempted to leave with uncommitted input and opens the departure
     /// confirmation. A board that holds nothing that could be lost departs instead, because the
     /// module has already cancelled the click this attempt represents.
