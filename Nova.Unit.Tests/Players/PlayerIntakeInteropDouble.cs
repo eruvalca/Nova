@@ -235,6 +235,13 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <inheritdoc />
     public Task MarkDirtyAsync(string lease, bool dirty, CancellationToken cancellationToken)
     {
+        // The module lets only the mounted board's own lease write its dirty state, so a late update from a
+        // superseded mounting is ignored rather than overwriting the guard the board on screen owns.
+        if (!GuardAttached || !string.Equals(GuardLease, lease, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
         Dirty = dirty;
         return Task.CompletedTask;
     }

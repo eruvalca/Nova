@@ -1,4 +1,5 @@
-﻿using Microsoft.JSInterop;
+﻿using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Nova.SharedKernel.Features.Players;
 using Nova.UI.Features.Players.Services;
 using Shouldly;
@@ -47,5 +48,27 @@ public sealed class PlayerIntakeInteropDoubleTests
         var read = await interop.ReadAsync(101, 42, cancellationToken);
         read.Kind.ShouldBe(PlayerCreationRecoveryKind.Pending);
         read.Pending!.Payload.FirstName.ShouldBe("Taylor");
+    }
+
+    /// <summary>A dirty update from a mounting the guard has left is ignored, exactly as the module ignores it.</summary>
+    [Fact]
+    public async Task MarkDirtyAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var interop = new PlayerIntakeInteropDouble();
+        await interop.AttachDepartureGuardAsync(new ElementReference(), new object(), "current-lease", cancellationToken);
+        interop.GuardAttached.ShouldBeTrue();
+
+        await interop.MarkDirtyAsync("current-lease", true, cancellationToken);
+        interop.Dirty.ShouldBeTrue();
+
+        // A completion from a superseded mounting cannot speak for the guard the board on screen owns.
+        await interop.MarkDirtyAsync("stale-lease", false, cancellationToken);
+        interop.Dirty.ShouldBeTrue();
+
+        // A detached guard owns nothing either, which is the module's null active guard.
+        await interop.DetachDepartureGuardAsync("current-lease", cancellationToken);
+        await interop.MarkDirtyAsync("current-lease", false, cancellationToken);
+        interop.Dirty.ShouldBeTrue();
     }
 }
