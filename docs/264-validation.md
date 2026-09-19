@@ -1243,6 +1243,31 @@ Tested revision: `3a2a7a11` (the record's own commit follows it).
 | Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
 | Integration and browser | **N/A for this push, on the applicability rule**: the change is the unit suite's in-memory boundary and its contract test, so no application input, browser-suite input, dependency, build/runtime configuration, discovery, or generated asset changed. The before-merge rows stand on the code revision `3b209ef0` — integration **678/678** on that revision, and the browser row as *Limitations* records it — and this push changes neither of their inputs. |
 
+## GitHub Copilot code review, twenty-ninth pass (PR #285, on `43ea3d06`, fixed in `2773c955`)
+
+Copilot's review body carries three findings, raised as *previously missed* (no inline threads, so none to
+resolve). Two are behavior, one is a test name.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | When a duplicate is definitively refused but the release fails, the parent leaves `RecoveryState=Unresolved`, `Duplicate` non-null and `StorageUnavailable=true`, and the storage panel then says the addition "could not be checked" and that an earlier addition cannot be found — even though the server already proved the refusal and only browser cleanup is outstanding (`PlayerIntakeBoard.razor:210`) | **Fixed.** The panel has a third branch for that state: the refused addition's request was not released, the refusal above stands and the player it matched is untouched, the retained request can come back as unresolved, and setting the refused addition aside releases it. The controlled test now asserts that copy and that the "could not be checked" text is absent. |
+| 2 | Server field errors are only copied into `FieldErrors` and rendered; they are never cleared when a field changes, so a correction leaves the old message and `is-invalid` until another valid submit, and a locally invalid correction cannot reach that callback (`PlayerIntakeBoard.razor.cs:125`) | **Fixed with the pruning the finding asks for, kept in the board's own channel rather than moved into a `ValidationMessageStore`.** The board adopts each `FieldErrors` answer into a pruned mirror and drops the edited field's messages on `OnFieldChanged` (the same event the framework uses), so the message, the class and the description go with the correction, and the mirror feeds the summary, the per-field regions and `FieldHasError` alike. A store was considered and declined: `EditForm`'s submit runs `Validate()`, which clears the store and recomputes the model's own messages, so server messages placed there would be wiped on every resubmit and re-added from the parameter anyway — the mirror has one owner and no second lifecycle. The create-path case pins it (`PlayersDropsAServerFieldMessageWhenItsFieldIsCorrectedAsync`); the edit path shares the same board and event. |
+| 3 | `DoesNotReturnAnotherClubsActiveCampaignAsync` arranges a club whose campaigns are all non-Active and never requests another club, so its name claims isolation that the theory below covers; rename it for the no-active-campaign case or change the arrangement (`PlayerIntakeContextServiceTests.cs:73`) | **Renamed to what it asserts** — `DoesNotSubstituteAnotherClubsCampaignForAClubWithoutOneAsync` — because the arrangement is exactly that: the club has no active campaign while another club does, and the context reports none of the other's. The isolation case stays where it is covered. |
+
+### Confirming evidence (Copilot twenty-ninth pass)
+
+Tested revision: `2773c955` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. Two analyzer errors were hit and fixed on the way: `MA0016` (the mirror was first exposed as a concrete `Dictionary`, now a private field behind an `IReadOnlyDictionary` property) and `MA0002` (the new test asserted through `ClassList.ShouldContain`, which wants a comparer; it now reads the class attribute as text, as the neighbouring cases do). |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3868 total, 3868 passed, 0 failed, 0 skipped** (3867 before; the pruning case is the delta). |
+| Negative check | The pruning removed from `OnFieldChanged` and the panel's refusal branch removed, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3866 passed** — exactly `PlayersDropsAServerFieldMessageWhenItsFieldIsCorrectedAsync` (the message persisted) and `PlayersKeepsARefusedOperationBlockedWhenItsBytesCannotBeReleasedAsync` (the panel still claimed the check failed). Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**: the failure is `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, the tracked count-derived journey from #286, and everything this pass touched passed, including the journeys that submit, correct fields after a refusal and read the storage panel. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and this pass's own selection shows the same tracked journey failing. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
