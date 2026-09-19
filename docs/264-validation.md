@@ -943,6 +943,60 @@ Tested revision: `84c9cf71`.
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the tracked load-sensitive journeys passing in this run. |
 | Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, the journey this record has tracked as load-sensitive since the eleventh pass, on the same signature; it had passed the affected selection minutes earlier and passes in isolation on these revisions, and the issue it is now tracked under is filed (#286). The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — satisfying the before-merge row for the final inputs on `84c9cf71` (the ten skips are the pre-existing env-gated captures). |
 
+## GitHub Copilot code review, twenty-first pass (PR #285, on `8b799923`, fixed in `8d708f6b`)
+
+Copilot raised one inline finding: the Web Lock protects only `writePending`, so it is released before the
+page dispatches, and another same-owner tab can read the record and clear it before the first tab reaches
+`CreateAsync`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The write lock is released before dispatch, so another same-owner tab can clear the retained record while the first tab is dispatching, "leaving a lost acknowledgement with no recoverable operation"; the finding asks to hold an owner/operation reservation through dispatch, or to make cleanup reject an in-flight reservation (`PlayerIntakeBoard.razor.js:99`, **inline thread**) | **The reachable misreport is fixed; the reservation is answered with the decision and its reasons rather than implemented.** `ReleasedOrAlreadyGoneAsync` resolves a release that found nothing by reading storage, so a record another tab already removed is reported as gone instead of as bytes the browser kept. Both halves of that judgement are set out below, and the interleaving is recorded in *Limitations*. |
+
+**What the interleaving produces, and what was fixed.** A tab can only clear the record deliberately:
+`clearPending` is reached by a settlement in that tab (a receipt or a receipt-backed refusal) or by the
+member's own **set aside**, an acknowledged action whose copy already says the earlier result stays unknown.
+The dispatching tab keeps its own evidence in every outcome — a receipt, a receipt-backed refusal, per-field
+validation, or an unresolved result whose replay re-retains before it dispatches — so the acknowledgement is
+not lost while that tab lives. What *was* wrong is what the settling tab then reported: a clear that found
+nothing to remove (because the other tab had already taken it) was treated as "the browser is holding the
+record", so the member got a storage-failure claim and a **retry that can never succeed**. That is reachable
+with no race at all — two tabs replaying the same retained command each call the release, and the second
+finds nothing — so it is fixed as a reporting defect in this PR's own class ("never claim what did not
+happen"): a read that answers "nothing is retained" is treated as gone, because the operation is settled and
+the refusal is proven, while a read that answers the record — or that refuses — keeps today's honest report
+and its retry. `PlayersShowsTheReceiptWhenTheRetainedRecordWasAlreadyGoneAsync` and
+`PlayersReportsARefusalWhoseRecordWasAlreadyGoneAsync` pin both consumers.
+
+**Why the reservation is not implemented.** Holding a Web Lock across the HTTP round-trip is unavailable
+here: the dispatch happens in C#, and a lock held across interop calls would block the *same* tab's own later
+writes (a second `locks.request` for the same name waits), so the app could not settle the operation it is
+protecting. A stored reservation is implementable, but it needs a richer boundary outcome (removed / absent /
+in-flight) so that a refused discard is not reported as "the browser kept it" — the same misreport fixed
+above — and it would refuse the member's deliberate discard for the length of the window, including when the
+reserving tab has already died, which is exactly the case that discard exists for. Against that, the
+untoward outcome it prevents is bounded: the member's explicit discard happens; the server keeps its
+receipt; a later dispatch of the same bytes is refused as a duplicate naming the existing player; and the
+directory refresh shows it. With the byte-exact write identity the previous round hardened, this record's
+judgement is that the honest report is the right in-scope fix, and the reservation belongs in a tracked
+follow-up rather than in a merge-ready boundary.
+
+### Confirming evidence (Copilot twenty-first pass)
+
+Tested revision: `8d708f6b`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3854 total, 3854 passed, 0 failed, 0 skipped** (3852 before; the two new cases are the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check | With the new resolution removed but the ownership guard kept (a scoped revert, because an unrestricted one hangs the pre-existing identity-refresh cases — see below) — the revert **build re-verified as successful (0 warnings, 0 errors) before the run** — **both new cases fail** (**2 failed, 0 passed**). Restored, rebuilt and re-run green before the suites below. |
+| Hang incident, recorded because it cost real time and would again | The first version ran the follow-up read even when the continuation had already lost its page. The identity-refresh cases deliberately hold the replacement page's read gate, so `PlayersIgnoresAReleaseThatFinishedAfterTheIdentityRefreshedAsync` and `PlayersDoesNotCloseTheGuardWhenTheCommitSettlesAfterAnIdentityRefreshAsync` awaited a gate nothing releases, and this runner has no per-test timeout: two full-suite runs and a class-level run **hung** instead of failing. The fix is the ownership rule this PR already applies everywhere else — a stale continuation does not spend another boundary call — and the identity-refresh case now also asserts that its read count is unchanged, so the rule is pinned by an assertion rather than by a hang. A leftover test host from a stopped run then locked `Nova.UI.dll` (`MSB3027`, "being used by another process") and had to be stopped by PID before the rebuild could succeed. |
+| Stale-assembly trap, recorded | The first attempt at the negative check removed the resolution outright, leaving `RetainedRecordIsGoneAsync` unused: the build failed on `S1144` while the `--no-build` run reported **2 passed** against the previous, fixed assembly. This is the trap the record names from the tenth, thirteenth, fourteenth and sixteenth passes; the build line was read before the result was used, the revert was rewritten in an analyzer-clean form, and only that run is cited as evidence. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the tracked load-sensitive journeys passing in this run. |
+| Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — again `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, the tracked load-sensitive journey (now filed as #286), which passed the affected selection minutes earlier and passes in isolation on these revisions. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — satisfying the before-merge row for the final inputs on `8d708f6b` (the ten skips are the pre-existing env-gated captures). |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1154,6 +1208,15 @@ evidence above is unchanged by it.
   first full run on `d5e370c5` failed only the tracked directory journey and its retry was clean, and
   `4d72bcbd`'s first full run was clean — **230 total, 220 passed, 0 failed, 10 skipped** — with the affected
   selection also clean on both revisions.
+- **A same-owner tab's deliberate discard can still race a dispatch in another tab, and that interleaving is
+  recorded as a follow-up rather than papered over.** The write boundary cannot hold its Web Lock across the
+  C# dispatch (a lock held across interop calls would block the same tab's own later writes), and a stored
+  reservation would refuse the member's deliberate set-aside for the length of its window — including when
+  the reserving tab has already died, which is exactly the case the discard exists for. What the discard can
+  no longer produce is a misreport: a release that finds nothing is now reported as gone (`8d708f6b`,
+  twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
+  pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
+  an expiry; the trade-off is stated in that pass's section for a human to weigh.
 
 ## Design evidence
 
