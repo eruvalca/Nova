@@ -393,7 +393,13 @@ public partial class Players(
         _appliedRoutePath = path;
         _appliedRouteOwner = CurrentOwner;
         _editForm = null;
-        _receipt = null;
+        // A settled receipt whose exact request the browser has not released survives the boundary: it is the only
+        // evidence of an operation whose record may be gone before the member can replay it, and the create form's
+        // own release retry is where it stays visible. Once the release succeeds, a later boundary drops it.
+        if (_unreleasedOperationId is null)
+        {
+            _receipt = null;
+        }
         _fieldErrors = null;
         _creationDuplicate = null;
         _graduationYearBlockers = [];

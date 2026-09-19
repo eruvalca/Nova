@@ -1241,6 +1241,55 @@ public sealed partial class PlayerComponentsTests
         PlayersPage.RetainedSetAsideStatus(refusedDuplicate: false).ShouldContain("stays unknown");
     }
 
+    /// <summary>A settled receipt heads its panel even while the board still holds the retained command.</summary>
+    [Fact]
+    public void PlayerIntakeBoardHeadsASettledReceiptOverItsFrozenState()
+    {
+        var completion = CreationCompletion(new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = Render<PlayerIntakeBoard>(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.Receipt, completion)
+            .Add(c => c.RecoveryState, PlayerCreationRecoveryState.Unresolved));
+
+        // The receipt panel is what renders, so the heading must not describe a frozen board whose fields, and
+        // whose note about them, are not on screen.
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+        cut.FindAll("#intake-add-another").Count.ShouldBe(1);
+        cut.Markup.ShouldNotContain("fields below are frozen");
+    }
+
+    /// <summary>A frozen board without a receipt still names why its fields are frozen.</summary>
+    [Fact]
+    public void PlayerIntakeBoardNamesTheFrozenStateWithoutAReceipt()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = Render<PlayerIntakeBoard>(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.RecoveryState, PlayerCreationRecoveryState.Unresolved));
+
+        cut.FindAll("#intake-recovery-heading").Count.ShouldBe(1);
+        cut.Markup.ShouldContain("fields below are frozen");
+    }
+
     /// <summary>Renders the board in the state its set-aside decision is made in.</summary>
     /// <param name="refusedDuplicate">Whether a receipt-backed refusal is the outcome it published.</param>
     /// <returns>The rendered board.</returns>
@@ -1574,6 +1623,43 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
         Interop.Read(101, 42).ShouldBeNull();
         cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+    }
+
+    /// <summary>A receipt whose request is still unreleased survives the visit that produced it.</summary>
+    [Fact]
+    public async Task PlayersKeepsTheUnreleasedReceiptAcrossAVisitAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        Interop.Read(101, 42).ShouldNotBeNull();
+
+        // The member leaves and comes back before the browser released the request, and the recovery read is
+        // unavailable on the return: the receipt is the only evidence of the committed operation, so it comes
+        // back with the retry that releases it rather than being dropped with the visit.
+        Interop.FailReads = true;
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+
+        var board = cut.FindComponent<PlayerIntakeBoard>().Instance;
+        board.Receipt.ShouldNotBeNull();
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        cut.Markup.ShouldContain("Enrolled in Original campaign.");
+        // Releasing it succeeds now, and the receipt stays where the operation's evidence belongs.
+        Interop.FailClears = false;
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+        Interop.Read(101, 42).ShouldBeNull();
     }
 
     /// <summary>A release retry whose record another same-owner tab already removed reports the release.</summary>

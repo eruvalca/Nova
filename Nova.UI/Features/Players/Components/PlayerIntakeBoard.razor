@@ -10,7 +10,14 @@ FORM: One bounded board; server field errors sit under their control, blockers a
 *@
 
 <section class="intake-board" @ref="_root" data-intake-board="@Heading">
-    @if (RecoveryState == PlayerCreationRecoveryState.Unreadable)
+    @* The receipt is the strongest statement about this operation, and the panel below already takes
+       precedence over the recovery cards: a board showing a settled receipt must not describe itself as
+       frozen or blocked, whose notes would speak about fields it is not rendering. *@
+    @if (ShowsReceipt)
+    {
+        <h2 class="intake-heading" id="intake-receipt-heading">Player added</h2>
+    }
+    else if (RecoveryState == PlayerCreationRecoveryState.Unreadable)
     {
         <h2 class="intake-heading" id="intake-recovery-heading">@Heading</h2>
         <p class="intake-blocked-note" id="intake-recovery-note">
@@ -26,10 +33,6 @@ FORM: One bounded board; server field errors sit under their control, blockers a
             sent. A retained addition is never discarded for you, and it never proves the earlier
             attempt failed.
         </p>
-    }
-    else if (ShowsReceipt)
-    {
-        <h2 class="intake-heading" id="intake-receipt-heading">Player added</h2>
     }
     else
     {

@@ -250,7 +250,14 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     public Task DetachDepartureGuardAsync(string lease, CancellationToken cancellationToken)
     {
         GuardDetachCount++;
-        GuardAttached = false;
+        // The module detaches only the guard that owns the lease, so a stale mounting's teardown cannot take a
+        // newer mount's guard with it.
+        if (GuardAttached && string.Equals(GuardLease, lease, StringComparison.Ordinal))
+        {
+            GuardAttached = false;
+            GuardLease = null;
+        }
+
         return Task.CompletedTask;
     }
 

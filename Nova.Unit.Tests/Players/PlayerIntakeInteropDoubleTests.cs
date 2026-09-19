@@ -71,4 +71,25 @@ public sealed class PlayerIntakeInteropDoubleTests
         await interop.MarkDirtyAsync("current-lease", false, cancellationToken);
         interop.Dirty.ShouldBeTrue();
     }
+
+    /// <summary>A teardown from a mounting the guard has left does not take the newer mount's guard.</summary>
+    [Fact]
+    public async Task DetachDepartureGuardAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var interop = new PlayerIntakeInteropDouble();
+        await interop.AttachDepartureGuardAsync(new ElementReference(), new object(), "stale-lease", cancellationToken);
+        await interop.AttachDepartureGuardAsync(new ElementReference(), new object(), "current-lease", cancellationToken);
+
+        await interop.DetachDepartureGuardAsync("stale-lease", cancellationToken);
+
+        // The newer mount still owns the guard, so its dirty state is still the one the boundary writes.
+        interop.GuardAttached.ShouldBeTrue();
+        interop.GuardLease.ShouldBe("current-lease");
+        await interop.MarkDirtyAsync("current-lease", true, cancellationToken);
+        interop.Dirty.ShouldBeTrue();
+
+        await interop.DetachDepartureGuardAsync("current-lease", cancellationToken);
+        interop.GuardAttached.ShouldBeFalse();
+    }
 }
