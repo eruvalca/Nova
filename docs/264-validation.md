@@ -804,6 +804,31 @@ documentation-only edit that recorded this evidence changed no application or br
 | Affected browser selection | `--filter-method "*DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync"` — **1 total, 1 passed** in isolation on this revision, which is the journey the change can reach and the one that failed inside the first two full runs. |
 | Full browser suite | Three runs on this revision. The first reported **229 total, 217 passed, 2 failed, 10 skipped** and the second **229 total, 218 passed, 1 failed, 10 skipped**; in both, `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — the journey this record has tracked as load-sensitive since the eleventh pass — failed on absent paging text (`element(s) not found 'Page 2 of 4'` in `.players-paging`), the same class of failure the thirteenth and fourteenth passes recorded (there, reading `Page 1 of 4`). The third run was clean: **229 total, 219 passed, 0 failed, 10 skipped**, satisfying the before-merge row for the final inputs. The failing journey exercises the directory's draft/paging return path, not the field markup, the caller scope or the route-changed settlement this pass changed, it passed in isolation on this revision, and it has failed and passed on unchanged revisions before — so the evidence does not attribute it to this change. |
 
+## GitHub Copilot code review, sixteenth pass (PR #285, on `268fbdcf`, fixed in `ba07ea6b`)
+
+Copilot raised one inline finding against the validation-state handler this record added in the previous
+pass; it is addressed in `ba07ea6b`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The handler only re-renders after validation, so a refusal leaves focus on the submit control instead of moving to the first field that needs correction; the surface contract requires focus to the first error after validation, for the validation store and for the server's `FieldErrors` alike (`PlayerIntakeBoard.razor.cs:586`, **inline thread**) | **Fixed as prescribed.** `MoveFocusToFeedback` requests focus on the first control marked invalid, and it runs from both places feedback can arrive: the validation-state handler for the edit context's own messages, and `OnParametersSet` for the messages the server keyed to a field, which arrive as parameters. It moves focus **once per refusal** rather than on every state change, because a correction that clears one message while another field still needs attention is the same refusal — following it would pull focus away from the field the member is working in. The module's `focusRegion` now adds `tabindex="-1"` only when its target cannot already take focus, so a control keeps its place in the tab order while a heading behaves exactly as before. The contract this follows is the surface brief's own (`player-intake.md`: "focus moves to the first error, the review heading, or the finish heading after transitions"). |
+
+### Confirming evidence (Copilot sixteenth pass)
+
+Tested revision: `ba07ea6b` — the focus contract, pushed as the next commit on the branch. The
+documentation-only edit that recorded this evidence changed no application or browser-suite input.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**, after one fix the new code needed: the static field required the repository's `_` prefix for private fields (`IDE1006`). |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3847 total, 3847 passed, 0 failed, 0 skipped** (3846 before; the anti-chase case is the delta, and two existing cases gained their focus assertion). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check (unit) | With `PlayerIntakeBoard.razor.cs` restored to its `268fbdcf` content — the revert **build re-verified as successful (0 warnings, 0 errors) before the run**, the trap this record names — **three cases fail**: both focus assertions and the anti-chase case (**3 failed, 3844 passed**). |
+| Negative check (browser) | With `PlayerIntakeBoard.razor.js` reverted on that same verified build, `IntakeBoardFocusMovesToTheFieldNeedingCorrectionAsync` fails on the tab-order half (**1 failed, 1 passed, 1 skipped**), which pins the module change itself rather than the board's request. Both files were restored, rebuilt and re-run green before the suites below. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**; the selection grew by the new focus case, and the failure is `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. That journey passed again in isolation on this revision (**1 total, 1 passed**). |
+| Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — again `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. Attribution is checked rather than assumed: that journey **exists on `origin/main`** and this branch's diff does not touch the directory's paging or draft-return path (`git diff origin/main...HEAD -- Nova.UI/Features/Players/Pages/Players.razor` has no paging lines), it passes in isolation on this revision, and this record already carries the same journey failing on `135826d1` and `21e5b6ba`, before any of this pass's changes. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — satisfying the before-merge row for the final inputs (the 230 includes this pass's new browser case; the ten skips are the pre-existing env-gated captures). |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1000,7 +1025,9 @@ evidence above is unchanged by it.
   message with `aria-describedby`, so the semantic invalid state for that case rides on the described
   message rather than on an attribute the component will not render; the `EditContext`'s own refusals are
   announced by the framework itself. Re-adding `aria-invalid` markup to these controls would be dead code
-  that reads as coverage.
+  that reads as coverage. That class is also the single source of truth the focus contract uses: the board
+  moves focus to the first field it marks invalid after a refusal, so the field that is announced, marked
+  and focused is decided in one place (`FieldHasError`).
 
 ## Design evidence
 
