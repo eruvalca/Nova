@@ -1268,6 +1268,31 @@ Tested revision: `2773c955` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**: the failure is `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again, the tracked count-derived journey from #286, and everything this pass touched passed, including the journeys that submit, correct fields after a refusal and read the storage panel. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and this pass's own selection shows the same tracked journey failing. |
 
+## GitHub Copilot code review, thirtieth pass (PR #285, on `33a8ecd5`, fixed in `906813e5`)
+
+Copilot's review body carries two findings, raised as *previously missed* (no inline threads, so none to
+resolve).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | When receipt settlement cannot release browser storage, the completion exists only in memory; if the member leaves and re-enters while the recovery read is unavailable, the route reset drops `_receipt` but keeps `_unreleasedOperationId`/`_storageUnavailable`, and a successful retry then removes the retained command without any completion left to show — preserve the receipt or suppress that retry (`Players.razor:76`) | **Fixed by preserving it.** The route boundary now keeps a settled receipt while its exact request is unreleased, and drops it once the release succeeds; a member who returns sees the receipt with the enrollment text and the release retry, and releasing it keeps the receipt on screen. Fixing it exposed a second defect worth recording: with the receipt preserved, the board's *heading* chain preferred the frozen branch, so the panel rendered under a "fields below are frozen" heading and note whose fields are not on screen — the receipt now takes precedence there too, matching the body panel's own order. Three cases pin this: the page-level round trip with the read unavailable, the heading precedence with a receipt, and the control that a frozen board without one still names why its fields are frozen. |
+| 2 | The in-memory boundary detaches the guard for any lease, while the production module detaches only the guard that owns the lease, so a stale mounting's teardown takes a newer mount's guard in tests but not in the browser (`PlayerIntakeInteropDouble.cs:253`) | **Fixed as prescribed.** The double clears the attachment only when the lease matches the guard it holds, and clears the lease with it, which is the module's own rule. `DetachDepartureGuardAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync` pins the sequence: attach two leases, detach the stale one, and assert the newer mount still owns the guard and can still write its dirty state. |
+
+### Confirming evidence (Copilot thirtieth pass)
+
+Tested revision: `906813e5` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3872 total, 3872 passed, 0 failed, 0 skipped** (3868 before; four cases added). |
+| Negative check | The receipt preservation removed, the heading order restored and the double's detach made unconditional, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **3 failed, 3869 passed** — exactly `PlayersKeepsTheUnreleasedReceiptAcrossAVisitAsync`, `PlayerIntakeBoardHeadsASettledReceiptOverItsFrozenState` and `DetachDepartureGuardAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync`; the control case (a frozen board without a receipt still names why its fields are frozen) kept passing, which is what it asserts. Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the tracked count-derived journey that had failed the previous pass's selection. |
+| Full browser suite | One attempt: **230 total, 219 passed, 1 failed, 10 skipped** — `CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`, the closed-record **focus** journey whose `/campaigns/{id}?tab=close` assertions and WebAssembly reload share no code with this pass (it failed the same way in the twenty-fourth pass). The before-merge row stays pending; see *Limitations*. |
+| Test incidents, recorded | The first arrangement of the receipt case re-entered the form while the recovery read *succeeded*, which landed the retained command and produced the heading-precedence defect above rather than a receipt-panel assertion failure; aligning the case to the finding's own scenario (the read unavailable) and pinning the precedence separately is what made both deterministic. A first attempt at the double's case also swallowed the previous case's closing assertion and brace — caught by the compiler, not by a passing run — and the receipt panel's "View player" link needed `DetailUrlFactory` to render, so the case asserts the panel's own control instead. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
