@@ -17,12 +17,14 @@ using Nova.UI.Features.Players.Services;
 
 namespace Nova.UI.Features.Players.Pages;
 
-/// <summary>Owns the URL-backed directory and existing manual forms for one authenticated club.</summary>
+/// <summary>Owns the URL-backed directory and the manual intake board for one authenticated club.</summary>
 public partial class Players(
     IPlayerService playerService,
     IPlayerManagementService playerManagementService,
     IPlayerLifecycleService playerLifecycleService,
     IPlayerDetailService playerDetailService,
+    IPlayerIntakeContextService intakeContextService,
+    IPlayerIntakeInterop intakeInterop,
     ITagDefinitionQueryService tagDefinitionQueryService,
     AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager,
@@ -46,7 +48,6 @@ public partial class Players(
     private bool _canManagePlayers;
     private bool _isClubAdmin;
     private CreatePlayerInput? _pendingCreate;
-    private string? _pendingCreationError;
     private PlayerCreationDuplicate? _creationDuplicate;
     private long? _clubId;
     private string? _userId;
@@ -58,19 +59,31 @@ public partial class Players(
     private int _authenticationVersion;
     private bool _identityApplied;
     private string CurrentScope => $"{_userId}:{_clubId}:{_isClubAdmin}";
+
+    /// <summary>
+    /// The club-and-member identity that owns route-scoped state. Capabilities are deliberately
+    /// excluded: a role change is the same owner's view, so its transient state survives the refresh.
+    /// </summary>
+    private string CurrentOwner => $"{_userId}:{_clubId}";
     private string _searchDraft = string.Empty;
     private PlayersUrlState _urlState = new();
     private string? _locationKey;
     private string? _loadedQuery;
+
+    /// <summary>The route path whose per-route reset was last applied.</summary>
+    private string? _appliedRoutePath;
+
+    /// <summary>The club-and-member owner the per-route reset was last applied for.</summary>
+    private string? _appliedRouteOwner;
     private bool _metadataStarted;
     private PlayerFormState _createForm = PlayerFormState.CreateDefault();
     private PlayerFormState? _editForm;
     private bool _showCreateForm;
     private bool _isEditRoute;
     private bool _formLoading;
+    private bool _interactive;
     private IReadOnlyList<GraduationYearBlockerItem> _graduationYearBlockers = [];
     private PlayerListItem? _archiveCandidate;
-    private bool _archiveConfirmed;
     private IReadOnlyList<PlayerArchiveBlocker> _archiveBlockers = [];
     private CancellationTokenSource? _searchDebounceSource;
     private CancellationTokenSource? _identitySource;
@@ -108,6 +121,10 @@ public partial class Players(
     [PersistentState] public string? SnapshotScope { get; set; }
     /// <summary>The normalized query owning the roster snapshot.</summary>
     [PersistentState] public string? SnapshotQuery { get; set; }
+    /// <summary>The intake-context snapshot across prerender and interactive attach.</summary>
+    [PersistentState] public PlayerIntakeContext? PersistedIntakeContext { get; set; }
+    /// <summary>Whether the prerendered intake read settled without a context.</summary>
+    [PersistentState] public bool PersistedIntakeContextUnavailable { get; set; }
 
     private string GraduationYearFilterText => _urlState.GraduationYear?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
     private string PlayerTagFilterText => _urlState.TagId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
@@ -135,6 +152,33 @@ public partial class Players(
     /// <inheritdoc />
     protected override Task OnParametersSetAsync() => ReconcileLocationAsync();
 
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // The browser storage boundary only exists after interactive attachment.
+            _interactive = true;
+        }
+
+        if (!_interactive || !_showCreateForm || !_canManagePlayers || _board is null)
+        {
+            return;
+        }
+
+        var scope = CurrentScope;
+        if (string.Equals(_recoveryScope, scope, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // Claim the scope before awaiting so a re-render cannot start a second read, and only once
+        // the board has mounted: a read before that cannot reach its interop boundary.
+        _recoveryScope = scope;
+        await RestoreRecoveryAsync();
+        StateHasChanged();
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
         => _ = InvokeAsync(async () => { await ReconcileLocationAsync(); StateHasChanged(); });
 
@@ -160,10 +204,7 @@ public partial class Players(
             && admin == _isClubAdmin && member == _canManagePlayers) { return; }
         var previousIdentity = _identityApplied;
         var sameOwner = previousIdentity && club == _clubId && string.Equals(user, _userId, StringComparison.Ordinal);
-        var pending = sameOwner ? _pendingCreate : null;
-        var pendingError = sameOwner ? _pendingCreationError : null;
-        var form = _createForm;
-        var status = sameOwner ? _statusMessage : null;
+        var intake = CaptureIntakeState(sameOwner);
         ++_identityVersion;
         CancelSource(ref _identitySource);
         _identitySource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
@@ -175,10 +216,7 @@ public partial class Players(
         if (previousIdentity)
         {
             ResetIdentityState();
-            _pendingCreate = pending;
-            _pendingCreationError = pendingError;
-            if (pending is not null) { _createForm = form; }
-            _statusMessage = status;
+            RestoreIntakeState(intake);
             if (!sameOwner)
             {
                 _urlState = new();
@@ -187,6 +225,64 @@ public partial class Players(
         }
         StateHasChanged();
         await ReconcileLocationAsync();
+    }
+
+    /// <summary>
+    /// The intake state one identity owns, carried across a same-owner refresh. A role-only change
+    /// invalidates visible capabilities without settling retained or already settled work.
+    /// </summary>
+    /// <param name="Pending">The retained command, when one is held.</param>
+    /// <param name="Recovery">The recovery state that command implies.</param>
+    /// <param name="InvalidValue">The exact unreadable retained bytes, when they were inspected.</param>
+    /// <param name="RetainedName">The retained command's player name.</param>
+    /// <param name="Form">The board's form state.</param>
+    /// <param name="Status">The page's status message.</param>
+    /// <param name="Receipt">The settled receipt, when the operation has one.</param>
+    /// <param name="UnreleasedOperationId">The settled operation whose record the browser still holds.</param>
+    /// <param name="StorageUnavailable">Whether the browser's recovery storage was unavailable.</param>
+    private sealed record IntakeState(
+        CreatePlayerInput? Pending,
+        PlayerCreationRecoveryState Recovery,
+        string? InvalidValue,
+        string? RetainedName,
+        PlayerFormState Form,
+        string? Status,
+        PlayerCreationCompletion? Receipt,
+        Guid? UnreleasedOperationId,
+        bool StorageUnavailable);
+
+    /// <summary>Captures the intake state this owner keeps across an identity refresh.</summary>
+    /// <param name="sameOwner">Whether the refresh belongs to the same club and member.</param>
+    /// <returns>The state to restore, with another owner's values already dropped.</returns>
+    private IntakeState CaptureIntakeState(bool sameOwner)
+        => new(
+            sameOwner ? _pendingCreate : null,
+            sameOwner ? _recoveryState : PlayerCreationRecoveryState.None,
+            sameOwner ? _invalidRetainedValue : null,
+            sameOwner ? _retainedPlayerName : null,
+            _createForm,
+            sameOwner ? _statusMessage : null,
+            sameOwner ? _receipt : null,
+            sameOwner ? _unreleasedOperationId : null,
+            sameOwner && _storageUnavailable);
+
+    /// <summary>
+    /// Restores the captured intake state after the identity reset. A retained command keeps its bytes,
+    /// and a settled receipt keeps its release retry, so neither a role-only refresh nor a document
+    /// reload can present the member with a blank form over work that still needs an outcome.
+    /// </summary>
+    /// <param name="state">The state captured before the reset.</param>
+    private void RestoreIntakeState(IntakeState state)
+    {
+        _pendingCreate = state.Pending;
+        _recoveryState = state.Recovery;
+        _invalidRetainedValue = state.InvalidValue;
+        _retainedPlayerName = state.RetainedName;
+        if (state.Pending is not null) { _createForm = state.Form; }
+        _statusMessage = state.Status;
+        _receipt = state.Receipt;
+        _unreleasedOperationId = state.UnreleasedOperationId;
+        _storageUnavailable = state.StorageUnavailable;
     }
 
     private void ResetIdentityState()
@@ -204,9 +300,21 @@ public partial class Players(
         _pageError = _summaryError = _tagsError = _mutationError = _statusMessage = null;
         _searchDraft = string.Empty;
         _pendingCreate = null;
-        _pendingCreationError = null;
+        _recoveryState = PlayerCreationRecoveryState.None;
+        _invalidRetainedValue = null;
+        _retainedPlayerName = null;
+        _storageUnavailable = false;
+        _unreleasedOperationId = null;
+        _recoveryScope = null;
+        _receipt = null;
+        _fieldErrors = null;
+        _intakeContext = null;
+        _intakeContextUnavailable = false;
         _creationDuplicate = null;
         _createForm = PlayerFormState.CreateDefault();
+        // The form this mount showed is gone with the reset, so the board releases the uncommitted flag and the
+        // departure question that spoke for it rather than leaving them over a form the member never typed.
+        _board?.MarkCommittedOrClosed();
         ClearMutationForm();
         CancelArchive();
         _isMutating = _isLoading = _summaryLoading = _tagsLoading = _formLoading = false;
@@ -222,17 +330,16 @@ public partial class Players(
         PersistedTags = null;
         PersistedPageError = PersistedSummaryError = PersistedTagsError = null;
         SnapshotScope = SnapshotQuery = null;
+        PersistedIntakeContext = null;
+        PersistedIntakeContextUnavailable = false;
         Initialized = false;
     }
 
     private async Task ReconcileLocationAsync()
     {
         if (!_identityApplied || ComponentCancellationToken.IsCancellationRequested) { return; }
-        var uri = new Uri(navigationManager.Uri);
-        var path = uri.AbsolutePath.TrimEnd('/');
-        if (!string.Equals(path, "/players", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase)
-            && !(path.StartsWith("/players/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase)))
+        var path = new Uri(navigationManager.Uri).AbsolutePath.TrimEnd('/');
+        if (!IsDirectoryOrFormRoute(path))
         {
             // A mounted bUnit host has no Router; real navigation disposes this page on other routes.
             return;
@@ -246,15 +353,7 @@ public partial class Players(
         CancelSource(ref _formSource);
         _urlState = state;
         _searchDraft = state.Search;
-        _showCreateForm = string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase);
-        _isEditRoute = path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase);
-        _editForm = null;
-        _mutationError = _showCreateForm && _pendingCreate is not null ? _pendingCreationError : null;
-        _creationDuplicate = null;
-        _graduationYearBlockers = [];
-        _formLoading = false;
-        CancelArchive();
-
+        ApplyRouteState(path);
         if (!_canManagePlayers)
         {
             ClearPersistedState();
@@ -262,7 +361,81 @@ public partial class Players(
             PersistStartupState();
             return;
         }
+        StateHasChanged();
+        await Task.WhenAll(StartRouteReads(state, path, routeVersion));
+    }
+
+    private static bool IsDirectoryOrFormRoute(string path)
+        => string.Equals(path, "/players", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase)
+            || (path.StartsWith("/players/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Resets per-route feedback and transient mutation state at a real navigation boundary.</summary>
+    private void ApplyRouteState(string path)
+    {
+        // Which route this is always derives from the path: the identity reset clears these flags with
+        // the rest of the state, so the view must be re-derived even when nothing else is reset.
+        _showCreateForm = string.Equals(path, "/players/new", StringComparison.OrdinalIgnoreCase);
+        _isEditRoute = path.EndsWith("/edit", StringComparison.OrdinalIgnoreCase);
+
+        // The transient resets belong to a real boundary: the same path applied again for the same
+        // owner — an authentication refresh, or a repeated location notification — is the same view,
+        // and resetting it would replace a settled receipt (with its release retry) with a blank form.
+        var routeChanged = !string.Equals(_appliedRoutePath, path, StringComparison.OrdinalIgnoreCase);
+        var ownerChanged = !string.Equals(_appliedRouteOwner, CurrentOwner, StringComparison.Ordinal);
+        if (!routeChanged && !ownerChanged)
+        {
+            // A same-owner refresh re-runs this route's reads without resetting its transient state,
+            // so the gates those reads need are armed here rather than at the boundary below: the
+            // board must refuse input, and name the consequence as unread, until they settle.
+            if (_showCreateForm)
+            {
+                _recoveryChecked = false;
+                _recoveryScope = null;
+                _intakeContextLoading = true;
+            }
+
+            return;
+        }
+
+        _appliedRoutePath = path;
+        _appliedRouteOwner = CurrentOwner;
+        _editForm = null;
+        // A settled receipt whose retained cleanup is still outstanding survives the boundary: it is the
+        // authoritative evidence for bytes that may be unreleased or unreadable, and the create form's own
+        // release or discard action is where it stays visible. Once cleanup succeeds, a later boundary drops it.
+        if (!HasReceiptCleanupOutstanding)
+        {
+            _receipt = null;
+        }
+        _fieldErrors = null;
+        _creationDuplicate = null;
+        _graduationYearBlockers = [];
+        _formLoading = false;
+        _mutationError = null;
+        // The route boundary is where the board first renders, and rendering is synchronous at this
+        // boundary, so the consequence must be named as unread here rather than when the read starts.
+        _intakeContextLoading = _showCreateForm;
+        if (_showCreateForm)
+        {
+            // Every entry to the board re-reads the owner's retained command, and the board refuses
+            // input until that read settles so a landed recovery cannot replace typed values.
+            _recoveryScope = null;
+            _recoveryChecked = false;
+        }
+
+        CancelArchive();
+    }
+
+    /// <summary>Starts the independent reads one route needs, including its form-specific evidence.</summary>
+    private List<Task> StartRouteReads(PlayersUrlState state, string path, int routeVersion)
+    {
         var reads = StartDirectoryReads(state);
+        if (_showCreateForm)
+        {
+            reads.Add(LoadIntakeContextAsync());
+        }
         if (_isEditRoute)
         {
             var parts = path.Split('/');
@@ -272,8 +445,7 @@ public partial class Players(
             }
             else { _mutationError = "This player could not be found."; }
         }
-        StateHasChanged();
-        await Task.WhenAll(reads);
+        return reads;
     }
 
     private List<Task> StartDirectoryReads(PlayersUrlState state)
@@ -468,7 +640,8 @@ public partial class Players(
     private void CancelMutationForm() => navigationManager.NavigateTo(_urlState.ToDirectoryUrl());
     private void ClearMutationForm()
     {
-        _showCreateForm = _isEditRoute = false;
+        // Route flags belong to ApplyRouteState, which re-derives them from the path: clearing them
+        // here would leave a same-owner refresh with no form to render and nothing to re-derive it.
         _editForm = null;
         _mutationError = null;
         _creationDuplicate = null;
@@ -532,120 +705,6 @@ public partial class Players(
     }
 
     /// <summary>
-    /// Creates a new player and refreshes the roster.
-    /// </summary>
-    /// <returns>A task that completes when the mutation finishes.</returns>
-    private async Task CreatePlayerAsync()
-    {
-        if (!_canManagePlayers || _isMutating)
-        {
-            return;
-        }
-        var version = _identityVersion;
-        _isMutating = true;
-        _mutationError = null;
-        _graduationYearBlockers = [];
-
-        if (_clubId is not long clubId) { _isMutating = false; return; }
-        _pendingCreate ??= _createForm.ToCreateInput(Guid.CreateVersion7(), clubId);
-        var command = _pendingCreate;
-        _creationDuplicate = null;
-        var result = await ReceiveAsync(playerManagementService.CreateAsync(command, _identitySource!.Token));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        var ownsForm = _showCreateForm && _pendingCreate?.OperationId == command.OperationId;
-        result.Switch(
-            completion =>
-            {
-                _pendingCreate = null;
-                _pendingCreationError = null;
-                if (ownsForm) { _showCreateForm = false; }
-                _createForm = PlayerFormState.CreateDefault();
-                _statusMessage = completion.Enrollment is { } enrollment
-                    ? $"Player created successfully. Enrolled in {enrollment.CampaignName}."
-                    : "Player created successfully. Ready for the next campaign opening.";
-            },
-            problem =>
-            {
-                var error = problem.Detail ?? "Could not create player.";
-                if (PlayerCreationProblems.IsNotCommitted(problem, command.OperationId))
-                {
-                    _pendingCreate = null;
-                    _pendingCreationError = null;
-                    if (ownsForm) { PlayerCreationProblems.TryGetDuplicate(problem, out _creationDuplicate); }
-                }
-                else
-                {
-                    error += PlayerCreationProblems.IsExpired(problem)
-                        ? " The original addition is still retained."
-                        : " The original addition is still retained; retry it unchanged to recover its result.";
-                    _pendingCreationError = error;
-                }
-                if (ownsForm) { _mutationError = error; }
-            });
-
-        _isMutating = false;
-        if (result.IsSuccess)
-        {
-            if (ownsForm) { CancelMutationForm(); }
-            await RefreshDirectoryAsync();
-        }
-    }
-
-    /// <summary>
-    /// Saves edits for an existing player and refreshes the roster.
-    /// </summary>
-    /// <returns>A task that completes when the mutation finishes.</returns>
-    private async Task UpdatePlayerAsync()
-    {
-        if (!_canManagePlayers || _isMutating || _editForm is null)
-        {
-            return;
-        }
-
-        _isMutating = true;
-        _mutationError = null;
-        _graduationYearBlockers = [];
-
-        var version = _identityVersion;
-        var route = _routeVersion;
-        var result = await ReceiveAsync(playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), _identitySource!.Token));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        if (route != _routeVersion)
-        {
-            _isMutating = false;
-            if (result.IsSuccess) { await RefreshDirectoryAsync(); }
-            return;
-        }
-        result.Switch(
-            _ =>
-            {
-                _editForm = null;
-                _statusMessage = "Player updated successfully.";
-            },
-            problem =>
-            {
-                _mutationError = problem.Detail ?? "Could not update player.";
-                if (problem.Kind == ServiceProblemKind.Conflict)
-                {
-                    _graduationYearBlockers = ExtractGraduationYearBlockers(problem.Errors);
-                }
-            });
-
-        _isMutating = false;
-        if (result.IsSuccess)
-        {
-            if (route == _routeVersion) { CancelMutationForm(); }
-            await RefreshDirectoryAsync();
-        }
-    }
-
-    /// <summary>
     /// Sets the archive target and opens archive confirmation state.
     /// </summary>
     /// <param name="player">The selected player.</param>
@@ -656,7 +715,6 @@ public partial class Players(
             return;
         }
         _archiveCandidate = player;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
         _mutationError = null;
         _statusMessage = null;
@@ -668,7 +726,6 @@ public partial class Players(
     private void CancelArchive()
     {
         _archiveCandidate = null;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
     }
 
@@ -678,7 +735,7 @@ public partial class Players(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
-        if (!_canManagePlayers || _isMutating || _archiveCandidate is null || !_archiveConfirmed)
+        if (!_canManagePlayers || _isMutating || _archiveCandidate is null)
         {
             return;
         }
@@ -703,7 +760,7 @@ public partial class Players(
         result.Switch(
             _ =>
             {
-                _statusMessage = "Player archived.";
+                _statusMessage = PlayerLifecycleCopy.ArchivedResult;
                 CancelArchive();
             },
             problem =>
@@ -751,7 +808,7 @@ public partial class Players(
             return;
         }
         result.Switch(
-            _ => _statusMessage = "Player restored. Missed campaign enrollment is not backfilled automatically.",
+            _ => _statusMessage = PlayerLifecycleCopy.RestoredResult,
             problem => _mutationError = problem.Detail ?? "Could not restore player.");
 
         _isMutating = false;
@@ -771,126 +828,6 @@ public partial class Players(
     /// <returns>An inline CSS style string.</returns>
     private static string BuildTagStyle(PlayerRosterTagItem tag)
         => PlayerTagStyle.BuildBadgeStyle(tag.Color);
-
-    /// <summary>
-    /// Extracts structured graduation-year blockers from a conflict error payload.
-    /// </summary>
-    /// <param name="errors">The service-problem errors dictionary.</param>
-    /// <returns>A parsed list of blocker items, or an empty list when unavailable.</returns>
-#pragma warning disable CA1859 // The helper returns both an empty array and a read-only list; the interface describes both results.
-    private static IReadOnlyList<GraduationYearBlockerItem> ExtractGraduationYearBlockers(
-#pragma warning restore CA1859
-        IReadOnlyDictionary<string, string[]>? errors)
-    {
-        if (errors is null || errors.Count == 0)
-        {
-            return [];
-        }
-
-        var blockers = new Dictionary<int, GraduationYearBlockerBuilder>();
-        foreach (var (key, values) in errors)
-        {
-            if (values.Length == 0 || !TryParseBlockerKey(key, out var index, out var fieldName))
-            {
-                continue;
-            }
-
-            if (!blockers.TryGetValue(index, out var builder))
-            {
-                builder = new GraduationYearBlockerBuilder();
-                blockers[index] = builder;
-            }
-
-            var value = values[0];
-            switch (fieldName)
-            {
-                case "assignmentId":
-                    builder.PlayerCampaignAssignmentId = TryParseLong(value);
-                    break;
-                case "campaignId":
-                    builder.CampaignId = TryParseLong(value);
-                    break;
-                case "teamId":
-                    builder.TeamId = TryParseLong(value);
-                    break;
-                case "teamGraduationYear":
-                    builder.TeamGraduationYear = TryParseInt(value);
-                    break;
-            }
-        }
-
-        return blockers
-            .OrderBy(pair => pair.Key)
-            .Select(pair => pair.Value)
-            .Where(builder =>
-                builder.PlayerCampaignAssignmentId is not null
-                && builder.CampaignId is not null
-                && builder.TeamId is not null
-                && builder.TeamGraduationYear is not null)
-            .Select(builder => new GraduationYearBlockerItem
-            {
-                PlayerCampaignAssignmentId = builder.PlayerCampaignAssignmentId!.Value,
-                CampaignId = builder.CampaignId!.Value,
-                TeamId = builder.TeamId!.Value,
-                TeamGraduationYear = builder.TeamGraduationYear!.Value
-            })
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Parses one blocker payload key in the format <c>blockers[{index}].{field}</c>.
-    /// </summary>
-    /// <param name="key">The input key.</param>
-    /// <param name="index">The parsed blocker index.</param>
-    /// <param name="fieldName">The parsed field name.</param>
-    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
-    private static bool TryParseBlockerKey(string key, out int index, out string fieldName)
-    {
-        index = default;
-        fieldName = string.Empty;
-
-        if (!key.StartsWith("blockers[", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var closeBracketIndex = key.IndexOf(']', StringComparison.Ordinal);
-        var dotIndex = key.IndexOf('.', closeBracketIndex + 1);
-        if (closeBracketIndex <= "blockers[".Length || dotIndex < 0)
-        {
-            return false;
-        }
-
-        var indexText = key["blockers[".Length..closeBracketIndex];
-        if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out index))
-        {
-            return false;
-        }
-
-        fieldName = key[(dotIndex + 1)..];
-        return fieldName.Length > 0;
-    }
-
-    /// <summary>
-    /// Parses a long using invariant culture.
-    /// </summary>
-    /// <param name="value">The incoming number text.</param>
-    /// <returns>The parsed long value, or <see langword="null"/> when parsing fails.</returns>
-    private static long? TryParseLong(string value)
-        => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
-
-    /// <summary>
-    /// Parses an int using invariant culture.
-    /// </summary>
-    /// <param name="value">The incoming number text.</param>
-    /// <returns>The parsed int value, or <see langword="null"/> when parsing fails.</returns>
-    private static int? TryParseInt(string value)
-        => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
 
     private static void CancelSource(ref CancellationTokenSource? source)
     {
@@ -917,31 +854,6 @@ public partial class Players(
         return base.DisposeAsyncCore();
     }
 
-    /// <summary>
-    /// Stores one partially parsed graduation-year blocker row.
-    /// </summary>
-    private sealed class GraduationYearBlockerBuilder
-    {
-        /// <summary>
-        /// Gets or sets the participation identifier.
-        /// </summary>
-        public long? PlayerCampaignAssignmentId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the campaign identifier.
-        /// </summary>
-        public long? CampaignId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the team identifier.
-        /// </summary>
-        public long? TeamId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the team graduation-year requirement.
-        /// </summary>
-        public int? TeamGraduationYear { get; set; }
-    }
 }
 
 

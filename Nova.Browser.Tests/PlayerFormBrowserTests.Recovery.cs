@@ -46,16 +46,16 @@ public sealed partial class PlayerFormBrowserTests
         await OpenCreationFormAsync(page);
         await FillCreationFormAsync(page, "Retry");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.Locator("[role=alert]")).ToContainTextAsync("retry it unchanged");
+        await Expect(page.Locator("#intake-unresolved")).ToContainTextAsync("Replay the retained addition");
         await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Replay the retained addition", Exact = true }).ClickAsync();
         if (retryProblem is not null)
         {
             await Expect(page.Locator("[role=alert]")).ToContainTextAsync("invalid player creation evidence");
             await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
-            await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Replay the retained addition", Exact = true }).ClickAsync();
         }
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         var sent = requests.ToArray();
         sent.Length.ShouldBe(retryProblem is not null ? 3 : 2);
         sent.ShouldAllBe(request => string.Equals(request, sent[0], StringComparison.Ordinal));
@@ -111,18 +111,19 @@ public sealed partial class PlayerFormBrowserTests
         await OpenCreationFormAsync(page);
         await FillCreationFormAsync(page, "Expired");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.Locator("[role=alert]")).ToContainTextAsync("retry it unchanged");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.Locator("[role=alert]")).ToContainTextAsync("Review the Players directory");
-        await Expect(page.Locator("[role=alert]")).Not.ToContainTextAsync("retry it unchanged");
-        await Expect(page.Locator("[role=alert]")).ToContainTextAsync("The original addition is still retained");
+        await Expect(page.Locator("#intake-unresolved")).ToContainTextAsync("Replay the retained addition");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Replay the retained addition", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-expired")).ToContainTextAsync("Review the Players directory");
+        await Expect(page.Locator("#intake-submit")).ToHaveTextAsync("Create player");
+        await Expect(page.Locator("#intake-expired")).ToContainTextAsync("retained the exact addition");
         await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
         await CancelCreationFormAsync(page);
         await OpenCreationFormAsync(page);
+        // Re-entry re-reads the retained request; its own window is still open, so it stays
+        // replayable and the server remains the authority on the outcome.
         await Expect(page.Locator("#player-first-name")).ToBeDisabledAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Replay the retained addition", Exact = true }).ClickAsync();
         await Expect(page.Locator("[role=alert]")).ToContainTextAsync("has expired");
-        await Expect(page.Locator("[role=alert]")).Not.ToContainTextAsync("retry it unchanged");
         var sent = requests.ToArray();
         sent.Length.ShouldBe(3);
         sent.ShouldAllBe(request => string.Equals(request, sent[0], StringComparison.Ordinal));
@@ -143,18 +144,25 @@ public sealed partial class PlayerFormBrowserTests
         await OpenCreationFormAsync(page);
         await FillCreationFormAsync(page, "Original");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
-        await OpenCreationFormAsync(page);
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
+        // Add another resets only player-specific input and returns to a pristine board.
+        await page.Locator("#intake-add-another").ClickAsync();
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(string.Empty);
         await FillCreationFormAsync(page, " original ");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.Locator("#intake-view-existing")).ToBeVisibleAsync();
+        await Expect(page.Locator("#intake-view-existing")).ToContainTextAsync("View existing player");
         await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
         await CancelCreationFormAsync(page);
         await OpenCreationFormAsync(page);
-        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page.Locator("#intake-view-existing")).ToHaveCountAsync(0);
         await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
-        await page.Locator("#player-first-name").FillAsync("Corrected");
+        // The confirmed discard took the refused input with it, so the correction is entered afresh.
+        await FillCreationFormAsync(page, "Corrected");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
+        await InteractionHelpers.NavigateEnhancedAsync(page,
+            () => page.GetByRole(AriaRole.Link, new() { Name = "Return to players", Exact = true }).ClickAsync());
         await Expect(page.GetByText("Corrected Recovery", new() { Exact = true })).ToBeVisibleAsync();
         await using var db = fixture.AppHost.CreateAdminContext();
         (await db.Players.CountAsync(x => x.ClubId == seed.ClubId, ct)).ShouldBe(2);
@@ -173,14 +181,21 @@ public sealed partial class PlayerFormBrowserTests
         await OpenCreationFormAsync(page);
         await FillCreationFormAsync(page, "Original");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
 
         const string RosterUrl = "/players?view=archived&search=Original";
         await page.GotoAsync(new Uri(fixture.BaseUri, RosterUrl).ToString());
         await OpenCreationFormAsync(page);
         await FillCreationFormAsync(page, "Original");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-        await page.GetByRole(AriaRole.Link, new() { Name = "View existing player", Exact = true }).ClickAsync();
+        var duplicateLink = page.Locator("#intake-view-existing");
+        await Expect(duplicateLink).ToBeVisibleAsync();
+        await Expect(duplicateLink).ToContainTextAsync("View existing player");
+        (await duplicateLink.GetAttributeAsync("href")).ShouldNotBeNullOrWhiteSpace();
+        await duplicateLink.ClickAsync();
+        // The detail link departs from a board that holds the refused input, so the guard asks first.
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Original Recovery", Exact = true })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Link, new() { Name = "← Back to roster", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
@@ -205,7 +220,17 @@ public sealed partial class PlayerFormBrowserTests
 
     private static async Task CancelCreationFormAsync(IPage page)
     {
-        await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+        // Cancel asks before it discards a board holding typed input, and the panel arrives from the click's own
+        // handler: the click is retried until either the panel or the directory is on screen, so a clean board's
+        // departure and a dirty board's confirmation are both handled without racing the probe.
+        await InteractionHelpers.ClickUntilAsync(page,
+            page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }),
+            () => page.Locator("#intake-departure, #players-search").First.IsVisibleAsync());
+        if (await page.Locator("#intake-departure").IsVisibleAsync())
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
+        }
+
         // The open helper's initial visibility probe must not accept the form being closed.
         await Expect(page.Locator("#player-first-name")).ToHaveCountAsync(0);
     }

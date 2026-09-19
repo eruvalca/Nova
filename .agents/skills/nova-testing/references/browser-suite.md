@@ -213,6 +213,10 @@ dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --
 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build --output Detailed --long-running 90 --xunit-diagnostics on
 ```
 
+`--filter-class` matches the class-name **suffix**, so the wildcard belongs at the front and a second class
+repeats the option. A pattern with a wildcard in the middle (`*Player*BrowserTests`) matches nothing and the
+run still reports success, so read `total` before treating a selection as evidence.
+
 For required run scope and evidence reuse, follow the
 [PR test gate](../../../../AGENTS.md#pull-request-test-gate).
 

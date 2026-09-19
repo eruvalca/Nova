@@ -1,0 +1,432 @@
+﻿@using Microsoft.AspNetCore.Components.Forms
+@using Nova.SharedKernel.Enums
+@namespace Nova.UI.Features.Players.Components
+@*
+THESIS: One honest player-entry board that survives interruption, for every approved club member.
+OWN-WORLD: Fieldhouse Wayfinding; a flat Paper White field sheet inside the Players field.
+STORY: Read the enrollment consequence, enter permanent fields, commit once, then act on the receipt.
+FIRST VIEWPORT: The board heading with required/optional language and the enrollment consequence.
+FORM: One bounded board; server field errors sit under their control, blockers above the fields.
+*@
+
+<section class="intake-board" @ref="_root" data-intake-board="@Heading">
+    @* The receipt is the strongest statement about this operation, and the panel below already takes
+       precedence over the recovery cards: a board showing a settled receipt must not describe itself as
+       frozen or blocked, whose notes would speak about fields it is not rendering. *@
+    @if (ShowsReceipt)
+    {
+        <h2 class="intake-heading" id="intake-receipt-heading">Player added</h2>
+    }
+    else if (RecoveryState == PlayerCreationRecoveryState.Unreadable)
+    {
+        <h2 class="intake-heading" id="intake-recovery-heading">@Heading</h2>
+        <p class="intake-blocked-note" id="intake-recovery-note">
+            Profile entry is closed until this retained addition is resolved. A retained addition is
+            never discarded for you, and it never proves the earlier attempt failed.
+        </p>
+    }
+    else if (IsFrozen)
+    {
+        <h2 class="intake-heading" id="intake-recovery-heading">@Heading</h2>
+        <p class="intake-blocked-note" id="intake-recovery-note">
+            The fields below are frozen because this board still holds the exact addition that was
+            sent. A retained addition is never discarded for you, and it never proves the earlier
+            attempt failed.
+        </p>
+    }
+    else
+    {
+        <h2 class="intake-heading" id="intake-heading">@Heading</h2>
+    }
+
+    @if (!RecoveryChecked && !IsEntryBlocked && !IsFrozen && !ShowsReceipt && CanManage)
+    {
+        <p class="intake-blocked-note" id="intake-checking-note" role="status">
+            @RetainedCheckNote
+        </p>
+    }
+
+    @if (ShowsReceipt && Receipt is { } receipt)
+    {
+        <div class="intake-receipt" role="status" aria-live="polite">
+            <p class="intake-receipt-name">@receipt.Player.FirstName @receipt.Player.LastName was added.</p>
+            <p class="intake-receipt-enrollment">@ReceiptEnrollmentText</p>
+            <dl class="intake-receipt-facts">
+                <dt>Graduation year</dt>
+                <dd>@receipt.Player.GraduationYear</dd>
+                <dt>Date of birth</dt>
+                <dd>@receipt.Player.DateOfBirth.ToString("MMMM d, yyyy")</dd>
+            </dl>
+        </div>
+        <div class="intake-actions">
+            @* A committed operation whose record is still retained cannot start another: the browser's own
+               reservation refuses a second command for this owner until this one is released. *@
+            <button type="button" class="btn btn-primary" id="intake-add-another" disabled="@(StorageUnavailable || IsSubmitting)" @onclick="OnAddAnother">Add another</button>
+            @if (ReceiptDetailUrl is { } detailUrl)
+            {
+                <a class="btn btn-outline-primary" id="intake-view-player" href="@detailUrl">View player</a>
+            }
+            @if (DirectoryUrl is { } directoryUrl)
+            {
+                <a class="btn btn-outline-secondary" id="intake-return" href="@directoryUrl">Return to players</a>
+            }
+        </div>
+    }
+    else if (RecoveryState == PlayerCreationRecoveryState.Unreadable)
+    {
+        <div class="intake-attention" role="status" aria-live="polite" id="intake-unreadable">
+            <p class="fw-semibold mb-2">A retained addition could not be used.</p>
+            <p class="mb-2">
+                It is unreadable, or it belongs to a different member or club, so it cannot be
+                replayed by you — and its earlier result is unknown. Review the Players directory to
+                confirm whether the player exists, then discard the retained record deliberately.
+                Nothing here is discarded for you.
+            </p>
+            <div class="intake-actions">
+                @if (ReconcileUrl is { } unreadableReviewUrl)
+                {
+                    <a class="btn btn-outline-primary" href="@unreadableReviewUrl">Review players</a>
+                }
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="OnDiscardUnreadable">Discard retained record</button>
+            </div>
+        </div>
+    }
+    else if (RecoveryState == PlayerCreationRecoveryState.Unresolved)
+    {
+        <div class="intake-attention" role="status" aria-live="polite" id="intake-unresolved">
+            @if (Duplicate is not null)
+            {
+                @* The refusal above is this operation's outcome, so nothing here is unknown and nothing
+                   is replayed; only the request the browser still holds has to be resolved. *@
+                <p class="fw-semibold mb-2">This addition's outcome is settled by the refusal above.</p>
+                <p class="mb-2">
+                    The fields below are frozen because this board still holds the exact addition that was
+                    sent. It is not sent again: set it aside to start another, or review the Players
+                    directory.
+                </p>
+            }
+            else
+            {
+                <p class="fw-semibold mb-2">An earlier addition still needs an outcome.</p>
+                <p class="mb-2">
+                    This board retained the exact addition and froze the fields below. Its result is
+                    unknown: a timeout, a refusal or a cancellation never proves the player was not
+                    created. Replay the retained addition unchanged, or review the Players directory.
+                </p>
+            }
+            @if (FieldMessages is { Count: > 0 })
+            {
+                <div class="fw-semibold mb-1">The server reported these values:</div>
+                <ul class="mb-2">
+                    @foreach (var (field, messages) in FieldMessages)
+                    {
+                        @foreach (var message in messages)
+                        {
+                            <li>@field: @message</li>
+                        }
+                    }
+                </ul>
+            }
+            <div class="intake-actions">
+                @if (ReconcileUrl is { } unresolvedReviewUrl)
+                {
+                    <a class="btn btn-outline-primary" href="@unresolvedReviewUrl">Review players</a>
+                }
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="BeginSetAside">Set aside unresolved addition</button>
+            </div>
+        </div>
+    }
+    else if (RecoveryState == PlayerCreationRecoveryState.Expired)
+    {
+        <div class="intake-attention" role="status" aria-live="polite" id="intake-expired">
+            <p class="fw-semibold mb-2">The retained addition's 24-hour window has closed.</p>
+            <p class="mb-2">
+                This board retained the exact addition and froze the fields below. It can no longer be
+                replayed, and expiry does not prove the earlier attempt failed. Review the Players
+                directory, then set the addition aside to start another.
+            </p>
+            <div class="intake-actions">
+                @if (ReconcileUrl is { } expiredReviewUrl)
+                {
+                    <a class="btn btn-outline-primary" href="@expiredReviewUrl">Review players</a>
+                }
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="BeginSetAside">Set aside unresolved addition</button>
+            </div>
+        </div>
+    }
+
+    @if (_setAsidePending && RecoveryState is PlayerCreationRecoveryState.Unresolved or PlayerCreationRecoveryState.Expired)
+    {
+        <div class="intake-attention" role="status" aria-live="polite" aria-labelledby="intake-set-aside-heading" aria-describedby="intake-set-aside-consequence" id="intake-set-aside">
+            @* The dialog speaks for whichever operation the board holds: a receipt-backed refusal settled this
+               one's outcome, so the heading and the acknowledgement below name that instead of an unknown result. *@
+            <p class="fw-semibold mb-2" id="intake-set-aside-heading" tabindex="-1">@(Duplicate is not null ? "Set aside this refused addition?" : "Set aside this unresolved addition?")</p>
+            <p class="mb-2" id="intake-set-aside-consequence">
+                Setting it aside removes the retained request so you can add a player again. It does
+                <strong>not</strong> undo anything:
+                @if (Duplicate is not null)
+                {
+                    <span>the refusal stands, and the player it matched is untouched.</span>
+                }
+                else
+                {
+                    <span>the earlier attempt's result stays unknown, and a player may already exist.</span>
+                }
+                Only the retained request is removed.
+            </p>
+            <div class="form-check mb-3">
+                <input id="set-aside-acknowledge" class="form-check-input" type="checkbox" @bind="_setAsideAcknowledged" />
+                <label class="form-check-label" for="set-aside-acknowledge">
+                    @(Duplicate is not null
+                        ? "I reviewed the Players directory and understand the refusal stands."
+                        : "I reviewed the Players directory and understand the earlier result stays unknown.")
+                </label>
+            </div>
+            <div class="intake-actions">
+                <button type="button" class="btn btn-warning" disabled="@(!_setAsideAcknowledged)" @onclick="ConfirmSetAsideAsync">
+                    Set aside and continue
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelSetAside">Keep it retained</button>
+            </div>
+        </div>
+    }
+
+    @if (StorageUnavailable && (!IsEntryBlocked || ShowsReceipt))
+    {
+        <div class="intake-attention" role="status" aria-live="polite" id="intake-storage-unavailable">
+            @if (ShowsReceipt)
+            {
+                @* A settled receipt still owns its cleanup. Unreadable bytes cannot be released by the
+                   operation id, so they retain their explicit discard path beside the authoritative receipt. *@
+                <p class="fw-semibold mb-2">The retained request for this player was not released.</p>
+                @if (IsEntryBlocked)
+                {
+                    <p class="mb-2">
+                        This player was created, but the request retained for it is now unreadable. The
+                        receipt above remains authoritative; discard only the unreadable browser record.
+                    </p>
+                }
+                else
+                {
+                    <p class="mb-2">
+                        This player was created, but this browser did not release the request retained for
+                        it. Until it is released, that addition can come back as unresolved.
+                    </p>
+                }
+            }
+            else if (Duplicate is not null)
+            {
+                @* The receipt-backed refusal settled this addition's outcome, so the only work left is the
+                   browser's own copy of the request: saying the addition could not be checked would contradict
+                   the refusal the same panel sits beside. *@
+                <p class="fw-semibold mb-2">The refused addition's request was not released.</p>
+                <p class="mb-2">
+                    The refusal above stands and the player it matched is untouched, but this browser still
+                    holds the request retained for that attempt. Until it is released, that addition can come
+                    back as unresolved.
+                </p>
+                <p class="mb-2">Set the refused addition aside to release it, or retry storage.</p>
+            }
+            else
+            {
+                <p class="fw-semibold mb-2">Retained additions could not be checked.</p>
+                <p class="mb-2">This browser's recovery storage is unavailable, so an earlier addition cannot be found or recovered from here.</p>
+                @if (RecoveryState == PlayerCreationRecoveryState.None)
+                {
+                    @* The board can only speak for what it has seen: it never proves an earlier addition
+                       was not dispatched, only that nothing left this board. *@
+                    <p class="mb-2">Nothing has been sent from this board.</p>
+                }
+                <p class="mb-2">
+                    An addition is retained here before it is sent, so this browser's copy only records that a send was attempted, never what the server decided.
+                    Retry storage to check what it holds before adding.
+                </p>
+            }
+            @if (ShowsReceipt && IsEntryBlocked)
+            {
+                <button type="button" class="btn btn-outline-warning" @onclick="OnDiscardUnreadable">
+                    Discard unreadable retained record
+                </button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">
+                    @(ShowsReceipt ? "Release retained request" : "Retry storage")
+                </button>
+            }
+        </div>
+    }
+
+    @if (Duplicate is { } duplicate)
+    {
+        <div class="intake-attention" role="status" aria-live="polite" id="intake-duplicate">
+            <p class="fw-semibold mb-2">A player with this name and date of birth already exists.</p>
+            <p class="mb-2">
+                This addition was refused for that reason. It is never merged or overwritten, and
+                there is no override.
+            </p>
+            @if (DuplicateUrl is { } duplicateUrl)
+            {
+                <a class="btn btn-outline-primary" id="intake-view-existing" href="@duplicateUrl">View existing @(duplicate.LifecycleStatus == LifecycleStatus.Archived ? "archived " : string.Empty)player</a>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive" id="intake-error">@ErrorMessage</div>
+    }
+
+    @* The consequence is pre-commit evidence: it speaks for a form about to be sent, so a frozen board — whose
+       addition was already dispatched — does not state it, because the campaign that will decide the outcome is
+       the one named by the immutable receipt, not by whatever is Active while the operation is retained. *@
+    @if (ShowsEnrollmentConsequence && !ShowsReceipt && !IsEntryBlocked && !IsFrozen)
+    {
+        <p class="intake-consequence" aria-live="polite">
+            @if (IntakeContextLoading)
+            {
+                @* A check in progress is not a campaign fact: never guess the consequence. *@
+                <span>Checking the enrollment consequence…</span>
+            }
+            else if (IntakeContextUnavailable)
+            {
+                <span>The enrollment consequence could not be read. Submission reports the real result.</span>
+            }
+            else if (IntakeContext?.CampaignName is { } campaignName)
+            {
+                <span>With an Active campaign, this player joins <strong>@campaignName</strong> immediately.</span>
+            }
+            else
+            {
+                <span>No campaign is Active, so this player stays in the club directory and joins the roster when the next campaign opens.</span>
+            }
+        </p>
+    }
+
+    @if (!ShowsReceipt && !IsEntryBlocked)
+    {
+        <EditForm EditContext="_editContext" OnValidSubmit="OnSubmit">
+            <DataAnnotationsValidator />
+            <fieldset class="intake-fields" disabled="@(!IsEditable)" aria-describedby="@FieldsDescription">
+                <div class="intake-field-row">
+                    <div class="intake-field">
+                        <label class="form-label" for="player-first-name">First name <span class="intake-required">required</span></label>
+                        <InputText id="player-first-name" class="@FieldClass(nameof(PlayerFormState.FirstName), "form-control")" @bind-Value="Model.FirstName"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.FirstName)) ? "player-first-name-error" : null)" />
+                        <div id="player-first-name-error">
+                            <ValidationMessage For="() => Model.FirstName" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.FirstName)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="intake-field">
+                        <label class="form-label" for="player-last-name">Last name <span class="intake-required">required</span></label>
+                        <InputText id="player-last-name" class="@FieldClass(nameof(PlayerFormState.LastName), "form-control")" @bind-Value="Model.LastName"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.LastName)) ? "player-last-name-error" : null)" />
+                        <div id="player-last-name-error">
+                            <ValidationMessage For="() => Model.LastName" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.LastName)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="intake-field-row">
+                    <div class="intake-field">
+                        <label class="form-label" for="player-dob">Date of birth <span class="intake-required">required</span></label>
+                        <InputDate id="player-dob" class="@FieldClass(nameof(PlayerFormState.DateOfBirth), "form-control")" @bind-Value="Model.DateOfBirth"
+                                   aria-describedby="@(FieldHasError(nameof(PlayerFormState.DateOfBirth)) ? "player-dob-error" : null)" />
+                        <div id="player-dob-error">
+                            <ValidationMessage For="() => Model.DateOfBirth" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.DateOfBirth)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="intake-field">
+                        <label class="form-label" for="player-grad-year">Graduation year <span class="intake-required">required</span></label>
+                        <InputNumber id="player-grad-year" class="@FieldClass(nameof(PlayerFormState.GraduationYear), "form-control")" @bind-Value="Model.GraduationYear"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.GraduationYear)) ? "player-grad-year-error" : null)" />
+                        <div id="player-grad-year-error">
+                            <ValidationMessage For="() => Model.GraduationYear" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.GraduationYear)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+                @if (GraduationYearBlockers.Count > 0)
+                {
+                    @* The refusal reason sits with the field the member must correct. *@
+                    <div class="intake-attention" role="status" aria-live="polite" id="intake-graduation-blockers">
+                        <div class="fw-semibold mb-2">Resolve active placements before lowering graduation year:</div>
+                        <ul class="mb-0">
+                            @foreach (var blocker in GraduationYearBlockers)
+                            {
+                                <li>Campaign @blocker.CampaignId, Team @blocker.TeamId requires graduation year @blocker.TeamGraduationYear.</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                <div class="intake-field-row">
+                    <div class="intake-field">
+                        <label class="form-label" for="player-gender">Gender <span class="intake-optional">optional</span></label>
+                        <InputSelect id="player-gender" class="@FieldClass(nameof(PlayerFormState.Gender), "form-select")" @bind-Value="Model.Gender"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.Gender)) ? "player-gender-error" : null)">
+                            <option value="">Not specified</option>
+                            @foreach (var option in GenderOptions)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </InputSelect>
+                        <div id="player-gender-error">
+                            <ValidationMessage For="() => Model.Gender" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.Gender)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="intake-field">
+                        <label class="form-label" for="player-jersey">Jersey number <span class="intake-optional">optional</span></label>
+                        <InputNumber id="player-jersey" class="@FieldClass(nameof(PlayerFormState.JerseyNumber), "form-control")" @bind-Value="Model.JerseyNumber"
+                                     aria-describedby="@(FieldHasError(nameof(PlayerFormState.JerseyNumber)) ? "player-jersey-error" : null)" />
+                        <div id="player-jersey-error">
+                            <ValidationMessage For="() => Model.JerseyNumber" class="intake-field-error" />
+                            @foreach (var message in FieldErrorsFor(nameof(PlayerFormState.JerseyNumber)))
+                            {
+                                <p class="intake-field-error">@message</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+            <div class="intake-actions">
+                <button type="submit" class="btn btn-primary" id="intake-submit" disabled="@(!CanCommit)">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    @CommitLabel
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="intake-cancel" disabled="@IsSubmitting" @onclick="CancelFormAsync">Cancel</button>
+            </div>
+        </EditForm>
+    }
+
+    @if (_departurePending)
+    {        <div class="intake-attention" role="status" aria-live="polite" aria-labelledby="intake-departure-heading" aria-describedby="intake-departure-consequence" id="intake-departure">
+        <p class="fw-semibold mb-2" id="intake-departure-heading" tabindex="-1">Leave with uncommitted player details?</p>
+            <p class="mb-2" id="intake-departure-consequence">Details entered here have not been saved and will be lost.</p>
+            <div class="intake-actions">
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelDepartureAsync">Keep editing</button>
+                <button type="button" class="btn btn-warning" @onclick="ConfirmDepartureAsync">Leave and discard</button>
+            </div>
+        </div>
+    }
+</section>

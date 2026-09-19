@@ -475,3 +475,13 @@ Nova/wwwroot/css/
 !.impeccable/review/issue-263/comp-report.json
 !.impeccable/review/issue-263/capture-manifest.json
 !.impeccable/review/issue-263/application-inputs.txt
+
+# Issue #264 approved intake-board reference, its generation provenance, and the curated captures
+# that lock and document it. Rejected candidates B and C stay local working artifacts.
+!.impeccable/mocks/issue-264-a.png
+!.impeccable/mocks/issue-264-a.png.json
+!.impeccable/mocks/issue-264-a.prompt.txt
+!.impeccable/review/issue-264/captures/intake-board-desktop.png
+!.impeccable/review/issue-264/captures/intake-board-mobile.png
+!.impeccable/review/issue-264/captures/intake-board-receipt.png
+!.impeccable/review/issue-264/comp-measure.mjs

@@ -8,6 +8,7 @@ using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Features.Tags;
 using Nova.SharedKernel.Results;
 using Nova.SharedKernel.Security;
+using Nova.UI.Features.Players.Services;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -21,6 +22,12 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed partial class PlayerComponentsTests : BunitContext
 {
+    /// <summary>Gets the in-memory browser boundary backing the mounted intake board.</summary>
+    private PlayerIntakeInteropDouble Interop { get; } = new();
+
+    /// <summary>Gets or sets the club's Active-campaign consequence returned to the board.</summary>
+    private PlayerIntakeContext IntakeContext { get; set; } = new() { CampaignId = 5, CampaignName = "Summer Tryouts" };
+
     /// <summary>Retains correction context and applies discovery filters before either startup authentication path loads the roster.</summary>
     /// <param name="notificationOvertakesStartup">Whether the initial identity arrives through a notification before startup completes.</param>
     [Theory(IncludeTestCaseIndex = true)]
@@ -504,7 +511,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayersShowsCreateSuccessMessageAfterMutationReload()
+    public void PlayersShowsCreationReceiptAfterSuccessfulMutation()
     {
         var rosterService = Substitute.For<IPlayerService>();
         rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
@@ -544,7 +551,10 @@ public sealed partial class PlayerComponentsTests : BunitContext
         cut.Find("#player-last-name").Change("Lane");
         cut.Find("button[type='submit']").Click();
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Player created successfully."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Player added"));
+        cut.Markup.ShouldContain("No campaign was Active, so this player is ready for the next campaign opening.");
+        cut.Find("#intake-add-another").ShouldNotBeNull();
+        cut.Find("#intake-return").ShouldNotBeNull();
     }
 
     [Fact]
@@ -635,7 +645,7 @@ public sealed partial class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
-    public void PlayerFormShowsValidationMessagesWhenSubmittedInvalid()
+    public void IntakeBoardIdentifiesRequiredFieldsAndShowsValidationMessagesWhenSubmittedInvalid()
     {
         var model = new Nova.UI.Features.Players.Components.PlayerFormState
         {
@@ -645,10 +655,18 @@ public sealed partial class PlayerComponentsTests : BunitContext
             GraduationYear = 2032
         };
 
-        var cut = Render<Nova.UI.Features.Players.Components.PlayerForm>(parameters => parameters
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
             .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
             .Add(component => component.Model, model)
-            .Add(component => component.SubmitButtonText, "Create player"));
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        // Required and optional language is stated directly on the permanent fields.
+        cut.FindAll("span.intake-required").Count.ShouldBe(4);
+        cut.FindAll("span.intake-optional").Count.ShouldBe(2);
 
         cut.Find("button[type='submit']").Click();
         cut.WaitForAssertion(() =>
@@ -656,6 +674,133 @@ public sealed partial class PlayerComponentsTests : BunitContext
             cut.Markup.ShouldContain("The FirstName field is required.");
             cut.Markup.ShouldContain("The LastName field is required.");
         });
+    }
+
+    [Fact]
+    public async Task IntakeBoardStatesTheActiveCampaignConsequenceBeforeCommitAsync()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Find("p.intake-consequence").TextContent.ShouldContain("this player joins");
+        cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts");
+        await Task.CompletedTask;
+    }
+    [Fact]
+    public void IntakeBoardStatesTheNextCampaignConsequenceWhenNoCampaignIsActive()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = null, CampaignName = null })
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Markup.ShouldContain("joins the roster when the next campaign opens");
+    }
+
+    /// <summary>An unread retained command withholds entry instead of offering a form a recovery would replace.</summary>
+    [Fact]
+    public void IntakeBoardWithholdsEntryUntilTheRetainedCommandIsChecked()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, false)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    /// <summary>The withheld board names the retained-command check, and that note leaves with it.</summary>
+    [Fact]
+    public void IntakeBoardNamesTheRetainedCommandCheckWhileItWithholdsEntry()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var withheld = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, false)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        withheld.Find("#intake-checking-note").TextContent.ShouldContain("Checking this browser for a retained addition");
+        withheld.Find("fieldset").GetAttribute("aria-describedby").ShouldBe("intake-checking-note");
+
+        var settled = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContext, new PlayerIntakeContext { CampaignId = 5, CampaignName = "Summer Tryouts" })
+            .Add(component => component.RecoveryChecked, true)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        settled.FindAll("#intake-checking-note").Count.ShouldBe(0);
+        settled.Find("fieldset").HasAttribute("aria-describedby").ShouldBeFalse();
+    }
+
+    /// <summary>The board names a check in progress rather than guessing a campaign fact.</summary>
+    [Fact]
+    public void IntakeBoardNamesTheEnrollmentCheckWhileTheConsequenceIsUnread()
+    {
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
+        var cut = Render<Nova.UI.Features.Players.Components.PlayerIntakeBoard>(parameters => parameters
+            .Add(component => component.Heading, "Add player")
+            .Add(component => component.OwnerUserId, 101L)
+            .Add(component => component.ClubId, 42L)
+            .Add(component => component.CanManage, true)
+            .Add(component => component.Model, Nova.UI.Features.Players.Components.PlayerFormState.CreateDefault())
+                        .Add(component => component.ShowsEnrollmentConsequence, true)
+            .Add(component => component.IntakeContextLoading, true)
+            .Add(component => component.SubmitLabel, "Create player"));
+
+        cut.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence");
+        cut.Find("p.intake-consequence").TextContent.ShouldNotContain("No campaign is Active");
+        cut.Markup.ShouldNotContain("No campaign is Active");
+    }
+
+    /// <summary>An edit board states no enrollment consequence: it enrolls nobody and reads no intake context.</summary>
+    [Fact]
+    public async Task PlayersStatesNoEnrollmentConsequenceOnTheEditBoardAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-outline-primary[href*='/edit']"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Edit player"));
+
+        // The consequence is the create host's line, and only because it read one. An edit supplies no
+        // intake context, so falling through to the default copy would state that no campaign is Active
+        // and that this player joins the next opening — a fact about adding, not about editing.
+        cut.FindAll("p.intake-consequence").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("No campaign is Active");
     }
 
     [Fact]
@@ -737,7 +882,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
         IPlayerService? rosterService = null,
         IPlayerManagementService? managementService = null,
         IPlayerLifecycleService? lifecycleService = null,
-        IPlayerDetailService? detailService = null)
+        IPlayerDetailService? detailService = null,
+        IPlayerIntakeContextService? intakeContextService = null)
     {
         if (rosterService is null)
         {
@@ -773,6 +919,15 @@ public sealed partial class PlayerComponentsTests : BunitContext
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton(detailService);
+        var intakeContext = intakeContextService ?? Substitute.For<IPlayerIntakeContextService>();
+        if (intakeContextService is null)
+        {
+            intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        }
+
+        Services.AddSingleton(intakeContext);
+        Services.AddSingleton<IPlayerIntakeInterop>(Interop);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
     }
 
@@ -848,18 +1003,30 @@ public sealed partial class PlayerComponentsTests : BunitContext
     /// <param name="management">The player management service.</param>
     /// <param name="lifecycle">The player lifecycle service.</param>
     /// <param name="details">The player detail service.</param>
+    /// <param name="tags">The tag-choice query service.</param>
+    /// <param name="intakeContext">The club's enrollment-consequence service.</param>
+    /// <param name="interop">The browser boundary.</param>
     /// <param name="authentication">The current authentication provider.</param>
     /// <param name="navigation">The test navigation manager.</param>
+    /// <param name="logger">The page logger.</param>
 #pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class SnapshotPlayers(IPlayerService roster, IPlayerManagementService management,
 #pragma warning restore CA1812
-        IPlayerLifecycleService lifecycle, IPlayerDetailService details,
-        ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation,
+        IPlayerLifecycleService lifecycle, IPlayerDetailService details, ITagDefinitionQueryService tags,
+        IPlayerIntakeContextService intakeContext, IPlayerIntakeInterop interop,
+        AuthenticationStateProvider authentication, NavigationManager navigation,
         Microsoft.Extensions.Logging.ILogger<PlayersPage> logger)
-        : PlayersPage(roster, management, lifecycle, details, tags, authentication, navigation, logger)
+        : PlayersPage(roster, management, lifecycle, details, intakeContext, interop, tags, authentication,
+            navigation, logger)
     {
         /// <summary>Gets or sets the scope serialized with the old roster.</summary>
         [Parameter] public string? RestoredScope { get; set; }
+
+        /// <summary>Gets or sets the intake consequence serialized with the prerendered page.</summary>
+        [Parameter] public PlayerIntakeContext? RestoredIntakeContext { get; set; }
+
+        /// <summary>Gets or sets whether the prerendered intake read settled without a consequence.</summary>
+        [Parameter] public bool RestoredIntakeContextUnavailable { get; set; }
 
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
@@ -868,6 +1035,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
             SnapshotScope = RestoredScope;
             SnapshotQuery = new Nova.UI.Features.Players.Services.PlayersUrlState().QueryFingerprint;
             PersistedRoster = new PagedResult<PlayerListItem>(CreateRosterItems(), 1, 50, 1);
+            PersistedIntakeContext = RestoredIntakeContext;
+            PersistedIntakeContextUnavailable = RestoredIntakeContextUnavailable;
             return base.OnInitializedAsync();
         }
     }

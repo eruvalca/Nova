@@ -34,8 +34,115 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#player-first-name").FillAsync("   ");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
 
-        await Expect(page.Locator("div.text-danger").First).ToBeVisibleAsync();
+        await Expect(page.Locator("div.intake-field-error").First).ToBeVisibleAsync();
         await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's own contract in a real browser, independently of Blazor.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const payload = { operationId: '0198f0a1-7b2c-7def-8abc-0123456789ab', clubId: 42, firstName: 'Module',
+                lastName: 'Probe', dateOfBirth: '2012-04-01', graduationYear: 2031, gender: null, jerseyNumber: null };
+            const created = Number.parseInt(payload.operationId.replaceAll('-', '').slice(0, 12), 16);
+            const json = JSON.stringify({ actorUserId: 101,
+                recoveryExpiresAt: new Date(created + 86400000).toISOString(), payload });
+            // The reservation and the removals take the cross-tab lock, so they answer with a promise.
+            await m.writePending(101, 42, json);
+            const read = m.readRecovery(101, 42);
+            // The read is lock-free by design — only the read-then-write reservation and the removals take the
+            // cross-tab lock — so it answers with the record itself rather than with a promise to await.
+            const direct = typeof read?.then === 'undefined';
+            const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            // A C# deserialize and serialize round trip normalizes property order and GUID casing, so an
+            // equivalent replay arrives as different bytes: it is the same command and is accepted, or a valid
+            // record would be stranded behind a retry that can never succeed.
+            const reordered = JSON.stringify({ payload: { ...payload, operationId: payload.operationId.toUpperCase() },
+                actorUserId: 101, recoveryExpiresAt: new Date(created + 86400000).toISOString() });
+            await m.writePending(101, 42, reordered);
+            const equivalent = m.readRecovery(101, 42).json === reordered;
+            // A different command under the same identity is still refused, and the retained bytes stay the
+            // ones the member's dispatch is accounted for by.
+            let refused = false;
+            try { await m.writePending(101, 42, reordered.replace('""firstName"":""Module""', '""firstName"":""Altered""')); }
+            catch { refused = true; }
+            const preserved = m.readRecovery(101, 42).json === reordered;
+            const cleared = await m.clearPending(101, 42, payload.operationId);
+            const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
+            // An in-board anchor is a departure like any other while the board is dirty: the guard asks
+            // instead of letting the link navigate with the member's typing.
+            const guardRoot = document.createElement('div');
+            const inside = document.createElement('a');
+            inside.href = '/players?view=archived';
+            inside.textContent = 'Review players';
+            guardRoot.append(inside);
+            document.body.append(guardRoot);
+            const asked = [];
+            await m.attachDepartureGuard(guardRoot, {
+                invokeMethodAsync: (name, lease, url) => { asked.push(name + ' ' + url); return Promise.resolve(); }
+            }, 'probe-lease');
+            m.markDirty('probe-lease', true);
+            const attempt = new MouseEvent('click', { bubbles: true, cancelable: true });
+            inside.dispatchEvent(attempt);
+            m.detachDepartureGuard('probe-lease');
+            guardRoot.remove();
+            return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
+                m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked',
+                equivalent, refused, preserved, direct, asked.length, asked[0] ?? '', attempt.defaultPrevented].join('|');
+        }");
+
+        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true|true|1|OnBoardDepartureAttemptAsync /players?view=archived|true");
+    }
+
+    /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>
+    [Fact]
+    public async Task IntakeBoardFocusMovesToTheFieldNeedingCorrectionAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's focus contract in a real browser, on the shape the board renders:
+        // the first control marked invalid inside the field set, and a note region beside it.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const root = document.createElement('div');
+            const fields = document.createElement('fieldset');
+            fields.className = 'intake-fields';
+            const control = document.createElement('input');
+            control.id = 'probe-control';
+            control.className = 'form-control is-invalid';
+            fields.appendChild(control);
+            root.appendChild(fields);
+            document.body.appendChild(root);
+            m.focusRegion(root, '.intake-fields .is-invalid');
+            const controlFocused = document.activeElement === control;
+            const tabOrderKept = !control.hasAttribute('tabindex');
+            const noteRoot = document.createElement('div');
+            const note = document.createElement('p');
+            note.id = 'probe-note';
+            note.textContent = 'Note';
+            noteRoot.appendChild(note);
+            document.body.appendChild(noteRoot);
+            m.focusRegion(noteRoot, '#probe-note');
+            const regionFocused = document.activeElement === note;
+            const regionMadeFocusable = note.getAttribute('tabindex') === '-1';
+            root.remove();
+            noteRoot.remove();
+            return [controlFocused, tabOrderKept, regionFocused, regionMadeFocusable].join('|');
+        }");
+
+        result.ShouldBe("true|true|true|true");
     }
 
     [Fact]
@@ -59,7 +166,7 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#player-last-name").FillAsync(lastName);
         await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
 
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         await Expect(page.GetByText($"{firstName} {lastName}")).ToBeVisibleAsync();
     }
 
@@ -100,6 +207,10 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
 
+        // The board withholds input until it has checked the owner's retained addition, so a
+        // keyboard entry can only land once the fields are enabled.
+        await Expect(page.Locator("#player-first-name")).ToBeEnabledAsync();
+
         var suffix = Guid.NewGuid().ToString("N");
         await page.Locator("#player-first-name").FocusAsync();
         await page.Keyboard.TypeAsync("Form");
@@ -110,8 +221,170 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
+        await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
         await Expect(page.GetByText($"Form Player {suffix}")).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// The uncommitted-departure guard asks before discarding typed input: an attempt only opens the
+    /// confirmation, <c>Keep editing</c> preserves the typed value, and only the confirmed departure leaves.
+    /// </summary>
+    [Fact]
+    public async Task PlayerFormDepartureGuardAsksBeforeDiscardingTypedInputAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenPlayersInWebAssemblyAsync(page);
+        var departure = page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true });
+        var firstName = $"Guardian {Guid.NewGuid():N}";
+
+        // The guard attaches after the board's first render, so an early click can still escape; each
+        // attempt re-enters the board and retypes until the click is intercepted.
+        await InteractionHelpers.ActUntilAsync(page,
+            async () =>
+            {
+                if (!string.Equals(new Uri(page.Url).AbsolutePath, "/players/new", StringComparison.Ordinal))
+                {
+                    await OpenCreationFormAsync(page);
+                }
+
+                await page.Locator("#player-first-name").FillAsync(firstName);
+                await departure.ClickAsync(new() { Timeout = 3000 });
+            },
+            () => page.Locator("#intake-departure").IsVisibleAsync());
+
+        // The attempt opened the confirmation instead of performing the departure.
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#intake-departure")).ToContainTextAsync("Leave with uncommitted player details?");
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Cancel is a departure like any other: it asks about the same typed value rather than discarding it,
+        // and keeping editing leaves the member where they were with their value intact.
+        await page.Locator("#intake-cancel").ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+
+        await InteractionHelpers.ClickUntilAsync(page, departure, () => page.Locator("#intake-departure").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+
+        // A board holding no uncommitted input leaves without asking.
+        await OpenCreationFormAsync(page);
+        await departure.ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Back/Forward asks before discarding, the way a link departure does, for the same typed value. The
+    /// ask is possible because the Navigation API's `navigate` event fires before a traversal commits and
+    /// while the board is still mounted: cancelling it keeps the member on the form, so the panel is
+    /// answered without the input already being gone, and consent lands where the traversal was headed.
+    /// </summary>
+    [Fact]
+    public async Task PlayerFormHistoryTraversalAsksBeforeDiscardingTypedInputAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenPlayersInWebAssemblyAsync(page);
+        var departure = page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true });
+        var firstName = $"History {Guid.NewGuid():N}";
+
+        // The guard is attached and speaks for this value: the link departure asks before discarding.
+        await InteractionHelpers.ActUntilAsync(page,
+            async () =>
+            {
+                if (!string.Equals(new Uri(page.Url).AbsolutePath, "/players/new", StringComparison.Ordinal))
+                {
+                    await OpenCreationFormAsync(page);
+                }
+
+                await page.Locator("#player-first-name").FillAsync(firstName);
+                await departure.ClickAsync(new() { Timeout = 3000 });
+            },
+            () => page.Locator("#intake-departure").IsVisibleAsync());
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // The same board, still dirty, asks on the traversal too, and the traversal is cancelled rather than
+        // delayed: the member is still on the form with their value while the panel is open.
+        await GoBackExpectingTheAskAsync(page);
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Keeping the input keeps the member on the board.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Leaving from the same ask discards the input and lands where the traversal was headed.
+        await GoBackExpectingTheAskAsync(page);
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players");
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Drives a browser Back, whose committed navigation is absent while the board cancels it.</summary>
+    /// <param name="page">The page to traverse.</param>
+    /// <returns>A task that completes once the traversal has been cancelled or has committed.</returns>
+    private static async Task GoBackExpectingTheAskAsync(IPage page)
+    {
+        try
+        {
+            await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit, Timeout = 2000 });
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            // A cancelled traversal commits nothing, so the browser's own wait expires by design: what the
+            // board did with the traversal is asserted by the caller.
+        }
+    }
+
+
+    [Fact]
+    public async Task IntakeBoardModuleFocusesTheDescribedRegionOfADisabledControlAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's focus contract in a real browser, independently of Blazor: a control
+        // that cannot take focus hands it to the region the control itself names, and an enabled control keeps
+        // it. A frozen board's fields are exactly the first case, so this is what lands the member on the
+        // feedback a refusal left instead of on a control that ignores focus.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const root = document.createElement('div');
+            root.innerHTML = '<fieldset class=""intake-fields"" disabled><input id=""probe-field"" class=""is-invalid"" aria-describedby=""probe-error""></fieldset><div id=""probe-error"">Correct this.</div>';
+            document.body.appendChild(root);
+            m.focusRegion(root, '.is-invalid');
+            const disabled = document.activeElement ? document.activeElement.id : null;
+            root.querySelector('fieldset').disabled = false;
+            m.focusRegion(root, '.is-invalid');
+            const enabled = document.activeElement ? document.activeElement.id : null;
+            root.remove();
+            return JSON.stringify([disabled, enabled]);
+        }");
+
+        result.ShouldBe("[\"probe-error\",\"probe-field\"]");
     }
 
     [Fact]

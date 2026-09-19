@@ -156,7 +156,10 @@ public sealed partial class PlayersDirectoryBrowserTests(BrowserSuiteFixture fix
             await page.Locator("#player-first-name").FillAsync("Directory");
             await page.Locator("#player-last-name").FillAsync("Member");
             await page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true }).ClickAsync();
-            await Expect(page.Locator(".alert-success")).ToContainTextAsync("Player created successfully.");
+            await Expect(page.Locator("#intake-receipt-heading")).ToContainTextAsync("Player added");
+            await InteractionHelpers.NavigateEnhancedAsync(page,
+                () => page.GetByRole(AriaRole.Link, new() { Name = "Return to players", Exact = true }).ClickAsync());
+            await Expect(page.Locator(".alert-success")).ToContainTextAsync("Player created.");
             await InteractionHelpers.NavigateEnhancedAsync(page,
                 () => page.GetByRole(AriaRole.Link, new() { Name = "Edit", Exact = true }).ClickAsync());
             await Expect(page.Locator("#player-first-name")).ToHaveValueAsync("Directory");

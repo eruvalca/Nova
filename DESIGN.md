@@ -325,6 +325,69 @@ The club directory extends the flat working field with a page title, manual Add 
 
 Source: [directory markup](Nova.UI/Features/Players/Pages/Players.razor), [styles](Nova.UI/Features/Players/Pages/Players.razor.css), and [URL state](Nova.UI/Features/Players/Services/PlayersUrlState.cs). The [player-intake brief's #263 section](.impeccable/surfaces/player-intake.md) owns the approved composition, reference A, delivery boundaries, and validation link. This extension adds no palette, type, spacing, radius, or acceptance-threshold tokens. Incumbent system-display, eyebrow, and marketing-offset guidance remains preserved authority; those craft-floor conflicts are not new directory conventions.
 
+### Manual Player Intake Board
+
+The manual intake board is a flat Paper White field sheet hosted by `/players/new` and
+`/players/{playerId}/edit`, not a modal and not an expanding form inside the directory.
+
+- **Entry and consequence:** the board heading names the action; every permanent field states whether
+  it is required or optional. Beneath the heading, one bordered consequence band states the
+  authoritative enrollment result in words — naming the Active campaign, or stating that the player
+  joins the roster when the next campaign opens. Unreadable consequence evidence is named as
+  unavailable rather than replaced with a guess. Entry is withheld until the browser has actually been
+  checked for the owner's retained addition, and that withheld state is written in words
+  (*Checking this browser for a retained addition…*) rather than left as an unexplained disabled
+  field set.
+- **Fields:** Paper White inputs, one Roster Hairline, `0.25rem` corners and at least `2.75rem`
+  height. Required and optional fields group into separate bands, and long values wrap. Server field
+  errors sit directly beneath their owning control at the operational `0.875rem` step; graduation-year
+  and archive blockers use the attention field beside the fields they concern.
+- **Commitment:** exactly one commitment control, at the end of the field set, whose label names the
+  action it performs. A retained addition that still needs an outcome keeps its fields visible but
+  frozen, so the member can see exactly what was sent; the same control then reads
+  **Replay the retained addition**. An operation whose own 24-hour window has closed cannot be
+  replayed, so that control is unavailable and the member reviews the directory and sets the addition
+  aside deliberately.
+- **Receipt and recovery:** a committed addition replaces the fields in place with a compact receipt
+  naming the player and the enrollment the immutable operation recorded, then offers **Add another**
+  (resetting only player-specific input), **View player** and **Return to players**. Unsettled,
+  unreadable and duplicate outcomes each state what is known, what is not, and the next safe action;
+  expiry, cancellation and denial are never presented as rollback, and a possible duplicate is never
+  overridden.
+
+**The Retained Evidence Rule.** A manual addition that still needs an outcome keeps its exact request
+and its frozen fields until a receipt-backed result, or a deliberate set-aside that says the earlier
+result stays unknown, settles it.
+
+The approved reference for this surface is
+[`issue-264-a.png`](.impeccable/mocks/issue-264-a.png), anchored on the board's own captured shell and
+measured against the real build; its prompt, provenance and composition check are in
+[`issue-264-a.png.json`](.impeccable/mocks/issue-264-a.png.json), and the curated captures are in
+[`.impeccable/review/issue-264/`](.impeccable/review/issue-264/). The formal comp-spec/comp-diff gate
+was not run, so the recorded figures are a direct comparison against the real build rather than the
+workflow's hero measurement.
+
+### Shared Lifecycle Confirmation
+
+Archive and restore are reached from directory rows and from Player detail through one shared
+confirmation, so both hosts state the same consequence in the same words.
+
+- The confirmation names the player, states what archiving preserves, renders any blocking campaigns
+  with their participation identities, and requires an explicit acknowledgement before the commit
+  becomes available.
+- Restoring states that reactivation does not backfill campaigns missed while archived.
+- The subject and its blockers are captured when the confirmation opens, so a concurrent refresh
+  cannot silently replace what the member reviewed; cancellation clears the confirmation without
+  mutating data.
+
+Source: [shared confirmation markup](Nova.UI/Features/Players/Components/PlayerLifecycleConfirmation.razor),
+[its styles](Nova.UI/Features/Players/Components/PlayerLifecycleConfirmation.razor.css),
+[the shared wording](Nova.UI/Features/Players/Services/PlayerLifecycleCopy.cs), and
+[the board](Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor). The
+[player-intake brief's #264 section](.impeccable/surfaces/player-intake.md) owns the approved reference
+A, its measured composition check and the delivery boundaries. This extension adds no palette, type,
+spacing, radius, or acceptance-threshold token.
+
 ## Do's and Don'ts
 
 ### Do:

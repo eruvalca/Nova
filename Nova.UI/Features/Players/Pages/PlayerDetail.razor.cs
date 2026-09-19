@@ -1,4 +1,6 @@
 ﻿
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.SharedKernel.Enums;
@@ -72,9 +74,55 @@ public partial class PlayerDetail(
     private bool _isMutating;
 
     /// <summary>
-    /// Indicates whether the current user can manage (edit/archive/restore) players.
+    /// Indicates whether the current user may commit player lifecycle mutations. The server's gate is
+    /// club membership, so the record offers what an approved member may actually do.
     /// </summary>
     private bool _canManagePlayers;
+
+    /// <summary>
+    /// The club identifier from the current principal's claims, used to detect club-membership changes
+    /// while the page is mounted and rebind club-scoped state accordingly.
+    /// </summary>
+    private long? _clubId;
+
+    /// <summary>
+    /// The authenticated caller's identity from the current principal's claims. Tracked beside the club
+    /// because the scope this page binds belongs to one member of one club: another member of the same
+    /// club is a different caller, and neither the reviewed panel nor an in-flight mutation of the
+    /// previous caller may be left attached to them.
+    /// </summary>
+    private string? _userId;
+
+    /// <summary>
+    /// The scope generation, which identifies the caller's club scope. Detail reads and lifecycle
+    /// mutations re-check it before applying state, so a response that belongs to a scope this page has
+    /// left — another club, or another member of this club — cannot repopulate the view.
+    /// </summary>
+    private int _clubScopeVersion;
+
+    /// <summary>
+    /// The routed player this page's state belongs to — the one its detail, or its pending read, was
+    /// requested for — or null before the page has bound one. The routed component is reused when only the
+    /// player in the route changes, so every read and mutation this page starts also belongs to the player
+    /// the route named when it started.
+    /// </summary>
+    private long? _pagePlayerId;
+
+    /// <summary>
+    /// Monotonically increasing generation of the routed player visit this page is in. The routed component is
+    /// reused across players, so comparing the routed id cannot tell a continuation that belongs to the visit
+    /// now on screen from one that started before the page visited another player and came back: a route of 7,
+    /// then 21, then 7 passes an id comparison and the earlier player-7 read would publish into the new visit.
+    /// Every rebind to another player takes the next generation, and every read and mutation this page starts
+    /// requires the generation it started with.
+    /// </summary>
+    private int _playerVisitVersion;
+
+    /// <summary>
+    /// The authentication generation. Every applied state re-checks it, so a startup read that
+    /// resolves after a notification cannot overwrite the newer principal.
+    /// </summary>
+    private int _authenticationVersion;
 
     /// <summary>
     /// Indicates whether the archive confirmation panel is open.
@@ -82,9 +130,15 @@ public partial class PlayerDetail(
     private bool _showArchiveConfirm;
 
     /// <summary>
-    /// Indicates whether the archive confirmation checkbox is checked.
+    /// The subject the open archive confirmation reviews. Captured when the panel opens so a later
+    /// route or refresh change cannot show one player while the confirm archives another.
     /// </summary>
-    private bool _archiveConfirmed;
+    private long _archiveSubjectId;
+
+    /// <summary>
+    /// The reviewed subject's display name, captured with <see cref="_archiveSubjectId"/>.
+    /// </summary>
+    private string _archiveSubjectName = string.Empty;
 
     /// <summary>
     /// Structured archive blockers returned from a failed archive attempt.
@@ -99,12 +153,94 @@ public partial class PlayerDetail(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        var version = _authenticationVersion;
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        var principal = authState.User;
-        _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
-
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
+        if (version != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // A notification overtook this read: it already bound the page to its club and started its
+            // own load, so this read applies neither its principal nor its detail — the two loads share
+            // the club-scope generation, so the stale one would otherwise win the race to apply.
+            return;
+        }
+
+        ApplyAuthority(authState.User);
         await LoadDetailAsync();
+    }
+
+    /// <summary>
+    /// Recomputes the club scope and the management permission from one principal. Membership, not the
+    /// admin role, is what the server's mutation gate requires — the same authority the Players
+    /// directory derives, so both hosts offer the same lifecycle control.
+    /// </summary>
+    /// <param name="principal">The authenticated principal to read.</param>
+    /// <returns><see langword="true"/> when the principal may manage this club's players.</returns>
+    private bool ApplyAuthority(ClaimsPrincipal principal)
+    {
+        var club = ReadClubIdClaim(principal);
+        var user = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _clubId = club;
+        _userId = user;
+        _canManagePlayers = principal.Identity?.IsAuthenticated == true && club is > 0 && !string.IsNullOrEmpty(user);
+        return _canManagePlayers;
+    }
+
+    /// <summary>Recomputes this page's club-scoped authority when the authentication state changes.</summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
+
+    /// <summary>
+    /// Applies an authentication-state change: closes management state the change may have revoked and
+    /// rebinds the scoped detail, so a page that stays mounted cannot keep showing the previous scope's
+    /// player or offer its lifecycle controls. The scope is the caller's club scope, so it changes when
+    /// either the club or the member changes.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var version = ++_authenticationVersion;
+        var authState = await stateTask;
+        if (version != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // A newer notification already applied its state; this one is stale.
+            return;
+        }
+
+        var previousClub = _clubId;
+        var previousCaller = _userId;
+        var canManage = ApplyAuthority(authState.User);
+        var scopeChanged = _clubId != previousClub || !string.Equals(_userId, previousCaller, StringComparison.Ordinal);
+
+        if (!canManage || scopeChanged)
+        {
+            // A reviewed panel belongs to the caller that opened it: a revoked membership, another
+            // club's claim, or another member of this club may not leave it actionable, and neither may
+            // the previous caller's outcome messages stay on screen for a caller they do not describe.
+            CancelArchive();
+            _archiveSubjectId = 0;
+            _archiveSubjectName = string.Empty;
+            _mutationError = null;
+            _statusMessage = null;
+        }
+
+        if (scopeChanged)
+        {
+            // Rebind to the newly claimed scope: invalidate every in-flight scope-bound response,
+            // drop the stale detail and reload against the new scope, which re-authorizes
+            // server-side and redirects when the claim no longer allows it.
+            ++_clubScopeVersion;
+            _isMutating = false;
+            _detail = null;
+            _error = null;
+            _isNotFound = false;
+            _isLoading = true;
+            await InvokeAsync(StateHasChanged);
+            await LoadDetailAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <inheritdoc />
@@ -112,6 +248,33 @@ public partial class PlayerDetail(
     {
         var normalized = NormalizeReturnUrl(ReturnUrl);
         if (!string.Equals(_returnUrl, normalized, StringComparison.Ordinal)) { _returnUrl = normalized; }
+    }
+
+    /// <summary>
+    /// Rebinds the page when the route names another player. The routed component is reused for the new
+    /// player, so everything bound to the previous one belongs to a page identity this one has left: its
+    /// detail, its mutation outcome, and any read or mutation still in flight for it.
+    /// </summary>
+    /// <returns>A task that completes when the routed player's detail has been loaded.</returns>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_pagePlayerId == PlayerId)
+        {
+            return;
+        }
+
+        _pagePlayerId = PlayerId;
+        // A return to a player this page has already visited is still a new visit, so the id comparison above
+        // cannot own the work that follows: the generation is what tells this visit's continuations apart from
+        // the ones the earlier visit left in flight.
+        ++_playerVisitVersion;
+        _detail = null;
+        _error = null;
+        _isNotFound = false;
+        _mutationError = null;
+        _statusMessage = null;
+        _isMutating = false;
+        await LoadDetailAsync();
     }
 
     /// <summary>
@@ -141,11 +304,22 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when loading and state updates are finished.</returns>
     private async Task LoadDetailAsync()
     {
+        var version = _clubScopeVersion;
+        var playerId = PlayerId;
+        var visit = _playerVisitVersion;
+        _pagePlayerId = playerId;
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
-        var result = await playerDetailService.GetPlayerDetailAsync(PlayerId, ComponentCancellationToken);
+        var result = await playerDetailService.GetPlayerDetailAsync(playerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // This read belongs to a club scope, or a routed-player visit, the page has left.
+            return;
+        }
+
         result.Switch(
             detail =>
             {
@@ -188,8 +362,11 @@ public partial class PlayerDetail(
     /// </summary>
     private void BeginArchive()
     {
+        // Snapshot the reviewed subject: the panel reviews one player, and only that player may be
+        // archived, however the route or the loaded detail changes while the panel is open.
+        _archiveSubjectId = PlayerId;
+        _archiveSubjectName = _detail is { } detail ? $"{detail.FirstName} {detail.LastName}" : string.Empty;
         _showArchiveConfirm = true;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
         _mutationError = null;
         _statusMessage = null;
@@ -201,7 +378,6 @@ public partial class PlayerDetail(
     private void CancelArchive()
     {
         _showArchiveConfirm = false;
-        _archiveConfirmed = false;
         _archiveBlockers = [];
     }
 
@@ -211,20 +387,32 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
-        if (!_archiveConfirmed)
-        {
-            return;
-        }
-
+        var version = _clubScopeVersion;
+        var playerId = PlayerId;
+        var visit = _playerVisitVersion;
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];
 
-        var result = await playerLifecycleService.ArchiveAsync(PlayerId, ComponentCancellationToken);
+        var result = await playerLifecycleService.ArchiveAsync(_archiveSubjectId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The outcome belongs to a club scope, or a routed-player visit, the page has left: it is not
+            // reported on the page now on screen, and the submission state it set is released with it.
+            _isMutating = false;
+            return;
+        }
+
         result.Switch(
             _ =>
             {
-                _statusMessage = "Player archived.";
+                // The archive settles the reviewed subject, which the route may since have left: naming that
+                // player keeps a result shown above another player's detail from implying that the player on
+                // screen was the one archived.
+                _statusMessage = _archiveSubjectId == PlayerId
+                    ? PlayerLifecycleCopy.ArchivedResult
+                    : PlayerLifecycleCopy.ArchivedSubjectResult(_archiveSubjectName);
                 CancelArchive();
             },
             problem =>
@@ -250,12 +438,23 @@ public partial class PlayerDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task RestorePlayerAsync()
     {
+        var version = _clubScopeVersion;
+        var playerId = PlayerId;
+        var visit = _playerVisitVersion;
         _isMutating = true;
         _mutationError = null;
 
-        var result = await playerLifecycleService.RestoreAsync(PlayerId, ComponentCancellationToken);
+        var result = await playerLifecycleService.RestoreAsync(playerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
+        {
+            // The outcome belongs to a club scope, or a routed-player visit, the page has left.
+            _isMutating = false;
+            return;
+        }
+
         result.Switch(
-            _ => _statusMessage = "Player restored. Missed campaign enrollment is not backfilled automatically.",
+            _ => _statusMessage = PlayerLifecycleCopy.RestoredResult,
             problem => _mutationError = problem.Detail ?? "Could not restore player.");
 
         _isMutating = false;
@@ -264,6 +463,22 @@ public partial class PlayerDetail(
             await LoadDetailAsync();
         }
     }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        await base.DisposeAsyncCore();
+    }
+
+    /// <summary>
+    /// Reads the authenticated club id from the principal, as the Players directory does.
+    /// </summary>
+    /// <param name="principal">The authenticated principal.</param>
+    /// <returns>The club identifier, or <see langword="null"/> when the claim is absent or unusable.</returns>
+    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+        => long.TryParse(principal.FindFirst(NovaClaimTypes.ClubId)?.Value, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Normalizes the inbound return URL to a safe local path within this application.

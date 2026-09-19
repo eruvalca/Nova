@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,12 +12,14 @@ using NSubstitute;
 using OneOf.Types;
 using Shouldly;
 using PlayerDetailPage = Nova.UI.Features.Players.Pages.PlayerDetail;
+using PlayerLifecycleConfirmation = Nova.UI.Features.Players.Components.PlayerLifecycleConfirmation;
 
 namespace Nova.Unit.Tests.Players;
 
 /// <summary>
 /// Component-level tests for the <see cref="PlayerDetailPage"/> covering profile display, campaign history,
-/// role matrix, admin mutations with refresh, attribution, archived data, and error/empty states.
+/// the authority matrix (admin, ordinary member, no club), mutations with refresh, attribution, archived data,
+/// and error/empty states.
 /// </summary>
 public sealed class PlayerDetailComponentsTests : BunitContext
 {
@@ -305,7 +308,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         });
     }
 
-    // ── Role matrix: admin sees actions ──────────────────────────────────────
+    // ── Role matrix: any authenticated club member reaches the lifecycle actions ──
 
     [Fact]
     public void PlayerDetailShowsAdminActionsForClubAdmin()
@@ -338,12 +341,39 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         });
     }
 
-    // ── Role matrix: evaluator is read-only ───────────────────────────────────
+    // ── Role matrix: membership, not the admin role, reaches the record's lifecycle actions ──
 
     [Fact]
-    public void PlayerDetailHidesAdminActionsForEvaluator()
+    public void PlayerDetailShowsArchiveForOrdinaryClubMember()
     {
         RegisterServices(isClubAdmin: false);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        cut.WaitForAssertion(() => cut.FindAll("button.btn-outline-warning").Count.ShouldBe(1));
+        cut.Markup.ShouldNotContain("btn-outline-success");
+    }
+
+    [Fact]
+    public void PlayerDetailShowsRestoreForOrdinaryClubMemberOnAnArchivedRecord()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                CreatePlayerDetail(lifecycleStatus: LifecycleStatus.Archived))));
+
+        RegisterServices(detailService: detailService, isClubAdmin: false);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        cut.WaitForAssertion(() => cut.FindAll("button.btn-outline-success").Count.ShouldBe(1));
+        cut.Markup.ShouldNotContain("btn-outline-warning");
+    }
+
+    // ── Role matrix: a principal without club authority is read-only ──────────
+
+    [Fact]
+    public void PlayerDetailHidesLifecycleActionsWithoutClubMembership()
+    {
+        RegisterServices(isClubAdmin: false, hasClubMembership: false);
 
         var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
         cut.WaitForAssertion(() =>
@@ -503,7 +533,8 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         bool isClubAdmin = false,
         IPlayerDetailService? detailService = null,
         IPlayerManagementService? managementService = null,
-        IPlayerLifecycleService? lifecycleService = null)
+        IPlayerLifecycleService? lifecycleService = null,
+        bool hasClubMembership = true)
     {
         if (detailService is null)
         {
@@ -519,17 +550,360 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton<AuthenticationStateProvider>(
-            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, hasClubMembership)));
+    }
+
+    /// <summary>The archive confirmation reviews the player it was opened for, not the current route.</summary>
+    [Fact]
+    public async Task PlayerDetailArchivesTheReviewedSubjectWhenTheRouteChangesWhileThePanelIsOpenAsync()
+    {
+        var reads = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++reads == 1
+                ? Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail()))
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(playerId: 21, firstName: "Blake", lastName: "Stone"))));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Avery Johnson");
+
+        // The routed detail is reused for another player while the panel is open.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+
+        // The panel still reviews Avery, and confirming archives Avery rather than the new route.
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Avery Johnson");
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#archive-commit").ClickAsync(new());
+
+        await lifecycleService.Received(1).ArchiveAsync(7, Arg.Any<CancellationToken>());
+        await lifecycleService.DidNotReceive().ArchiveAsync(21, Arg.Any<CancellationToken>());
+
+        // The result names the player it settled, so it cannot read as if the player on screen was archived.
+        cut.Markup.ShouldContain("Avery Johnson archived.");
+        cut.Markup.ShouldNotContain("Player archived.");
+    }
+
+    /// <summary>An archive reviewed for the routed player reports nothing once the route moves on.</summary>
+    [Fact]
+    public async Task PlayerDetailDropsAnArchiveOutcomeWhenTheRouteMovesOnMidFlightAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<Success>>();
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => held.Task);
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        var archive = cut.Find("#archive-commit").ClickAsync(new());
+
+        // The route names another player before the archive answers.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<Success>(new Success())));
+        await archive;
+
+        // That submission started under the route the page left, so its outcome is not reported here — and
+        // the state it set is released with it rather than leaving the new page's controls disabled.
+        cut.Markup.ShouldNotContain("Player archived.");
+        cut.Find("button.btn-outline-warning").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>A reused routed page binds the player the route names and rejects the previous one's read.</summary>
+    [Fact]
+    public async Task PlayerDetailBindsTheRoutedPlayerWhenTheRouteNamesAnotherAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(playerId: 21, firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The routed page is reused for another player while the first read is still in flight.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        await detailService.Received(1).GetPlayerDetailAsync(21, Arg.Any<CancellationToken>());
+
+        // The previous player's read answers last and must not bind that player to this route.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+    }
+
+    /// <summary>A read for a player the route has returned to does not publish into the return.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresAReadForAPlayerWhoseRouteWasRevisitedAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The page visits another player and comes back, so the route names the player the first read was for
+        // once again — an id comparison alone cannot tell those two visits apart.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Render(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => detailService.Received(2)
+            .GetPlayerDetailAsync(7, Arg.Any<CancellationToken>()));
+
+        // The first read answers last: it belongs to the visit this route has left, so it must not replace the
+        // detail the return's own read put on screen.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Stale", lastName: "Snapshot"))));
+
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Stale Snapshot");
+    }
+
+    /// <summary>The archive confirmation arrives as a labelled dialog whose heading takes focus.</summary>
+    [Fact]
+    public async Task PlayerDetailAnnouncesTheArchiveConfirmationAsync()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+
+        // The panel is inserted after the member acted, so it is announced as a labelled dialog and its heading is
+        // focusable from the lifecycle: the heading's `autofocus` was never honoured for content that arrives this
+        // way.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(1));
+        cut.Find("#archive-confirmation").GetAttribute("role").ShouldBe("status");
+        cut.Find("#archive-confirmation").GetAttribute("aria-describedby").ShouldBe("archive-confirmation-consequence");
+        cut.Find("#archive-confirmation-consequence").TextContent.ShouldNotBeNullOrWhiteSpace();
+        var heading = cut.Find("#archive-confirmation-heading");
+        heading.GetAttribute("tabindex").ShouldBe("-1");
+        heading.HasAttribute("autofocus").ShouldBeFalse();
+    }
+
+    /// <summary>The confirmation focuses its heading again when the host hands it another subject.</summary>
+    [Fact]
+    public void PlayerLifecycleConfirmationFocusesEachSubjectsHeadingAsync()
+    {
+        var cut = Render<PlayerLifecycleConfirmation>(p => p
+            .Add(c => c.PlayerId, 7)
+            .Add(c => c.DisplayName, "Avery Johnson"));
+        JSInterop.VerifyInvoke("Blazor._internal.domWrapper.focus", calledTimes: 1);
+
+        // The directory reuses the open panel for another player: its heading is a new confirmation, so focus
+        // follows the subject rather than staying on the row that opened the panel.
+        cut.Render(p => p
+            .Add(c => c.PlayerId, 21)
+            .Add(c => c.DisplayName, "Blake Stone"));
+
+        JSInterop.VerifyInvoke("Blazor._internal.domWrapper.focus", calledTimes: 2);
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Blake Stone");
+    }
+
+    /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
+    [Fact]
+    public async Task PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(1);
+
+        // The claimed club changes while the page stays mounted.
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+
+        // The reviewed panel belonged to the previous scope, and the detail is re-read for the new one.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(0));
+        await detailService.Received(2).GetPlayerDetailAsync(7, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Another member of the same club is a different caller, so the scope rebinds.</summary>
+    [Fact]
+    public async Task PlayerDetailRebindsScopeWhenAnotherMemberOfTheSameClubTakesOverAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<Success>>();
+        var reads = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++reads == 1
+                ? Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail()))
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => held.Task);
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        var archive = cut.Find("#archive-commit").ClickAsync(new());
+
+        // Another member of the same club takes over while the archive is still in flight.
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, userId: "202")));
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<Success>(new Success())));
+        await archive;
+
+        // The club is the same but the caller is not: the reviewed panel closes, the detail is re-read for
+        // the caller now on screen, and the previous caller's completed mutation reports nothing here.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(0));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Markup.ShouldNotContain("Player archived.");
+        reads.ShouldBe(2);
+    }
+
+    /// <summary>Losing club membership closes the reviewed panel and its controls.</summary>
+    [Fact]
+    public async Task PlayerDetailClosesTheReviewedPanelWhenMembershipIsRevokedAsync()
+    {
+        RegisterServices(isClubAdmin: false, hasClubMembership: true);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(false));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(1);
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false, hasClubMembership: false)));
+
+        // A revoked membership must not leave the confirmation actionable on a page the member can no
+        // longer mutate.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain("Archive"));
+        cut.FindAll("#archive-confirmation").Count.ShouldBe(0);
+    }
+
+    /// <summary>A detail read that finished after the claimed club changed cannot repopulate the view.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresADetailReadThatFinishedAfterTheClaimedClubChangedAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+
+        // The previous club's read answers last and must not overwrite the new scope's player.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Avery", lastName: "Johnson"))));
+
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+    }
+
+    /// <summary>A startup read that resolves after a notification cannot overwrite the new principal.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresAStartupAuthenticationReadThatResolvedAfterANotificationAsync()
+    {
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        RegisterServices(isClubAdmin: true);
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // A notification for a club member arrives while the startup read is still pending, and the
+        // page binds to it: the lifecycle controls are offered.
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(true, clubId: 43)))));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Archive"));
+
+        // The startup read then resolves as a principal with no club membership; it must not win.
+        await cut.InvokeAsync(() => pending.SetResult(
+            new AuthenticationState(CreatePrincipal(false, hasClubMembership: false))));
+
+        cut.Markup.ShouldContain("Archive");
+    }
+
+    /// <summary>A startup read that lost the race loads neither its principal nor its detail.</summary>
+    [Fact]
+    public async Task PlayerDetailDoesNotLoadDetailFromAStaleStartupAuthenticationReadAsync()
+    {
+        var pendingAuth = new TaskCompletionSource<AuthenticationState>();
+        var currentScopeLoad = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? currentScopeLoad.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Stale", lastName: "Read"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var authentication = new DeferredAuthentication(pendingAuth.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The notification rebinds the page to club 43 and starts its load, which stays open.
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(true, clubId: 43)))));
+        await cut.WaitForAssertionAsync(() => calls.ShouldBe(1));
+
+        // The startup read then resolves as the old club. Its own load must not run: both loads share
+        // the club-scope generation, so a stale one would win the race to apply.
+        await cut.InvokeAsync(() => pendingAuth.SetResult(new AuthenticationState(CreatePrincipal(true))));
+        calls.ShouldBe(1);
+
+        await cut.InvokeAsync(() => currentScopeLoad.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Markup.ShouldNotContain("Stale Read");
     }
 
     private static PlayerDetailDto CreatePlayerDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null,
-        IReadOnlyList<PlayerCampaignHistoryDto>? campaignHistory = null)
+        IReadOnlyList<PlayerCampaignHistoryDto>? campaignHistory = null,
+        long playerId = 7,
+        string firstName = "Avery",
+        string lastName = "Johnson")
         => new(
-            7,
-            "Avery",
-            "Johnson",
+            playerId,
+            firstName,
+            lastName,
             new DateOnly(2012, 4, 1),
             Gender.Female,
             2032,
@@ -557,13 +931,18 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             Notes: notes ?? [],
             TagApplications: tagApplications ?? []);
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool hasClubMembership = true, long clubId = 42,
+        string userId = "101")
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(ClaimTypes.NameIdentifier, userId)
         };
+
+        if (hasClubMembership)
+        {
+            claims.Add(new Claim(NovaClaimTypes.ClubId, clubId.ToString(CultureInfo.InvariantCulture)));
+        }
 
         if (isClubAdmin)
         {
@@ -573,14 +952,37 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 
+    /// <summary>Provides a pending authentication state that a notification can overtake.</summary>
+    /// <param name="pending">The state the startup read awaits.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> pending) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => pending;
+
+        /// <summary>Publishes a notification, as the framework does when the state changes.</summary>
+        /// <param name="state">The replacement state.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
+    }
+
     /// <summary>
     /// Provides a fixed authentication state for bUnit component tests.
     /// </summary>
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
+        /// <summary>The currently published authentication state.</summary>
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
         /// <inheritdoc />
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+            _state;
+
+        /// <summary>Publishes a changed principal to mounted components.</summary>
+        /// <param name="newPrincipal">The replacement authenticated principal.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+        {
+            _state = Task.FromResult(new AuthenticationState(newPrincipal));
+            NotifyAuthenticationStateChanged(_state);
+        }
     }
 }

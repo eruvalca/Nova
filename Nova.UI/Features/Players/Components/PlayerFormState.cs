@@ -1,6 +1,4 @@
-﻿
-using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Components;
+﻿using System.ComponentModel.DataAnnotations;
 using Nova.SharedKernel.Enums;
 using Nova.SharedKernel.Features.Players;
 using Nova.SharedKernel.Validation;
@@ -8,78 +6,8 @@ using Nova.SharedKernel.Validation;
 namespace Nova.UI.Features.Players.Components;
 
 /// <summary>
-/// Renders the shared DataAnnotations-backed create/edit player form.
-/// </summary>
-public partial class PlayerForm
-{
-    /// <summary>
-    /// Gets or sets the heading displayed above the form.
-    /// </summary>
-    [Parameter]
-    public string Heading { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the mutable form state for create/edit operations.
-    /// </summary>
-    [Parameter, EditorRequired]
-    public PlayerFormState Model { get; set; } = PlayerFormState.CreateDefault();
-
-    /// <summary>
-    /// Gets or sets the submit button text.
-    /// </summary>
-    [Parameter]
-    public string SubmitButtonText { get; set; } = "Save";
-
-    /// <summary>
-    /// Gets or sets whether a save operation is in progress.
-    /// </summary>
-    [Parameter]
-    public bool IsSubmitting { get; set; }
-
-    /// <summary>Freezes profile fields while an original creation awaits a definitive outcome.</summary>
-    [Parameter]
-    public bool IsReadOnly { get; set; }
-
-    /// <summary>A server-confirmed possible duplicate that staff can inspect.</summary>
-    [Parameter]
-    public PlayerCreationDuplicate? Duplicate { get; set; }
-
-    /// <summary>The parent-built duplicate detail destination, including the current roster return context.</summary>
-    [Parameter]
-    public Uri? DuplicateDetailUrl { get; set; }
-
-    /// <summary>
-    /// Gets or sets a server-side error message to display.
-    /// </summary>
-    [Parameter]
-    public string? ErrorMessage { get; set; }
-
-    /// <summary>
-    /// Gets or sets structured graduation-year blockers returned from the server.
-    /// </summary>
-    [Parameter]
-    public IReadOnlyList<GraduationYearBlockerItem> GraduationYearBlockers { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the callback invoked when the form validates and submits.
-    /// </summary>
-    [Parameter]
-    public EventCallback OnValidSubmit { get; set; }
-
-    /// <summary>
-    /// Gets or sets the callback invoked when the user cancels editing.
-    /// </summary>
-    [Parameter]
-    public EventCallback OnCancel { get; set; }
-
-    /// <summary>
-    /// Gets all gender options for the form select.
-    /// </summary>
-    protected static IReadOnlyList<Gender> GenderOptions { get; } = Enum.GetValues<Gender>();
-}
-
-/// <summary>
-/// Mutable player form state that reuses shared input-record validation rules.
+/// Mutable player-entry state that reuses the shared input-record validation rules, so the board
+/// never invents a second policy beside <see cref="PlayerProfileInput"/>.
 /// </summary>
 public sealed class PlayerFormState : IValidatableObject
 {
@@ -151,6 +79,19 @@ public sealed class PlayerFormState : IValidatableObject
     }
 
     /// <summary>
+    /// Clears only the player-specific input, keeping the mode and identity of the current board.
+    /// </summary>
+    public void ResetForNextAddition()
+    {
+        FirstName = string.Empty;
+        LastName = string.Empty;
+        DateOfBirth = CreateDefault().DateOfBirth;
+        GraduationYear = CreateDefault().GraduationYear;
+        Gender = null;
+        JerseyNumber = null;
+    }
+
+    /// <summary>
     /// Converts this form state to the shared profile-validation payload without operation metadata.
     /// </summary>
     /// <returns>The profile fields used to validate a new player before allocating its operation identity.</returns>
@@ -165,6 +106,9 @@ public sealed class PlayerFormState : IValidatableObject
     };
 
     /// <summary>Freezes one logical manual creation; validation never generates its operation identity.</summary>
+    /// <param name="operationId">The retained UUIDv7 identity for this logical creation.</param>
+    /// <param name="clubId">The original club scope for the command.</param>
+    /// <returns>The exact command payload.</returns>
     public CreatePlayerInput ToCreateInput(Guid operationId, long clubId) => new()
     {
         OperationId = operationId,
@@ -176,6 +120,23 @@ public sealed class PlayerFormState : IValidatableObject
         Gender = Gender,
         JerseyNumber = JerseyNumber
     };
+
+    /// <summary>Projects the retained command back into editable state so a member can correct it.</summary>
+    /// <param name="command">The retained command.</param>
+    /// <returns>A create-mode state holding the retained payload.</returns>
+    public static PlayerFormState FromPendingCommand(CreatePlayerInput command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return new()
+        {
+            FirstName = command.FirstName,
+            LastName = command.LastName,
+            DateOfBirth = command.DateOfBirth,
+            GraduationYear = command.GraduationYear,
+            Gender = command.Gender,
+            JerseyNumber = command.JerseyNumber
+        };
+    }
 
     /// <summary>
     /// Converts this form state to an update-player input payload.

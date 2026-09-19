@@ -24,6 +24,7 @@
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Finish source-writing `dotnet format` before resuming edits or other source-writing operations in the same worktree; it can overwrite changes made after it loaded the workspace.
 - Bootstrap theme: `npm ci` then `npm run build:css` (from `Nova/`) compiles the Sass theme to `Nova/wwwroot/css/bootstrap-theme.css`; `npm run check:contrast` validates WCAG contrast and asserts no Bootstrap-blue literals. Run both from `Nova/` after any `scss/` or `package.json` change.
+- Environment-gated capabilities — the approved design comp flow, accessibility captures, and the Aspire/browser evidence flags — read their variables from the **user** scope. A shell process does not inherit a variable set after it started, so check `[Environment]::GetEnvironmentVariable('NAME', 'User')` before concluding a capability is unavailable on this machine.
 - After the build, unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`
 - Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — see the local PR test gate below.
 - Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
@@ -73,7 +74,9 @@ edits can reuse the pass with the comparison recorded.
   Reference a new comp on the surface's own shell at the target breakpoint, and confirm before locking
   it that it depicts the composition the brief commits to. A comp-diff score only measures a comp that
   depicts that composition: a below-threshold score against one that does not is a comp defect to
-  raise, not a build defect to iterate against.
+  raise, not a build defect to iterate against. If you cannot inspect the rasters in your environment,
+  say so plainly, establish the composition check by measuring each candidate against the surface's own
+  capture instead of asserting it, and get the user's confirmation before locking.
 
 - **Issue roadmaps are hand-maintained.** Each parent issue carries a `<!-- native-child-roadmap:start -->` … `<!-- native-child-roadmap:end -->` block; nothing generates it, and a block exists only when the issue has native children. Before editing one, reconcile membership and state with `gh api repos/eruvalca/Nova/issues/<n>/sub_issues --paginate`. Mark a child complete only when its closing PR is merged into `main` — a validated revision may be off-main when the merge was squashed. A superseding comment resolves an old one. Procedure: `sync-epic-roadmap`.
 
