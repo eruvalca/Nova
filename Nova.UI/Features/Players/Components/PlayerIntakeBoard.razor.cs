@@ -251,12 +251,19 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     }
 
     /// <summary>
+    /// Gets whether the board offers a replay of the retained command. An open set-aside decision owns that
+    /// command: a replay begun beside it would settle the very operation the member is still deciding to
+    /// abandon, so the replay is offered only while that decision is not in front of them.
+    /// </summary>
+    protected bool OffersReplay => CanReplay && !_setAsidePending;
+
+    /// <summary>
     /// Gets whether the commit control is available. A retained command inside its window is
     /// replayed through the same control, so the member has exactly one way to settle it.
     /// </summary>
     protected bool CanCommit => !IsEntryBlocked && !ShowsReceipt && CanManage && !IsSubmitting && RecoveryChecked
         && (RecoveryState == PlayerCreationRecoveryState.None
-            || (RecoveryState == PlayerCreationRecoveryState.Unresolved && CanReplay));
+            || (RecoveryState == PlayerCreationRecoveryState.Unresolved && OffersReplay));
 
     /// <summary>
     /// Gets the sentence that names why the board is withholding input. A refused check is not a check
@@ -273,7 +280,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     /// </summary>
     protected string CommitLabel => RecoveryState switch
     {
-        PlayerCreationRecoveryState.Unresolved when CanReplay => "Replay the retained addition",
+        PlayerCreationRecoveryState.Unresolved when OffersReplay => "Replay the retained addition",
         _ => SubmitLabel
     };
 

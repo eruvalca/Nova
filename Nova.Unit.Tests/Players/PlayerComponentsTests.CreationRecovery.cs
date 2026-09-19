@@ -106,6 +106,44 @@ public sealed partial class PlayerComponentsTests
         Interop.Read(101, 42).ShouldBeNull();
     }
 
+    /// <summary>A creation answering after the addition was set aside does not take over the board that resolved it.</summary>
+    [Fact]
+    public async Task PlayersIgnoresACreationResultThatLandsAfterTheAdditionWasSetAsideAsync()
+    {
+        var dispatch = new TaskCompletionSource<ServiceResult<PlayerCreationCompletion>>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => dispatch.Task);
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var save = FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        var retained = Interop.Read(101, 42);
+        retained.ShouldNotBeNull();
+
+        // The member deliberately leaves the addition's outcome unknown: the retained request is removed, so
+        // this board no longer holds the operation the in-flight dispatch answers.
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(0));
+        Interop.Read(101, 42).ShouldBeNull();
+
+        await cut.InvokeAsync(() => dispatch.SetResult(new(CreationCompletion(retained.Payload))));
+        await save;
+
+        // The outcome answers an operation this board resolved rather than one it holds, so it is not published
+        // into it: no receipt and no frozen command replace the board the member chose, the set-aside stands,
+        // and the directory it refreshes is where the member was told to look.
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(0);
+        cut.Markup.ShouldNotContain("Enrolled in Original campaign.");
+        cut.Markup.ShouldContain("Retained addition set aside");
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#intake-submit").TextContent.ShouldContain("Create player");
+    }
+
     /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("FirstName")]
@@ -1131,6 +1169,51 @@ public sealed partial class PlayerComponentsTests
         cut.FindAll("#intake-unresolved").Count.ShouldBe(0);
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         Interop.Read(101, 42).ShouldBeNull();
+    }
+
+    /// <summary>A replay is not offered while the set-aside decision that owns the command is open.</summary>
+    [Fact]
+    public async Task PlayersKeepsTheReplayUnavailableWhileTheSetAsideDecisionIsOpenAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // The retained command is replayable, and that one control is what settles it.
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#intake-submit").TextContent.ShouldContain("Replay the retained addition");
+
+        // Opening the decision suspends it: the member is deciding whether to abandon that very command, so a
+        // replay begun beside the decision would settle the operation under it.
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-set-aside").Count.ShouldBe(1));
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#intake-submit").TextContent.ShouldNotContain("Replay the retained addition");
+
+        // Keeping it retained hands the one control back, so the suspension is never a dead end.
+        await cut.Find("#intake-set-aside button.btn-outline-secondary").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-set-aside").Count.ShouldBe(0));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#intake-submit").TextContent.ShouldContain("Replay the retained addition");
     }
 
     /// <summary>A server field error keyed to Gender renders beside its own control.</summary>
