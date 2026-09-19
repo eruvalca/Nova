@@ -1442,6 +1442,31 @@ Tested revision: `2ae98813` (the record's own commit follows it).
 | Incident, recorded | The first version of finding 4's fix reset the board's own state whenever the model instance changed, and the suite caught that a replacement can carry the member's values back (a refusal's corrected form): the dirty flag must survive it, and clearing it made Cancel skip the departure question, failing `PlayersClearsDuplicateWhenCancelledFormReopensAsync`. The fix moved to the parent, which knows the replacement is wholesale. Two smaller slips from the same PowerShell rewrites were caught before they could matter: a regex that matched the form's field initialiser as well as the reset (a statement in the class body) and the dropped byte-order mark above. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
 
+## GitHub Copilot code review, thirty-seventh pass (PR #285, on `5a041128`, fixed in `6a310cc6`)
+
+Copilot's review body carries two findings, raised as *previously missed* (no inline threads, so none to
+resolve). Both are about a state the page owns outliving the answer that settled it.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `CanCommit` does not include `IntakeContextLoading`, so once the retained-command check has settled the member can dispatch while the board still says "Checking the enrollment consequence…" — reintroducing the pre-commit race that state was added to prevent (`PlayerIntakeBoard.razor.cs:293`, **review body**) | **Fixed by gating the commit on the state the board names.** A new addition waits for the enrollment read before the control opens, so a member commits only under the campaign the board states or after it has named the consequence as unread; a read that failed stays settled and keeps the control open, which the board's own copy promises ("Submission reports the real result"). A replay is deliberately untouched: it re-sends a command whose campaign the receipt owns and whose consequence the frozen board does not state, so that read cannot change what re-sending it means. `PlayerIntakeBoardWithholdsCommitWhileTheEnrollmentConsequenceIsUnread` pins both halves at the board, and the page-level held-read case now also requires the withheld control **after** the fields have opened, so its assertion cannot pass on the retained-command gate instead. |
+| 2 | A successful set-aside clears the retained state but not `_storageUnavailable`, so a removal that failed earlier and is then taken again successfully leaves `#intake-storage-unavailable` and its "Retry storage" copy on screen for a record that is gone (`Players.razor.Intake.cs:613`, **review body**) | **Fixed** in the released branch, with the rest of the cleared retained state: the removal is the page's own proof that the browser's storage answers. `PlayersClearsTheStorageRetryWhenASetAsideSucceedsDirectlyAsync` fails one removal, then takes the same decision while storage answers **without** clicking the retry that refusal offered, and requires the panel and the copy to be gone. |
+
+### Confirming evidence (Copilot thirty-seventh pass)
+
+Tested revision: `6a310cc6` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3883 total, 3883 passed, 0 failed, 0 skipped** (3881 before; two cases added). |
+| Negative check | Both product changes reverted together, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **3 failed, 0 passed** — exactly `PlayerIntakeBoardWithholdsCommitWhileTheEnrollmentConsequenceIsUnread`, `PlayersNamesTheEnrollmentCheckWhileTheIntakeConsequenceReadIsOpenAsync` and `PlayersClearsTheStorageRetryWhenASetAsideSucceedsDirectlyAsync`. Fixes restored, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean on the second attempt. The first failed `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` on the same navigation-readiness wait recorded for the thirty-sixth pass, at a step (Cancel, with no form in the captured document) this pass's change does not touch. |
+| Incident, recorded | The first version of finding 2's evidence put the assertions on the existing retry-storage journey, where they **passed with the fix reverted**: that journey clicks the storage retry, whose successful read clears the flag first, so the assertions could not tell the fix from its absence. They were replaced by the dedicated case that takes the same decision without the retry, which fails on the reverted build. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
