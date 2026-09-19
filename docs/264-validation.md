@@ -854,6 +854,30 @@ Tested revision: `0578c671`.
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the load-sensitive directory journey passing in this run. |
 | Full browser suite | **Five attempts on this revision, none clean**: run 1 **230 total, 218 passed, 2 failed, 10 skipped** (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, `CampaignEvaluationCaptureBrowserTests.ModifiedPlayerClickOpensNewTabWithoutChangingOriginalDraftAsync`); run 2 **230, 217, 3** (`PlayerFormKeyboardTabAndEnterSubmitsAsync`, `CampaignPlaceBrowserTests.SavingTheLastParticipantOnPageTwoAdoptsPageOneBeforeEnablingEditingAsync`, the directory journey); run 3 **230, 218, 2** (`CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`, `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`); run 4 **230, 217, 3** (the closed-record journey, the directory journey, the ordinary-member journey); run 5 **230, 219, 1** (the closed-record journey). Every failure occurred only inside full runs. **Attribution, checked per journey rather than assumed:** each **passes in isolation** on this revision — the directory, evaluation, keyboard, ordinary-member and closed-record journeys were each run directly, and the ordinary-member journey also passes inside the affected selection below — and each **exists on `origin/main`**: the closed-record journey arrived with #282, whose commit is in this branch's history, and `git diff --stat origin/main...HEAD` is empty for the campaign surfaces and for those test files. The two failures that are in this surface are the journeys this record has tracked as load-sensitive since the eleventh pass, failing here with the same readiness signature (the board's gated input not yet enabled: the keyboard journey on `#player-first-name` not existing yet, the ordinary-member journey on the routed form's region). The repository's own rule names the mechanism — Aspire-backed suites must stay serial across worktrees because shared Docker capacity can exhaust bounded hydration/storage retries — so the instability tracks the machine's concurrent load, not this change. **The before-merge full-pass row is therefore outstanding on this revision and is recorded as a limitation**, not claimed: the affected selection below is clean and the suite is re-attempted on later ticks. |
 
+## GitHub Copilot code review, eighteenth pass (PR #285, on `d80b50e0`, fixed in `d5e370c5`)
+
+Copilot raised one inline finding on the retained-storage boundary, which landed after the seventeenth
+pass was recorded. Addressed in `d5e370c5`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `writePending` treats a matching operation id as sufficient to overwrite the retained record without checking that the incoming payload is the exact retained one, so a stale/same-owner tab, or altered bytes in storage, could replace the command under its identity — and with no receipt yet the server could process the replacement as a new creation, breaking the exact-replay contract (`PlayerIntakeBoard.razor.js:91`, **inline thread**) | **Fixed as prescribed.** A same-identity write may now only carry the retained bytes back: the module refuses when the existing record's JSON differs, and the in-memory stand-in mirrors that rule so the boundary's semantics cannot drift in unit tests. The comparison is byte-exact and it is safe for the app's own replay — the retained record *is* the re-serialization of the command the board holds, and the server's own `RequestSha256` fingerprint check depends on that same stability — and it makes the write side symmetric with the read side, which already treats differing bytes as evidence to preserve for an explicit discard rather than to overwrite (`readRecovery`'s `invalidValue`, `discardInvalidPending`'s exact-byte comparison). New case `WriteAsyncRefusesDifferentBytesUnderTheSameOperationAsync` pins the stand-in's refusal and that the original bytes survive; `IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync` now drives a same-id altered write in a real browser and asserts both that it is refused and that the retained bytes are the originals. **No board flow changes:** every write the board performs is either a fresh operation identity or the retained command replayed unchanged, and the whole existing suite passing unchanged is the evidence that legitimate replays still write. |
+
+### Confirming evidence (Copilot eighteenth pass)
+
+Tested revision: `d5e370c5`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**, after one fix the new code needed: the browser assertions had to double their quotes inside the verbatim script literal. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3850 total, 3850 passed, 0 failed, 0 skipped** (3849 before; the new boundary case is the delta). No existing case needed a change, which is the evidence that legitimate replays still write under the stricter rule. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check (unit) | With the stand-in restored to its `d80b50e0` content — the revert **build re-verified as successful (0 warnings, 0 errors) before the run** — `WriteAsyncRefusesDifferentBytesUnderTheSameOperationAsync` fails (**1 failed, 3849 passed**). |
+| Negative check (browser) | With the module reverted on that same verified build, `IntakeBoardModuleRetainsAndReadsOwnerScopedBytesAsync` fails on the new refusal and preservation expectations (**1 failed, 1 passed, 1 skipped**), which pins the module's own rule rather than the stand-in's. Both files were restored, rebuilt and re-run green before the suites below. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
+| Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, the journey this record has tracked as load-sensitive since the eleventh pass, on the same absent-paging signature; attribution is unchanged from the seventeenth pass (it exists on `origin/main`, this diff does not touch the directory's paging or draft-return path, and it passes in isolation on these revisions), and the run before it had already passed the same journey inside the affected selection. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — which satisfies the before-merge row for the final inputs on `d5e370c5` (the ten skips are the pre-existing env-gated captures). |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1053,16 +1077,17 @@ evidence above is unchanged by it.
   that reads as coverage. That class is also the single source of truth the focus contract uses: the board
   moves focus to the first field it marks invalid after a refusal, so the field that is announced, marked
   and focused is decided in one place (`FieldHasError`).
-- **The before-merge full browser-suite row is outstanding on `0578c671`, and the reason is the machine's
-  suite instability rather than the change.** Five full runs, none clean: every failure occurred only inside
-  a full run, each failing journey passes in isolation on this revision, each exists on `origin/main`, and
-  the two in this surface are the journeys this record has tracked as load-sensitive since the eleventh pass
+- **The full browser-suite row: outstanding on `0578c671`, satisfied on the final revision `d5e370c5`.** Five
+  full runs on `0578c671` were never clean: every failure occurred only inside a full run, each failing
+  journey passes in isolation on that revision, each exists on `origin/main`, and the two in this surface are
+  the journeys this record has tracked as load-sensitive since the eleventh pass
   (`PlayerFormKeyboardTabAndEnterSubmitsAsync`,
   `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`) failing with the same
-  board-not-yet-ready signature. The affected selection is clean on this revision, including both long
-  directory journeys, and the repository's own rule explains the pattern (shared Docker capacity across
-  worktrees exhausting bounded hydration/storage retries). The suite is re-attempted on later ticks; the row
-  is reported as outstanding rather than satisfied by the selection.
+  board-not-yet-ready signature. The repository's own rule names the mechanism (shared Docker capacity across
+  worktrees exhausting bounded hydration/storage retries), so those attempts track the machine's concurrent
+  load rather than the change. The row is satisfied on the revision that carries those changes forward: the
+  first full run on `d5e370c5` failed only the tracked directory journey, and its retry was clean
+  (**230 total, 220 passed, 0 failed, 10 skipped**), with the affected selection also clean on both revisions.
 
 ## Design evidence
 
