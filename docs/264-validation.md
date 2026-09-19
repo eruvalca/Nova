@@ -1365,6 +1365,29 @@ Tested revision: `2654a731` (the record's own commit follows it).
 | Harness incident, recorded | The first arrangement of the second finding held the clear gate and asserted the mid-settlement screen, which **hung the runner twice** (over ten minutes each) rather than failing: a bUnit click whose handler is still awaiting the settlement does not deliver a render, so `WaitForAssertionAsync` — which waits for renders — never observes the state the assertion describes. The case was replaced by the two board-boundary cases above, and the page-side busy window is recorded as verified by inspection plus the board gate that now drives it. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection shows the same tracked journey failing. |
 
+## GitHub Copilot code review, thirty-fourth pass (PR #285, on `6733af95`, fixed in `b8d3c8d9`)
+
+Copilot's review body lists the thirty-third pass's two inline threads as resolved and carries one finding,
+raised as *previously missed* (no inline thread, so none to resolve).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `OnFieldChanged` starts `SyncDirtyAsync()` detached, and its catch does not handle `OperationCanceledException` when the component token is cancelled — the filter requires the token *not* to be cancelled — so a slow `MarkDirtyAsync` still running during navigation/disposal faults a task nobody observes instead of being treated as teardown (`PlayerIntakeBoard.razor.cs:724`, **review body**) | **Fixed.** Teardown cancellation is caught and treated as the normal end of a sync whose guard is going away, and the boundary-failure filter no longer depends on the token: a JS/disconnected/disposed failure that raced teardown is the same news as one that happened while the board was live, and failing to record the flag only weakens the warning. The sync is `internal` so the case can call it directly, and the interop double gained the boundary state the real store has — `FailDirtyWithCancellation` (a cancelled write) and a `DirtyAttempts` counter. |
+
+### Confirming evidence (Copilot thirty-fourth pass)
+
+Tested revision: `b8d3c8d9` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3879 total, 3879 passed, 0 failed, 0 skipped** (3878 before). |
+| Negative check, with two incidents recorded | On the reverted catch (an analyzer-clean revert, the **revert build re-verified as successful**), `PlayerIntakeBoardTreatsACancelledDirtySyncAsTeardownAsync` fails with the raw **`System.OperationCanceledException : The dirty-state write was cancelled by teardown`** unwinding out of `SyncDirtyAsync` — the fault the finding describes. The first two attempts at this case were **vacuous and were caught by re-running them against the revert**: the sync returned early because the board had not yet recorded its attach (only the double's flag was set), so the test passed pre-fix; the case now drains one dispatcher hop after the attach's answer and asserts, relatively, that the call reached the boundary (`DirtyAttempts` rises by one) before requiring that it does not throw. Fix restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**, after one `MA0196` error from an `<inheritdoc />` that my insertion had left sitting on the new counter property rather than on the interop method it documents; the tag is back on the method. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the tracked count-derived journey that has failed most selections. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
