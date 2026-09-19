@@ -1124,6 +1124,32 @@ Tested revision: `236d65e6` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), covering the detail-page journeys this pass changed as well as the form journeys. |
 | Full browser suite | **Still pending: two attempts, 1 failed (219/230) and 2 failed (218/230).** Attempt 1 failed `CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`; attempt 2 failed that journey again plus `PlayersDirectoryBrowserTests.DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. The campaign journey is entirely outside this diff — it seeds a closed campaign, drives `/campaigns/{id}?tab=close&closeParticipant=…`, asserts document **focus** on `#closed-history-heading` and reloads as WebAssembly, so no changed file is in its path — and its signature ("locator expected to be focused") is the environment-sensitive kind; the directory journey is the same tracked one from the twenty-second and twenty-third passes. Across the two ticks that makes **five full runs with 1–2 failures each**, every failing journey passing in another run on the same revision and the affected selection clean both times. The gate's before-merge row therefore stays unsatisfied and the observation stays for #286. |
 
+## GitHub Copilot code review, twenty-fifth pass (PR #285, on `4056c687`, fixed in `01b398df`)
+
+Copilot's review body lists the twenty-fourth pass's two inline threads as resolved and carries one new
+finding, raised as *previously missed* (no inline thread, so none to resolve). Its summary line names both
+sites: "fresh operations and successful set-aside can retain stale duplicate state, mislabeling recovery and
+suppressing replay for the current operation".
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | When a duplicate rejection has released its retained command, `_creationDuplicate` stays populated while the corrected form starts a new operation; if that new request is unresolved, the board still renders the old duplicate panel and `CanReplay` stays suppressed by the stale value, so the recovery UI describes the previous input and offers no replay for the new operation. "Clear the duplicate state when allocating a fresh command, before retention/dispatch"; the finding notes it "also appears on line 599", which is the set-aside completion (`Players.razor.Intake.cs:198` and `:599` in the reviewed snapshot, **review body**) | **Both sites clear it now, and the reachable one is pinned.** `CreatePlayerAsync` clears `_creationDuplicate` with the rest of a submission's published state, so a new operation's outcome — receipt, refusal or unresolved — is its own; `ApplySetAsideOutcomeAsync` clears it with the other retained state, so a completed set-aside leaves no panel for an operation the board no longer keeps. The first site is the reachable one: a submission is the only path that can put the board back into `Unresolved` while the panel stands, and it is proven non-vacuous below. The second is parity rather than a reproduced defect — behind the first fix, starting a submission already clears the panel, and only a receipt-backed refusal can set it again, which releases the record and leaves no set-aside card to reach — so it is recorded as such instead of claimed as an observed bug. |
+
+### Confirming evidence (Copilot twenty-fifth pass)
+
+Tested revision: `01b398df` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3861 total, 3861 passed, 0 failed, 0 skipped** (3860 before; the new case is the delta). |
+| Negative check | The fresh-command clear reverted in place, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **1 failed, 3860 passed** — exactly `PlayersStartsANewOperationWithoutThePreviousDuplicatePanelAsync`, on `cut.FindAll("#intake-duplicate").Count` still being 1 after the corrected form's new operation went unresolved. Fix restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | **Two attempts, neither clean: 21/23 then 20/23.** Attempt 1 failed `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` (its `"Page 2 of 4"` paging assertion); attempt 2 failed that journey again plus `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`. Both **pass alone on this revision** (`--filter-method`, 1/1 each), and the first is unchanged from `origin/main` apart from five lines this PR spends on a create-flow helper's assertions — the failing paging text is a **count-derived** value, and each run's database is empty at the start (the fixture's `RemoveDataVolumes` strips the AppHost's persistent mounts), so what it counts is what the tests that ran before it seeded into the shared AppHost. This pass therefore sharpens the twenty-third/twenty-fourth passes' diagnosis: the failure is the suite's shared-run data and ordering, not load alone, and not behaviour this diff changed. |
+| Full browser suite | Not attempted this pass: with the selection itself failing on pre-existing count-derived assertions, a full run could not produce the row the gate wants, and the honest record is the diagnosis above plus the retry history already recorded. The before-merge row stays pending (see *Limitations*). |
+| Capacity check | `docker system df` and `docker ps -a`: no test container is running, the two exited ones date from three weeks ago, there are 20 local volumes (607 MB reclaimable) and 635 GB free on `C:` — so the degradation is not exhausted capacity, and the fixture does not reuse Postgres data between runs by design. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1345,23 +1371,23 @@ evidence above is unchanged by it.
   twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
   pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
   an expiry; the trade-off is stated in that pass's section for a human to weigh.
-- **The before-merge full-browser-suite row is still pending, now across two review rounds, and it is
-  recorded that way rather than claimed.** Five full runs on the twenty-third and twenty-fourth passes'
-  revisions reported **219/230 three times, 218/230 once and 218/230 again**, each failing one or two of
-  #286's tracked load-sensitive journeys — the directory draft-and-place journey, the ordinary-member
-  create/edit/archive/restore journey, a campaign evaluation capture, and, on the twenty-fourth pass's two
-  attempts, `CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`,
-  whose `/campaigns/{id}?tab=close` focus assertions and WebAssembly reload share no code with this change.
-  The affected player selection passed **23/22/0/1** on the twenty-fourth pass's revision and 26/26 on the
-  twenty-third's, every failing journey passed in another run on the same revision, and one isolation
-  failure passed its isolation retry. Nothing here identifies a defect in this change: the failures are
-  non-deterministic, span four different classes, and none of them executes the code these rounds changed.
-  It does mean the gate's "full pass covers the final inputs" row is unsatisfied, and that the frequency and
-  signatures — 5/5 full runs failing, with no competing Aspire suite running (no `Nova` process, no
-  Postgres/Azurite container, only unrelated MCP-server `dotnet` processes) — are observations **#286 should
-  carry**, since that issue is where this suite's retry budget and readiness are tracked. A later tick or
-  the human approver can add them there; this run's authorized actions did not include filing or commenting
-  on issues.
+- **The before-merge full-browser-suite row is still pending after three review rounds, and the refined
+  diagnosis is that the suite's *shared-run data* is the cause, not load alone.** Five full runs on the
+  twenty-third and twenty-fourth passes' revisions reported 219/230, 219/230, 218/230, 219/230 and 218/230,
+  failing one or two journeys each; the twenty-fifth pass's affected selections failed 1 and 2 of 23. Every
+  failing journey passes **alone** on the revision that failed it (`--filter-method`, verified for
+  `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` and
+  `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`), and the recurring one fails on a
+  **count-derived** assertion (`"Page 2 of 4"`) that pre-exists on `origin/main` — this PR changes that file by
+  five lines, in a create-flow helper, none of them the assertion — while each run's database starts empty
+  (`RemoveDataVolumes` strips the AppHost's persistent mounts), so the count is whatever the tests that ran
+  before it seeded into the shared AppHost. That points at two fixes that are **not** this change's to make:
+  count-derived assertions should be derived from what the test seeded rather than from a literal page count,
+  and the journeys that share one club's roster need to be serialized or isolated. Both belong in **#286**,
+  which is where the suite's readiness and retry budget are tracked; this run's authorized actions did not
+  include filing or commenting on issues, so the observation is recorded here for the human or a later run.
+  Capacity was ruled out: no test container runs, the exited ones are three weeks old, and `C:` has 635 GB
+  free.
 
 ## Design evidence
 
