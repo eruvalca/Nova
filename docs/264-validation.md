@@ -829,6 +829,31 @@ documentation-only edit that recorded this evidence changed no application or br
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**; the selection grew by the new focus case, and the failure is `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. That journey passed again in isolation on this revision (**1 total, 1 passed**). |
 | Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — again `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. Attribution is checked rather than assumed: that journey **exists on `origin/main`** and this branch's diff does not touch the directory's paging or draft-return path (`git diff origin/main...HEAD -- Nova.UI/Features/Players/Pages/Players.razor` has no paging lines), it passes in isolation on this revision, and this record already carries the same journey failing on `135826d1` and `21e5b6ba`, before any of this pass's changes. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — satisfying the before-merge row for the final inputs (the 230 includes this pass's new browser case; the ten skips are the pre-existing env-gated captures). |
 
+## GitHub Copilot code review, seventeenth pass (PR #285, on `68333bc6`, fixed in `0578c671`)
+
+Copilot raised one inline finding naming three sites in the same file: the ownership generation the page
+checks represents only club and caller scope, so it never changes when the reused routed page receives
+another `PlayerId`. Addressed in `0578c671`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The scope generation does not include the routed player, so a read for player 7 that answers after the route moved to player 21 passes its check and binds player 7's detail to `/players/21` (same shape at lines 341 and 382) (`PlayerDetail.razor.cs:262`, **inline thread**) | **Fixed as prescribed.** The page now owns the routed player: `OnParametersSetAsync` rebinds when the route names another one — clearing the previous player's detail, messages and submission state, then loading the new player — `LoadDetailAsync` requests the player it captured and rejects its result unless that player is still the routed one, and both lifecycle mutations capture the player they started under and require it, with the club scope, to be unchanged before they report. A mutation that loses that ownership also releases `_isMutating`, so the page now on screen is not left with disabled controls. New cases `PlayerDetailBindsTheRoutedPlayerWhenTheRouteNamesAnotherAsync` (a held read for player 7 that answers after the route moved to 21 binds nothing from player 7) and `PlayerDetailDropsAnArchiveOutcomeWhenTheRouteMovesOnMidFlightAsync` (a held archive that answers under a later route reports nothing). **Deliberately unchanged:** the reviewed-subject panel keeps the cross-page semantics an earlier round pinned (`PlayerDetailArchivesTheReviewedSubjectWhenTheRouteChangesWhileThePanelIsOpenAsync`). The ownership rule here is about the *request's* route identity, which is the reviewer's scenario — a confirmation issued *after* the route moved starts under the new route and still targets the subject it reviewed, which is that pin's contract. |
+
+### Confirming evidence (Copilot seventeenth pass)
+
+Tested revision: `0578c671`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3849 total, 3849 passed, 0 failed, 0 skipped** (3847 before; the two new cases are the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check | With `PlayerDetail.razor.cs` restored to its `68333bc6` content — the revert **build re-verified as successful (0 warnings, 0 errors) before the run** — **both new cases fail** (**2 failed, 3847 passed**). Restored, rebuilt and re-run green before the suites below. |
+| First attempt at the hook, recorded rather than dropped | The first version detected "first application" with a nullable bound-player sentinel set inside `OnParametersSetAsync`. It failed `PlayerDetailBindsTheRoutedPlayerWhenTheRouteNamesAnotherAsync` on a **successful build**: while the startup read is still pending, the framework runs `OnParametersSetAsync` for the parameter change *before* `OnInitializedAsync` completes, so the sentinel was still unset and the hook read the new route as the first application. The field is now set when a read starts — the player the page's state actually belongs to — which is correct in both orders. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the load-sensitive directory journey passing in this run. |
+| Full browser suite | **Four attempts on this revision, none clean**: run 1 **230 total, 218 passed, 2 failed, 10 skipped** (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, `CampaignEvaluationCaptureBrowserTests.ModifiedPlayerClickOpensNewTabWithoutChangingOriginalDraftAsync`); run 2 **230, 217, 3** (`PlayerFormKeyboardTabAndEnterSubmitsAsync`, `CampaignPlaceBrowserTests.SavingTheLastParticipantOnPageTwoAdoptsPageOneBeforeEnablingEditingAsync`, the directory journey); run 3 **230, 218, 2** (`CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`, `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`); run 4 **230, 217, 3** (the closed-record journey, the directory journey, the ordinary-member journey). Six distinct journeys failed, all of them only inside full runs. **Attribution, checked per journey rather than assumed:** each **passes in isolation** on this revision (verified for the directory, evaluation and keyboard journeys directly, and the ordinary-member journey inside the affected selection below); five of the six are on surfaces this diff does not touch — `git diff --stat origin/main...HEAD -- Nova.UI/Features/Campaigns Nova.Browser.Tests/CampaignEvaluationCaptureBrowserTests.cs` is empty, and the campaign place and closed-record journeys live in those untouched suites — and the two that are in this surface are the journeys this record has tracked as load-sensitive since the eleventh pass, failing here with the same readiness signature (the board's gated input not yet enabled: the keyboard journey died on `#player-first-name` not being found, the ordinary-member journey on the routed form's region). Every journey also **exists on `origin/main`**. The repository's own rule names the mechanism — Aspire-backed suites must stay serial across worktrees because shared Docker capacity can exhaust bounded hydration/storage retries — so the instability tracks the machine's concurrent load, not this change. **The before-merge full-pass row is therefore outstanding on this revision and is recorded as a limitation**, not claimed: the affected selection below is clean and the suite is re-attempted on later ticks. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1028,6 +1053,16 @@ evidence above is unchanged by it.
   that reads as coverage. That class is also the single source of truth the focus contract uses: the board
   moves focus to the first field it marks invalid after a refusal, so the field that is announced, marked
   and focused is decided in one place (`FieldHasError`).
+- **The before-merge full browser-suite row is outstanding on `0578c671`, and the reason is the machine's
+  suite instability rather than the change.** Six distinct journeys failed across four full runs (none
+  clean), every one only inside full runs, each passing in isolation on this revision, five of them on
+  surfaces this diff does not touch, and the two in this surface are the journeys this record has tracked as
+  load-sensitive since the eleventh pass (`PlayerFormKeyboardTabAndEnterSubmitsAsync`,
+  `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`) failing with the same
+  board-not-yet-ready signature. The affected selection is clean on this revision, including both long
+  directory journeys, and the repository's own rule explains the pattern (shared Docker capacity across
+  worktrees exhausting bounded hydration/storage retries). The suite is re-attempted on later ticks; the row
+  is reported as outstanding rather than satisfied by the selection.
 
 ## Design evidence
 
