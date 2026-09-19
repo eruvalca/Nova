@@ -106,7 +106,11 @@ Replaces `PlayerForm.razor`. `PlayerFormState` moved to its own file with added 
   itself named — **Checking this browser for a retained addition…**, in the same note position as the
   frozen and blocked notes — and the withheld field set points at that note through its
   `aria-describedby`, so an unexplained disabled board is not a state the member meets (review round
-  3, finding 2).
+  3, finding 2). The consequence the prerendered page showed is also what an attaching client adopts
+  rather than reading the club a second time — keyed to the same owner scope as the directory snapshot,
+  adopted once per instance, and read again on any later entry to the form — and the copy beside a
+  storage-unavailable board states what a retained request does *and does not* mean rather than reading
+  as the commit itself (fortieth pass).
 - Per-field server errors; graduation-year and archive blockers beside the fields they concern.
 - A retained unresolved addition keeps its fields **visible but frozen** (the #279 handoff's
   contract) and replays through the same commit control, whose label names the action. An operation
@@ -1522,6 +1526,34 @@ Tested revision: `90c35fa0` (the record's own commit follows it).
 | Incident, recorded | The negative check's revert is two edits, and the first did not match the file while the second removed the helper, briefly leaving the module calling a function that no longer existed. It was corrected before any build or run — the lesson this record keeps re-learning: a multi-part revert is only a revert once the file is coherent and the build line has been read. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
 
+## GitHub Copilot code review, fortieth pass (PR #285, on `7f8b1e5d`, fixed in `221eee41`)
+
+This pass reports **no findings in the current diff** and raises two items as *previously missed* (no inline
+threads, so none to resolve). Both are about the create route's own reads: one is the duplicate read the
+page's snapshot already prevents for the directory, the other is copy that states a prerequisite as an
+outcome.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `Players` is `InteractiveAuto`, so `StartRouteReads` loads the club's enrollment consequence on the server prerender **and again when the client attaches**; unlike the roster, summary and tag reads, `_intakeContext` is only a private field, so every `/players/new` visit reads twice and the second answer replaces the first preview (`Players.razor.Intake.cs:52`, **review body**) | **Fixed by giving the read the same snapshot the page already keeps for the directory.** `PersistedIntakeContext` and `PersistedIntakeContextUnavailable` join the `[PersistentState]` block, keyed to the same owner scope (`SnapshotScope`), and an attaching client adopts them once per instance instead of asking the club again — so the consequence the prerendered page showed stays on screen and the commit control the prerendered markup held closed settles with it. A later entry to the form in the same instance still reads, which is the only case a stale campaign could be adopted, and a snapshot another owner's page published is never adopted. `PlayersAdoptsThePrerenderedIntakeConsequenceInsteadOfReadingItAgainAsync`, `PlayersAdoptsThePrerenderedIntakeReadFailureInsteadOfReadingItAgainAsync`, `PlayersReadsTheIntakeConsequenceThePrerenderRecordedForAnotherOwnerAsync` and `PlayersReadsTheIntakeConsequenceAgainWhenTheFormIsReenteredAsync` pin the four behaviours. |
+| 2 | The storage-unavailable branch is reached when the browser could **not confirm** storage, and retention is a recovery prerequisite rather than proof that the server committed the addition: "An addition is still only committed once its own request is retained" can be read as *the retained bytes are the commit* (`PlayerIntakeBoard.razor:230`, **review body**) | **Fixed by naming what the retained copy does and does not mean.** The sentence now reads "An addition is retained here before it is sent, so this browser's copy only records that a send was attempted, never what the server decided. Retry storage to check what it holds before adding." It keeps the design fact the old sentence reached for (the write precedes the dispatch, so a failed write means nothing was sent), drops the "once retained, then committed" reading, and states no outcome the board cannot know. `PlayersKeepsTheBoardWithheldWhenTheRetainedCommandReadFailsAsync` asserts both clauses. |
+
+### Confirming evidence (Copilot fortieth pass)
+
+Tested revision: `221eee41` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3888 total, 3888 passed, 0 failed, 0 skipped** (3884 before; the four cases above are the whole delta). |
+| Negative checks | Three controls, each with the **revert build re-verified as successful (0 warnings, 0 errors) before the run**, and each reverted with `edit` so the file stayed coherent: with the publish removed, `PlayersReadsTheIntakeConsequenceAgainWhenTheFormIsReenteredAsync` fails on `PersistedIntakeContext should not be null`; with adoption gated off at runtime, the two adoption cases fail and the other two pass (**2 failed, 2 passed**); with the once-per-instance flag cleared after each read, only the re-entry case fails (**1 failed, 3 passed**). All controls removed, rebuilt and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| BOM check | Every file this pass edited compared against its `HEAD` preamble — **no drift** (the format step cannot see Razor). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **24 total, 23 passed, 0 failed, 1 skipped** (the skip is the env-gated `NOVA_PLAYERS_EVIDENCE` capture), clean on the second and third attempts. The **first** attempt reported 1 failure whose identity was **not captured**: that command tailed its own output, so only the summary survived and the platform wrote no artifact. Two immediately following runs of the same revision are clean, and the first followed the integration suite's AppHost teardown — the shape the tracked instability (#286) has. It is recorded as unattributed rather than assigned a cause. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **231 total, 221 passed, 0 failed, 10 skipped**: the clean full pass the before-merge row requires, on the build carrying both fixes above. The ten skips are the pre-existing env-gated captures (`NOVA_A11Y_SCREENSHOTS`, `NOVA_PLACE_EVIDENCE`, `NOVA_PLAYERS_EVIDENCE`), so no behavioural scenario is skipped or weakened. Log: `browser-full-round40.log`. |
+| Incident, recorded | Finding 1's first negative check **passed with the control applied**, which is how the record found out that the four cases did not yet pin the publish: the seeding helper writes `PersistedIntakeContext` itself, so the cases pinned only the adoption. The missing assertion was added **while the control was still removed** and verified to fail there before the control was restored — that order, control first and assertion second, is what makes it evidence. The second hole was reporting, not testing: the first selection run tailed its own output, so a failure's identity did not survive. Browser runs are teed to the session's artifact directory from this pass on. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1740,8 +1772,14 @@ evidence above is unchanged by it.
   twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
   pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
   an expiry; the trade-off is stated in that pass's section for a human to weigh.
-- **The before-merge full-browser-suite row is still pending after four review rounds, and the refined
-  diagnosis is that the suite's *shared-run data* is the cause, not load alone.** Six full runs on the
+- **The before-merge full-browser-suite row is satisfied on the revision that carries the fortieth pass's
+  fixes (a clean **231 total, 221 passed, 0 failed, 10 skipped**), and the refined diagnosis for the
+  instability it kept exposing is that the suite's *shared-run data* is the cause, not load alone.** Two
+  data points from the fortieth pass sit alongside it: its first affected selection reported a single
+  failure whose **identity did not survive** (the command tailed its own output and the platform writes no
+  artifact on failure), and its full run was then clean on the first attempt — so the reporting hole is
+  fixed (browser runs are teed to a log from this pass on) while the instability itself is untouched and
+  belongs in #286. Six full runs on the
   twenty-third to twenty-sixth passes' revisions reported 219/230, 219/230, 218/230, 219/230, 218/230 and
   219/230, failing one or two journeys each, and the twenty-fifth pass's affected selections failed 1 and 2
   of 23 — while the twenty-sixth pass's selection was **clean (22/23)** on the same revision whose full run
