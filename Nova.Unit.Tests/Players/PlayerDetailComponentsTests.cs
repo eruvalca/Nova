@@ -581,6 +581,62 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         await lifecycleService.DidNotReceive().ArchiveAsync(21, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>An archive reviewed for the routed player reports nothing once the route moves on.</summary>
+    [Fact]
+    public async Task PlayerDetailDropsAnArchiveOutcomeWhenTheRouteMovesOnMidFlightAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<Success>>();
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        var lifecycleService = Substitute.For<IPlayerLifecycleService>();
+        lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => held.Task);
+        RegisterServices(isClubAdmin: true, detailService: detailService, lifecycleService: lifecycleService);
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+        await cut.Find("#archive-confirm-checkbox").ChangeAsync(new ChangeEventArgs { Value = true });
+        var archive = cut.Find("#archive-commit").ClickAsync(new());
+
+        // The route names another player before the archive answers.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<Success>(new Success())));
+        await archive;
+
+        // That submission started under the route the page left, so its outcome is not reported here — and
+        // the state it set is released with it rather than leaving the new page's controls disabled.
+        cut.Markup.ShouldNotContain("Player archived.");
+        cut.Find("button.btn-outline-warning").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>A reused routed page binds the player the route names and rejects the previous one's read.</summary>
+    [Fact]
+    public async Task PlayerDetailBindsTheRoutedPlayerWhenTheRouteNamesAnotherAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(playerId: 21, firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The routed page is reused for another player while the first read is still in flight.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        await detailService.Received(1).GetPlayerDetailAsync(21, Arg.Any<CancellationToken>());
+
+        // The previous player's read answers last and must not bind that player to this route.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+    }
+
     /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
     [Fact]
     public async Task PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync()

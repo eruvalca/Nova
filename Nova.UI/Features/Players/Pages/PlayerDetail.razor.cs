@@ -101,6 +101,14 @@ public partial class PlayerDetail(
     private int _clubScopeVersion;
 
     /// <summary>
+    /// The routed player this page's state belongs to — the one its detail, or its pending read, was
+    /// requested for — or null before the page has bound one. The routed component is reused when only the
+    /// player in the route changes, so every read and mutation this page starts also belongs to the player
+    /// the route named when it started.
+    /// </summary>
+    private long? _pagePlayerId;
+
+    /// <summary>
     /// The authentication generation. Every applied state re-checks it, so a startup read that
     /// resolves after a notification cannot overwrite the newer principal.
     /// </summary>
@@ -233,6 +241,29 @@ public partial class PlayerDetail(
     }
 
     /// <summary>
+    /// Rebinds the page when the route names another player. The routed component is reused for the new
+    /// player, so everything bound to the previous one belongs to a page identity this one has left: its
+    /// detail, its mutation outcome, and any read or mutation still in flight for it.
+    /// </summary>
+    /// <returns>A task that completes when the routed player's detail has been loaded.</returns>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_pagePlayerId == PlayerId)
+        {
+            return;
+        }
+
+        _pagePlayerId = PlayerId;
+        _detail = null;
+        _error = null;
+        _isNotFound = false;
+        _mutationError = null;
+        _statusMessage = null;
+        _isMutating = false;
+        await LoadDetailAsync();
+    }
+
+    /// <summary>
     /// Gets the Bootstrap badge CSS class for the current lifecycle status.
     /// </summary>
     protected string LifecycleBadgeClass => _detail?.LifecycleStatus switch
@@ -260,14 +291,16 @@ public partial class PlayerDetail(
     private async Task LoadDetailAsync()
     {
         var version = _clubScopeVersion;
+        var playerId = PlayerId;
+        _pagePlayerId = playerId;
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
-        var result = await playerDetailService.GetPlayerDetailAsync(PlayerId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        var result = await playerDetailService.GetPlayerDetailAsync(playerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
         {
-            // This read belongs to a club scope the page has left.
+            // This read belongs to a club scope, or a routed player, the page has left.
             return;
         }
 
@@ -339,14 +372,17 @@ public partial class PlayerDetail(
     private async Task ConfirmArchiveAsync()
     {
         var version = _clubScopeVersion;
+        var playerId = PlayerId;
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];
 
         var result = await playerLifecycleService.ArchiveAsync(_archiveSubjectId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
         {
-            // The outcome belongs to a club scope the page has left.
+            // The outcome belongs to a club scope, or a routed player, the page has left: it is not reported
+            // on the page now on screen, and the submission state it set is released with it.
+            _isMutating = false;
             return;
         }
 
@@ -380,13 +416,15 @@ public partial class PlayerDetail(
     private async Task RestorePlayerAsync()
     {
         var version = _clubScopeVersion;
+        var playerId = PlayerId;
         _isMutating = true;
         _mutationError = null;
 
-        var result = await playerLifecycleService.RestoreAsync(PlayerId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || ComponentCancellationToken.IsCancellationRequested)
+        var result = await playerLifecycleService.RestoreAsync(playerId, ComponentCancellationToken);
+        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
         {
-            // The outcome belongs to a club scope the page has left.
+            // The outcome belongs to a club scope, or a routed player, the page has left.
+            _isMutating = false;
             return;
         }
 
