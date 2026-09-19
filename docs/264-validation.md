@@ -1087,6 +1087,43 @@ Tested revision: `a1b681ac` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayersDirectoryBrowserTests' --filter-class '*CampaignEvaluationCaptureBrowserTests'` — **26 total, 26 passed, 0 failed, 0 skipped**, including both journeys that failed in the full runs below. |
 | Full browser suite | **Not clean on this revision after three attempts, and recorded as pending rather than reported as a pass.** Attempt 1: 230 total, 219 passed, **1 failed** (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — the "Return to draft" link absent while the page showed its read-failure states). Attempt 2: 230 total, 219 passed, **1 failed** (`CampaignEvaluationCaptureBrowserTests.ModifiedPlayerClickOpensNewTabWithoutChangingOriginalDraftAsync` — `#1 ` text not present; a campaign surface this diff never touches). Attempt 3: 230 total, 218 passed, **2 failed** (`OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` — `#player-first-name` not attached within the locator's 5 s; and `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again — a stale return-context href). Every one of those journeys is in #286's tracked load-sensitive set or on a surface outside this diff, each passed in the selection run above on this same revision, and the player journey that failed in isolation (`DirectoryRecordAndForm…`, stale href at `PlayersDirectoryBrowserTests.cs:205`) **passed on its isolation retry**. No competing Aspire suite was running during these runs (checked: no `Nova` process, no Postgres/Azurite container, only 12 unrelated MCP-server `dotnet` processes), so today's 3/3 failure rate against the twenty-second pass's first-try-clean run is an observation for #286, not evidence about this diff: the failures are non-deterministic, span three different journeys, and leave this change's code paths untouched. |
 
+## GitHub Copilot code review, twenty-fourth pass (PR #285, on `cbf3a348`, fixed in `236d65e6`)
+
+Copilot raised **two inline findings** — the first inline threads since the twenty-second pass. Both were
+fixed, replied to and resolved.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The detail page's ownership check captures only `_clubScopeVersion`, which does not change across a 7 → 21 → 7 route excursion, so the first player-7 read can pass both `version` and `playerId == PlayerId` after the return and publish stale work into the new visit; "track a monotonically increasing route/player generation and require it for every route-bound read and mutation completion" (`PlayerDetail.razor.cs:295`, **inline**) | **Fixed as prescribed.** A new `_playerVisitVersion` is taken at every rebind to another player (the only place the routed player changes — a *return* is a new visit, which an id comparison cannot express), and all three route-bound continuations — `LoadDetailAsync`, `ConfirmArchiveAsync`, `RestorePlayerAsync` — capture it and require it alongside the existing club-scope and routed-id checks. The id check is kept: it answers "is this still the routed player" even before the rebind runs, while the generation answers "is this still the visit I started in". The bump is per visit rather than per load (as `TeamDetail`'s `_loadDetailVersion` is) because a same-visit reload must not invalidate an in-flight mutation's outcome: dropping an archive's success would leave its confirmation panel open over an already-archived player, since the outcome is what closes it. |
+| 2 | The set-aside entry point stays available while `CreatePlayerAsync` is awaiting the server — `IsSubmitting` is not checked on it — so a member can remove the operation's only recovery copy mid-flight, leaving a committed response with no receipt to show and an unknown one with nothing to replay after a reload; "disable the set-aside entry point while a submission is active (and cover the in-flight interleaving)" (`PlayerIntakeBoard.razor:132`, **inline**) | **Fixed, and the twenty-third pass's related clause is withdrawn with it.** One predicate — `CanResolveRetained => !IsSubmitting` — now gates all three actions that resolve the retained record (the unreadable discard at `:88`, and the unresolved and expired set-aside buttons at `:132`/`:150`, the siblings the finding's class covers), so a submission in flight owns its recovery copy until the answer arrives. Reloading remains the way out of a submission that never answers, because the record outlives the page. Because that interleaving is now impossible, `ApplyCreationOutcomeAsync`'s `_pendingCreate?.OperationId != command.OperationId` clause is removed: it only existed to withhold an outcome from a board that had resolved the operation, and publishing whenever the form shows is what keeps a committed receipt *visible* instead of dropping it — the goal this finding states. `PlayersKeepsTheRetainedAdditionUnresolvableWhileTheSubmissionIsInFlightAsync` replaces the withdrawn case and pins the disabled state plus the settlement that follows with the copy intact. |
+
+**Incidents, recorded because each cost real time and two of them are the record's own traps.** (a) The
+first attempt at finding 1's negative check reverted the guard but left the captured local in place, so the
+build failed on `S1481` while `--no-build` reported a meaningless **3860 passed** against the previously
+built assembly — the stale-assembly trap in its seventh appearance, and reading the build line is what
+caught it; the revert was rewritten analyzer-clean (local removed) and only the run whose build is quoted as
+successful is cited. (b) The affected-selection command used a mid-pattern wildcard
+(`--filter-class '*Player*BrowserTests'`), which selected **zero tests while reporting success** — the trap
+the twenty-third pass added to the browser-suite reference precisely so it would not be rediscovered; the
+suffix form from that reference ran 23 tests. (c) Two edits to the board markup dropped neighbouring lines
+without intending to (a four-line reset block in `CreatePlayerAsync`, and the unresolved card's closing tags
+plus the `else if` branch); both were caught by reading the diff before building and repaired, and the final
+diff is reviewed hunk by hunk.
+
+### Confirming evidence (Copilot twenty-fourth pass)
+
+Tested revision: `236d65e6` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3860 total, 3860 passed, 0 failed, 0 skipped** (3859 before: the two new cases replace the twenty-third pass's withdrawn case). |
+| Negative check | Both fixes reverted in place, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3858 passed** — exactly `PlayerDetailIgnoresAReadForAPlayerWhoseRouteWasRevisitedAsync` (`cut.Markup` still contained the stale payload) and `PlayersKeepsTheRetainedAdditionUnresolvableWhileTheSubmissionIsInFlightAsync` (`#intake-unresolved button` was not disabled). Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), covering the detail-page journeys this pass changed as well as the form journeys. |
+| Full browser suite | **Still pending: two attempts, 1 failed (219/230) and 2 failed (218/230).** Attempt 1 failed `CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`; attempt 2 failed that journey again plus `PlayersDirectoryBrowserTests.DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`. The campaign journey is entirely outside this diff — it seeds a closed campaign, drives `/campaigns/{id}?tab=close&closeParticipant=…`, asserts document **focus** on `#closed-history-heading` and reloads as WebAssembly, so no changed file is in its path — and its signature ("locator expected to be focused") is the environment-sensitive kind; the directory journey is the same tracked one from the twenty-second and twenty-third passes. Across the two ticks that makes **five full runs with 1–2 failures each**, every failing journey passing in another run on the same revision and the affected selection clean both times. The gate's before-merge row therefore stays unsatisfied and the observation stays for #286. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1308,19 +1345,23 @@ evidence above is unchanged by it.
   twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
   pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
   an expiry; the trade-off is stated in that pass's section for a human to weigh.
-- **The before-merge full-browser-suite row is still pending for the twenty-third pass's revision, and it is
-  recorded that way rather than claimed.** Three full runs reported **219/230**, **219/230** and **218/230**,
-  each failing a different subset of #286's tracked load-sensitive journeys or a campaign surface this diff
-  never touches, while the affected player selection(26 tests, including both journeys that failed in those
-  full runs) passed **26/26** on the same revision and the one isolation failure passed its isolation retry.
-  Nothing here identifies a defect in this change: the failing journeys are non-deterministic, span three
-  different classes, and none of them executes the code this round changed (the intake board's replay offer
-  and the creation outcome's ownership). It does mean the gate's "full pass covers the final inputs" row is
-  unsatisfied today, and that the frequency — 3/3 full runs against the twenty-second pass's first-try-clean
-  run, with no competing Aspire suite running (no `Nova` process, no Postgres/Azurite container, only
-  unrelated MCP-server `dotnet` processes) — is an observation **#286 should carry**, since that issue is
-  where this suite's retry budget and readiness are tracked. A later tick or the human approver can add it
-  there; this run's authorized actions did not include filing or commenting on issues.
+- **The before-merge full-browser-suite row is still pending, now across two review rounds, and it is
+  recorded that way rather than claimed.** Five full runs on the twenty-third and twenty-fourth passes'
+  revisions reported **219/230 three times, 218/230 once and 218/230 again**, each failing one or two of
+  #286's tracked load-sensitive journeys — the directory draft-and-place journey, the ordinary-member
+  create/edit/archive/restore journey, a campaign evaluation capture, and, on the twenty-fourth pass's two
+  attempts, `CampaignClosedRecordBrowserTests.DirectParticipantLinkFocusesHistoryOnInitialAttachmentAndReloadAsync`,
+  whose `/campaigns/{id}?tab=close` focus assertions and WebAssembly reload share no code with this change.
+  The affected player selection passed **23/22/0/1** on the twenty-fourth pass's revision and 26/26 on the
+  twenty-third's, every failing journey passed in another run on the same revision, and one isolation
+  failure passed its isolation retry. Nothing here identifies a defect in this change: the failures are
+  non-deterministic, span four different classes, and none of them executes the code these rounds changed.
+  It does mean the gate's "full pass covers the final inputs" row is unsatisfied, and that the frequency and
+  signatures — 5/5 full runs failing, with no competing Aspire suite running (no `Nova` process, no
+  Postgres/Azurite container, only unrelated MCP-server `dotnet` processes) — are observations **#286 should
+  carry**, since that issue is where this suite's retry budget and readiness are tracked. A later tick or
+  the human approver can add them there; this run's authorized actions did not include filing or commenting
+  on issues.
 
 ## Design evidence
 
