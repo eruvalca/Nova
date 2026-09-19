@@ -610,6 +610,9 @@ public partial class Players
         _retainedPlayerName = null;
         _invalidRetainedValue = null;
         _creationDuplicate = null;
+        // The removal is this page's own proof that the browser's storage answers, so an earlier
+        // failure's retry affordance goes with the record it asked the member to retry.
+        _storageUnavailable = false;
         _recoveryState = PlayerCreationRecoveryState.None;
         if (leftTheForm)
         {

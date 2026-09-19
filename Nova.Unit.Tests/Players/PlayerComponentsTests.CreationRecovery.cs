@@ -827,9 +827,15 @@ public sealed partial class PlayerComponentsTests
             cut.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence"));
         cut.Markup.ShouldNotContain("No campaign is Active");
 
+        // The retained-command check has settled — the fields are open — so the one thing still withholding the
+        // commit is the consequence the board is naming as unread.
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+
         await cut.InvokeAsync(() => context.SetResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
         await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
         cut.Markup.ShouldNotContain("Checking the enrollment consequence");
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
     }
 
     /// <summary>The set-aside acknowledgement lives outside the EditForm, so only the module sees that input.</summary>
@@ -1184,6 +1190,52 @@ public sealed partial class PlayerComponentsTests
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
     }
 
+    /// <summary>A set-aside that succeeds directly clears the storage retry an earlier refusal asked for.</summary>
+    [Fact]
+    public async Task PlayersClearsTheStorageRetryWhenASetAsideSucceedsDirectlyAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+        Interop.FailClears = true;
+
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // The same decision is taken again while storage answers, without the retry that refusal offered: the
+        // removal itself is this page's proof that storage works, so the retry goes with the record it asked the
+        // member to retry rather than outliving it.
+        Interop.FailClears = false;
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(0));
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.Markup.ShouldNotContain("Retry storage");
+    }
+
     /// <summary>A set-aside whose record another same-owner tab already removed completes the decision.</summary>
     [Fact]
     public async Task PlayersCompletesTheSetAsideWhenTheRetainedRecordWasAlreadyGoneAsync()
@@ -1334,8 +1386,13 @@ public sealed partial class PlayerComponentsTests
 
     /// <summary>Renders the create board with the intake consequence named, in the state given.</summary>
     /// <param name="state">The recovery state the board is in.</param>
+    /// <param name="intakeContextLoading">Whether the enrollment-consequence read is still in flight.</param>
+    /// <param name="intakeContextUnavailable">Whether the enrollment consequence could not be read.</param>
     /// <returns>The rendered board.</returns>
-    private IRenderedComponent<PlayerIntakeBoard> RenderConsequenceBoard(PlayerCreationRecoveryState state)
+    private IRenderedComponent<PlayerIntakeBoard> RenderConsequenceBoard(
+        PlayerCreationRecoveryState state,
+        bool intakeContextLoading = false,
+        bool intakeContextUnavailable = false)
         => Render<PlayerIntakeBoard>(p => p
             .Add(c => c.Heading, "Add player")
             .Add(c => c.SubmitLabel, "Create player")
@@ -1344,8 +1401,29 @@ public sealed partial class PlayerComponentsTests
             .Add(c => c.CanManage, true)
             .Add(c => c.RecoveryChecked, true)
             .Add(c => c.ShowsEnrollmentConsequence, true)
+            .Add(c => c.IntakeContextLoading, intakeContextLoading)
+            .Add(c => c.IntakeContextUnavailable, intakeContextUnavailable)
             .Add(c => c.IntakeContext, new PlayerIntakeContext { CampaignId = 4, CampaignName = "Autumn campaign" })
             .Add(c => c.RecoveryState, state));
+
+    /// <summary>A new addition waits for the enrollment consequence the board names as unread.</summary>
+    [Fact]
+    public void PlayerIntakeBoardWithholdsCommitWhileTheEnrollmentConsequenceIsUnread()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        // The board says the consequence is still being read, so committing under it would enroll the player
+        // in a campaign nobody has read: the control stays shut until the read settles.
+        var loading = RenderConsequenceBoard(PlayerCreationRecoveryState.None, intakeContextLoading: true);
+        loading.Find("p.intake-consequence").TextContent.ShouldContain("Checking the enrollment consequence");
+        loading.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
+
+        // A read that failed is settled, and the board says what that means: the member decides deliberately
+        // and the real result is reported after the submission instead of a campaign fact nobody read.
+        var unread = RenderConsequenceBoard(PlayerCreationRecoveryState.None, intakeContextUnavailable: true);
+        unread.Find("p.intake-consequence").TextContent.ShouldContain("could not be read");
+        unread.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+    }
 
     /// <summary>A same-owner refresh replaces the form and releases the departure question with it.</summary>
     [Fact]

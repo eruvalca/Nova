@@ -285,11 +285,15 @@ public partial class PlayerIntakeBoard : NovaComponentBase
 
     /// <summary>
     /// Gets whether the commit control is available. A retained command inside its window is
-    /// replayed through the same control, so the member has exactly one way to settle it.
+    /// replayed through the same control, so the member has exactly one way to settle it. A new
+    /// addition also waits for the enrollment consequence: dispatching while the board still names
+    /// it as unread would commit the member under a campaign nobody has read, while a read that
+    /// failed is settled — the board names that and leaves the decision to the member.
     /// </summary>
     protected bool CanCommit => !IsEntryBlocked && !ShowsReceipt && CanManage && !IsSubmitting && RecoveryChecked
         && (RecoveryState == PlayerCreationRecoveryState.None
-            || (RecoveryState == PlayerCreationRecoveryState.Unresolved && OffersReplay));
+            ? !ShowsEnrollmentConsequence || !IntakeContextLoading
+            : RecoveryState == PlayerCreationRecoveryState.Unresolved && OffersReplay);
 
     /// <summary>
     /// Gets the sentence that names why the board is withholding input. A refused check is not a check
