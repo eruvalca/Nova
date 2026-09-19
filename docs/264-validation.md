@@ -1797,6 +1797,17 @@ evidence above is unchanged by it.
   include filing or commenting on issues, so the observation is recorded here for the human or a later run.
   Capacity was ruled out: no test container runs, the exited ones are three weeks old, and `C:` has 635 GB
   free.
+- **The duplicate prerender/attach read is fixed for the read this change added, and named — not fixed —
+  for its two pre-existing siblings.** The fortieth pass found the create route reading the club's
+  enrollment consequence twice, once on the server prerender and once on attach; that read is new in this
+  PR, so the fix is in scope. The same duplicate exists on `/players/{id}` (`PlayerDetail.LoadDetailAsync`)
+  and `/players/{id}/edit` (`Players.LoadEditAsync`), both of which read player detail twice for the same
+  reason and **both of which already did so on `origin/main`** — this PR modifies those files for the
+  create/edit/archive/restore surface, not for their reads, so changing them here would widen the branch's
+  diff beyond its feature. The fix is the shape the fortieth pass used for the create route: a
+  `[PersistentState]` snapshot keyed to the owner (and, for the edit form, the routed player). Recorded so
+  a human or a later run can decide whether the pair belongs in a follow-up issue; the fortieth pass's
+  authorized actions did not include filing one.
 
 ## Design evidence
 
