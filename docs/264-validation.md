@@ -1050,6 +1050,43 @@ Tested revision: `087a0141`.
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **230 total, 220 passed, 0 failed, 10 skipped**, clean on the **first** run of this revision: the first first-try-clean full pass of this merge loop, with the suite composition unchanged from the twenty-first pass (the ten skips are the pre-existing env-gated captures). |
 | Affected browser coverage | Covered by that full pass — `PlayerFormBrowserTests` and `PlayersDirectoryBrowserTests` are inside it. The selection command remains `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'`; a mid-pattern wildcard selects nothing while still reporting success, which is now stated in the browser-suite reference rather than left for the next run to rediscover. |
 
+## GitHub Copilot code review, twenty-third pass (PR #285, on `dcf809d6`, fixed in `a1b681ac`)
+
+Copilot's review body carried three findings, all in code that had not changed since the last review (no
+inline threads, so none to resolve). One is fixed, one narrowed to the part that holds, and one is answered
+from measurements that predate it.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | While the set-aside confirmation is open, `RecoveryState == Unresolved` and `CanReplay` still enable the form's replay submit button behind the dialog, so "the member can start a replay instead of completing the set-aside decision, creating competing operations against the same retained record" (`PlayerIntakeBoard.razor.cs:259`) | **Fixed.** One predicate — `OffersReplay` (`CanReplay && !_setAsidePending`) — now states when a replay is offered, and both the commit control and its label use it, so the replay is unavailable exactly while its own set-aside decision owns the retained command and the label stops naming an action that is not offered. The premise about competing operations is not exact — a replay re-sends the *same* operation identity, which the server settles from that operation's receipt rather than creating a second player — but the interaction is real: the decision in front of the member is about the command the enabled button would settle. The board already treats an open set-aside decision as outstanding work in `HasNothingUnsaved`, so this makes the two predicates agree. |
+| 2 | The departure guard leaves Back/Forward unguarded, so typed details can be discarded without a confirmation panel; the finding asks to handle history traversal at the page-owned navigation boundary "as the existing evaluation guard does" (`PlayerIntakeBoard.razor.js:161`, third raise) | **Deferred with its measurements, not re-litigated.** Review round 11 built and drove both mechanisms in the real browser before reverting them: a module-level `popstate` guard that restores the board's entry recorded **0 handler runs** for the traversal while a synthetic `popstate` proved the listener live (the router disposes the board before `popstate` is delivered), and a page-level `NavigationLock` with `PreventNavigation()` did not prevent it either — which is why the module states the guard's contract (document upload and same-origin link departure) instead of implying wider coverage. The evaluation surface's pattern needs an owner that outlives the traversal; this board's owner does not, so closing the gap is its own feature, and the current narrowing is pinned by `PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync` rather than only described. Recorded as *Limitations* below and carried in the PR comment; it should have its own tracked issue. |
+| 3 | The creation completion is guarded only by `_identityVersion`, not by the route visit that dispatched it, so leaving `/players/new` and re-entering before the response resolves "can replace the new visit with the old receipt/frozen command"; the finding asks for a captured visit generation and a regression (`Players.razor.Intake.cs:223`) | **The reachable defect is fixed with the operation as the ownership signal; the suggested visit generation would break a pinned behavior.** Guarding on the visit alone fails three cases of `ReopenedPendingCreationReceivesItsOwnCompletionAsync` (the suite caught exactly that during this round, see below), because a member who left and came back reads the same retained record: that board *is* about the same operation, and settling it in place ("the board becomes the receipt in place; it does not navigate away") is the behavior those rounds pinned and the better experience. What does not hold is publishing the outcome into a board that *resolved* the addition instead — set aside, so the exact command is no longer retained, or replaced by another command. The guard is therefore `_pendingCreate?.OperationId != command.OperationId \|\| !_showCreateForm`: the outcome reaches a board that still holds the operation it answers, and a board that moved on is left exactly as its own state left it (with the directory still refreshed, which is where the member was told to look). |
+
+**First attempt, recorded because the suite caught it and it is the round's real lesson.** The first version
+of finding 3's fix did exactly what the finding asked — it captured `_routeVersion` before the dispatch and
+demanded it after — and the full unit suite failed **three cases of
+`ReopenedPendingCreationReceivesItsOwnCompletionAsync`** (3856 of 3859 passing). Those cases exist precisely
+to pin the opposite behavior for a member who leaves and comes back: the reopened board reads the same
+retained command, so the completion settles the operation on display instead of being discarded. The fix was
+rewritten to test ownership of the *operation* rather than of the *visit*, which keeps that behavior and
+closes the case the finding describes. Nothing in the old behavior loses work: while a dispatch is in flight
+the board locks both the fields and the commit control (`IsEditable` and `CanCommit` require `!IsSubmitting`),
+so no input can be retyped into a board that a stale outcome could then overwrite.
+
+### Confirming evidence (Copilot twenty-third pass)
+
+Tested revision: `a1b681ac` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3859 total, 3859 passed, 0 failed, 0 skipped** (3857 before; the two new cases are the delta). |
+| Negative check | Both fixes reverted in place (`CanCommit` back to `CanReplay`, the ownership clause removed from the outcome guard), the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3857 passed** — exactly `PlayersKeepsTheReplayUnavailableWhileTheSetAsideDecisionIsOpenAsync` (`#intake-submit` disabled should be true, was false) and `PlayersIgnoresACreationResultThatLandsAfterTheAdditionWasSetAsideAsync` (`#intake-receipt-heading` count should be 0, was 1). Fixes restored with `edit` — not a file copy, because a `Copy-Item` restore preserves the source timestamp and MSBuild then skips the recompile (the twenty-second pass's trap) — rebuilt and re-run green before the suites below. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayersDirectoryBrowserTests' --filter-class '*CampaignEvaluationCaptureBrowserTests'` — **26 total, 26 passed, 0 failed, 0 skipped**, including both journeys that failed in the full runs below. |
+| Full browser suite | **Not clean on this revision after three attempts, and recorded as pending rather than reported as a pass.** Attempt 1: 230 total, 219 passed, **1 failed** (`DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — the "Return to draft" link absent while the page showed its read-failure states). Attempt 2: 230 total, 219 passed, **1 failed** (`CampaignEvaluationCaptureBrowserTests.ModifiedPlayerClickOpensNewTabWithoutChangingOriginalDraftAsync` — `#1 ` text not present; a campaign surface this diff never touches). Attempt 3: 230 total, 218 passed, **2 failed** (`OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` — `#player-first-name` not attached within the locator's 5 s; and `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` again — a stale return-context href). Every one of those journeys is in #286's tracked load-sensitive set or on a surface outside this diff, each passed in the selection run above on this same revision, and the player journey that failed in isolation (`DirectoryRecordAndForm…`, stale href at `PlayersDirectoryBrowserTests.cs:205`) **passed on its isolation retry**. No competing Aspire suite was running during these runs (checked: no `Nova` process, no Postgres/Azurite container, only 12 unrelated MCP-server `dotnet` processes), so today's 3/3 failure rate against the twenty-second pass's first-try-clean run is an observation for #286, not evidence about this diff: the failures are non-deterministic, span three different journeys, and leave this change's code paths untouched. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1271,6 +1308,19 @@ evidence above is unchanged by it.
   twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
   pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
   an expiry; the trade-off is stated in that pass's section for a human to weigh.
+- **The before-merge full-browser-suite row is still pending for the twenty-third pass's revision, and it is
+  recorded that way rather than claimed.** Three full runs reported **219/230**, **219/230** and **218/230**,
+  each failing a different subset of #286's tracked load-sensitive journeys or a campaign surface this diff
+  never touches, while the affected player selection(26 tests, including both journeys that failed in those
+  full runs) passed **26/26** on the same revision and the one isolation failure passed its isolation retry.
+  Nothing here identifies a defect in this change: the failing journeys are non-deterministic, span three
+  different classes, and none of them executes the code this round changed (the intake board's replay offer
+  and the creation outcome's ownership). It does mean the gate's "full pass covers the final inputs" row is
+  unsatisfied today, and that the frequency — 3/3 full runs against the twenty-second pass's first-try-clean
+  run, with no competing Aspire suite running (no `Nova` process, no Postgres/Azurite container, only
+  unrelated MCP-server `dotnet` processes) — is an observation **#286 should carry**, since that issue is
+  where this suite's retry budget and readiness are tracked. A later tick or the human approver can add it
+  there; this run's authorized actions did not include filing or commenting on issues.
 
 ## Design evidence
 
