@@ -1649,6 +1649,42 @@ public sealed partial class PlayerComponentsTests
         Interop.FocusRegions.Count.ShouldBe(1);
     }
 
+    /// <summary>A frozen refusal still asks focus to follow the feedback it left.</summary>
+    [Fact]
+    public async Task PlayersAsksFocusToFollowTheFeedbackAFrozenRefusalLeftAsync()
+    {
+        var commands = new List<CreatePlayerInput>();
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var input = call.Arg<CreatePlayerInput>();
+            commands.Add(input);
+            // The first attempt's outcome is unknown, so the board holds it frozen; the replayed command is
+            // then refused with field feedback.
+            ServiceResult<PlayerCreationCompletion> result = commands.Count == 1
+                ? ServiceProblem.ServerError("Lost acknowledgement")
+                : ServiceProblem.Validation(nameof(PlayerFormState.FirstName), "Unexpected validation response");
+            return Task.FromResult(result);
+        });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await FillAndSubmitAsync(cut);
+
+        // The replayed command is refused with field feedback while the board still holds the unresolved
+        // attempt, which is the refusal that has to move focus.
+        await cut.Find("#intake-submit").ClickAsync(new());
+
+        // The fields stay closed — a validation response cannot settle the retained attempt — and the board
+        // still asks focus to follow the feedback. The control it names cannot take that focus while the
+        // fieldset is disabled, so the module reaches the message's own region instead; that half of the
+        // contract is pinned in the browser by the module's focus case.
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("#player-first-name-error").TextContent.ShouldContain("Unexpected validation response");
+        await cut.WaitForAssertionAsync(() => Interop.FocusRegions.ShouldContain(region => region == ".intake-fields .is-invalid"));
+    }
+
     /// <summary>A refused operation whose bytes cannot be released stays blocked with the retry.</summary>
     [Fact]
     public async Task PlayersKeepsARefusedOperationBlockedWhenItsBytesCannotBeReleasedAsync()

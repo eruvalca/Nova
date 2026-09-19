@@ -408,8 +408,10 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     /// <summary>
     /// Moves focus to the first field needing correction once a refusal has left feedback, which the intake
     /// surface's contract asks focus to follow: the message the control names is what the member has to
-    /// read. Feedback that is merely re-rendered is not that transition, so focus is moved once per refusal
-    /// rather than chasing each message the member clears while correcting the fields.
+    /// read. The module reaches the message's own region when the control cannot take that focus, which is
+    /// how a frozen recovery response still lands the member on the feedback. Feedback that is merely
+    /// re-rendered is not that transition, so focus is moved once per refusal rather than chasing each
+    /// message the member clears while correcting the fields.
     /// </summary>
     private void MoveFocusToFeedback()
     {

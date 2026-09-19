@@ -278,14 +278,13 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Back/Forward is the board's documented unguarded departure path, and this pins the limitation
-    /// rather than its desirability: the router owns a traversal of the board's own entry and leaves the
-    /// route before any listener the board installs can run, so the typed value goes with it. The
-    /// guard's contract covers document unload and same-origin link departure, which the scenario above
-    /// and this one's own first half prove are live for the same typed value.
+    /// Back/Forward asks before discarding, the way a link departure does, for the same typed value. The
+    /// ask is possible because the Navigation API's `navigate` event fires before a traversal commits and
+    /// while the board is still mounted: cancelling it keeps the member on the form, so the panel is
+    /// answered without the input already being gone, and consent lands where the traversal was headed.
     /// </summary>
     [Fact]
-    public async Task PlayerFormHistoryTraversalIsTheDocumentedUnguardedDepartureAsync()
+    public async Task PlayerFormHistoryTraversalAsksBeforeDiscardingTypedInputAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -312,11 +311,73 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
         await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
 
-        // The same board, still dirty, cannot intercept the traversal: it leaves without a prompt.
-        await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
+        // The same board, still dirty, asks on the traversal too, and the traversal is cancelled rather than
+        // delayed: the member is still on the form with their value while the panel is open.
+        await GoBackExpectingTheAskAsync(page);
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Keeping the input keeps the member on the board.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+        new Uri(page.Url).AbsolutePath.ShouldBe("/players/new");
+        await Expect(page.Locator("#player-first-name")).ToHaveValueAsync(firstName);
+
+        // Leaving from the same ask discards the input and lands where the traversal was headed.
+        await GoBackExpectingTheAskAsync(page);
+        await Expect(page.Locator("#intake-departure")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
         new Uri(page.Url).AbsolutePath.ShouldBe("/players");
         await Expect(page.Locator("#intake-departure")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Drives a browser Back, whose committed navigation is absent while the board cancels it.</summary>
+    /// <param name="page">The page to traverse.</param>
+    /// <returns>A task that completes once the traversal has been cancelled or has committed.</returns>
+    private static async Task GoBackExpectingTheAskAsync(IPage page)
+    {
+        try
+        {
+            await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit, Timeout = 2000 });
+        }
+        catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+        {
+            // A cancelled traversal commits nothing, so the browser's own wait expires by design: what the
+            // board did with the traversal is asserted by the caller.
+        }
+    }
+
+
+    [Fact]
+    public async Task IntakeBoardModuleFocusesTheDescribedRegionOfADisabledControlAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's focus contract in a real browser, independently of Blazor: a control
+        // that cannot take focus hands it to the region the control itself names, and an enabled control keeps
+        // it. A frozen board's fields are exactly the first case, so this is what lands the member on the
+        // feedback a refusal left instead of on a control that ignores focus.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const root = document.createElement('div');
+            root.innerHTML = '<fieldset class=""intake-fields"" disabled><input id=""probe-field"" class=""is-invalid"" aria-describedby=""probe-error""></fieldset><div id=""probe-error"">Correct this.</div>';
+            document.body.appendChild(root);
+            m.focusRegion(root, '.is-invalid');
+            const disabled = document.activeElement ? document.activeElement.id : null;
+            root.querySelector('fieldset').disabled = false;
+            m.focusRegion(root, '.is-invalid');
+            const enabled = document.activeElement ? document.activeElement.id : null;
+            root.remove();
+            return JSON.stringify([disabled, enabled]);
+        }");
+
+        result.ShouldBe("[\"probe-error\",\"probe-field\"]");
     }
 
     [Fact]

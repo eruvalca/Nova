@@ -154,15 +154,26 @@ export function attachDepartureGuard(root, receiver, lease) {
         event.returnValue = "";
     }, options);
 
-    // Known gap, verified in the browser: Back/Forward (history traversal) is not intercepted, so it is
-    // the one departure path that can discard typed input without this prompt. A traversal of the
-    // board's own entry leaves the route, so the router disposes the board and aborts these listeners
-    // before popstate is delivered (`runs: 0` with the guard still live and dirty at the last moment
-    // before the traversal), and a page-level NavigationLock's OnBeforeInternalNavigation is not
-    // consulted for the traversal either. Protecting it therefore needs the traversal handled where the
-    // owner outlives it — the evaluated surfaces' rollback/approval path, which their persistent panel
-    // makes possible — and is not part of this board's contract, which is document unload and
-    // same-origin link departure.
+    // Back/Forward (history traversal) is asked about through the Navigation API, whose `navigate` event
+    // fires before the traversal commits and while this board is still mounted — measured in the browser:
+    // the listener ran with the board connected, `cancelable` true, and cancelling it left the URL on
+    // `/players/new` with the typed value intact. `popstate` cannot do this, because the router has already
+    // taken the route by the time it is delivered, and a `NavigationLock` is not consulted for a traversal.
+    // A cross-document traversal is not cancelable here and stays with the unload prompt above.
+    window.navigation?.addEventListener("navigate", event => {
+        if (activeGuard !== state || !state.dirty || !state.root.isConnected) return;
+        if (event.navigationType !== "traverse" || !event.cancelable || !event.destination) return;
+        const target = new URL(event.destination.url, location.href);
+        if (target.origin !== location.origin || !/^https?:$/.test(target.protocol)) return;
+        // A traversal to where the board already is loses nothing.
+        if (target.pathname + target.search === location.pathname + location.search) return;
+        // Cancelling here is what keeps the input: the member stays on the board until this ask is answered,
+        // and consent navigates to the destination the traversal was headed for.
+        event.preventDefault();
+        void state.receiver.invokeMethodAsync("OnBoardDepartureAttemptAsync", state.lease, target.pathname + target.search)
+            .catch(() => { /* The traversal is cancelled either way, so the input stays rather than going silently. */ });
+    }, options);
+
     document.addEventListener("click", event => {
         if (activeGuard !== state || !state.dirty || !state.root.isConnected || event.defaultPrevented
             || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -199,10 +210,15 @@ export function focusFirstField(root) {
 export function focusRegion(root, selector) {
     const region = root.querySelector(selector);
     if (!region) return;
-    // A target that can already take focus keeps its place in the tab order; only an element that cannot
-    // be focused at all needs the attribute that makes programmatic focus possible, as a heading does.
-    if (!region.hasAttribute("tabindex") && region.tabIndex < 0) region.setAttribute("tabindex", "-1");
-    region.focus();
+    // A control that cannot take focus takes its description with it: a frozen board's fields are disabled
+    // while its retained addition is unresolved, so the region the control names is what focus reaches and the
+    // feedback is read rather than skipped. Every other target keeps its place in the tab order; only an
+    // element that cannot be focused at all needs the attribute that makes programmatic focus possible, as a
+    // heading does.
+    const described = region.matches(":disabled") ? (region.getAttribute("aria-describedby") ?? "").split(/\s+/)[0] : "";
+    const target = (described && root.querySelector(`#${CSS.escape(described)}`)) || region;
+    if (!target.hasAttribute("tabindex") && target.tabIndex < 0) target.setAttribute("tabindex", "-1");
+    target.focus();
 }
 
 export function detachDepartureGuard(lease) {
