@@ -111,11 +111,11 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                     created. Replay the retained addition unchanged, or review the Players directory.
                 </p>
             }
-            @if (FieldErrors is { Count: > 0 })
+            @if (FieldMessages is { Count: > 0 })
             {
                 <div class="fw-semibold mb-1">The server reported these values:</div>
                 <ul class="mb-2">
-                    @foreach (var (field, messages) in FieldErrors)
+                    @foreach (var (field, messages) in FieldMessages)
                     {
                         @foreach (var message in messages)
                         {
@@ -200,6 +200,19 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                     This player was created, but this browser did not release the request retained for
                     it. Until it is released, that addition can come back as unresolved.
                 </p>
+            }
+            else if (Duplicate is not null)
+            {
+                @* The receipt-backed refusal settled this addition's outcome, so the only work left is the
+                   browser's own copy of the request: saying the addition could not be checked would contradict
+                   the refusal the same panel sits beside. *@
+                <p class="fw-semibold mb-2">The refused addition's request was not released.</p>
+                <p class="mb-2">
+                    The refusal above stands and the player it matched is untouched, but this browser still
+                    holds the request retained for that attempt. Until it is released, that addition can come
+                    back as unresolved.
+                </p>
+                <p class="mb-2">Set the refused addition aside to release it, or retry storage.</p>
             }
             else
             {

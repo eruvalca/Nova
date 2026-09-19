@@ -124,6 +124,20 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     [Parameter]
     public IReadOnlyDictionary<string, string[]>? FieldErrors { get; set; }
 
+    /// <summary>
+    /// The server's per-field messages for the submission on screen, pruned as the member corrects them. The page
+    /// hands the server's answer in through <see cref="FieldErrors"/>; a field edited after that answer no longer
+    /// holds the value the server refused, so its message is dropped with the class and description that point at
+    /// it rather than describing a value the member has already replaced.
+    /// </summary>
+    protected IReadOnlyDictionary<string, string[]>? FieldMessages => _fieldMessages;
+
+    /// <summary>The messages <see cref="FieldMessages"/> reads, which the field-change handler prunes.</summary>
+    private Dictionary<string, string[]>? _fieldMessages;
+
+    /// <summary>The <see cref="FieldErrors"/> instance whose messages <see cref="FieldMessages"/> already holds.</summary>
+    private IReadOnlyDictionary<string, string[]>? _appliedFieldErrors;
+
     /// <summary>Gets or sets structured graduation-year blockers for the current profile.</summary>
     [Parameter]
     public IReadOnlyList<GraduationYearBlockerItem> GraduationYearBlockers { get; set; } = [];
@@ -371,7 +385,7 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     /// <param name="field">The profile field name.</param>
     /// <returns>The server messages reported for that field, when any.</returns>
     protected IReadOnlyList<string> FieldErrorsFor(string field)
-        => FieldErrors is not null && FieldErrors.TryGetValue(field, out var messages) ? messages : [];
+        => FieldMessages is not null && FieldMessages.TryGetValue(field, out var messages) ? messages : [];
 
     /// <summary>
     /// Gets whether a profile field has feedback to describe. The bound form's own validation message and
@@ -437,6 +451,16 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         {
             _editContext.OnFieldChanged += OnFieldChanged;
             _editContext.OnValidationStateChanged += OnValidationStateChanged;
+        }
+
+        // A new answer replaces the last one; the same instance has already been pruned for the fields the member
+        // corrected since it arrived, so it must not be adopted again.
+        if (!ReferenceEquals(_appliedFieldErrors, FieldErrors))
+        {
+            _appliedFieldErrors = FieldErrors;
+            _fieldMessages = FieldErrors is { Count: > 0 }
+                ? new Dictionary<string, string[]>(FieldErrors, StringComparer.Ordinal)
+                : null;
             _subscribed = true;
         }
 
@@ -651,6 +675,13 @@ public partial class PlayerIntakeBoard : NovaComponentBase
 
     private void OnFieldChanged(object? sender, FieldChangedEventArgs args)
     {
+        // The server answered about the value that was sent, so a correction drops the message it left instead of
+        // describing a value the member has already replaced.
+        if (_fieldMessages?.Remove(args.FieldIdentifier.FieldName) == true)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+
         if (HasNothingUnsaved) { return; }
         if (_dirty) { return; }
         _dirty = true;

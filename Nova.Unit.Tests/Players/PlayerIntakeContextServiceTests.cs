@@ -70,7 +70,7 @@ public sealed class PlayerIntakeContextServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DoesNotReturnAnotherClubsActiveCampaignAsync()
+    public async Task DoesNotSubstituteAnotherClubsCampaignForAClubWithoutOneAsync()
     {
         _harness.CurrentUser.UserId = QuietClubUserId;
         _harness.CurrentUser.ClubId = QuietClubId;

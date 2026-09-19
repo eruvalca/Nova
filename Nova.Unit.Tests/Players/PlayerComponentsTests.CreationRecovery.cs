@@ -1305,6 +1305,30 @@ public sealed partial class PlayerComponentsTests
         cut.Find("#intake-submit").TextContent.ShouldContain("Replay the retained addition");
     }
 
+    /// <summary>Correcting a field drops the server message that described the value it refused.</summary>
+    [Fact]
+    public async Task PlayersDropsAServerFieldMessageWhenItsFieldIsCorrectedAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                ServiceProblem.Validation(nameof(PlayerProfileInput.FirstName), "Use the name on the register."))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Use the name on the register."));
+        cut.Find("#player-first-name").GetAttribute("class")!.ShouldContain("is-invalid");
+
+        // The server answered about the value that was sent, so the correction takes the message and the invalid
+        // class with it rather than leaving them describing a value the member has already replaced.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Corrected" });
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldNotContain("Use the name on the register."));
+        cut.Find("#player-first-name").GetAttribute("class")!.ShouldNotContain("is-invalid");
+    }
+
     /// <summary>A server field error keyed to Gender renders beside its own control.</summary>
     [Fact]
     public async Task PlayersRendersAGenderFieldErrorBesideItsControlAsync()
@@ -1435,6 +1459,13 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("already exists"));
         cut.FindAll("#intake-unresolved").Count.ShouldBe(1);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // The receipt-backed refusal settled this addition's outcome, so the panel names it instead of claiming
+        // the addition could not be checked: what remains is the browser's copy of the request.
+        var notice = cut.Find("#intake-storage-unavailable").TextContent;
+        notice.ShouldContain("refused addition");
+        notice.ShouldContain("The refusal above stands");
+        notice.ShouldNotContain("could not be checked");
 
         // A working boundary can still complete the release, so the blocked state is recoverable.
         Interop.FailClears = false;
