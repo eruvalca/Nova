@@ -1319,6 +1319,28 @@ Tested revision: `b3ac0d4e` (the record's own commit follows it).
 | Affected browser selection | **Two attempts.** The first failed `PlayerFormDuplicateCanBeCorrectedWithoutOverrideAsync` inside the cancel helper: its probe for the departure panel raced the click's own handler, so a prompt that had not arrived yet was read as "no prompt" and the confirmed close never happened — a race the helper has carried since the twenty-seventh pass and which passed in the runs between. The helper now retries the click until either the panel or the directory is on screen, and the second attempt is **23 total, 21 passed, 1 failed, 1 skipped** with only `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — the tracked count-derived journey from #286 — failing, and everything this pass touched passing. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection shows the same tracked journey failing. |
 
+## GitHub Copilot code review, thirty-second pass (PR #285, on `7eb9f751`, fixed in `fa499955`)
+
+Copilot raised **one inline finding**, which was fixed, replied to and resolved.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | When the directory reuses the confirmation for a different archive subject, `OnParametersSet` resets the acknowledgement and the heading changes, but `OnAfterRenderAsync` focuses only on `firstRender`, so the member can open another archive action while the panel stays open and focus remains on the underlying row instead of the new confirmation (`PlayerLifecycleConfirmation.razor.cs:29`, **inline**) | **Fixed as prescribed.** Focus follows the subject: the panel focuses its heading whenever the heading describes a subject this mounting has not focused yet (`firstRender || _focusedSubject != PlayerId`), so the second subject's confirmation is announced like the first and a re-render of the same subject does not steal focus back. `PlayerLifecycleConfirmationFocusesEachSubjectsHeadingAsync` renders the panel, asserts one focus invocation, re-renders it for another player, and asserts a second invocation with the new heading — the interop call is the observable the browser would act on. |
+
+### Confirming evidence (Copilot thirty-second pass)
+
+Tested revision: `fa499955` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. The new case first failed to compile because that test file imports the detail page through an alias and nothing from the components namespace; the component now has its own alias beside it. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3876 total, 3876 passed, 0 failed, 0 skipped** (3875 before). |
+| Negative check | The focus condition reverted to `firstRender` alone, with the tracking field removed so the revert stayed analyzer-clean, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **1 failed, 3875 passed** — exactly `PlayerLifecycleConfirmationFocusesEachSubjectsHeadingAsync`, on the second invocation never being made. Fix restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the archive flows that render the confirmation. |
+| CI incident on the previous head, with its outcome | The required `Build` check failed once on `7eb9f751` with `error S125: Remove this commented out code` at `Nova.Browser.Tests/ClubCrestBrowserTests.cs:67` — a two-line **prose** comment (no code) in a file whose diff against `origin/main` is empty, whose last change was #253, and which had passed CI on the seven preceding runs of this branch, with the same revision green locally (full build, 3875 unit cases). Diagnosed as a flaky analyzer verdict rather than this diff, it was re-run without changing any file, and the re-run **completed successfully** — so the check is green on `7eb9f751` and the flake is recorded rather than papered over. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
