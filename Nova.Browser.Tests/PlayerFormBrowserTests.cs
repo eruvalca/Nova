@@ -62,12 +62,19 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             // cross-tab lock — so it answers with the record itself rather than with a promise to await.
             const direct = typeof read?.then === 'undefined';
             const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
-            // One operation identity carries one exact command: a same-id write with different bytes is
-            // refused, and the retained bytes stay the ones the member's dispatch is accounted for by.
+            // A C# deserialize and serialize round trip normalizes property order and GUID casing, so an
+            // equivalent replay arrives as different bytes: it is the same command and is accepted, or a valid
+            // record would be stranded behind a retry that can never succeed.
+            const reordered = JSON.stringify({ payload: { ...payload, operationId: payload.operationId.toUpperCase() },
+                actorUserId: 101, recoveryExpiresAt: new Date(created + 86400000).toISOString() });
+            await m.writePending(101, 42, reordered);
+            const equivalent = m.readRecovery(101, 42).json === reordered;
+            // A different command under the same identity is still refused, and the retained bytes stay the
+            // ones the member's dispatch is accounted for by.
             let refused = false;
-            try { await m.writePending(101, 42, json.replace('""firstName"":""Module""', '""firstName"":""Altered""')); }
+            try { await m.writePending(101, 42, reordered.replace('""firstName"":""Module""', '""firstName"":""Altered""')); }
             catch { refused = true; }
-            const preserved = m.readRecovery(101, 42).json === json;
+            const preserved = m.readRecovery(101, 42).json === reordered;
             const cleared = await m.clearPending(101, 42, payload.operationId);
             const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
             // An in-board anchor is a departure like any other while the board is dirty: the guard asks
@@ -89,10 +96,10 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             guardRoot.remove();
             return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
                 m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked',
-                refused, preserved, direct, asked.length, asked[0] ?? '', attempt.defaultPrevented].join('|');
+                equivalent, refused, preserved, direct, asked.length, asked[0] ?? '', attempt.defaultPrevented].join('|');
         }");
 
-        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true|1|OnBoardDepartureAttemptAsync /players?view=archived|true");
+        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true|true|1|OnBoardDepartureAttemptAsync /players?view=archived|true");
     }
 
     /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>

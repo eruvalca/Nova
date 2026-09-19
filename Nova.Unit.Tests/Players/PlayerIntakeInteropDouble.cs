@@ -160,10 +160,11 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
                 throw new JSException("Recover the existing player creation before starting another.");
             }
 
-            // One operation identity carries one exact command: a replay writes the retained bytes back, so
-            // different bytes under that identity are refused rather than allowed to replace the command the
-            // dispatch is accounted for by, exactly as the module refuses them.
-            if (!string.Equals(existing.ToJson(), pending.ToJson(), StringComparison.Ordinal))
+            // One operation identity carries one command: a replay writes the retained command back, so a
+            // different command under that identity is refused rather than allowed to replace the one the
+            // dispatch is accounted for by. Its representation may differ — a deserialize and serialize round
+            // trip normalizes property order and GUID casing — exactly as the module accepts it.
+            if (existing != pending)
             {
                 throw new JSException("Recover the retained player creation before replacing its command.");
             }

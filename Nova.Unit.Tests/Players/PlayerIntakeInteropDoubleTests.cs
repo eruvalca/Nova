@@ -8,13 +8,13 @@ namespace Nova.Unit.Tests.Players;
 
 /// <summary>
 /// Tests the in-memory stand-in's storage contract, which mirrors the collocated module's: retained bytes
-/// are owner-scoped, and one operation identity carries one exact command.
+/// are owner-scoped, and one operation identity carries one command.
 /// </summary>
 public sealed class PlayerIntakeInteropDoubleTests
 {
-    /// <summary>A write under an existing operation identity may only carry the retained bytes back.</summary>
+    /// <summary>A write under an existing operation identity may only carry the retained command back.</summary>
     [Fact]
-    public async Task WriteAsyncRefusesDifferentBytesUnderTheSameOperationAsync()
+    public async Task WriteAsyncRefusesADifferentCommandUnderTheSameOperationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var operationId = Guid.CreateVersion7();
@@ -38,13 +38,18 @@ public sealed class PlayerIntakeInteropDoubleTests
         await interop.WriteAsync(retained, cancellationToken);
         interop.WriteCount.ShouldBe(1);
 
-        // The same operation identity with different bytes is refused rather than replacing the command the
-        // member's dispatch is accounted for by, exactly as the module refuses it.
+        // Writing the same command again is the replay the retained record exists for: only the command has to
+        // match, not the bytes that carry it, because the writer re-serializes what it read.
+        await interop.WriteAsync(retained, cancellationToken);
+        interop.WriteCount.ShouldBe(2);
+
+        // A different command under that identity is refused rather than replacing the command the member's
+        // dispatch is accounted for by, exactly as the module refuses it.
         var altered = retained with { Payload = retained.Payload with { FirstName = "Altered" } };
         await Should.ThrowAsync<JSException>(() => interop.WriteAsync(altered, cancellationToken));
 
         // The retained command is left exactly as it was.
-        interop.WriteCount.ShouldBe(1);
+        interop.WriteCount.ShouldBe(2);
         var read = await interop.ReadAsync(101, 42, cancellationToken);
         read.Kind.ShouldBe(PlayerCreationRecoveryKind.Pending);
         read.Pending!.Payload.FirstName.ShouldBe("Taylor");

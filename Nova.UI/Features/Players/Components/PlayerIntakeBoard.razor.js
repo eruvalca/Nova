@@ -84,14 +84,12 @@ export function writePending(actorUserId, clubId, json) {
             throw new Error("Set aside the retained player creation before starting another.");
         }
         if (existing.json !== null) {
-            const current = validate(existing.json);
-            if (current.payload.operationId.toLowerCase() !== value.payload.operationId.toLowerCase()) {
-                throw new Error("Recover the existing player creation before starting another.");
-            }
-            // One operation identity carries one exact command: a replay writes the retained bytes back, so
-            // different bytes under that identity are refused rather than allowed to replace the command the
-            // member's dispatch is accounted for by.
-            if (existing.json !== json) {
+            // One operation identity carries one command: a replay writes the retained command back, so a
+            // different command under that identity is refused rather than allowed to replace the one the
+            // member's dispatch is accounted for by. Its *representation* may differ, because a C# deserialize
+            // and serialize round trip normalizes property order and GUID casing — refusing that would strand a
+            // valid record behind a retry that can never succeed.
+            if (!sameCommand(validate(existing.json), value)) {
                 throw new Error("Recover the retained player creation before replacing its command.");
             }
         }
@@ -99,6 +97,23 @@ export function writePending(actorUserId, clubId, json) {
         localStorage.setItem(ownerKey(actorUserId, clubId), json);
         return json;
     });
+}
+
+// Whether two validated records describe the same command: the identity, the owner, the deadline and every
+// dispatched value must agree, and only their representation may differ.
+function sameCommand(left, right) {
+    const retained = left.payload;
+    const offered = right.payload;
+    return left.actorUserId === right.actorUserId
+        && new Date(left.recoveryExpiresAt).getTime() === new Date(right.recoveryExpiresAt).getTime()
+        && retained.clubId === offered.clubId
+        && retained.operationId.toLowerCase() === offered.operationId.toLowerCase()
+        && retained.firstName === offered.firstName
+        && retained.lastName === offered.lastName
+        && retained.dateOfBirth === offered.dateOfBirth
+        && retained.graduationYear === offered.graduationYear
+        && retained.gender === offered.gender
+        && retained.jerseyNumber === offered.jerseyNumber;
 }
 
 export function clearPending(actorUserId, clubId, operationId) {
