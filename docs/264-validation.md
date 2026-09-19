@@ -1341,6 +1341,30 @@ Tested revision: `fa499955` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the archive flows that render the confirmation. |
 | CI incident on the previous head, with its outcome | The required `Build` check failed once on `7eb9f751` with `error S125: Remove this commented out code` at `Nova.Browser.Tests/ClubCrestBrowserTests.cs:67` — a two-line **prose** comment (no code) in a file whose diff against `origin/main` is empty, whose last change was #253, and which had passed CI on the seven preceding runs of this branch, with the same revision green locally (full build, 3875 unit cases). Diagnosed as a flaky analyzer verdict rather than this diff, it was re-run without changing any file, and the re-run **completed successfully** — so the check is green on `7eb9f751` and the flake is recorded rather than papered over. |
 
+## GitHub Copilot code review, thirty-third pass (PR #285, on `ae80aed8`, fixed in `2654a731`)
+
+Copilot raised **two inline findings**, both fixed, replied to and resolved.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | An attach can be canceled after the JS module installed its guard but before the continuation set `_guardAttached`, and by the time disposal runs `_guardAttach` can already be completed, making both `_guardAttached` and "attach in flight" false — so the module keeps the disposed receiver; track the attempted lease and detach it, since the lease check makes a stale detach safe (`PlayerIntakeBoard.razor.cs:667`, **inline**) | **Fixed as prescribed.** Disposal now releases the lease the mounting **attempted** (`_guardLease is not null`) rather than only the one it saw installed, and the wait for an in-flight attach is unchanged, so an attach that installs and then loses its answer is released as well. Releasing a lease the module never installed is a no-op there, so this cannot take another mounting's guard. The interop double gained the boundary state the real module already had — `FailAttachAfterInstalling`, an attach that installs the guard and then throws — and `PlayersReleasesAGuardInstalledByAnAttachThatLostItsAnswerAsync` disposes in that state and requires the guard to be released. |
+| 2 | `_isMutating` is cleared before `ApplyCreationOutcomeAsync`, but a receipt and a definitive refusal still await storage cleanup, so during that await **Add another** (and an unresolved refusal's **Set aside**) are live and a click can start a second recovery operation over the record the first still owns, whose later settlement can then clear the receipt or overwrite the new state (`Players.razor.Intake.cs:230`, **inline**) | **Fixed.** The submission stays busy until the outcome has been applied, so the settlement's cleanup happens inside the operation that owns the record; `Add another` is disabled while submitting, and the page's resolution handlers (`StartAnotherAdditionAsync`, `RetryStorageAsync`, `SetAsideRetainedAsync`) refuse while a settlement is running — the set-aside and discard controls were already gated by `CanResolveRetained`. The gate is pinned at the board boundary (`PlayerIntakeBoardClosesTheReceiptActionsWhileTheSettlementRuns`: disabled while `IsSubmitting` with a receipt, enabled again once it is false), which is the mechanism the page now drives. |
+
+### Confirming evidence (Copilot thirty-third pass)
+
+Tested revision: `2654a731` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3878 total, 3878 passed, 0 failed, 0 skipped** (3876 before). |
+| Negative check | The disposal condition reverted to `(_guardAttached \|\| attachWasInFlight)` and `Add another`'s gate dropped, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3876 passed** — exactly `PlayersReleasesAGuardInstalledByAnAttachThatLostItsAnswerAsync` and `PlayerIntakeBoardClosesTheReceiptActionsWhileTheSettlementRuns`. Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**, the failure being the tracked count-derived `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` journey from #286 and everything this pass touched passing. |
+| Harness incident, recorded | The first arrangement of the second finding held the clear gate and asserted the mid-settlement screen, which **hung the runner twice** (over ten minutes each) rather than failing: a bUnit click whose handler is still awaiting the settlement does not deliver a render, so `WaitForAssertionAsync` — which waits for renders — never observes the state the assertion describes. The case was replaced by the two board-boundary cases above, and the page-side busy window is recorded as verified by inspection plus the board gate that now drives it. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection shows the same tracked journey failing. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
