@@ -77,7 +77,10 @@ below covers.
   (shared `InputValidator` rules plus deadline consistency), so structurally valid JSON that
   contradicts its own contract is also unusable evidence.
 - The exact command is persisted **before** dispatch on every submission path; a failed write blocks
-  dispatch and nothing is sent. **The C# policy for this is unit-verified through the injected
+  dispatch and nothing is sent. The write compares that **command** — identity, owner, deadline and
+  dispatched values — rather than the bytes carrying it, so a re-serialized replay of the retained
+  command is accepted while a different command under the same identity is refused (thirty-ninth pass,
+  below). **The C# policy for this is unit-verified through the injected
   boundary; no browser assertion pins the retained bytes between dispatch and receipt — see the
   limitation below.**
 - The collocated module is imported once per circuit but a **failed import is never cached**: the
@@ -1493,6 +1496,30 @@ Tested revision: `7b9eea5a` (the record's own commit follows it).
 | Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **24 total, 23 passed, 0 failed, 1 skipped**, clean on the second attempt; the first failed `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` inside its own retry helper (line 149), the journey this record has tracked as load-sensitive since the eleventh pass. |
 | Incident, recorded | Finding 2's first fix put the decision in the board: `IsEditable` chose the message region when the fields were closed. The full unit suite caught it — `PlayersDescribesAServerFieldMessageFromItsControlAsync` timed out — because `IsEditable` carries **transient** terms (`IsSubmitting`), so a request made during the refusal's own render was retargeted while the fieldset was about to open, and the once-per-refusal rule kept it from being re-asked. The decision moved to the module, which sees the DOM as it actually is when focus is applied. One false green was declined in the same round: a revert that failed to compile (`S1481`) left `--no-build` running the previous assembly and reporting the case as passed, which the build line exposed before it could be recorded. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
+
+## GitHub Copilot code review, thirty-ninth pass (PR #285, on `eab67670`, fixed in `90c35fa0`)
+
+The review carries one finding, raised as an inline thread on the storage module's write, and it is the class
+the storage contract already had a precedent for: the sibling placement module compares the *command*.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `validate` accepts semantically valid retained JSON regardless of whitespace, property order or UUID casing, but the exact-byte check rejects the C# replay after `PlayerCreationRecoveryStore` deserializes and reserializes the record, so a valid non-canonical record is shown as `Pending` yet can never be replayed — every retry lands on storage-unavailable instead of dispatching or entering the explicit unreadable/discard path (`PlayerIntakeBoard.razor.js:95`, **inline thread**) | **Fixed by comparing the command rather than its bytes.** The write now stands on `sameCommand`: the operation identity (case-insensitively), the owner, the deadline as an instant, and every dispatched value must agree, and only their representation may differ — so a re-serialized replay is accepted, while a genuinely different command under the same identity is still refused and leaves the retained bytes untouched. That is the rule `CampaignPlacePanel.razor.js` has always stated for the same problem — its own storage case writes a reversed-property, upper-cased-GUID copy first and requires it to be accepted — so this module was the outlier rather than the pattern. The module's browser probe now covers both halves in one journey (an equivalent replay in different bytes is accepted; a changed command is refused with the retained bytes preserved), and the interop double and its contract case state the same contract, including the accepted re-write. `discardInvalidPending`'s byte-exactness is deliberately untouched: there the member reviewed those exact bytes, so exactness *is* the contract rather than a proxy for it. |
+
+### Confirming evidence (Copilot thirty-ninth pass)
+
+Tested revision: `90c35fa0` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3884 total, 3884 passed, 0 failed, 0 skipped**. |
+| Negative check | With the byte-exact rule restored — and the helper removed with it, so the file stays coherent — the module probe fails, against a **revert build re-verified as successful (0 warnings, 0 errors) before the run**. Fix restored, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **24 total, 23 passed, 0 failed, 1 skipped**, clean on the first attempt. |
+| Incident, recorded | The negative check's revert is two edits, and the first did not match the file while the second removed the helper, briefly leaving the module calling a function that no longer existed. It was corrected before any build or run — the lesson this record keeps re-learning: a multi-part revert is only a revert once the file is coherent and the build line has been read. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
 
 ## Independent finish review
