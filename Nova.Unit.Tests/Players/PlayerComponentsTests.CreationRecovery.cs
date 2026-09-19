@@ -106,9 +106,9 @@ public sealed partial class PlayerComponentsTests
         Interop.Read(101, 42).ShouldBeNull();
     }
 
-    /// <summary>A creation answering after the addition was set aside does not take over the board that resolved it.</summary>
+    /// <summary>The retained record cannot be resolved while its own submission is in flight.</summary>
     [Fact]
-    public async Task PlayersIgnoresACreationResultThatLandsAfterTheAdditionWasSetAsideAsync()
+    public async Task PlayersKeepsTheRetainedAdditionUnresolvableWhileTheSubmissionIsInFlightAsync()
     {
         var dispatch = new TaskCompletionSource<ServiceResult<PlayerCreationCompletion>>();
         var service = Substitute.For<IPlayerManagementService>();
@@ -120,28 +120,21 @@ public sealed partial class PlayerComponentsTests
 
         var save = FillAndSubmitAsync(cut);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // While the answer is outstanding the retained request is the operation's only recovery copy, so the
+        // actions that would resolve it are not offered: setting it aside now would leave a committed response
+        // with no receipt to show and an unknown one with nothing to replay after a reload.
+        cut.Find("#intake-unresolved button").HasAttribute("disabled").ShouldBeTrue();
         var retained = Interop.Read(101, 42);
         retained.ShouldNotBeNull();
 
-        // The member deliberately leaves the addition's outcome unknown: the retained request is removed, so
-        // this board no longer holds the operation the in-flight dispatch answers.
-        await cut.Find("#intake-unresolved button").ClickAsync(new());
-        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
-        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(0));
-        Interop.Read(101, 42).ShouldBeNull();
-
+        // The answer arrives with the copy intact, so the receipt is shown and the record released.
         await cut.InvokeAsync(() => dispatch.SetResult(new(CreationCompletion(retained.Payload))));
         await save;
 
-        // The outcome answers an operation this board resolved rather than one it holds, so it is not published
-        // into it: no receipt and no frozen command replace the board the member chose, the set-aside stands,
-        // and the directory it refreshes is where the member was told to look.
-        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(0);
-        cut.Markup.ShouldNotContain("Enrolled in Original campaign.");
-        cut.Markup.ShouldContain("Retained addition set aside");
-        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
-        cut.Find("#intake-submit").TextContent.ShouldContain("Create player");
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        Interop.Read(101, 42).ShouldBeNull();
     }
 
     /// <summary>Validation feedback cannot settle an earlier uncertain attempt or unlock a replacement payload.</summary>

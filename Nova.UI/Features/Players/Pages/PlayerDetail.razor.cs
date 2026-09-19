@@ -109,6 +109,16 @@ public partial class PlayerDetail(
     private long? _pagePlayerId;
 
     /// <summary>
+    /// Monotonically increasing generation of the routed player visit this page is in. The routed component is
+    /// reused across players, so comparing the routed id cannot tell a continuation that belongs to the visit
+    /// now on screen from one that started before the page visited another player and came back: a route of 7,
+    /// then 21, then 7 passes an id comparison and the earlier player-7 read would publish into the new visit.
+    /// Every rebind to another player takes the next generation, and every read and mutation this page starts
+    /// requires the generation it started with.
+    /// </summary>
+    private int _playerVisitVersion;
+
+    /// <summary>
     /// The authentication generation. Every applied state re-checks it, so a startup read that
     /// resolves after a notification cannot overwrite the newer principal.
     /// </summary>
@@ -254,6 +264,10 @@ public partial class PlayerDetail(
         }
 
         _pagePlayerId = PlayerId;
+        // A return to a player this page has already visited is still a new visit, so the id comparison above
+        // cannot own the work that follows: the generation is what tells this visit's continuations apart from
+        // the ones the earlier visit left in flight.
+        ++_playerVisitVersion;
         _detail = null;
         _error = null;
         _isNotFound = false;
@@ -292,15 +306,17 @@ public partial class PlayerDetail(
     {
         var version = _clubScopeVersion;
         var playerId = PlayerId;
+        var visit = _playerVisitVersion;
         _pagePlayerId = playerId;
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
         var result = await playerDetailService.GetPlayerDetailAsync(playerId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
         {
-            // This read belongs to a club scope, or a routed player, the page has left.
+            // This read belongs to a club scope, or a routed-player visit, the page has left.
             return;
         }
 
@@ -373,15 +389,17 @@ public partial class PlayerDetail(
     {
         var version = _clubScopeVersion;
         var playerId = PlayerId;
+        var visit = _playerVisitVersion;
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];
 
         var result = await playerLifecycleService.ArchiveAsync(_archiveSubjectId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
         {
-            // The outcome belongs to a club scope, or a routed player, the page has left: it is not reported
-            // on the page now on screen, and the submission state it set is released with it.
+            // The outcome belongs to a club scope, or a routed-player visit, the page has left: it is not
+            // reported on the page now on screen, and the submission state it set is released with it.
             _isMutating = false;
             return;
         }
@@ -422,13 +440,15 @@ public partial class PlayerDetail(
     {
         var version = _clubScopeVersion;
         var playerId = PlayerId;
+        var visit = _playerVisitVersion;
         _isMutating = true;
         _mutationError = null;
 
         var result = await playerLifecycleService.RestoreAsync(playerId, ComponentCancellationToken);
-        if (version != _clubScopeVersion || playerId != PlayerId || ComponentCancellationToken.IsCancellationRequested)
+        if (version != _clubScopeVersion || playerId != PlayerId || visit != _playerVisitVersion
+            || ComponentCancellationToken.IsCancellationRequested)
         {
-            // The outcome belongs to a club scope, or a routed player, the page has left.
+            // The outcome belongs to a club scope, or a routed-player visit, the page has left.
             _isMutating = false;
             return;
         }

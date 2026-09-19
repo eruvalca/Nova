@@ -258,6 +258,16 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     protected bool OffersReplay => CanReplay && !_setAsidePending;
 
     /// <summary>
+    /// Gets whether the board offers the actions that resolve the retained record — setting it aside, or
+    /// discarding bytes that cannot be read. A submission in flight owns that record: it is the only recovery
+    /// copy of the operation being dispatched, so resolving it before the answer arrives would leave a
+    /// committed response with no receipt to show and an unknown response with nothing to replay after a
+    /// reload. Reloading remains the way out of a submission that never answers, because the record outlives
+    /// the page.
+    /// </summary>
+    protected bool CanResolveRetained => !IsSubmitting;
+
+    /// <summary>
     /// Gets whether the commit control is available. A retained command inside its window is
     /// replayed through the same control, so the member has exactly one way to settle it.
     /// </summary>

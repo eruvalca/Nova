@@ -84,7 +84,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 {
                     <a class="btn btn-outline-primary" href="@unreadableReviewUrl">Review players</a>
                 }
-                <button type="button" class="btn btn-outline-warning" @onclick="OnDiscardUnreadable">Discard retained record</button>
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="OnDiscardUnreadable">Discard retained record</button>
             </div>
         </div>
     }
@@ -129,7 +129,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 {
                     <a class="btn btn-outline-primary" href="@unresolvedReviewUrl">Review players</a>
                 }
-                <button type="button" class="btn btn-outline-warning" @onclick="BeginSetAside">Set aside unresolved addition</button>
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="BeginSetAside">Set aside unresolved addition</button>
             </div>
         </div>
     }
@@ -147,7 +147,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                 {
                     <a class="btn btn-outline-primary" href="@expiredReviewUrl">Review players</a>
                 }
-                <button type="button" class="btn btn-outline-warning" @onclick="BeginSetAside">Set aside unresolved addition</button>
+                <button type="button" class="btn btn-outline-warning" disabled="@(!CanResolveRetained)" @onclick="BeginSetAside">Set aside unresolved addition</button>
             </div>
         </div>
     }

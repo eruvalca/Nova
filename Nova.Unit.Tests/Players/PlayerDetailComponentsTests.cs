@@ -646,6 +646,38 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Avery Johnson");
     }
 
+    /// <summary>A read for a player the route has returned to does not publish into the return.</summary>
+    [Fact]
+    public async Task PlayerDetailIgnoresAReadForAPlayerWhoseRouteWasRevisitedAsync()
+    {
+        var held = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var calls = 0;
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? held.Task
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(firstName: "Blake", lastName: "Stone"))));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+
+        // The page visits another player and comes back, so the route names the player the first read was for
+        // once again — an id comparison alone cannot tell those two visits apart.
+        cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
+        cut.Render(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => detailService.Received(2)
+            .GetPlayerDetailAsync(7, Arg.Any<CancellationToken>()));
+
+        // The first read answers last: it belongs to the visit this route has left, so it must not replace the
+        // detail the return's own read put on screen.
+        await cut.InvokeAsync(() => held.SetResult(new ServiceResult<PlayerDetailDto>(
+            CreatePlayerDetail(firstName: "Stale", lastName: "Snapshot"))));
+
+        cut.Markup.ShouldContain("Blake Stone");
+        cut.Markup.ShouldNotContain("Stale Snapshot");
+    }
+
     /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
     [Fact]
     public async Task PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync()

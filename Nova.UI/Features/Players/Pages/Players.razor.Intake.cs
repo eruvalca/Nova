@@ -227,20 +227,22 @@ public partial class Players
     }
 
     /// <summary>
-    /// Applies one creation outcome to the board that is still holding the command it answers. That board is
-    /// the visit that dispatched it, or a member who left and came back, whose board reads the same retained
-    /// record and so displays that same operation. A board that no longer holds this command — the addition
-    /// was set aside, so the command is not retained any more, or a replacement command is what is retained —
-    /// is told nothing about it instead of being replaced by another operation's receipt, refusal or frozen
-    /// command. Nothing is lost either way, because the exact command stays retained while it is unsettled and
-    /// the same operation identity recovers the same receipt server-side when it is replayed.
+    /// Applies one creation outcome to the visit that dispatched it. A member who left the create form while
+    /// the request was in flight is told nothing about it here: the exact command stays retained, because it is
+    /// the only durable evidence of a dispatch that may well have committed, and the same operation identity
+    /// recovers the same receipt server-side when they return and replay it. A member who left and came back is
+    /// not in that position — their board read the same retained record, so this outcome settles the operation
+    /// it already displays. The twenty-third pass also withheld the outcome from a board that no longer held
+    /// the command; that interleaving is impossible now that the actions resolving the retained record are
+    /// unavailable while a submission is in flight (<c>CanResolveRetained</c>), and publishing whenever the form
+    /// shows is what keeps a committed receipt visible instead of dropping it.
     /// </summary>
     /// <param name="result">The outcome the server returned for the retained command.</param>
     /// <param name="command">The exact retained command the outcome belongs to.</param>
     /// <returns>A task that completes when the outcome has been applied.</returns>
     private async Task ApplyCreationOutcomeAsync(ServiceResult<PlayerCreationCompletion> result, CreatePlayerInput command)
     {
-        if (_pendingCreate?.OperationId != command.OperationId || !_showCreateForm)
+        if (!_showCreateForm)
         {
             // A committed creation still refreshes the directory, which is the one place its new player
             // is visible to the member who walked away from the form.
