@@ -12,6 +12,7 @@ using NSubstitute;
 using OneOf.Types;
 using Shouldly;
 using PlayerDetailPage = Nova.UI.Features.Players.Pages.PlayerDetail;
+using PlayerLifecycleConfirmation = Nova.UI.Features.Players.Components.PlayerLifecycleConfirmation;
 
 namespace Nova.Unit.Tests.Players;
 
@@ -699,6 +700,25 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         var heading = cut.Find("#archive-confirmation-heading");
         heading.GetAttribute("tabindex").ShouldBe("-1");
         heading.HasAttribute("autofocus").ShouldBeFalse();
+    }
+
+    /// <summary>The confirmation focuses its heading again when the host hands it another subject.</summary>
+    [Fact]
+    public void PlayerLifecycleConfirmationFocusesEachSubjectsHeadingAsync()
+    {
+        var cut = Render<PlayerLifecycleConfirmation>(p => p
+            .Add(c => c.PlayerId, 7)
+            .Add(c => c.DisplayName, "Avery Johnson"));
+        JSInterop.VerifyInvoke("Blazor._internal.domWrapper.focus", calledTimes: 1);
+
+        // The directory reuses the open panel for another player: its heading is a new confirmation, so focus
+        // follows the subject rather than staying on the row that opened the panel.
+        cut.Render(p => p
+            .Add(c => c.PlayerId, 21)
+            .Add(c => c.DisplayName, "Blake Stone"));
+
+        JSInterop.VerifyInvoke("Blazor._internal.domWrapper.focus", calledTimes: 2);
+        cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Blake Stone");
     }
 
     /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
