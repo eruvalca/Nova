@@ -61,7 +61,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
         <div class="intake-actions">
             @* A committed operation whose record is still retained cannot start another: the browser's own
                reservation refuses a second command for this owner until this one is released. *@
-            <button type="button" class="btn btn-primary" id="intake-add-another" disabled="@StorageUnavailable" @onclick="OnAddAnother">Add another</button>
+            <button type="button" class="btn btn-primary" id="intake-add-another" disabled="@(StorageUnavailable || IsSubmitting)" @onclick="OnAddAnother">Add another</button>
             @if (ReceiptDetailUrl is { } detailUrl)
             {
                 <a class="btn btn-outline-primary" id="intake-view-player" href="@detailUrl">View player</a>

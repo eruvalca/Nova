@@ -19,6 +19,8 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     private EditContext _editContext;
     private ElementReference _root;
     private DotNetObjectReference<PlayerIntakeBoard>? _departureReceiver;
+    /// <summary>The lease every attempt this mounting made belongs to, so disposal releases it even when the
+    /// answer to the attach was lost after the module installed the guard.</summary>
     private string? _guardLease;
     private bool _dirty;
     private bool _guardAttached;
@@ -660,11 +662,11 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             }
         }
 
-        if (_guardAttached || attachWasInFlight)
+        if (_guardLease is not null)
         {
             try
             {
-                await _interop.DetachDepartureGuardAsync(_guardLease!, CancellationToken.None);
+                await _interop.DetachDepartureGuardAsync(_guardLease, CancellationToken.None);
             }
             catch (JSDisconnectedException)
             {

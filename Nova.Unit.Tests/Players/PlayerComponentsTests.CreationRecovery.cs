@@ -1021,6 +1021,28 @@ public sealed partial class PlayerComponentsTests
         Interop.GuardAttached.ShouldBeFalse();
     }
 
+    /// <summary>A guard installed by an attach whose answer was lost is released on disposal.</summary>
+    [Fact]
+    public async Task PlayersReleasesAGuardInstalledByAnAttachThatLostItsAnswerAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        Interop.FailAttachAfterInstalling = true;
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // Entering the board starts the attach, which installs the guard and then loses its answer, so the
+        // mounting never sees it as attached.
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+
+        // Disposal must release the lease it attempted rather than only the one it saw installed: the module
+        // holds a guard whose receiver this mounting is about to release.
+        await cut.FindComponent<PlayerIntakeBoard>().Instance.DisposeAsync();
+
+        Interop.GuardAttached.ShouldBeFalse();
+        Interop.GuardDetachCount.ShouldBeGreaterThanOrEqualTo(1);
+    }
+
     /// <summary>A replay is durably retained again before it is dispatched.</summary>
     [Fact]
     public async Task PlayersRetainsTheReplayedCommandAgainBeforeDispatchingItAsync()
@@ -1660,6 +1682,47 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
         cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
         Interop.Read(101, 42).ShouldBeNull();
+    }
+
+    /// <summary>The receipt's actions stay closed while the settlement that owns the record is still running.</summary>
+    [Fact]
+    public void PlayerIntakeBoardClosesTheReceiptActionsWhileTheSettlementRuns()
+    {
+        var completion = CreationCompletion(new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        });
+        RegisterServices(isClubAdmin: true);
+
+        // The submit state stays set until the settlement's storage cleanup has finished, so the next addition
+        // cannot start over the record that settlement still owns.
+        var cut = Render<PlayerIntakeBoard>(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.Receipt, completion)
+            .Add(c => c.IsSubmitting, true));
+        cut.Find("#intake-add-another").HasAttribute("disabled").ShouldBeTrue();
+
+        // Once the settlement has finished, the same board offers the next addition again.
+        cut.Render(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.Receipt, completion)
+            .Add(c => c.IsSubmitting, false));
+        cut.Find("#intake-add-another").HasAttribute("disabled").ShouldBeFalse();
     }
 
     /// <summary>A release retry whose record another same-owner tab already removed reports the release.</summary>

@@ -226,8 +226,11 @@ public partial class Players
             return;
         }
 
-        _isMutating = false;
+        // The settlement's storage cleanup belongs to this operation: the submit state stays busy until the
+        // outcome has been applied, so a resolution action cannot start a second operation over the record this
+        // one still owns.
         await ApplyCreationOutcomeAsync(result, command);
+        _isMutating = false;
     }
 
     /// <summary>
@@ -541,7 +544,8 @@ public partial class Players
     /// </summary>
     private async Task SetAsideRetainedAsync()
     {
-        if (_board is null)
+        // A settlement that is still cleaning up owns the record this decision would resolve.
+        if (_isMutating || _board is null)
         {
             return;
         }
@@ -642,6 +646,12 @@ public partial class Players
     /// <summary>Retries the browser storage boundary after it was reported unavailable.</summary>
     private async Task RetryStorageAsync()
     {
+        // The retry speaks for the record a settlement still owns, so it waits for that settlement.
+        if (_isMutating)
+        {
+            return;
+        }
+
         // A settled receipt already proves its outcome, so the retry releases the exact record this
         // receipt settled rather than re-reading a decision that is already made. That release accepts a
         // record another tab already took, so the retry cannot be stranded on bytes that are gone.
@@ -681,6 +691,13 @@ public partial class Players
     /// <summary>Starts another addition without replaying any player-specific input.</summary>
     private async Task StartAnotherAdditionAsync()
     {
+        // The receipt belongs to a settlement that may still be cleaning up, and that settlement owns the record
+        // the next addition would read.
+        if (_isMutating)
+        {
+            return;
+        }
+
         _receipt = null;
         // Reset only player-specific input; the board's mode and identity stay with the instance.
         _createForm.ResetForNextAddition();

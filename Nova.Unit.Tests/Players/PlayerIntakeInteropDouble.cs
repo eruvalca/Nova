@@ -40,6 +40,12 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets the number of departure-guard attach attempts that fail before one succeeds.</summary>
     public int FailGuardAttachAttempts { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether an attach installs the guard and then fails, the way a cancelled or torn-down
+    /// boundary does after the browser has already installed it.
+    /// </summary>
+    public bool FailAttachAfterInstalling { get; set; }
+
     /// <summary>Gets or sets a gate that holds the departure-guard attach open, the way slow interop would.</summary>
     public TaskCompletionSource? GuardAttachGate { get; set; }
 
@@ -229,6 +235,11 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         GuardAttached = true;
         GuardLease = lease;
         GuardAttachSettled?.TrySetResult();
+        if (FailAttachAfterInstalling)
+        {
+            throw new JSException("The departure guard's answer was lost after it was installed.");
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
     }
 
