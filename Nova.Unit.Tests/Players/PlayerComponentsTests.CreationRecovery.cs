@@ -9,6 +9,7 @@ using Nova.SharedKernel.Results;
 using Nova.UI.Features.Players.Services;
 using NSubstitute;
 using Shouldly;
+using PlayerCreationRecoveryState = Nova.UI.Features.Players.Components.PlayerCreationRecoveryState;
 using PlayerIntakeBoard = Nova.UI.Features.Players.Components.PlayerIntakeBoard;
 using PlayersPage = Nova.UI.Features.Players.Pages.Players;
 
@@ -1195,6 +1196,61 @@ public sealed partial class PlayerComponentsTests
         cut.FindAll("#intake-unresolved").Count.ShouldBe(0);
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         Interop.Read(101, 42).ShouldBeNull();
+    }
+
+    /// <summary>The set-aside dialog states the settled refusal its branch describes.</summary>
+    [Fact]
+    public void PlayerIntakeBoardNamesTheRefusalInTheSetAsideDialog()
+    {
+        var cut = RenderRetainedAdditionBoard(refusedDuplicate: true);
+
+        cut.Find("#intake-unresolved button").Click();
+
+        // The outcome this decision follows is settled as a refusal, so the dialog asks the member to affirm
+        // that rather than an unknown result the board never claimed.
+        cut.Find("#intake-set-aside-heading").TextContent.ShouldContain("refused addition");
+        var label = cut.Find("#intake-set-aside label").TextContent;
+        label.ShouldContain("the refusal stands");
+        label.ShouldNotContain("stays unknown");
+    }
+
+    /// <summary>An addition whose outcome is unknown keeps the unknown-result wording.</summary>
+    [Fact]
+    public void PlayerIntakeBoardKeepsTheUnknownWordingForAnUnsettledAddition()
+    {
+        var cut = RenderRetainedAdditionBoard(refusedDuplicate: false);
+
+        cut.Find("#intake-unresolved button").Click();
+
+        cut.Find("#intake-set-aside-heading").TextContent.ShouldContain("unresolved addition");
+        cut.Find("#intake-set-aside label").TextContent.ShouldContain("stays unknown");
+    }
+
+    /// <summary>The set-aside result names the outcome its decision actually settled.</summary>
+    [Fact]
+    public void PlayersNamesTheSetAsideResultForTheOutcomeItSettled()
+    {
+        PlayersPage.RetainedSetAsideStatus(refusedDuplicate: true).ShouldContain("The refusal stands");
+        PlayersPage.RetainedSetAsideStatus(refusedDuplicate: false).ShouldContain("stays unknown");
+    }
+
+    /// <summary>Renders the board in the state its set-aside decision is made in.</summary>
+    /// <param name="refusedDuplicate">Whether a receipt-backed refusal is the outcome it published.</param>
+    /// <returns>The rendered board.</returns>
+    private IRenderedComponent<PlayerIntakeBoard> RenderRetainedAdditionBoard(bool refusedDuplicate)
+    {
+        RegisterServices(isClubAdmin: true);
+        return Render<PlayerIntakeBoard>(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.RecoveryState, PlayerCreationRecoveryState.Unresolved)
+            .Add(c => c.Duplicate, refusedDuplicate
+                ? new PlayerCreationDuplicate { PlayerId = 21, LifecycleStatus = LifecycleStatus.Active }
+                : null));
     }
 
     /// <summary>A replay is not offered while the set-aside decision that owns the command is open.</summary>

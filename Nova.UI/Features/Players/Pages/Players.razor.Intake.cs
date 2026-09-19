@@ -601,6 +601,7 @@ public partial class Players
 
         // The bytes are gone, so nothing retained survives in memory either, and the board is left holding no
         // panel for an operation it no longer keeps.
+        var refusedDuplicate = _creationDuplicate is not null;
         _pendingCreate = null;
         _retainedPlayerName = null;
         _invalidRetainedValue = null;
@@ -616,15 +617,27 @@ public partial class Players
         _createForm = PlayerFormState.CreateDefault();
         _board?.MarkCommittedOrClosed();
         _board?.RequestFocusOnFirstField();
-        await ReconcileAfterSetAsideAsync();
+        await ReconcileAfterSetAsideAsync(refusedDuplicate);
     }
 
     /// <summary>Refreshes authoritative evidence so the member resolves an unresolved addition deliberately.</summary>
-    private async Task ReconcileAfterSetAsideAsync()
+    /// <param name="refusedDuplicate">Whether the set-aside settled a receipt-backed refusal rather than an unknown outcome.</param>
+    private async Task ReconcileAfterSetAsideAsync(bool refusedDuplicate)
     {
-        _statusMessage = "Retained addition set aside. The earlier result stays unknown; check the directory for the player.";
+        _statusMessage = RetainedSetAsideStatus(refusedDuplicate);
         await RefreshDirectoryAsync();
     }
+
+    /// <summary>
+    /// Names the result a completed set-aside leaves behind. A receipt-backed refusal was settled before the
+    /// member set the request aside, so the copy names that outcome instead of sending them to look for a
+    /// player the refusal already accounted for.
+    /// </summary>
+    /// <param name="refusedDuplicate">Whether the set-aside settled a receipt-backed refusal.</param>
+    /// <returns>The status message for the outcome the decision settled.</returns>
+    internal static string RetainedSetAsideStatus(bool refusedDuplicate) => refusedDuplicate
+        ? "Retained addition set aside. The refusal stands and the player it matched is untouched."
+        : "Retained addition set aside. The earlier result stays unknown; check the directory for the player.";
 
     /// <summary>Retries the browser storage boundary after it was reported unavailable.</summary>
     private async Task RetryStorageAsync()

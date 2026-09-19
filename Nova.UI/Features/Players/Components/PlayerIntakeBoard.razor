@@ -155,7 +155,9 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     @if (_setAsidePending && RecoveryState is PlayerCreationRecoveryState.Unresolved or PlayerCreationRecoveryState.Expired)
     {
         <div class="intake-attention" role="alertdialog" aria-labelledby="intake-set-aside-heading" id="intake-set-aside">
-            <p class="fw-semibold mb-2" id="intake-set-aside-heading" tabindex="-1">Set aside this unresolved addition?</p>
+            @* The dialog speaks for whichever operation the board holds: a receipt-backed refusal settled this
+               one's outcome, so the heading and the acknowledgement below name that instead of an unknown result. *@
+            <p class="fw-semibold mb-2" id="intake-set-aside-heading" tabindex="-1">@(Duplicate is not null ? "Set aside this refused addition?" : "Set aside this unresolved addition?")</p>
             <p class="mb-2">
                 Setting it aside removes the retained request so you can add a player again. It does
                 <strong>not</strong> undo anything:
@@ -172,7 +174,9 @@ FORM: One bounded board; server field errors sit under their control, blockers a
             <div class="form-check mb-3">
                 <input id="set-aside-acknowledge" class="form-check-input" type="checkbox" @bind="_setAsideAcknowledged" />
                 <label class="form-check-label" for="set-aside-acknowledge">
-                    I reviewed the Players directory and understand the earlier result stays unknown.
+                    @(Duplicate is not null
+                        ? "I reviewed the Players directory and understand the refusal stands."
+                        : "I reviewed the Players directory and understand the earlier result stays unknown.")
                 </label>
             </div>
             <div class="intake-actions">
