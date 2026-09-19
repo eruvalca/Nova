@@ -36,6 +36,8 @@ public partial class Players
     /// instead of re-reading a decision that is already made.
     /// </summary>
     private Guid? _unreleasedOperationId;
+    private bool HasReceiptCleanupOutstanding
+        => _receipt is not null && (_unreleasedOperationId is not null || _invalidRetainedValue is not null);
     private string? _recoveryScope;
     private PlayerCreationCompletion? _receipt;
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
@@ -187,6 +189,9 @@ public partial class Players
         _recoveryChecked = true;
         _storageUnavailable = false;
         ApplyRecoveryRead(read);
+        // A generic unreadable recovery has its own blocking card. When an immutable receipt owns the
+        // same bytes, keep its cleanup panel visible instead so the confirmed outcome is not relabelled.
+        _storageUnavailable = _receipt is not null && read.Kind == PlayerCreationRecoveryKind.Unreadable;
     }
 
     /// <summary>Applies one settled recovery read to the board's retained state.</summary>
@@ -370,7 +375,7 @@ public partial class Players
             ? $"Player created. Enrolled in {enrollment.CampaignName}."
             : "Player created. Ready for the next campaign opening.";
 
-        var released = await ReleasedOrAlreadyGoneAsync(command.OperationId, version, _identitySource!.Token);
+        var release = await ReleasedOrAlreadyGoneAsync(command.OperationId, version, _identitySource!.Token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             // The release crossed the boundary and this page has since been re-scoped, so the
@@ -379,12 +384,17 @@ public partial class Players
             return;
         }
 
-        if (!released)
+        if (!release.IsGone)
         {
-            // The receipt settles this operation, so it is shown regardless; the unreleased bytes are
-            // reported instead of pretending the browser released what it did not.
+            // The receipt settles this operation, so it is shown regardless; the retained bytes are
+            // reported instead of pretending the browser released what it did not. Unreadable bytes
+            // cannot be removed by operation id, so preserve their exact value for deliberate discard.
             _storageUnavailable = true;
-            _unreleasedOperationId = command.OperationId;
+            _invalidRetainedValue = release.UnreadableValue;
+            _recoveryState = release.UnreadableValue is null
+                ? PlayerCreationRecoveryState.None
+                : PlayerCreationRecoveryState.Unreadable;
+            _unreleasedOperationId = release.UnreadableValue is null ? command.OperationId : null;
         }
         else
         {
@@ -499,14 +509,68 @@ public partial class Players
             && await RetainedRecordIsGoneAsync(operationId, cancellationToken);
     }
 
-    /// <summary>Releases one settled operation's record, accepting one a same-owner tab already removed.</summary>
+    /// <summary>
+    /// Releases one settled operation's record, accepting one a same-owner tab already removed and
+    /// preserving unreadable bytes that require deliberate discard rather than another exact clear.
+    /// </summary>
     /// <param name="operationId">The settled operation identity.</param>
     /// <param name="version">The identity version that owns this release.</param>
     /// <param name="cancellationToken">A token that cancels the boundary work.</param>
-    /// <returns><see langword="true"/> when the record is gone.</returns>
-    private Task<bool> ReleasedOrAlreadyGoneAsync(Guid operationId, int version, CancellationToken cancellationToken)
-        => RemovalSucceededOrTheRecordIsGoneAsync(
-            () => ClearRetainedAsync(operationId, cancellationToken), operationId, version, cancellationToken);
+    /// <returns>Whether the settled record is gone and any unreadable value still occupying its owner scope.</returns>
+    private async Task<(bool IsGone, string? UnreadableValue)> ReleasedOrAlreadyGoneAsync(
+        Guid operationId, int version, CancellationToken cancellationToken)
+    {
+        if (await ClearRetainedAsync(operationId, cancellationToken))
+        {
+            return (true, null);
+        }
+
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return (false, null);
+        }
+
+        var read = await ReadRetainedRecoveryAsync(cancellationToken);
+        if (read is null)
+        {
+            return (false, null);
+        }
+
+        if (read.Kind == PlayerCreationRecoveryKind.Empty)
+        {
+            return (true, null);
+        }
+
+        if (read.Kind == PlayerCreationRecoveryKind.Unreadable)
+        {
+            return (false, read.InvalidValue);
+        }
+
+        var isReplaced = read.Pending is { } pending && pending.Payload.OperationId != operationId;
+        return (isReplaced, null);
+    }
+
+    /// <summary>Reads the owner's retained state through the rendered board or its browser boundary.</summary>
+    /// <param name="cancellationToken">A token that cancels the read.</param>
+    /// <returns>The retained state, or null when the boundary could not answer.</returns>
+    private async Task<PlayerCreationRecoveryRead?> ReadRetainedRecoveryAsync(CancellationToken cancellationToken)
+    {
+        if (_board is not null)
+        {
+            return await _board.ReadRecoveryAsync(cancellationToken);
+        }
+
+        try
+        {
+            return await intakeInterop.ReadAsync(OwnerUserId, _clubId ?? 0, cancellationToken);
+        }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+        {
+            // A boundary that cannot answer leaves the browser's state unknown, which the caller must
+            // keep reporting as held rather than claim a release.
+            return null;
+        }
+    }
 
     /// <summary>
     /// Reads the owner's retained state to tell a refused removal apart from a record that is not there.
@@ -519,25 +583,7 @@ public partial class Players
     /// <returns><see langword="true"/> only when a read answered that the record the removal settles is gone.</returns>
     private async Task<bool> RetainedRecordIsGoneAsync(Guid? operationId, CancellationToken cancellationToken)
     {
-        PlayerCreationRecoveryRead? read;
-        if (_board is not null)
-        {
-            read = await _board.ReadRecoveryAsync(cancellationToken);
-        }
-        else
-        {
-            try
-            {
-                read = await intakeInterop.ReadAsync(OwnerUserId, _clubId ?? 0, cancellationToken);
-            }
-            catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
-            {
-                // A boundary that cannot answer leaves the browser's state unknown, which the caller must
-                // keep reporting as held rather than claim a release.
-                read = null;
-            }
-        }
-
+        var read = await ReadRetainedRecoveryAsync(cancellationToken);
         if (read is null)
         {
             return false;
@@ -563,7 +609,7 @@ public partial class Players
         // The release is attempted before the settled state is cleared, so a browser that refuses it
         // is reported instead of leaving bytes that a later mount would show as unresolved again.
         var version = _identityVersion;
-        var released = await ReleasedOrAlreadyGoneAsync(operationId, version, _identitySource!.Token);
+        var release = await ReleasedOrAlreadyGoneAsync(operationId, version, _identitySource!.Token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             // The clear crossed the boundary and this page has since been re-scoped: the outcome
@@ -571,11 +617,20 @@ public partial class Players
             return false;
         }
 
-        if (!released)
+        if (!release.IsGone)
         {
-            // The operation stays blocked rather than released in name only: the browser still holds
-            // the exact request, so the member keeps the retry that can actually release it.
+            // The operation stays blocked rather than released in name only. If the retained value has
+            // become unreadable, preserve it for the explicit discard path instead of offering an exact
+            // clear that can never match it.
             _storageUnavailable = true;
+            if (release.UnreadableValue is { } unreadable)
+            {
+                _invalidRetainedValue = unreadable;
+                _pendingCreate = null;
+                _retainedPlayerName = null;
+                _recoveryState = PlayerCreationRecoveryState.Unreadable;
+            }
+
             return true;
         }
 
@@ -678,8 +733,13 @@ public partial class Players
     /// <param name="refusedDuplicate">Whether the set-aside settled a receipt-backed refusal rather than an unknown outcome.</param>
     private async Task ReconcileAfterSetAsideAsync(bool refusedDuplicate)
     {
-        _statusMessage = RetainedSetAsideStatus(refusedDuplicate);
-        await RefreshDirectoryAsync();
+        _statusMessage = _receipt is not null
+            ? "Unreadable retained request discarded. The player creation receipt remains authoritative."
+            : RetainedSetAsideStatus(refusedDuplicate);
+        // The next blank form owns a new enrollment consequence. Re-arm and refresh it alongside the
+        // directory so a campaign change cannot leave the previous attempt's preview on screen.
+        _intakeContextLoading = true;
+        await Task.WhenAll(RefreshDirectoryAsync(), LoadIntakeContextAsync());
     }
 
     /// <summary>
@@ -708,7 +768,7 @@ public partial class Players
         if (_unreleasedOperationId is { } unreleased && _board is not null)
         {
             var version = _identityVersion;
-            var cleared = await ReleasedOrAlreadyGoneAsync(
+            var release = await ReleasedOrAlreadyGoneAsync(
                 unreleased, version, _identitySource?.Token ?? ComponentCancellationToken);
             if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
             {
@@ -719,10 +779,16 @@ public partial class Players
 
             // A newer settled operation owns the retry state now, so only this exact record's release
             // may report success for it.
-            if (cleared && _unreleasedOperationId == unreleased)
+            if (release.IsGone && _unreleasedOperationId == unreleased)
             {
                 _unreleasedOperationId = null;
                 _storageUnavailable = false;
+            }
+            else if (release.UnreadableValue is { } unreadable && _unreleasedOperationId == unreleased)
+            {
+                _unreleasedOperationId = null;
+                _invalidRetainedValue = unreadable;
+                _recoveryState = PlayerCreationRecoveryState.Unreadable;
             }
 
             return;

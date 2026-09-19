@@ -2,15 +2,12 @@
 
 ## Scope and status
 
-**Status: implemented, committed to PR #285, and reviewed to a clean result; the merge candidate
-passes every gate.** Five fresh-context review rounds have run, each verifying the previous round's
-fixes; rounds 1-4 each raised findings that are all addressed, and **round 5 returned "No issues
-found"**. On the merge candidate `639c97f6` the build, format check, full unit suite, **full
-integration suite** and **full browser suite** are all green (see
-[Final validation on the merge candidate](#final-validation-on-the-merge-candidate-639c97f6)); each
-intermittent browser failure seen on the way is named where it occurred with its isolated re-run, and
-none fired in the final browser pass. What remains is the merge itself, plus re-establishing these
-results after any further edit.
+**Status: implemented on PR #285 and reviewed through forty-one Copilot passes.** Every actionable
+finding is addressed; the latest pass's two suppressed findings are fixed and verified below. The
+current merge candidate passes build, format, full unit, full integration, and full browser gates.
+The first browser attempt hit the already-tracked directory journey failure, which passed alone on
+the same build; the immediate full-suite retry was clean. What remains is CI and the merge itself,
+plus re-establishing these results after any further application or browser-suite edit.
 
 Delivered:
 
@@ -1553,6 +1550,34 @@ Tested revision: `221eee41` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **24 total, 23 passed, 0 failed, 1 skipped** (the skip is the env-gated `NOVA_PLAYERS_EVIDENCE` capture), clean on the second and third attempts. The **first** attempt reported 1 failure whose identity was **not captured**: that command tailed its own output, so only the summary survived and the platform wrote no artifact. Two immediately following runs of the same revision are clean, and the first followed the integration suite's AppHost teardown — the shape the tracked instability (#286) has. It is recorded as unattributed rather than assigned a cause. |
 | Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **231 total, 221 passed, 0 failed, 10 skipped**: the clean full pass the before-merge row requires, on the build carrying both fixes above. The ten skips are the pre-existing env-gated captures (`NOVA_A11Y_SCREENSHOTS`, `NOVA_PLACE_EVIDENCE`, `NOVA_PLAYERS_EVIDENCE`), so no behavioural scenario is skipped or weakened. Log: `browser-full-round40.log`. |
 | Incident, recorded | Finding 1's first negative check **passed with the control applied**, which is how the record found out that the four cases did not yet pin the publish: the seeding helper writes `PersistedIntakeContext` itself, so the cases pinned only the adoption. The missing assertion was added **while the control was still removed** and verified to fail there before the control was restored — that order, control first and assertion second, is what makes it evidence. The second hole was reporting, not testing: the first selection run tailed its own output, so a failure's identity did not survive. Browser runs are teed to the session's artifact directory from this pass on. |
+
+## GitHub Copilot code review, forty-first pass (PR #285, on `deafa56a`)
+
+Copilot reported **two suppressed findings** in its review body; neither carried an inline thread, so
+there was no thread to reply to or resolve. Both are fixed. The required independent fresh-context
+review then found one coupled route-boundary defect in the first fix; that defect is fixed and covered
+by the same receipt-cleanup regression in the final working tree on top of `deafa56a`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | A committed operation can find unreadable retained bytes after its exact clear fails, but settlement preserved only the operation id and offered **Release retained request** forever; exact clear deliberately cannot remove malformed or foreign bytes | **Fixed.** Settled cleanup now distinguishes an absent/replaced record from unreadable bytes and preserves the exact unreadable value. The authoritative receipt remains visible, while its cleanup panel offers the existing exact-value **Discard unreadable retained record** path. The discard removes only the malformed browser record and leaves the receipt intact. `PlayersDiscardsUnreadableRetainedBytesBesideASettledReceiptAsync` reproduces the transition from a retained command to malformed bytes during dispatch and proves the discard succeeds without losing the receipt. The same classification also prevents a receipt-backed refusal from being stranded if its retained bytes become unreadable. |
+| 2 | A successful set-aside reset the form but retained the previous `_intakeContext`, so the next addition could state a campaign that changed while the retained outcome was reviewed | **Fixed.** Successful set-aside re-arms the enrollment-consequence loading state and reloads it alongside the authoritative directory reconciliation before offering the new form. `PlayersReloadsTheEnrollmentConsequenceAfterSettingAsideAsync` changes the Active campaign while the retained addition is shown and proves the newly available form names the replacement campaign, not the stale one. |
+| 3 | Independent review: the first unreadable-cleanup fix cleared `_unreleasedOperationId`, while route-boundary receipt preservation depended only on that field; leaving and returning therefore dropped the authoritative receipt and relabelled the malformed bytes as an unknown outcome | **Fixed.** `HasReceiptCleanupOutstanding` now treats either an exact unreleased operation or receipt-owned unreadable bytes as pending cleanup. Route changes preserve the receipt until that cleanup succeeds, and a returning recovery read keeps the receipt-specific discard panel visible. `PlayersDiscardsUnreadableRetainedBytesBesideASettledReceiptAsync` now leaves `/players/new`, returns, proves the receipt and discard action remain, then discards the exact bytes while keeping the receipt. |
+
+### Confirming evidence (Copilot forty-first pass)
+
+Tested revision: uncommitted working tree on top of `deafa56a`; the commit created from this exact
+source follows this record update.
+
+| Check | Command / result |
+| --- | --- |
+| Guidance | Re-read `blazor-architecture.instructions.md`, `csharp-conventions.instructions.md`, `testing.instructions.md`, `add-blazor-ui/references/lifecycle-and-state.md`, `nova-testing/references/transition-evidence.md`, and `nova-testing/references/blazor-component-tests.md`. |
+| Build | `dotnet build Nova.slnx --no-restore` — **passed, 0 warnings, 0 errors** after the one analyzer-reported local-constant naming correction. |
+| Player component selection | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class "*PlayerComponentsTests"` — **149 total, 149 passed, 0 failed, 0 skipped**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3890 total, 3890 passed, 0 failed, 0 skipped** (3888 before; the two new regressions are the entire delta). |
+| Format | `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` — **exit 0; 0 of 1095 files formatted**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Full browser suite | On the final source after the independent-review correction, attempt 1 reported **231 total, 220 passed, 1 failed, 10 skipped** — the already-tracked `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, with an AppHost health-check transport failure during teardown. The same journey passed alone (**1/1**) on the same build. Immediate full-suite retry: **231 total, 221 passed, 0 failed, 10 skipped**, satisfying the before-merge gate for these final application inputs; skips are the pre-existing env-gated captures. The first implementation, before the independent correction, showed the same fail-alone-pass-full-retry-clean sequence and is superseded by this final-source evidence. |
 
 ## Independent finish review
 

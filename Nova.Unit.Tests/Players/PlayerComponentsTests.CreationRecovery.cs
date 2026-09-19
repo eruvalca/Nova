@@ -1349,6 +1349,50 @@ public sealed partial class PlayerComponentsTests
         cut.Markup.ShouldNotContain("Retry storage");
     }
 
+    /// <summary>Setting aside a retained addition reloads the consequence for the newly available form.</summary>
+    [Fact]
+    public async Task PlayersReloadsTheEnrollmentConsequenceAfterSettingAsideAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        var context = Substitute.For<IPlayerIntakeContextService>();
+        var campaignName = "Original campaign";
+        context.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(new PlayerIntakeContext
+            {
+                CampaignId = 4,
+                CampaignName = campaignName
+            })));
+        RegisterServices(isClubAdmin: true, intakeContextService: context);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        campaignName = "Autumn campaign";
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Autumn campaign"));
+        cut.Markup.ShouldNotContain("Original campaign");
+    }
+
     /// <summary>A set-aside whose record another same-owner tab already removed completes the decision.</summary>
     [Fact]
     public async Task PlayersCompletesTheSetAsideWhenTheRetainedRecordWasAlreadyGoneAsync()
@@ -1933,6 +1977,46 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
         Interop.Read(101, 42).ShouldBeNull();
         cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+    }
+
+    /// <summary>A settled receipt can deliberately discard retained bytes that became unreadable.</summary>
+    [Fact]
+    public async Task PlayersDiscardsUnreadableRetainedBytesBesideASettledReceiptAsync()
+    {
+        const string Unreadable = "{not-player-creation-json";
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var input = call.Arg<CreatePlayerInput>();
+                await Interop.ClearAsync(101, 42, input.OperationId, CancellationToken.None);
+                Interop.SeedUnreadable(101, 42, Unreadable);
+                return new ServiceResult<PlayerCreationCompletion>(CreationCompletion(input));
+            });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await FillAndSubmitAsync(cut);
+
+        // The receipt remains authoritative, but an operation-id clear cannot match malformed bytes.
+        // The board must therefore expose the exact-value discard path rather than an endless release retry.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Discard unreadable retained record"));
+        cut.Find("#intake-storage-unavailable").TextContent.ShouldContain("receipt above remains authoritative");
+
+        // The immutable receipt owns this cleanup across a route visit too; returning must not relabel
+        // the malformed bytes as an addition whose outcome is unknown.
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("/players"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Discard unreadable retained record"));
+
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+        Interop.DiscardCount.ShouldBe(1);
     }
 
     /// <summary>A receipt whose request is still unreleased survives the visit that produced it.</summary>

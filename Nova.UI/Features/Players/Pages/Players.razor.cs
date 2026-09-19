@@ -402,10 +402,10 @@ public partial class Players(
         _appliedRoutePath = path;
         _appliedRouteOwner = CurrentOwner;
         _editForm = null;
-        // A settled receipt whose exact request the browser has not released survives the boundary: it is the only
-        // evidence of an operation whose record may be gone before the member can replay it, and the create form's
-        // own release retry is where it stays visible. Once the release succeeds, a later boundary drops it.
-        if (_unreleasedOperationId is null)
+        // A settled receipt whose retained cleanup is still outstanding survives the boundary: it is the
+        // authoritative evidence for bytes that may be unreleased or unreadable, and the create form's own
+        // release or discard action is where it stays visible. Once cleanup succeeds, a later boundary drops it.
+        if (!HasReceiptCleanupOutstanding)
         {
             _receipt = null;
         }

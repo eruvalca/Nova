@@ -191,18 +191,28 @@ FORM: One bounded board; server field errors sit under their control, blockers a
         </div>
     }
 
-    @if (StorageUnavailable && !IsEntryBlocked)
+    @if (StorageUnavailable && (!IsEntryBlocked || ShowsReceipt))
     {
         <div class="intake-attention" role="status" aria-live="polite" id="intake-storage-unavailable">
             @if (ShowsReceipt)
             {
-                @* A settled receipt still owns its release: the bytes it left behind would come back as
-                   an unresolved addition on the next mount, so the retry stays available beside it. *@
+                @* A settled receipt still owns its cleanup. Unreadable bytes cannot be released by the
+                   operation id, so they retain their explicit discard path beside the authoritative receipt. *@
                 <p class="fw-semibold mb-2">The retained request for this player was not released.</p>
-                <p class="mb-2">
-                    This player was created, but this browser did not release the request retained for
-                    it. Until it is released, that addition can come back as unresolved.
-                </p>
+                @if (IsEntryBlocked)
+                {
+                    <p class="mb-2">
+                        This player was created, but the request retained for it is now unreadable. The
+                        receipt above remains authoritative; discard only the unreadable browser record.
+                    </p>
+                }
+                else
+                {
+                    <p class="mb-2">
+                        This player was created, but this browser did not release the request retained for
+                        it. Until it is released, that addition can come back as unresolved.
+                    </p>
+                }
             }
             else if (Duplicate is not null)
             {
@@ -232,9 +242,18 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                     Retry storage to check what it holds before adding.
                 </p>
             }
-            <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">
-                @(ShowsReceipt ? "Release retained request" : "Retry storage")
-            </button>
+            @if (ShowsReceipt && IsEntryBlocked)
+            {
+                <button type="button" class="btn btn-outline-warning" @onclick="OnDiscardUnreadable">
+                    Discard unreadable retained record
+                </button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">
+                    @(ShowsReceipt ? "Release retained request" : "Retry storage")
+                </button>
+            }
         </div>
     }
 
