@@ -878,6 +878,31 @@ Tested revision: `d5e370c5`.
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture). |
 | Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, the journey this record has tracked as load-sensitive since the eleventh pass, on the same absent-paging signature; attribution is unchanged from the seventeenth pass (it exists on `origin/main`, this diff does not touch the directory's paging or draft-return path, and it passes in isolation on these revisions), and the run before it had already passed the same journey inside the affected selection. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — which satisfies the before-merge row for the final inputs on `d5e370c5` (the ten skips are the pre-existing env-gated captures). |
 
+## GitHub Copilot code review, nineteenth pass (PR #285, on `27e54b61`, fixed in `4d72bcbd`)
+
+Copilot raised one inline finding on `RestoreRecoveryAsync`; auditing the sibling paths in the same file for
+the same invariant found one more. Both are fixed in `4d72bcbd`.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `RestoreRecoveryAsync` is owned only by `_identityVersion`, so a recovery read from an earlier `/players/new` visit can still apply after the member left and re-entered the route — and if the newer read has already enabled the form and the member has typed, the late `ApplyRecoveryRead` replaces that input with the old storage snapshot (`Players.razor.Intake.cs:95`, **inline thread**) | **Fixed as prescribed.** A recovery read now takes the next generation of a per-visit attempt counter and, before it may claim the board's readiness or publish its snapshot, must still own that generation **and** the create route (`_routeVersion` unchanged, `_showCreateForm`). A rejected answer leaves the claim and the readiness to the read that owns the visit now on screen, closing the "a landed recovery replaces typed values" invariant for the read that had been missed. |
+| 2 | (found by the sibling audit, not reported) The same shape in `SetAsideRetainedAsync`: a removal that answered after the member left rewrote the visit that was on screen — `_createForm = CreateDefault()` cleared input typed since, plus the status message, the focus request and the guard call | **Fixed.** The removal is the member's decision and still stands (the bytes are gone, so the retained state is cleared in memory too), but only the visit that asked for it may rewrite the form, its messages, the departure guard or the focus. The outcome handling moved into `ApplySetAsideOutcomeAsync`, which takes the visit's ownership as an explicit input. Sibling paths audited and left alone, with reasons: `LoadIntakeContextAsync` already carries a per-call version; the creation outcome is route-guarded in `ApplyCreationOutcomeAsync`; and `ReleaseRetainedAsync`, `RetryStorageAsync`'s release and the retained-state clears publish *storage truth* — route-independent facts about what the browser holds — rather than view or input state. |
+
+### Confirming evidence (Copilot nineteenth pass)
+
+Tested revision: `4d72bcbd`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**, after one intermediate failure the new code caused (`MA0051` method length, fixed by extracting the set-aside outcome handling). |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3852 total, 3852 passed, 0 failed, 0 skipped** (3850 before; the two new cases are the delta). |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Negative check | With `Players.razor.Intake.cs` restored to its `27e54b61` content — the revert **build re-verified as successful (0 warnings, 0 errors) before the run** — **both new cases fail** (**2 failed, 3850 passed**). Restored, rebuilt and re-run green before the suites below. |
+| Vacuous first attempt, recorded rather than dropped | The first version of the stale-read case passed against the reverted product file, so it proved nothing: the read's answer crosses three async hops (the boundary, the board's read, the page's continuation) and the assertion ran before they drained. The case now waits for the boundary's own answer (`Interop.ReadCount`) and then awaits one dispatch per remaining hop, which is what makes it fail on the reverted code. A case that cannot fail without its fix is not evidence, so it is recorded and replaced rather than kept green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 21 passed, 1 failed, 1 skipped**; the failure is the tracked load-sensitive directory journey, which **passes in isolation** on this revision (**1 total, 1 passed**). |
+| Full browser suite | **230 total, 220 passed, 0 failed, 10 skipped on the first run** on this revision, satisfying the before-merge row for the final inputs (the ten skips are the pre-existing env-gated captures). The tracked load-sensitive journeys — including the directory journey that failed once inside the selection above — passed in this run. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1085,9 +1110,10 @@ evidence above is unchanged by it.
   `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`) failing with the same
   board-not-yet-ready signature. The repository's own rule names the mechanism (shared Docker capacity across
   worktrees exhausting bounded hydration/storage retries), so those attempts track the machine's concurrent
-  load rather than the change. The row is satisfied on the revision that carries those changes forward: the
-  first full run on `d5e370c5` failed only the tracked directory journey, and its retry was clean
-  (**230 total, 220 passed, 0 failed, 10 skipped**), with the affected selection also clean on both revisions.
+  load rather than the change. The row is satisfied on the revisions that carry those changes forward: the
+  first full run on `d5e370c5` failed only the tracked directory journey and its retry was clean, and
+  `4d72bcbd`'s first full run was clean — **230 total, 220 passed, 0 failed, 10 skipped** — with the affected
+  selection also clean on both revisions.
 
 ## Design evidence
 
