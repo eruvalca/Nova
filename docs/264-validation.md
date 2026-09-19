@@ -1388,6 +1388,32 @@ Tested revision: `b8d3c8d9` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the tracked count-derived journey that has failed most selections. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
 
+## GitHub Copilot code review, thirty-fifth pass (PR #285, on `35c945e4`, fixed in `f5f51a6b`)
+
+Copilot's review body carries three findings, raised as *previously missed* (no inline threads, so none to
+resolve). Two are accessibility gaps this change introduced and one is a subscription leak an earlier pass of
+this same loop introduced.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The set-aside `alertdialog` has no accessible description: the consequence — that the earlier result stays unknown, or that the refusal stands — is only following text, so assistive technology can announce the question without the decision the acknowledgement covers; the same appears at the departure panel (`PlayerIntakeBoard.razor:164` and `:398`, **review body**) | **Fixed at both.** Each dialog's consequence paragraph carries a stable id (`intake-set-aside-consequence`, `intake-departure-consequence`) and the dialog references it with `aria-describedby`, so the decision the member is acknowledging travels with the question. |
+| 2 | `_subscribed` is set only inside the `FieldErrors`-replacement branch, so on ordinary renders it stays false and every parent render adds another `OnFieldChanged`/`OnValidationStateChanged` handler, running each callback repeatedly and leaving all but one subscribed at disposal (`PlayerIntakeBoard.razor.cs:470`, **review body**) | **Fixed, and it was this loop's own regression.** The thirty-first pass's edit displaced the flag from the subscription into the error-snapshot branch; it is back with the subscription itself, with a comment saying why it belongs there. This one is verified by inspection rather than by a case: the defect's effect is a handler count, which bUnit cannot observe deterministically, and the fix is the flag's placement. |
+| 3 | The shared archive confirmation supplies only an accessible name, so the consequence text that explains what the acknowledgement does is not associated with the dialog and focusing the heading can leave a screen-reader user without the destructive-action context (`PlayerLifecycleConfirmation.razor:14`, **review body**) | **Fixed.** The consequence has the stable id `archive-confirmation-consequence` and the dialog references it, extended with the existing blocker region id whenever blockers render, so the name, the consequence and the blocking reasons are announced together. |
+
+### Confirming evidence (Copilot thirty-fifth pass)
+
+Tested revision: `f5f51a6b` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3879 total, 3879 passed, 0 failed, 0 skipped** (the three markup assertions extend existing cases rather than adding new ones). |
+| Negative check | The three `aria-describedby` attributes and the subscription move reverted together, the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **3 failed, 3876 passed** — exactly `PlayerIntakeBoardNamesTheRefusalInTheSetAsideDialog`, `PlayerDetailAnnouncesTheArchiveConfirmationAsync` and `PlayersAsksBeforeCancelDiscardsTypedInputAsync`, each on its dialog's missing description; the subscription fix is not discriminated by a case and is recorded as inspected. Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the tracked count-derived journey. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
