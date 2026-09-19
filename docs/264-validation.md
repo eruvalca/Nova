@@ -1150,6 +1150,42 @@ Tested revision: `01b398df` (the record's own commit follows it).
 | Full browser suite | Not attempted this pass: with the selection itself failing on pre-existing count-derived assertions, a full run could not produce the row the gate wants, and the honest record is the diagnosis above plus the retry history already recorded. The before-merge row stays pending (see *Limitations*). |
 | Capacity check | `docker system df` and `docker ps -a`: no test container is running, the two exited ones date from three weeks ago, there are 20 local volumes (607 MB reclaimable) and 635 GB free on `C:` — so the degradation is not exhausted capacity, and the fixture does not reuse Postgres data between runs by design. |
 
+## GitHub Copilot code review, twenty-sixth pass (PR #285, on `8d4caa6d`, fixed in `3926096e`)
+
+Copilot's review body carries one finding, raised as *previously missed* (no inline thread, so none to
+resolve).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | When `Duplicate` is non-null, `PlayerCreationProblems.IsNotCommitted` gives receipt-backed proof that the operation was refused, so the acknowledgement that asks the member to affirm "the earlier result stays unknown" contradicts the settled outcome; render duplicate-specific acknowledgement text (`PlayerIntakeBoard.razor:176`, **review body**) | **Fixed at the named site and its two siblings in the same claim.** The dialog's heading, its acknowledgement label and the status line a completed set-aside leaves all now name the refusal when a receipt-backed one is what settled the operation, and keep today's unknown-result wording otherwise. The status wording is a pure `internal static` helper (`Players.RetainedSetAsideStatus`) so it is pinned directly rather than through an arrangement no longer reachable. |
+
+**Reachability, measured rather than assumed.** The branch describes `RecoveryState == Unresolved` (or
+`Expired`) while `Duplicate != null`, and the twenty-fifth pass's fix removed the state that used to produce
+it: a receipt-backed refusal releases the retained record and leaves `_recoveryState = None`, the only path
+that could return the board to `Unresolved` in the same visit is a submission (which now clears the panel),
+a route departure clears it too, and a same-owner refresh preserves the intake state instead of re-reading
+it. The first attempt at this pass's tests tried to reach it exactly that way — refusal, another same-owner
+tab's retained command, then a refresh — and the awaited card never appeared (two 44-second waits,
+recorded). The copy is therefore pinned where the state can be reached: two component tests render the board
+with and without `Duplicate` and assert the wording each state gets, plus a pure test of the status wording.
+The branch stays: it describes a state the board still models, and if any future path returns to it, its copy
+is now right.
+
+### Confirming evidence (Copilot twenty-sixth pass)
+
+Tested revision: `3926096e` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3864 total, 3864 passed, 0 failed, 0 skipped** (3861 before; three cases added, the two unarrangeable app-level ones removed). |
+| Negative check | The two board strings reverted to the unconditional unknown wording and the status helper's branches swapped (an analyzer-clean revert, since the first attempt's shape would have left an unused local), the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3862 passed** — exactly `PlayerIntakeBoardNamesTheRefusalInTheSetAsideDialog` and `PlayersNamesTheSetAsideResultForTheOutcomeItSettled`; the control case that an unsettled addition keeps the unknown wording still passed, which is what it asserts. Fixes restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` first reported `IMPORTS: Fix imports ordering` for the alias this pass added; `dotnet format Nova.slnx` applied it and the verify then reported **exit 0**, with only the three edited files in the diff. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), including `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, which had failed in both of the previous pass's selections. |
+| Full browser suite | One attempt: **230 total, 219 passed, 1 failed, 10 skipped** — the same count-derived journey as the previous two passes (it failed minutes earlier in the same revision's selection). The before-merge row stays pending; see *Limitations*. |
+| Build/test incidents, recorded | The first two tests written for this pass never reached their state (above) and were replaced by the boundary tests; the component test then failed to compile on the board's `PlayerCreationRecoveryState` (declared in the component namespace, which the test file aliases only for the board), fixed with a file alias; and that alias tripped the import-ordering rule. All three were caught by reading the build and format output before trusting any result. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1371,13 +1407,14 @@ evidence above is unchanged by it.
   twenty-first pass), so no tab claims the browser is holding bytes that are gone, and both consumers are
   pinned by cases. If the reservation is wanted, it needs an explicit in-flight outcome in the boundary plus
   an expiry; the trade-off is stated in that pass's section for a human to weigh.
-- **The before-merge full-browser-suite row is still pending after three review rounds, and the refined
-  diagnosis is that the suite's *shared-run data* is the cause, not load alone.** Five full runs on the
-  twenty-third and twenty-fourth passes' revisions reported 219/230, 219/230, 218/230, 219/230 and 218/230,
-  failing one or two journeys each; the twenty-fifth pass's affected selections failed 1 and 2 of 23. Every
-  failing journey passes **alone** on the revision that failed it (`--filter-method`, verified for
-  `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` and
-  `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`), and the recurring one fails on a
+- **The before-merge full-browser-suite row is still pending after four review rounds, and the refined
+  diagnosis is that the suite's *shared-run data* is the cause, not load alone.** Six full runs on the
+  twenty-third to twenty-sixth passes' revisions reported 219/230, 219/230, 218/230, 219/230, 218/230 and
+  219/230, failing one or two journeys each, and the twenty-fifth pass's affected selections failed 1 and 2
+  of 23 — while the twenty-sixth pass's selection was **clean (22/23)** on the same revision whose full run
+  then failed the recurring journey. Every failing journey passes **alone** on the revision that failed it
+  (`--filter-method`, verified for `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`
+  and `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`), and the recurring one fails on a
   **count-derived** assertion (`"Page 2 of 4"`) that pre-exists on `origin/main` — this PR changes that file by
   five lines, in a create-flow helper, none of them the assertion — while each run's database starts empty
   (`RemoveDataVolumes` strips the AppHost's persistent mounts), so the count is whatever the tests that ran
