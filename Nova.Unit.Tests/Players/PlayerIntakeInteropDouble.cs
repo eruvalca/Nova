@@ -31,6 +31,9 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
     /// <summary>Gets or sets whether clears report that no matching record was removed.</summary>
     public bool FailClears { get; set; }
 
+    /// <summary>Gets or sets whether a dirty-state write fails the way a torn-down boundary does.</summary>
+    public bool FailDirtyWithCancellation { get; set; }
+
     /// <summary>
     /// Gets or sets a gate that holds the answer to a clear open after the record is already gone, the way a
     /// busy circuit would deliver a removal that has already happened.
@@ -243,14 +246,23 @@ internal sealed class PlayerIntakeInteropDouble : IPlayerIntakeInterop
         cancellationToken.ThrowIfCancellationRequested();
     }
 
+    /// <summary>Gets the number of dirty-state writes the boundary was asked to record.</summary>
+    public int DirtyAttempts { get; private set; }
+
     /// <inheritdoc />
     public Task MarkDirtyAsync(string lease, bool dirty, CancellationToken cancellationToken)
     {
+        DirtyAttempts++;
         // The module lets only the mounted board's own lease write its dirty state, so a late update from a
         // superseded mounting is ignored rather than overwriting the guard the board on screen owns.
         if (!GuardAttached || !string.Equals(GuardLease, lease, StringComparison.Ordinal))
         {
             return Task.CompletedTask;
+        }
+
+        if (FailDirtyWithCancellation)
+        {
+            throw new OperationCanceledException("The dirty-state write was cancelled by teardown.");
         }
 
         Dirty = dirty;

@@ -710,17 +710,27 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             StateHasChanged();
         });
 
-    private async Task SyncDirtyAsync()
+    /// <summary>
+    /// Records the board's uncommitted state with the boundary. Called detached from the field-change handler, so
+    /// a teardown that cancels it must be handled here rather than faulting a task nobody observes.
+    /// </summary>
+    /// <returns>A task that completes when the flag has been recorded, or when the attempt was abandoned.</returns>
+    internal async Task SyncDirtyAsync()
     {
         if (!_guardAttached) { return; }
         try
         {
             await _interop.MarkDirtyAsync(_guardLease!, _dirty, ComponentCancellationToken);
         }
-        catch (Exception exception) when (!ComponentCancellationToken.IsCancellationRequested
-            && exception is JSException or InvalidOperationException or ObjectDisposedException)
+        catch (OperationCanceledException)
         {
-            // Failing to record the dirty flag only weakens the warning; it never blocks a commit.
+            // Teardown cancelled the sync: the module keeps the last state it was told, and there is no board
+            // left to report a failure to.
+        }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or ObjectDisposedException)
+        {
+            // Failing to record the dirty flag only weakens the warning; it never blocks a commit. A failure
+            // that raced teardown is the same news: the guard it spoke for is going away with this mounting.
         }
     }
 

@@ -1684,6 +1684,31 @@ public sealed partial class PlayerComponentsTests
         Interop.Read(101, 42).ShouldBeNull();
     }
 
+    /// <summary>A dirty sync that teardown cancels is handled rather than left faulting a detached task.</summary>
+    [Fact]
+    public async Task PlayerIntakeBoardTreatsACancelledDirtySyncAsTeardownAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => Interop.GuardAttached.ShouldBeTrue());
+        // The continuation that records the attach on the board runs after the boundary's answer, so the test
+        // drains a dispatch before calling the sync the board guards on.
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        Interop.FailDirtyWithCancellation = true;
+        var board = cut.FindComponent<PlayerIntakeBoard>().Instance;
+        var attempts = Interop.DirtyAttempts;
+
+        await cut.InvokeAsync(() => board.SyncDirtyAsync());
+        Interop.DirtyAttempts.ShouldBe(attempts + 1);
+
+        // The field-change handler starts this detached from any caller, so a teardown cancellation inside it must
+        // be handled here rather than faulting the task nobody observes.
+        await Should.NotThrowAsync(() => cut.InvokeAsync(() => board.SyncDirtyAsync()));
+    }
+
     /// <summary>The receipt's actions stay closed while the settlement that owns the record is still running.</summary>
     [Fact]
     public void PlayerIntakeBoardClosesTheReceiptActionsWhileTheSettlementRuns()
