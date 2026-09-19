@@ -456,6 +456,9 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         {
             _editContext.OnFieldChanged += OnFieldChanged;
             _editContext.OnValidationStateChanged += OnValidationStateChanged;
+            // The flag belongs to the subscription itself: setting it anywhere else would let every later render
+            // add another pair of handlers, each running every callback and only one of them removed on disposal.
+            _subscribed = true;
         }
 
         // A new answer replaces the last one; the same instance has already been pruned for the fields the member
@@ -466,7 +469,6 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             _fieldMessages = FieldErrors is { Count: > 0 }
                 ? new Dictionary<string, string[]>(FieldErrors, StringComparer.Ordinal)
                 : null;
-            _subscribed = true;
         }
 
         // Messages the server keyed to a field arrive as parameters rather than through the edit context,

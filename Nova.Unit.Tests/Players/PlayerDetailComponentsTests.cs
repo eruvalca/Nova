@@ -697,6 +697,8 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         // way.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(1));
         cut.Find("#archive-confirmation").GetAttribute("role").ShouldBe("alertdialog");
+        cut.Find("#archive-confirmation").GetAttribute("aria-describedby").ShouldBe("archive-confirmation-consequence");
+        cut.Find("#archive-confirmation-consequence").TextContent.ShouldNotBeNullOrWhiteSpace();
         var heading = cut.Find("#archive-confirmation-heading");
         heading.GetAttribute("tabindex").ShouldBe("-1");
         heading.HasAttribute("autofocus").ShouldBeFalse();

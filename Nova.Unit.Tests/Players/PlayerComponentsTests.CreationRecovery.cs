@@ -1238,6 +1238,9 @@ public sealed partial class PlayerComponentsTests
         // The outcome this decision follows is settled as a refusal, so the dialog asks the member to affirm
         // that rather than an unknown result the board never claimed.
         cut.Find("#intake-set-aside-heading").TextContent.ShouldContain("refused addition");
+        // The dialog names the consequence it asks the member to acknowledge, not only the question.
+        cut.Find("#intake-set-aside").GetAttribute("aria-describedby").ShouldBe("intake-set-aside-consequence");
+        cut.Find("#intake-set-aside-consequence").TextContent.ShouldContain("the refusal stands");
         var label = cut.Find("#intake-set-aside label").TextContent;
         label.ShouldContain("the refusal stands");
         label.ShouldNotContain("stays unknown");
@@ -1973,6 +1976,8 @@ public sealed partial class PlayerComponentsTests
         // Cancel is a departure like any other: the typed value is not the click's to lose, so the panel the
         // guard opens asks first and the member stays on the form while they decide.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        cut.Find("#intake-departure").GetAttribute("aria-describedby").ShouldBe("intake-departure-consequence");
+        cut.Find("#intake-departure-consequence").TextContent.ShouldContain("will be lost");
         Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players/new");
 
         await cut.Find("#intake-departure button.btn-outline-secondary").ClickAsync(new());
