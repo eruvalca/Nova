@@ -556,9 +556,13 @@ public sealed class PlayerDetailComponentsTests : BunitContext
     [Fact]
     public async Task PlayerDetailArchivesTheReviewedSubjectWhenTheRouteChangesWhileThePanelIsOpenAsync()
     {
+        var reads = 0;
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+            .Returns(_ => ++reads == 1
+                ? Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail()))
+                : Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                    CreatePlayerDetail(playerId: 21, firstName: "Blake", lastName: "Stone"))));
         var lifecycleService = Substitute.For<IPlayerLifecycleService>();
         lifecycleService.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
@@ -571,6 +575,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
 
         // The routed detail is reused for another player while the panel is open.
         cut.Render(p => p.Add(c => c.PlayerId, 21));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Blake Stone"));
 
         // The panel still reviews Avery, and confirming archives Avery rather than the new route.
         cut.Find("#archive-confirmation-heading").TextContent.ShouldContain("Avery Johnson");
@@ -579,6 +584,10 @@ public sealed class PlayerDetailComponentsTests : BunitContext
 
         await lifecycleService.Received(1).ArchiveAsync(7, Arg.Any<CancellationToken>());
         await lifecycleService.DidNotReceive().ArchiveAsync(21, Arg.Any<CancellationToken>());
+
+        // The result names the player it settled, so it cannot read as if the player on screen was archived.
+        cut.Markup.ShouldContain("Avery Johnson archived.");
+        cut.Markup.ShouldNotContain("Player archived.");
     }
 
     /// <summary>An archive reviewed for the routed player reports nothing once the route moves on.</summary>

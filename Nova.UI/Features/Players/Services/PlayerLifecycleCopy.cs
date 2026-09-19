@@ -34,6 +34,16 @@ internal static class PlayerLifecycleCopy
     /// <summary>The result message after a successful archive.</summary>
     public const string ArchivedResult = "Player archived.";
 
+    /// <summary>
+    /// Names the archived player when the result is shown above another player's detail, so it cannot imply
+    /// that the player on screen was the one archived. Falls back to the unnamed result when the reviewed
+    /// player's name was never captured.
+    /// </summary>
+    /// <param name="displayName">The reviewed player's display name.</param>
+    /// <returns>The archived result naming that player.</returns>
+    public static string ArchivedSubjectResult(string displayName)
+        => string.IsNullOrWhiteSpace(displayName) ? ArchivedResult : $"{displayName} archived.";
+
     /// <summary>The result message after a successful restore.</summary>
     public const string RestoredResult =
         "Player restored. Missed campaign enrollment is not backfilled automatically.";

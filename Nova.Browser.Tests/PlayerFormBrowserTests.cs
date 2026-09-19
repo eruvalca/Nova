@@ -58,6 +58,9 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             // The reservation and the removals take the cross-tab lock, so they answer with a promise.
             await m.writePending(101, 42, json);
             const read = m.readRecovery(101, 42);
+            // The read is lock-free by design — only the read-then-write reservation and the removals take the
+            // cross-tab lock — so it answers with the record itself rather than with a promise to await.
+            const direct = typeof read?.then === 'undefined';
             const stored = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
             // One operation identity carries one exact command: a same-id write with different bytes is
             // refused, and the retained bytes stay the ones the member's dispatch is accounted for by.
@@ -69,10 +72,10 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             const after = Object.keys(localStorage).filter(k => k.startsWith('nova:player-creation')).length;
             return [read.json === null ? 'unreadable' : 'readable', stored, cleared, after,
                 m.readRecovery(101, 43).json === null ? 'otherowner-empty' : 'otherowner-leaked',
-                refused, preserved].join('|');
+                refused, preserved, direct].join('|');
         }");
 
-        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true");
+        result.ShouldBe("readable|1|true|0|otherowner-empty|true|true|true");
     }
 
     /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>

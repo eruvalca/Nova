@@ -389,7 +389,12 @@ public partial class PlayerDetail(
         result.Switch(
             _ =>
             {
-                _statusMessage = PlayerLifecycleCopy.ArchivedResult;
+                // The archive settles the reviewed subject, which the route may since have left: naming that
+                // player keeps a result shown above another player's detail from implying that the player on
+                // screen was the one archived.
+                _statusMessage = _archiveSubjectId == PlayerId
+                    ? PlayerLifecycleCopy.ArchivedResult
+                    : PlayerLifecycleCopy.ArchivedSubjectResult(_archiveSubjectName);
                 CancelArchive();
             },
             problem =>
