@@ -35,6 +35,26 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     private bool _dirtySyncRequested;
     private bool _setAsidePending;
     private bool _setAsideAcknowledged;
+    /// <summary>
+    /// Whether focus has already been moved for the feedback the board is currently showing. Feedback
+    /// arriving where there was none is the transition the surface's contract asks focus to follow; the
+    /// same feedback re-rendering, or another field holding it while one is corrected, is not.
+    /// </summary>
+    private bool _feedbackFocusMoved;
+
+    /// <summary>The profile fields the board renders, in the order they are displayed.</summary>
+    private static readonly string[] _profileFields =
+    [
+        nameof(PlayerFormState.FirstName),
+        nameof(PlayerFormState.LastName),
+        nameof(PlayerFormState.DateOfBirth),
+        nameof(PlayerFormState.GraduationYear),
+        nameof(PlayerFormState.Gender),
+        nameof(PlayerFormState.JerseyNumber)
+    ];
+
+    /// <summary>The first field needing correction, which is the first invalid one in display order.</summary>
+    private const string FirstInvalidFieldSelector = ".intake-fields .is-invalid";
 
     /// <summary>
     /// Initializes the board with the browser boundary used for owner-scoped creation recovery
@@ -348,6 +368,26 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         => FieldErrorsFor(field).Count > 0
             || _editContext.GetValidationMessages(new FieldIdentifier(Model, field)).Any();
 
+    /// <summary>
+    /// Moves focus to the first field needing correction once a refusal has left feedback, which the intake
+    /// surface's contract asks focus to follow: the message the control names is what the member has to
+    /// read. Feedback that is merely re-rendered is not that transition, so focus is moved once per refusal
+    /// rather than chasing each message the member clears while correcting the fields.
+    /// </summary>
+    private void MoveFocusToFeedback()
+    {
+        if (Array.Find(_profileFields, FieldHasError) is null)
+        {
+            // Nothing left to correct, so the next refusal is a fresh transition to follow.
+            _feedbackFocusMoved = false;
+            return;
+        }
+
+        if (_feedbackFocusMoved) { return; }
+        _feedbackFocusMoved = true;
+        RequestFocusOnRegion(FirstInvalidFieldSelector);
+    }
+
     /// <summary>Projects the duplicate record into its destination link.</summary>
     /// <returns>The duplicate destination, or null when there is nothing to inspect.</returns>
     protected Uri? DuplicateUrl => Duplicate is { } duplicate && DetailUrlFactory is not null
@@ -382,6 +422,10 @@ public partial class PlayerIntakeBoard : NovaComponentBase
             _editContext.OnValidationStateChanged += OnValidationStateChanged;
             _subscribed = true;
         }
+
+        // Messages the server keyed to a field arrive as parameters rather than through the edit context,
+        // so focus follows them here exactly as the validation-state handler follows the form's own.
+        MoveFocusToFeedback();
 
 
         // A lossless transition — including the freeze a failed acknowledgement leaves behind — makes
@@ -575,15 +619,19 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     }
 
     /// <summary>
-    /// Re-renders when field feedback changes, because the controls carry <c>aria-invalid</c> and
-    /// <c>aria-describedby</c>. A form that refused a submission before any request was made produces its
-    /// messages without re-rendering this component, so without this the attributes would keep describing
-    /// the field as it was before validation.
+    /// Re-renders when field feedback changes, because the controls describe their field's message and carry
+    /// the invalid class. A form that refused a submission before any request was made produces its messages
+    /// without re-rendering this component, so without this the attributes would keep describing the field as
+    /// validation left it before, and that same transition is the one focus follows.
     /// </summary>
     /// <param name="sender">The edit context that raised the change.</param>
     /// <param name="args">The validation state that changed.</param>
     private void OnValidationStateChanged(object? sender, ValidationStateChangedEventArgs args)
-        => _ = InvokeAsync(StateHasChanged);
+        => _ = InvokeAsync(() =>
+        {
+            MoveFocusToFeedback();
+            StateHasChanged();
+        });
 
     private async Task SyncDirtyAsync()
     {

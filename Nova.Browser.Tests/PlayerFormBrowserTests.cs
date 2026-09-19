@@ -68,6 +68,49 @@ public sealed partial class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         result.ShouldBe("readable|1|true|0|otherowner-empty");
     }
 
+    /// <summary>Focus moves to the field to correct without removing it from the tab order.</summary>
+    [Fact]
+    public async Task IntakeBoardFocusMovesToTheFieldNeedingCorrectionAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        // Exercise the collocated module's focus contract in a real browser, on the shape the board renders:
+        // the first control marked invalid inside the field set, and a note region beside it.
+        var result = await page.EvaluateAsync<string>(@"async () => {
+            const m = await import('/_content/Nova.UI/Features/Players/Components/PlayerIntakeBoard.razor.js');
+            const root = document.createElement('div');
+            const fields = document.createElement('fieldset');
+            fields.className = 'intake-fields';
+            const control = document.createElement('input');
+            control.id = 'probe-control';
+            control.className = 'form-control is-invalid';
+            fields.appendChild(control);
+            root.appendChild(fields);
+            document.body.appendChild(root);
+            m.focusRegion(root, '.intake-fields .is-invalid');
+            const controlFocused = document.activeElement === control;
+            const tabOrderKept = !control.hasAttribute('tabindex');
+            const noteRoot = document.createElement('div');
+            const note = document.createElement('p');
+            note.id = 'probe-note';
+            note.textContent = 'Note';
+            noteRoot.appendChild(note);
+            document.body.appendChild(noteRoot);
+            m.focusRegion(noteRoot, '#probe-note');
+            const regionFocused = document.activeElement === note;
+            const regionMadeFocusable = note.getAttribute('tabindex') === '-1';
+            root.remove();
+            noteRoot.remove();
+            return [controlFocused, tabOrderKept, regionFocused, regionMadeFocusable].join('|');
+        }");
+
+        result.ShouldBe("true|true|true|true");
+    }
+
     [Fact]
     public async Task PlayerFormSuccessCreatesPlayerAndReflectsInRosterAsync()
     {

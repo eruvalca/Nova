@@ -992,6 +992,9 @@ public sealed partial class PlayerComponentsTests
         cut.Find("#player-first-name").GetAttribute("class").ShouldNotBeNull().ShouldContain("is-invalid");
         cut.Find("#player-first-name").GetAttribute("aria-describedby").ShouldBe("player-first-name-error");
         cut.Find("#player-first-name-error").TextContent.ShouldContain("Use the name the club records.");
+
+        // Focus follows the refusal to the field the member has to correct.
+        await cut.WaitForAssertionAsync(() => Interop.FocusRegions.ShouldContain(region => region == ".intake-fields .is-invalid"));
     }
 
     /// <summary>A message the form produced before any request is described the same way.</summary>
@@ -1015,6 +1018,33 @@ public sealed partial class PlayerComponentsTests
         cut.Find("#player-first-name").GetAttribute("aria-invalid").ShouldBe("true");
         cut.Find("#player-first-name-error").TextContent.ShouldNotBeNullOrWhiteSpace();
         await service.DidNotReceive().CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>());
+
+        // The refusal also moves focus to the field to correct, which the surface's contract asks for.
+        Interop.FocusRegions.ShouldContain(region => region == ".intake-fields .is-invalid");
+    }
+
+    /// <summary>Focus moves to the first field to correct once per refusal, not after every correction.</summary>
+    [Fact]
+    public async Task PlayersMovesFocusToTheFirstFieldNeedingCorrectionOncePerRefusalAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+
+        // The refusal moves focus once, to the first field the member has to correct.
+        await cut.Find("#intake-submit").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => Interop.FocusRegions.Count.ShouldBe(1));
+        Interop.FocusRegions[0].ShouldBe(".intake-fields .is-invalid");
+
+        // Correcting that field leaves the others refusing, which is the same refusal: focus stays where the
+        // member put it rather than being dragged to the next message the corrections clear.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.Find("#player-last-name").ChangeAsync(new() { Value = "Lane" });
+
+        Interop.FocusRegions.Count.ShouldBe(1);
     }
 
     /// <summary>A refused operation whose bytes cannot be released stays blocked with the retry.</summary>

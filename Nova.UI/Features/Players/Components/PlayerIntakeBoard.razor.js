@@ -183,7 +183,8 @@ export function markDirty(lease, dirty) {
 }
 
 // Focus follows the board's transitions: the first field after "Add another", the receipt after a
-// commit, and the blocking panel when entry is refused.
+// commit, the first field needing correction after a refusal, and the blocking panel when entry is
+// refused.
 export function focusFirstField(root) {
     const field = root.querySelector("input:not([type=hidden]), select, textarea, button");
     field?.focus();
@@ -192,7 +193,9 @@ export function focusFirstField(root) {
 export function focusRegion(root, selector) {
     const region = root.querySelector(selector);
     if (!region) return;
-    if (!region.hasAttribute("tabindex")) region.setAttribute("tabindex", "-1");
+    // A target that can already take focus keeps its place in the tab order; only an element that cannot
+    // be focused at all needs the attribute that makes programmatic focus possible, as a heading does.
+    if (!region.hasAttribute("tabindex") && region.tabIndex < 0) region.setAttribute("tabindex", "-1");
     region.focus();
 }
 
