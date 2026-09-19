@@ -1222,6 +1222,27 @@ Tested revision: `3b209ef0` (the record's own commit follows it).
 | Affected browser selection | **Two attempts, each 21/23 with one failure, and the failures differ**: the first failed `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`, the retry failed `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — both from #286's tracked set, and neither in this pass's changed paths (that journey's Cancel click happens on a board with nothing typed, and its other departures are receipt links, which stay silent because `dirty` is false). Everything this pass changed passed in **both** runs: the module probe with its in-board-anchor assertion, the extended departure journey, and both duplicate journeys that the new in-board prompting could have broken. |
 | Full browser suite | Not attempted this pass: with the selection itself alternating between two tracked journeys, and the before-merge row already recorded as pending for four passes, another full run would not change the record. |
 
+## GitHub Copilot code review, twenty-eighth pass (PR #285, on `7755f6fd`, fixed in `3a2a7a11`)
+
+Copilot's review body lists the twenty-seventh pass's two inline threads as resolved and carries one finding,
+raised as *previously missed* (no inline thread, so none to resolve).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The in-memory boundary does not preserve the lease ownership the production module implements: a late `MarkDirtyAsync` from an old board overwrites `Dirty` even when a newer guard owns the module state, so the async-ownership tests cannot catch stale dirty updates; ignore the update unless the supplied lease matches the active guard, and add a stale-lease assertion (`PlayerIntakeInteropDouble.cs:239`, the assignment at `:243`, **review body**) | **Fixed as prescribed.** The double's `MarkDirtyAsync` now writes only for the lease that owns the attached guard, which is the module's own rule (`activeGuard?.lease !== lease` ⇔ not attached, or a different lease), so a superseded mounting's completion and a detached guard's late update are both ignored. `MarkDirtyAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync` pins the three cases — the active lease writes, a stale lease does not, and neither does the detached one — in the double's contract test file, which is where its mirroring of the module is already asserted for bytes and identities. |
+
+### Confirming evidence (Copilot twenty-eighth pass)
+
+Tested revision: `3a2a7a11` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3867 total, 3867 passed, 0 failed, 0 skipped** (3866 before; the contract case is the delta). No existing case relied on the looser double: every page-side sync passes the lease it attached with, so the stricter contract changes no arrangement. |
+| Negative check | The lease check reverted to the unconditional assignment (an analyzer-clean revert), the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **1 failed, 3866 passed** — exactly `MarkDirtyAsyncIgnoresALeaseThatDoesNotOwnTheGuardAsync`, on `interop.Dirty` still being false after the stale update. Fix restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Integration and browser | **N/A for this push, on the applicability rule**: the change is the unit suite's in-memory boundary and its contract test, so no application input, browser-suite input, dependency, build/runtime configuration, discovery, or generated asset changed. The before-merge rows stand on the code revision `3b209ef0` — integration **678/678** on that revision, and the browser row as *Limitations* records it — and this push changes neither of their inputs. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
