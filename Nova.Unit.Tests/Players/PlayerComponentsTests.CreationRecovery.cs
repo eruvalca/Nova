@@ -1089,6 +1089,50 @@ public sealed partial class PlayerComponentsTests
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
     }
 
+    /// <summary>A set-aside whose record another same-owner tab already removed completes the decision.</summary>
+    [Fact]
+    public async Task PlayersCompletesTheSetAsideWhenTheRetainedRecordWasAlreadyGoneAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // Another same-owner tab sets the same record aside first, so this board's removal finds nothing
+        // left to remove while it still shows the addition it read.
+        await Interop.ClearAsync(101, 42, retained.OperationId, CancellationToken.None);
+
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("#intake-set-aside button.btn-warning").ClickAsync(new());
+
+        // The bytes are already gone, so the decision stands: reporting that the browser kept them would
+        // hold the member on a removal that can never find the record again.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Retained addition set aside"));
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.FindAll("#intake-unresolved").Count.ShouldBe(0);
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        Interop.Read(101, 42).ShouldBeNull();
+    }
+
     /// <summary>A server field error keyed to Gender renders beside its own control.</summary>
     [Fact]
     public async Task PlayersRendersAGenderFieldErrorBesideItsControlAsync()
@@ -1327,6 +1371,89 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
         Interop.Read(101, 42).ShouldBeNull();
         cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+    }
+
+    /// <summary>A release retry whose record another same-owner tab already removed reports the release.</summary>
+    [Fact]
+    public async Task PlayersReleasesTheReceiptRetryWhenTheRetainedRecordWasAlreadyGoneAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+        cut.Find("#intake-add-another").HasAttribute("disabled").ShouldBeTrue();
+
+        // Another same-owner tab releases the record this receipt could not, so the retry finds nothing
+        // left to remove.
+        var retained = Interop.Read(101, 42);
+        retained.ShouldNotBeNull();
+        Interop.FailClears = false;
+        await Interop.ClearAsync(101, 42, retained.Payload.OperationId, CancellationToken.None);
+
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+
+        // The record this receipt settled is provably gone, so the retry reports the release it asked for
+        // instead of leaving the member on a retry that can never find the record again.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
+        cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1);
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-add-another").HasAttribute("disabled").ShouldBeFalse());
+    }
+
+    /// <summary>A release retry reports the release when another operation's record replaced this one's.</summary>
+    [Fact]
+    public async Task PlayersReportsTheReleaseWhenAnotherOperationReplacedTheRetainedRecordAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        Interop.FailClears = true;
+
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
+
+        // Another same-owner tab releases this record and retains its own addition in its place, which is
+        // the only way a second record can exist for one owner.
+        var replacement = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Robin",
+            LastName = "Vale",
+            DateOfBirth = new DateOnly(2011, 3, 2),
+            GraduationYear = 2030
+        };
+        var retained = Interop.Read(101, 42);
+        retained.ShouldNotBeNull();
+        Interop.FailClears = false;
+        await Interop.ClearAsync(101, 42, retained.Payload.OperationId, CancellationToken.None);
+        await Interop.WriteAsync(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(replacement.OperationId, out var replacedAt)
+                ? replacedAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = replacement
+        }, CancellationToken.None);
+
+        await cut.Find("#intake-storage-unavailable button").ClickAsync(new());
+
+        // One record per owner means a record naming another operation proves this receipt's is gone rather
+        // than kept, and the other tab's record is left exactly where it is.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0));
+        Interop.Read(101, 42)!.Payload.OperationId.ShouldBe(replacement.OperationId);
     }
 
     /// <summary>A retention failure that belongs to a replaced identity is not published.</summary>

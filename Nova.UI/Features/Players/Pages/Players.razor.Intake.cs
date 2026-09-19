@@ -411,36 +411,54 @@ public partial class Players
     }
 
     /// <summary>
-    /// Resolves whether the retained record is gone. A clear that removed it proves that directly; a clear
-    /// that found nothing to remove is resolved by reading storage, because "nothing was there" is not the
-    /// browser refusing — another tab's settlement, or the member's own set-aside, can have taken the record
-    /// first, and claiming the browser is holding a record that is no longer there strands the member on a
-    /// retry that can never succeed. The follow-up read belongs to the page this release started on, so a
-    /// continuation that has already been re-scoped stops here rather than reading for a page that owns its
-    /// own state.
+    /// Resolves whether one removal left the record it settles gone. A removal that happened proves that
+    /// directly; one that found nothing to remove is resolved by reading storage, because "nothing was
+    /// there" is not the browser refusing — another same-owner tab's settlement, or the member's own
+    /// set-aside, can have taken the record first, and claiming the browser is holding a record that is no
+    /// longer there strands the member on a retry that can never find it again. The follow-up read belongs
+    /// to the page this removal started on, so a continuation that has already been re-scoped stops here
+    /// rather than reading for a page that owns its own state.
     /// </summary>
-    /// <param name="operationId">The settled operation identity.</param>
-    /// <param name="version">The identity version that owns this release.</param>
+    /// <param name="remove">The removal to attempt.</param>
+    /// <param name="operationId">
+    /// The operation whose record the removal settles, when it settles one operation's record, or null when
+    /// it settles whatever record the member was shown.
+    /// </param>
+    /// <param name="version">The identity version that owns this removal.</param>
     /// <param name="cancellationToken">A token that cancels the boundary work.</param>
-    /// <returns><see langword="true"/> when the record is gone.</returns>
-    private async Task<bool> ReleasedOrAlreadyGoneAsync(Guid operationId, int version, CancellationToken cancellationToken)
+    /// <returns><see langword="true"/> when the record the removal settles is gone.</returns>
+    private async Task<bool> RemovalSucceededOrTheRecordIsGoneAsync(
+        Func<Task<bool>> remove, Guid? operationId, int version, CancellationToken cancellationToken)
     {
-        if (await ClearRetainedAsync(operationId, cancellationToken))
+        if (await remove())
         {
             return true;
         }
 
         return version == _identityVersion
             && !ComponentCancellationToken.IsCancellationRequested
-            && await RetainedRecordIsGoneAsync(cancellationToken);
+            && await RetainedRecordIsGoneAsync(operationId, cancellationToken);
     }
 
+    /// <summary>Releases one settled operation's record, accepting one a same-owner tab already removed.</summary>
+    /// <param name="operationId">The settled operation identity.</param>
+    /// <param name="version">The identity version that owns this release.</param>
+    /// <param name="cancellationToken">A token that cancels the boundary work.</param>
+    /// <returns><see langword="true"/> when the record is gone.</returns>
+    private Task<bool> ReleasedOrAlreadyGoneAsync(Guid operationId, int version, CancellationToken cancellationToken)
+        => RemovalSucceededOrTheRecordIsGoneAsync(
+            () => ClearRetainedAsync(operationId, cancellationToken), operationId, version, cancellationToken);
+
     /// <summary>
-    /// Reads the owner's retained state to tell a refused release apart from a record that is not there.
+    /// Reads the owner's retained state to tell a refused removal apart from a record that is not there.
     /// </summary>
+    /// <param name="operationId">
+    /// The operation whose record the removal settles, when it settles one. This owner's storage holds one
+    /// record, so a record naming a different operation proves this operation's is no longer there.
+    /// </param>
     /// <param name="cancellationToken">A token that cancels the read.</param>
-    /// <returns><see langword="true"/> only when a read answered that nothing is retained.</returns>
-    private async Task<bool> RetainedRecordIsGoneAsync(CancellationToken cancellationToken)
+    /// <returns><see langword="true"/> only when a read answered that the record the removal settles is gone.</returns>
+    private async Task<bool> RetainedRecordIsGoneAsync(Guid? operationId, CancellationToken cancellationToken)
     {
         PlayerCreationRecoveryRead? read;
         if (_board is not null)
@@ -461,7 +479,22 @@ public partial class Players
             }
         }
 
-        return read is not null && read.Kind == PlayerCreationRecoveryKind.Empty;
+        if (read is null)
+        {
+            return false;
+        }
+
+        if (read.Kind == PlayerCreationRecoveryKind.Empty)
+        {
+            return true;
+        }
+
+        // Unreadable bytes cannot be identified, so they keep blocking: only a record that names another
+        // operation proves this one's was replaced rather than kept.
+        return operationId is { } settled
+            && read.Kind == PlayerCreationRecoveryKind.Pending
+            && read.Pending is { } pending
+            && pending.Payload.OperationId != settled;
     }
 
     /// <summary>Removes the retained request only after the operation is settled or provably unexecuted.</summary>
@@ -508,14 +541,18 @@ public partial class Players
         var route = _routeVersion;
         var operationId = _pendingCreate?.OperationId;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
+        // The removal settles the record the member was shown, so any record still retained keeps the
+        // decision blocked rather than reporting a set-aside over bytes that are still there.
         var released = true;
         if (_invalidRetainedValue is { } invalid)
         {
-            released = await _board.DiscardUnreadableAsync(invalid, token);
+            released = await RemovalSucceededOrTheRecordIsGoneAsync(
+                () => _board.DiscardUnreadableAsync(invalid, token), null, version, token);
         }
         else if (operationId is { } id)
         {
-            released = await _board.ClearAsync(id, token);
+            released = await RemovalSucceededOrTheRecordIsGoneAsync(
+                () => _board.ClearAsync(id, token), null, version, token);
         }
 
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
@@ -581,15 +618,17 @@ public partial class Players
     /// <summary>Retries the browser storage boundary after it was reported unavailable.</summary>
     private async Task RetryStorageAsync()
     {
-        // A settled receipt already proves its outcome, so the retry releases the exact record the
-        // browser kept rather than re-reading a decision that is already made.
+        // A settled receipt already proves its outcome, so the retry releases the exact record this
+        // receipt settled rather than re-reading a decision that is already made. That release accepts a
+        // record another tab already took, so the retry cannot be stranded on bytes that are gone.
         if (_unreleasedOperationId is { } unreleased && _board is not null)
         {
             var version = _identityVersion;
-            var cleared = await _board.ClearAsync(unreleased, _identitySource?.Token ?? ComponentCancellationToken);
+            var cleared = await ReleasedOrAlreadyGoneAsync(
+                unreleased, version, _identitySource?.Token ?? ComponentCancellationToken);
             if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
             {
-                // The clear crossed a re-scope, so its outcome belongs to the identity that asked for
+                // The release crossed a re-scope, so its outcome belongs to the identity that asked for
                 // it; the page now on screen owns its own retry state.
                 return;
             }
