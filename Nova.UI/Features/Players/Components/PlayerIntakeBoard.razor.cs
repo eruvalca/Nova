@@ -442,7 +442,10 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     {
         if (!ReferenceEquals(_editContext.Model, Model))
         {
-            // The host replaced the profile state; the previous context and its listeners go with it.
+            // The host replaced the profile state; the previous context and its listeners go with it, or the
+            // replaced model stays rooted through this board's own handlers until it is disposed.
+            _editContext.OnFieldChanged -= OnFieldChanged;
+            _editContext.OnValidationStateChanged -= OnValidationStateChanged;
             _editContext = new EditContext(Model);
             _subscribed = false;
         }
@@ -581,7 +584,9 @@ public partial class PlayerIntakeBoard : NovaComponentBase
     /// <returns>A task that completes when the departure has been requested.</returns>
     private async Task CancelFormAsync()
     {
-        if (!_dirty || DirectoryUrl is not { } directoryUrl)
+        // The acknowledgement lives outside the EditContext, so it is the board's own signal that the member has
+        // an uncommitted decision here: without it, Cancel would discard what the link path asks about.
+        if ((!_dirty && !_setAsideAcknowledged) || DirectoryUrl is not { } directoryUrl)
         {
             await OnCancel.InvokeAsync();
             return;

@@ -678,6 +678,29 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Stale Snapshot");
     }
 
+    /// <summary>The archive confirmation arrives as a labelled dialog whose heading takes focus.</summary>
+    [Fact]
+    public async Task PlayerDetailAnnouncesTheArchiveConfirmationAsync()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        await cut.Find("button.btn-outline-warning").ClickAsync(new());
+
+        // The panel is inserted after the member acted, so it is announced as a labelled dialog and its heading is
+        // focusable from the lifecycle: the heading's `autofocus` was never honoured for content that arrives this
+        // way.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(1));
+        cut.Find("#archive-confirmation").GetAttribute("role").ShouldBe("alertdialog");
+        var heading = cut.Find("#archive-confirmation-heading");
+        heading.GetAttribute("tabindex").ShouldBe("-1");
+        heading.HasAttribute("autofocus").ShouldBeFalse();
+    }
+
     /// <summary>A claim change closes the reviewed panel and rebinds the page to the new club.</summary>
     [Fact]
     public async Task PlayerDetailRebindsClubScopeWhenTheClaimedClubChangesAsync()

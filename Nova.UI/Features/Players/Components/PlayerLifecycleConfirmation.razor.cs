@@ -12,6 +12,22 @@ public partial class PlayerLifecycleConfirmation : NovaComponentBase
 {
     private bool _acknowledged;
     private long _acknowledgedSubject;
+    private ElementReference _heading;
+
+    /// <summary>
+    /// Moves focus to the heading when the panel arrives. The confirmation is inserted after the member acted,
+    /// and `autofocus` is not honoured for content that arrives this way, so the panel and its blockers are
+    /// announced by focusing the heading that labels them.
+    /// </summary>
+    /// <param name="firstRender">Whether this is the panel's first render.</param>
+    /// <returns>A task that completes when focus has been requested.</returns>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _heading.FocusAsync();
+        }
+    }
 
     /// <summary>Gets or sets the subject whose archive this confirmation reviews.</summary>
     [Parameter]

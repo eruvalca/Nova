@@ -220,8 +220,12 @@ public sealed partial class PlayerFormBrowserTests
 
     private static async Task CancelCreationFormAsync(IPage page)
     {
-        await page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
-        // A board holding typed input asks before it discards, so the deliberate close confirms the warning.
+        // Cancel asks before it discards a board holding typed input, and the panel arrives from the click's own
+        // handler: the click is retried until either the panel or the directory is on screen, so a clean board's
+        // departure and a dirty board's confirmation are both handled without racing the probe.
+        await InteractionHelpers.ClickUntilAsync(page,
+            page.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }),
+            () => page.Locator("#intake-departure, #players-search").First.IsVisibleAsync());
         if (await page.Locator("#intake-departure").IsVisibleAsync())
         {
             await page.GetByRole(AriaRole.Button, new() { Name = "Leave and discard", Exact = true }).ClickAsync();

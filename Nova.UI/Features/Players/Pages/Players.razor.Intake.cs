@@ -691,6 +691,9 @@ public partial class Players
         _creationDuplicate = null;
         _recoveryState = PlayerCreationRecoveryState.None;
         _board?.MarkCommittedOrClosed();
+        // The consequence belongs to this attempt too: the Active campaign may have changed while the receipt was
+        // on screen, so the next addition reads it again and names the check until that read settles.
+        _intakeContextLoading = true;
         // This read can also land a retained command, so withhold input until it settles; focus is
         // requested once it has, so it lands in a field the member can actually use.
         _recoveryChecked = false;
@@ -699,6 +702,7 @@ public partial class Players
         // overwrite input the member typed meanwhile.
         _recoveryScope = CurrentScope;
         await RestoreRecoveryAsync();
+        await LoadIntakeContextAsync();
         _board?.RequestFocusOnFirstField();
     }
 

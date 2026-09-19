@@ -1917,6 +1917,76 @@ public sealed partial class PlayerComponentsTests
             Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players"));
     }
 
+    /// <summary>Cancel asks about an acknowledged set-aside decision, whose checkbox is outside the form.</summary>
+    [Fact]
+    public async Task PlayersAsksBeforeCancelDiscardsAnAcknowledgedSetAsideDecisionAsync()
+    {
+        var retained = new CreatePlayerInput
+        {
+            OperationId = Guid.CreateVersion7(),
+            ClubId = 42,
+            FirstName = "Taylor",
+            LastName = "Lane",
+            DateOfBirth = new DateOnly(2012, 5, 1),
+            GraduationYear = 2031
+        };
+        Interop.Seed(new PendingPlayerCreation
+        {
+            ActorUserId = 101,
+            RecoveryExpiresAt = PlayerCreationOperation.TryGetCreatedAt(retained.OperationId, out var createdAt)
+                ? createdAt.Add(PlayerCreationOperation.Lifetime)
+                : DateTimeOffset.UtcNow.AddHours(24),
+            Payload = retained
+        });
+        RegisterServices(isClubAdmin: true);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
+
+        // The acknowledgement never reaches the edit context, so nothing is typed and the board's own dirty flag
+        // stays clear: the decision is what Cancel has to ask about, exactly as a departing link does.
+        await cut.Find("#intake-unresolved button").ClickAsync(new());
+        await cut.Find("#set-aside-acknowledge").ChangeAsync(new ChangeEventArgs { Value = true });
+        Interop.Dirty.ShouldBeFalse();
+
+        await cut.Find("#intake-cancel").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players/new");
+    }
+
+    /// <summary>Another addition reads the enrollment consequence again before it offers the fields.</summary>
+    [Fact]
+    public async Task PlayersReloadsTheEnrollmentConsequenceForAnotherAdditionAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new ServiceResult<PlayerCreationCompletion>(
+                CreationCompletion(call.Arg<CreatePlayerInput>()))));
+        var context = Substitute.For<IPlayerIntakeContextService>();
+        var campaignName = "Original campaign";
+        context.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(new PlayerIntakeContext
+            {
+                CampaignId = 4,
+                CampaignName = campaignName
+            })));
+        RegisterServices(isClubAdmin: true, managementService: service, intakeContextService: context);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-receipt-heading").Count.ShouldBe(1));
+
+        // Another tab opens a new campaign while the receipt is on screen, so the next addition must state what
+        // is Active now rather than the campaign the receipt was enrolled in.
+        campaignName = "Autumn campaign";
+        await cut.Find("#intake-add-another").ClickAsync(new());
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Autumn campaign"));
+        cut.Markup.ShouldNotContain("Original campaign");
+    }
+
     /// <summary>Both confirmations move focus into the panel they open.</summary>
     [Fact]
     public async Task PlayersMovesFocusIntoEachConfirmationPanelAsync()
