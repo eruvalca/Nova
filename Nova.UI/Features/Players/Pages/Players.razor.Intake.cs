@@ -311,7 +311,7 @@ public partial class Players
             ? $"Player created. Enrolled in {enrollment.CampaignName}."
             : "Player created. Ready for the next campaign opening.";
 
-        var released = await ClearRetainedAsync(command.OperationId, _identitySource!.Token);
+        var released = await ReleasedOrAlreadyGoneAsync(command.OperationId, version, _identitySource!.Token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             // The release crossed the boundary and this page has since been re-scoped, so the
@@ -410,6 +410,60 @@ public partial class Players
         }
     }
 
+    /// <summary>
+    /// Resolves whether the retained record is gone. A clear that removed it proves that directly; a clear
+    /// that found nothing to remove is resolved by reading storage, because "nothing was there" is not the
+    /// browser refusing — another tab's settlement, or the member's own set-aside, can have taken the record
+    /// first, and claiming the browser is holding a record that is no longer there strands the member on a
+    /// retry that can never succeed. The follow-up read belongs to the page this release started on, so a
+    /// continuation that has already been re-scoped stops here rather than reading for a page that owns its
+    /// own state.
+    /// </summary>
+    /// <param name="operationId">The settled operation identity.</param>
+    /// <param name="version">The identity version that owns this release.</param>
+    /// <param name="cancellationToken">A token that cancels the boundary work.</param>
+    /// <returns><see langword="true"/> when the record is gone.</returns>
+    private async Task<bool> ReleasedOrAlreadyGoneAsync(Guid operationId, int version, CancellationToken cancellationToken)
+    {
+        if (await ClearRetainedAsync(operationId, cancellationToken))
+        {
+            return true;
+        }
+
+        return version == _identityVersion
+            && !ComponentCancellationToken.IsCancellationRequested
+            && await RetainedRecordIsGoneAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the owner's retained state to tell a refused release apart from a record that is not there.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the read.</param>
+    /// <returns><see langword="true"/> only when a read answered that nothing is retained.</returns>
+    private async Task<bool> RetainedRecordIsGoneAsync(CancellationToken cancellationToken)
+    {
+        PlayerCreationRecoveryRead? read;
+        if (_board is not null)
+        {
+            read = await _board.ReadRecoveryAsync(cancellationToken);
+        }
+        else
+        {
+            try
+            {
+                read = await intakeInterop.ReadAsync(OwnerUserId, _clubId ?? 0, cancellationToken);
+            }
+            catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+            {
+                // A boundary that cannot answer leaves the browser's state unknown, which the caller must
+                // keep reporting as held rather than claim a release.
+                read = null;
+            }
+        }
+
+        return read is not null && read.Kind == PlayerCreationRecoveryKind.Empty;
+    }
+
     /// <summary>Removes the retained request only after the operation is settled or provably unexecuted.</summary>
     /// <returns><see langword="true"/> when this continuation still owns the page it started on.</returns>
     private async Task<bool> ReleaseRetainedAsync(Guid operationId)
@@ -417,7 +471,7 @@ public partial class Players
         // The release is attempted before the settled state is cleared, so a browser that refuses it
         // is reported instead of leaving bytes that a later mount would show as unresolved again.
         var version = _identityVersion;
-        var released = await ClearRetainedAsync(operationId, _identitySource!.Token);
+        var released = await ReleasedOrAlreadyGoneAsync(operationId, version, _identitySource!.Token);
         if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
         {
             // The clear crossed the boundary and this page has since been re-scoped: the outcome

@@ -368,6 +368,57 @@ public sealed partial class PlayerComponentsTests
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
     }
 
+    /// <summary>A settlement whose record another tab already removed reports the receipt, not a refusal.</summary>
+    [Fact]
+    public async Task PlayersShowsTheReceiptWhenTheRetainedRecordWasAlreadyGoneAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var input = call.Arg<CreatePlayerInput>();
+                // The record leaves storage while this tab is dispatching: another tab settled the same
+                // operation, or the member set the addition aside.
+                await Interop.ClearAsync(101, 42, input.OperationId, CancellationToken.None);
+                return new ServiceResult<PlayerCreationCompletion>(CreationCompletion(input));
+            });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+
+        // The receipt proves the operation and there is nothing left to release, so the board reports the
+        // receipt alone: claiming the browser held bytes would strand the member on a retry that cannot work.
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Enrolled in Original campaign."));
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        Interop.Read(101, 42).ShouldBeNull();
+    }
+
+    /// <summary>A refusal whose record another tab already removed is not reported as held bytes.</summary>
+    [Fact]
+    public async Task PlayersReportsARefusalWhoseRecordWasAlreadyGoneAsync()
+    {
+        var service = Substitute.For<IPlayerManagementService>();
+        service.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var input = call.Arg<CreatePlayerInput>();
+                await Interop.ClearAsync(101, 42, input.OperationId, CancellationToken.None);
+                return new ServiceResult<PlayerCreationCompletion>(
+                    PlayerCreationProblems.Duplicate(input.OperationId, 21, LifecycleStatus.Active));
+            });
+        RegisterServices(isClubAdmin: true, managementService: service);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await FillAndSubmitAsync(cut);
+
+        // The receipt-backed refusal settles the operation and nothing is left to release, so the refusal is
+        // reported as itself — the board is not blocked on a release that has already happened elsewhere.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-duplicate").Count.ShouldBe(1));
+        cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
+        cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
     /// <summary>A receipt-backed refusal settles the operation, so its retained command is never resent.</summary>
     [Fact]
     public async Task PlayersWithholdsReplayWhenTheRefusedRecordIsUnreleasedAsync()
@@ -1203,14 +1254,16 @@ public sealed partial class PlayerComponentsTests
         // restored state observable instead of letting a later read land it again.
         Interop.ReadGate = new TaskCompletionSource();
         await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        var readsBeforeTheRelease = Interop.ReadCount;
         await cut.InvokeAsync(() => Interop.ClearGate.SetResult());
         await submission;
 
         // The stale continuation belongs to the identity that dispatched the command, so it must
-        // neither erase the preserved state nor report another club's refusal. The storage report is
-        // cleared by the refresh's own successful read, not by the late release.
+        // neither erase the preserved state nor report another club's refusal, and it must not spend a
+        // boundary read of its own: the page now on screen owns its reads.
         cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(0);
         cut.FindAll("#intake-duplicate").Count.ShouldBe(0);
+        Interop.ReadCount.ShouldBe(readsBeforeTheRelease);
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-unresolved").Count.ShouldBe(1));
     }
 
