@@ -997,6 +997,59 @@ Tested revision: `8d708f6b`.
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped** (the pre-existing env-gated capture), with the tracked load-sensitive journeys passing in this run. |
 | Full browser suite | Two runs on this revision. The first reported **230 total, 219 passed, 1 failed, 10 skipped** — again `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, the tracked load-sensitive journey (now filed as #286), which passed the affected selection minutes earlier and passes in isolation on these revisions. The retry was clean — **230 total, 220 passed, 0 failed, 10 skipped** — satisfying the before-merge row for the final inputs on `8d708f6b` (the ten skips are the pre-existing env-gated captures). |
 
+## GitHub Copilot code review, twenty-second pass (PR #285, on `139b140a`, fixed in `087a0141`)
+
+Copilot's review body (no inline thread — the overview reports "Findings: None" while listing this one as
+*previously missed*, medium severity) raised one finding: **"False `ClearAsync` result leaves set-aside
+request unresolved"**, at `Nova.UI/Features/Players/Pages/Players.razor.Intake.cs:518`, with the note that it
+"also appears on line 599 of the same file" — the set-aside's removal and the release retry's clear (line
+`627` in this revision; the reviewed snapshot's numbering differs by the lines the twenty-first pass added).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | Two owner-scoped cleanup paths treat an already-removed recovery record as a storage failure: a removal that returns `false` leaves the set-aside unresolved with `_pendingCreate`/`Unresolved` (or the unreadable value) on screen and reports that the browser kept the request, and it leaves the release retry's `_unreleasedOperationId` set with its notice and **Add another** disabled — "a retry that can never succeed" in both cases. The suggested remedy: re-read owner storage on a false clear, where empty means the removal's effect has been reached and a still-present record stays blocked (`Players.razor.Intake.cs:518` and `:599`, **review body**) | **Fixed at both sites, and the shared rule generalized rather than copied.** Both paths now go through `RemovalSucceededOrTheRecordIsGoneAsync`, which the release paths already used: a removal that happened proves its own effect, and one that found nothing is resolved by reading the owner's storage, guarded by the page's identity version so a re-scoped continuation spends no boundary call. `RetainedRecordIsGoneAsync` now also takes *which* record the removal settles, because one record per owner is the module's own invariant (`writePending` refuses a second until the first is set aside). |
+
+**The class, swept across the diff.** A removal result is consumed in exactly four places, and all four now
+resolve the same ambiguity instead of inferring storage state from a boolean:
+
+| Removal site | Result consumer | Resolution |
+| --- | --- | --- |
+| `ClearRetainedAsync` (board or interop) | `SettleCommittedAsync` (receipt), `ReleaseRetainedAsync` (receipt-backed refusal) | `ReleasedOrAlreadyGoneAsync` → the shared rule with the settled operation's id. |
+| `SetAsideRetainedAsync` — unreadable value | `ApplySetAsideOutcomeAsync` | the shared rule with `null`: any record still retained keeps the deliberate set-aside blocked, so the board cannot report a set-aside over bytes that are still there. |
+| `SetAsideRetainedAsync` — pending command | `ApplySetAsideOutcomeAsync` | the shared rule with `null`, for the same reason: the removal settles the record the member was shown. |
+| `RetryStorageAsync` — release retry | `_unreleasedOperationId` and `_storageUnavailable` | `ReleasedOrAlreadyGoneAsync` with that record's id, so the retry cannot be stranded. |
+
+No other consumer exists: the board's `ClearAsync`/`DiscardUnreadableAsync` wrappers pass the boundary result
+through untouched, `PlayerCreationRecoveryStore` and `PlayerIntakeBoard.razor.js` *are* the boundary
+(`clearPending`/`discardInvalidPending` return `false` both for a refusal and for nothing-to-remove — the
+ambiguity being resolved here, not a defect to change there), and no server-side path removes a recovery
+record.
+
+**Why the retry needs the operation id and the set-aside does not.** Both reads answer `Empty` identically, so
+that case is what the finding named. They differ when the read answers `Pending`: the retry asks whether *the
+record this receipt settled* is still there, and a record naming another operation proves it is gone (storage
+holds one record per owner), whereas the set-aside asks whether the member's decision about the record they
+were shown has been carried out, which a *different* record does not establish. Passing the id in the retry
+removes a permanent strand — without it, `clearPending` can never match a replaced record, so the notice and
+the disabled **Add another** would be unrecoverable without a reload. Passing `null` in the set-aside keeps
+the honest answer: the retry read adopts whatever is retained and puts it in front of the member to resolve.
+Unreadable bytes stay blocking in both, because they cannot be attributed to an operation.
+
+### Confirming evidence (Copilot twenty-second pass)
+
+Tested revision: `087a0141`.
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3857 total, 3857 passed, 0 failed, 0 skipped** (3854 before; the three new cases are the delta). |
+| Negative check | Both call sites reverted to the raw boundary calls (keeping the shared rule, which the release paths still use, so the revert stayed analyzer-clean): the **revert build re-verified as successful (0 warnings, 0 errors) before the run**, and the suite then reported **3 failed, 3854 passed, 0 skipped** — exactly `PlayersCompletesTheSetAsideWhenTheRetainedRecordWasAlreadyGoneAsync`, `PlayersReleasesTheReceiptRetryWhenTheRetainedRecordWasAlreadyGoneAsync` and `PlayersReportsTheReleaseWhenAnotherOperationReplacedTheRetainedRecordAsync`, each on its awaited assertion. Restored, rebuilt and re-run green before the suites below. |
+| Stale-assembly trap, a **new flavor**, recorded | Restoring the file with `Copy-Item` preserved the *backup's* timestamp, so the restored source was older than the `Nova.UI.dll` the revert had produced: `dotnet build Nova.slnx` finished in **4.9 s** without compiling, and the suite reported the three new cases failing "again" — against the reverted assembly. Comparing timestamps (dll `23:31:28`, restored source `23:28:11`) identified it, touching the file forced a real 1 m 35 s build (dll `23:36:46`), and the run then passed **3857/3857**. The tell is the one the tenth, thirteenth, fourteenth, sixteenth and twenty-first passes recorded: read what the build actually did, not what it printed. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Full browser suite | `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build` — **230 total, 220 passed, 0 failed, 10 skipped**, clean on the **first** run of this revision: the first first-try-clean full pass of this merge loop, with the suite composition unchanged from the twenty-first pass (the ten skips are the pre-existing env-gated captures). |
+| Affected browser coverage | Covered by that full pass — `PlayerFormBrowserTests` and `PlayersDirectoryBrowserTests` are inside it. The selection command remains `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'`; a mid-pattern wildcard selects nothing while still reporting success, which is now stated in the browser-suite reference rather than left for the next run to rediscover. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1051,6 +1104,7 @@ directly.
 | The availability of an environment-gated capability was judged from the **process** scope while the variable lives in the **user** scope | **Add**, one line in `AGENTS.md` build/validation. Absent, and this single wrong check reversed a plan-level decision and produced a whole deviation record that had to be unwound. |
 | A comp could not be inspected visually, so the composition check had to be asserted rather than seen | **Add**, one sentence to the existing `AGENTS.md` comp bullet: disclose the limitation, establish the check by measuring each candidate against the surface's own capture, and get the user's confirmation before locking. |
 | Durable creation recovery had no precedent in the recovery recipe | **Add — done in the same change** to the existing `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md`: the owner-scoped `localStorage` variant, its injected boundary, and the frozen-payload rule beside the tab-scoped precedent. |
+| A browser selection expression with a mid-pattern wildcard (`*Player*BrowserTests`) ran **zero tests and reported success** | **Add**, one sentence to the `browser-suite.md` run commands: `--filter-class` matches the class-name suffix and repeats per class, and `total` is read before a selection is treated as evidence. A green run proving nothing is the same class as the stale-assembly trap, and nothing in the guidance warned about it. |
 
 **No new instruction file and no new skill.** The three additions extend files whose existing scope
 already covers the subject: `blazor-architecture.instructions.md` already applies to every `*.razor`,
