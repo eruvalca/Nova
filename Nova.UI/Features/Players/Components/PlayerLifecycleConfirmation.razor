@@ -9,7 +9,7 @@ FIRST VIEWPORT: The player's name, the consequence sentence, and any blocking ca
 FORM: A bounded inline confirmation beside the action that opened it.
 *@
 
-<section class="lifecycle-confirmation" id="archive-confirmation" role="alertdialog" aria-labelledby="archive-confirmation-heading" aria-describedby="@(Blockers.Count > 0 ? "archive-confirmation-consequence archive-blockers" : "archive-confirmation-consequence")">
+<section class="lifecycle-confirmation" id="archive-confirmation" role="status" aria-live="polite" aria-labelledby="archive-confirmation-heading" aria-describedby="@(Blockers.Count > 0 ? "archive-confirmation-consequence archive-blockers" : "archive-confirmation-consequence")">
     <h3 class="h5" id="archive-confirmation-heading" tabindex="-1" @ref="_heading">@PlayerLifecycleCopy.ArchiveHeading(DisplayName)</h3>
     <p class="lifecycle-consequence" id="archive-confirmation-consequence">@PlayerLifecycleCopy.ArchiveConsequence</p>
 

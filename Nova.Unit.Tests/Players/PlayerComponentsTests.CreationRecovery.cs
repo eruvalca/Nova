@@ -10,6 +10,7 @@ using Nova.UI.Features.Players.Services;
 using NSubstitute;
 using Shouldly;
 using PlayerCreationRecoveryState = Nova.UI.Features.Players.Components.PlayerCreationRecoveryState;
+using PlayerFormState = Nova.UI.Features.Players.Components.PlayerFormState;
 using PlayerIntakeBoard = Nova.UI.Features.Players.Components.PlayerIntakeBoard;
 using PlayersPage = Nova.UI.Features.Players.Pages.Players;
 
@@ -1238,7 +1239,8 @@ public sealed partial class PlayerComponentsTests
         // The outcome this decision follows is settled as a refusal, so the dialog asks the member to affirm
         // that rather than an unknown result the board never claimed.
         cut.Find("#intake-set-aside-heading").TextContent.ShouldContain("refused addition");
-        // The dialog names the consequence it asks the member to acknowledge, not only the question.
+        // An inline confirmation is a live region with a name and a description, not a modal dialog.
+        cut.Find("#intake-set-aside").GetAttribute("role").ShouldBe("status");
         cut.Find("#intake-set-aside").GetAttribute("aria-describedby").ShouldBe("intake-set-aside-consequence");
         cut.Find("#intake-set-aside-consequence").TextContent.ShouldContain("the refusal stands");
         var label = cut.Find("#intake-set-aside label").TextContent;
@@ -1313,6 +1315,62 @@ public sealed partial class PlayerComponentsTests
 
         cut.FindAll("#intake-recovery-heading").Count.ShouldBe(1);
         cut.Markup.ShouldContain("fields below are frozen");
+    }
+
+    /// <summary>A frozen retained addition states no pre-commit campaign consequence.</summary>
+    [Fact]
+    public void PlayerIntakeBoardStatesNoConsequenceForAFrozenAddition()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        // The addition was already dispatched, so the campaign it enrolled in is the receipt's to state: while the
+        // command is retained, the board names no consequence at all, because the Active campaign now is not
+        // necessarily the one its completion will report.
+        RenderConsequenceBoard(PlayerCreationRecoveryState.Unresolved).Markup.ShouldNotContain("Autumn campaign");
+
+        // A form that has not been sent still states the consequence it commits under.
+        RenderConsequenceBoard(PlayerCreationRecoveryState.None).Markup.ShouldContain("Autumn campaign");
+    }
+
+    /// <summary>Renders the create board with the intake consequence named, in the state given.</summary>
+    /// <param name="state">The recovery state the board is in.</param>
+    /// <returns>The rendered board.</returns>
+    private IRenderedComponent<PlayerIntakeBoard> RenderConsequenceBoard(PlayerCreationRecoveryState state)
+        => Render<PlayerIntakeBoard>(p => p
+            .Add(c => c.Heading, "Add player")
+            .Add(c => c.SubmitLabel, "Create player")
+            .Add(c => c.OwnerUserId, 101)
+            .Add(c => c.ClubId, 42)
+            .Add(c => c.CanManage, true)
+            .Add(c => c.RecoveryChecked, true)
+            .Add(c => c.ShowsEnrollmentConsequence, true)
+            .Add(c => c.IntakeContext, new PlayerIntakeContext { CampaignId = 4, CampaignName = "Autumn campaign" })
+            .Add(c => c.RecoveryState, state));
+
+    /// <summary>A same-owner refresh replaces the form and releases the departure question with it.</summary>
+    [Fact]
+    public async Task PlayersClearsDepartureStateWhenTheIdentityRefreshesAsync()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderPlayers();
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Avery Johnson"));
+        await cut.InvokeAsync(() => FollowDirectoryLink(cut, "a.btn-primary"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#player-first-name").HasAttribute("disabled").ShouldBeFalse());
+
+        // The member types and asks to leave, then a role-only refresh lands while the question is open.
+        await cut.Find("#player-first-name").ChangeAsync(new() { Value = "Taylor" });
+        await cut.Find("#intake-cancel").ClickAsync(new());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => Interop.Dirty.ShouldBeTrue());
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+
+        // The refresh replaced the form, so neither the question nor the guard's dirty state may keep speaking
+        // for input the member no longer has on screen.
+        await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(0));
+        await cut.WaitForAssertionAsync(() => Interop.Dirty.ShouldBeFalse());
     }
 
     /// <summary>Renders the board in the state its set-aside decision is made in.</summary>
@@ -1976,6 +2034,7 @@ public sealed partial class PlayerComponentsTests
         // Cancel is a departure like any other: the typed value is not the click's to lose, so the panel the
         // guard opens asks first and the member stays on the form while they decide.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-departure").Count.ShouldBe(1));
+        cut.Find("#intake-departure").GetAttribute("role").ShouldBe("status");
         cut.Find("#intake-departure").GetAttribute("aria-describedby").ShouldBe("intake-departure-consequence");
         cut.Find("#intake-departure-consequence").TextContent.ShouldContain("will be lost");
         Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/players/new");

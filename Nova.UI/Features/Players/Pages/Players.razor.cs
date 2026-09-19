@@ -308,6 +308,9 @@ public partial class Players(
         _intakeContextUnavailable = false;
         _creationDuplicate = null;
         _createForm = PlayerFormState.CreateDefault();
+        // The form this mount showed is gone with the reset, so the board releases the uncommitted flag and the
+        // departure question that spoke for it rather than leaving them over a form the member never typed.
+        _board?.MarkCommittedOrClosed();
         ClearMutationForm();
         CancelArchive();
         _isMutating = _isLoading = _summaryLoading = _tagsLoading = _formLoading = false;

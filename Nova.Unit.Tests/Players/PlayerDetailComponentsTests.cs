@@ -696,7 +696,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         // focusable from the lifecycle: the heading's `autofocus` was never honoured for content that arrives this
         // way.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#archive-confirmation").Count.ShouldBe(1));
-        cut.Find("#archive-confirmation").GetAttribute("role").ShouldBe("alertdialog");
+        cut.Find("#archive-confirmation").GetAttribute("role").ShouldBe("status");
         cut.Find("#archive-confirmation").GetAttribute("aria-describedby").ShouldBe("archive-confirmation-consequence");
         cut.Find("#archive-confirmation-consequence").TextContent.ShouldNotBeNullOrWhiteSpace();
         var heading = cut.Find("#archive-confirmation-heading");

@@ -157,7 +157,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
 
     @if (_setAsidePending && RecoveryState is PlayerCreationRecoveryState.Unresolved or PlayerCreationRecoveryState.Expired)
     {
-        <div class="intake-attention" role="alertdialog" aria-labelledby="intake-set-aside-heading" aria-describedby="intake-set-aside-consequence" id="intake-set-aside">
+        <div class="intake-attention" role="status" aria-live="polite" aria-labelledby="intake-set-aside-heading" aria-describedby="intake-set-aside-consequence" id="intake-set-aside">
             @* The dialog speaks for whichever operation the board holds: a receipt-backed refusal settled this
                one's outcome, so the heading and the acknowledgement below name that instead of an unknown result. *@
             <p class="fw-semibold mb-2" id="intake-set-aside-heading" tabindex="-1">@(Duplicate is not null ? "Set aside this refused addition?" : "Set aside this unresolved addition?")</p>
@@ -255,7 +255,10 @@ FORM: One bounded board; server field errors sit under their control, blockers a
         <div class="alert alert-danger" role="alert" aria-live="assertive" id="intake-error">@ErrorMessage</div>
     }
 
-    @if (ShowsEnrollmentConsequence && !ShowsReceipt && !IsEntryBlocked)
+    @* The consequence is pre-commit evidence: it speaks for a form about to be sent, so a frozen board — whose
+       addition was already dispatched — does not state it, because the campaign that will decide the outcome is
+       the one named by the immutable receipt, not by whatever is Active while the operation is retained. *@
+    @if (ShowsEnrollmentConsequence && !ShowsReceipt && !IsEntryBlocked && !IsFrozen)
     {
         <p class="intake-consequence" aria-live="polite">
             @if (IntakeContextLoading)
@@ -395,7 +398,7 @@ FORM: One bounded board; server field errors sit under their control, blockers a
     }
 
     @if (_departurePending)
-    {        <div class="intake-attention" role="alertdialog" aria-labelledby="intake-departure-heading" aria-describedby="intake-departure-consequence" id="intake-departure">
+    {        <div class="intake-attention" role="status" aria-live="polite" aria-labelledby="intake-departure-heading" aria-describedby="intake-departure-consequence" id="intake-departure">
         <p class="fw-semibold mb-2" id="intake-departure-heading" tabindex="-1">Leave with uncommitted player details?</p>
             <p class="mb-2" id="intake-departure-consequence">Details entered here have not been saved and will be lost.</p>
             <div class="intake-actions">

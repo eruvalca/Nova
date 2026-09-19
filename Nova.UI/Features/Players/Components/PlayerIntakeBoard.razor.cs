@@ -445,7 +445,9 @@ public partial class PlayerIntakeBoard : NovaComponentBase
         if (!ReferenceEquals(_editContext.Model, Model))
         {
             // The host replaced the profile state; the previous context and its listeners go with it, or the
-            // replaced model stays rooted through this board's own handlers until it is disposed.
+            // replaced model stays rooted through this board's own handlers until it is disposed. The board's own
+            // view of what is unsaved is deliberately untouched here: a replacement can carry the same values
+            // back (a refusal's corrected form) and the host that replaces a form wholesale releases the guard.
             _editContext.OnFieldChanged -= OnFieldChanged;
             _editContext.OnValidationStateChanged -= OnValidationStateChanged;
             _editContext = new EditContext(Model);
