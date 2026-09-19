@@ -1414,6 +1414,34 @@ Tested revision: `f5f51a6b` (the record's own commit follows it).
 | Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean, including the tracked count-derived journey. |
 | Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
 
+## GitHub Copilot code review, thirty-sixth pass (PR #285, on `6298f9f1`, fixed in `2ae98813`)
+
+Copilot's review body carries four findings, raised as *previously missed* (no inline threads, so none to
+resolve). Three are the accessibility semantics and honesty of surfaces this change owns; the fourth is stale
+board state across a host reset.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The set-aside panel uses `alertdialog`, which communicates a modal, for an inline panel with no `aria-modal` or focus containment while the frozen board's actions stay available; the same at the departure panel (`PlayerIntakeBoard.razor:165` and `:397`, **review body**) | **Fixed at both.** Both are inline live regions now — `role="status" aria-live="polite"`, the semantics the board's other attention cards already use — keeping the heading name and the consequence description, and keeping the heading focus that announces them. The role is asserted in the two cases that open them. |
+| 2 | The pre-commit enrollment consequence is still rendered while the board is frozen, so an already-dispatched operation is presented as "this player joins" whatever campaign is Active now, which need not be the one its receipt will name (`PlayerIntakeBoard.razor:260`, **review body**) | **Fixed by suppression.** A frozen board states no consequence: the campaign an already-dispatched addition enrolled in is the immutable receipt's to state. `PlayerIntakeBoardStatesNoConsequenceForAFrozenAddition` requires a frozen board to name no campaign and an open form to name it, using the same intake context for both. |
+| 3 | The shared archive confirmation uses `role="alertdialog"` for an inline confirmation with no modal behavior (`PlayerLifecycleConfirmation.razor:14`, **review body**) | **Fixed.** It is an inline live region with the same shape as the board's panels, keeping its accessible name and description (and the blocker region when rendered). The case asserts the role alongside the description. |
+| 4 | When the host replaces `Model` (a same-owner role refresh with no retained command), only the edit context is replaced, so `_dirty`, `_departurePending`/`_departureUrl` and the guard's dirty flag still belong to the previous form, leaving a stale leave question or a guard speaking for input no longer on screen (`PlayerIntakeBoard.razor.cs:452`, **review body**) | **Fixed from the parent, which is the only party that knows the replacement is wholesale** (the finding's own alternative). `Players.ResetIdentityState` — the one path that replaces the form without signalling the board — now calls `_board?.MarkCommittedOrClosed()`, releasing the uncommitted flag, the departure question and the guard. `PlayersClearsDepartureStateWhenTheIdentityRefreshesAsync` types into the form, opens the departure question, refreshes the identity and requires both the question and the guard's dirty flag to be gone. |
+
+### Confirming evidence (Copilot thirty-sixth pass)
+
+Tested revision: `2ae98813` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3881 total, 3881 passed, 0 failed, 0 skipped** (3879 before; two cases added). |
+| Negative check | All five product changes reverted together (three roles, the suppression, the parent's release), the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **5 failed, 3876 passed** — exactly `PlayerDetailAnnouncesTheArchiveConfirmationAsync`, `PlayerIntakeBoardNamesTheRefusalInTheSetAsideDialog`, `PlayerIntakeBoardStatesNoConsequenceForAFrozenAddition`, `PlayersAsksBeforeCancelDiscardsTypedInputAsync` and `PlayersClearsDepartureStateWhenTheIdentityRefreshesAsync`. Fixes restored, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` first reported a charset and whitespace error in `Players.razor.cs` — my PowerShell-based revert/restore had rewritten the file and dropped its byte-order mark — and `dotnet format Nova.slnx` fixed them; the verify then reported **exit 0** with only the intended files in the diff. The same rewrite dropped the mark from two `.razor` files, which `dotnet format` cannot see because it does not format Razor; comparing each modified file's preamble bytes against `HEAD` found them, and both were restored before committing, so the diff carries no charset churn. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | `--filter-class '*PlayerFormBrowserTests' --filter-class '*PlayersDirectoryBrowserTests'` — **23 total, 22 passed, 0 failed, 1 skipped**, clean on the fifth attempt. Four preceding runs each failed exactly one journey, a different test each time (`OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync` twice, `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` twice, both on navigation-readiness waits rather than assertions about this feature); the first of them passes **1/1 in isolation** on this revision; and a run with this pass's product changes temporarily reverted — the revert build re-verified as successful (0 warnings, 0 errors) before the run — failed `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`, so the instability is not this pass's and belongs with `#286`. |
+| Incident, recorded | The first version of finding 4's fix reset the board's own state whenever the model instance changed, and the suite caught that a replacement can carry the member's values back (a refusal's corrected form): the dirty flag must survive it, and clearing it made Cancel skip the departure question, failing `PlayersClearsDuplicateWhenCancelledFormReopensAsync`. The fix moved to the parent, which knows the replacement is wholesale. Two smaller slips from the same PowerShell rewrites were caught before they could matter: a regex that matched the form's field initialiser as well as the reset (a statement in the class body) and the dropped byte-order mark above. |
+| Full browser suite | Not attempted: the before-merge row is already recorded as pending, and the selection is clean on this revision. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
