@@ -1003,19 +1003,30 @@ public sealed partial class PlayerComponentsTests : BunitContext
     /// <param name="management">The player management service.</param>
     /// <param name="lifecycle">The player lifecycle service.</param>
     /// <param name="details">The player detail service.</param>
+    /// <param name="tags">The tag-choice query service.</param>
+    /// <param name="intakeContext">The club's enrollment-consequence service.</param>
+    /// <param name="interop">The browser boundary.</param>
     /// <param name="authentication">The current authentication provider.</param>
     /// <param name="navigation">The test navigation manager.</param>
+    /// <param name="logger">The page logger.</param>
 #pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class SnapshotPlayers(IPlayerService roster, IPlayerManagementService management,
 #pragma warning restore CA1812
-        IPlayerLifecycleService lifecycle, IPlayerDetailService details,
-        ITagDefinitionQueryService tags, AuthenticationStateProvider authentication, NavigationManager navigation,
+        IPlayerLifecycleService lifecycle, IPlayerDetailService details, ITagDefinitionQueryService tags,
+        IPlayerIntakeContextService intakeContext, IPlayerIntakeInterop interop,
+        AuthenticationStateProvider authentication, NavigationManager navigation,
         Microsoft.Extensions.Logging.ILogger<PlayersPage> logger)
-        : PlayersPage(roster, management, lifecycle, details, Substitute.For<IPlayerIntakeContextService>(),
-            Substitute.For<IPlayerIntakeInterop>(), tags, authentication, navigation, logger)
+        : PlayersPage(roster, management, lifecycle, details, intakeContext, interop, tags, authentication,
+            navigation, logger)
     {
         /// <summary>Gets or sets the scope serialized with the old roster.</summary>
         [Parameter] public string? RestoredScope { get; set; }
+
+        /// <summary>Gets or sets the intake consequence serialized with the prerendered page.</summary>
+        [Parameter] public PlayerIntakeContext? RestoredIntakeContext { get; set; }
+
+        /// <summary>Gets or sets whether the prerendered intake read settled without a consequence.</summary>
+        [Parameter] public bool RestoredIntakeContextUnavailable { get; set; }
 
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
@@ -1024,6 +1035,8 @@ public sealed partial class PlayerComponentsTests : BunitContext
             SnapshotScope = RestoredScope;
             SnapshotQuery = new Nova.UI.Features.Players.Services.PlayersUrlState().QueryFingerprint;
             PersistedRoster = new PagedResult<PlayerListItem>(CreateRosterItems(), 1, 50, 1);
+            PersistedIntakeContext = RestoredIntakeContext;
+            PersistedIntakeContextUnavailable = RestoredIntakeContextUnavailable;
             return base.OnInitializedAsync();
         }
     }

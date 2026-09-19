@@ -773,7 +773,12 @@ public sealed partial class PlayerComponentsTests
         // for itself about dispatch — nothing left this board — but it must not open its fields: values
         // typed now would be replaced without warning by whatever a later retry lands.
         await cut.WaitForAssertionAsync(() => cut.FindAll("#intake-storage-unavailable").Count.ShouldBe(1));
-        cut.Find("#intake-storage-unavailable").TextContent.ShouldContain("Nothing has been sent from this board.");
+        var unread = cut.Find("#intake-storage-unavailable").TextContent;
+        unread.ShouldContain("Nothing has been sent from this board.");
+        // Storage being unread is not a verdict on the addition: the copy names what a retained request
+        // does and does not mean, and the retry, rather than letting the member read it as the commit.
+        unread.ShouldContain("only records that a send was attempted, never what the server decided.");
+        unread.ShouldContain("Retry storage to check what it holds before adding.");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeTrue();
         cut.Find("#intake-checking-note").TextContent.ShouldContain("could not be checked");
@@ -836,6 +841,114 @@ public sealed partial class PlayerComponentsTests
         await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
         cut.Markup.ShouldNotContain("Checking the enrollment consequence");
         await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+    }
+
+    /// <summary>The attaching client adopts the enrollment consequence the prerendered page already showed.</summary>
+    [Fact]
+    public async Task PlayersAdoptsThePrerenderedIntakeConsequenceInsteadOfReadingItAgainAsync()
+    {
+        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
+        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(new PlayerIntakeContext
+            {
+                CampaignId = 9,
+                CampaignName = "Stale Campaign"
+            })));
+        RegisterServices(isClubAdmin: true, intakeContextService: intakeContext);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players/new");
+
+        var cut = Render<SnapshotPlayers>(parameters => parameters
+            .Add(component => component.RestoredScope, "101:42:True")
+            .Add(component => component.RestoredIntakeContext, new PlayerIntakeContext
+            {
+                CampaignId = 5,
+                CampaignName = "Summer Tryouts"
+            }));
+
+        // The prerender's answer is already on screen, so attaching reads nothing of the club while still
+        // settling the gate the prerendered commit control was waiting on.
+        await cut.WaitForAssertionAsync(() =>
+            cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
+        cut.Find("p.intake-consequence").TextContent.ShouldNotContain("Stale Campaign");
+        await cut.WaitForAssertionAsync(() => cut.Find("#intake-submit").HasAttribute("disabled").ShouldBeFalse());
+        await intakeContext.DidNotReceive()
+            .GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A consequence the prerender recorded for another owner is never adopted.</summary>
+    [Fact]
+    public async Task PlayersReadsTheIntakeConsequenceThePrerenderRecordedForAnotherOwnerAsync()
+    {
+        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
+        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        RegisterServices(isClubAdmin: true, intakeContextService: intakeContext);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players/new");
+
+        var cut = Render<SnapshotPlayers>(parameters => parameters
+            .Add(component => component.RestoredScope, "999:42:True")
+            .Add(component => component.RestoredIntakeContext, new PlayerIntakeContext
+            {
+                CampaignId = 9,
+                CampaignName = "Stale Campaign"
+            }));
+
+        await cut.WaitForAssertionAsync(() =>
+            cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
+        cut.Find("p.intake-consequence").TextContent.ShouldNotContain("Stale Campaign");
+        await intakeContext.Received(1)
+            .GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A prerendered consequence read that failed is adopted as that failure, not read again.</summary>
+    [Fact]
+    public async Task PlayersAdoptsThePrerenderedIntakeReadFailureInsteadOfReadingItAgainAsync()
+    {
+        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
+        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        RegisterServices(isClubAdmin: true, intakeContextService: intakeContext);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players/new");
+
+        var cut = Render<SnapshotPlayers>(parameters => parameters
+            .Add(component => component.RestoredScope, "101:42:True")
+            .Add(component => component.RestoredIntakeContextUnavailable, true));
+
+        await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent
+            .ShouldContain("enrollment consequence could not be read"));
+        await intakeContext.DidNotReceive()
+            .GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A form re-entered in the same session asks the club again instead of adopting the first answer.</summary>
+    [Fact]
+    public async Task PlayersReadsTheIntakeConsequenceAgainWhenTheFormIsReenteredAsync()
+    {
+        var intakeContext = Substitute.For<IPlayerIntakeContextService>();
+        intakeContext.GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(new ServiceResult<PlayerIntakeContext>(IntakeContext)));
+        RegisterServices(isClubAdmin: true, intakeContextService: intakeContext);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/players/new");
+        var cut = RenderPlayers();
+
+        await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
+        await intakeContext.Received(1)
+            .GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>());
+
+        // The answer the prerendered page showed is published, so the client attaching to it has the same
+        // consequence to adopt rather than a question to ask again.
+        cut.Instance.PersistedIntakeContext.ShouldNotBeNull().CampaignName.ShouldBe("Summer Tryouts");
+        cut.Instance.PersistedIntakeContextUnavailable.ShouldBeFalse();
+
+        await cut.InvokeAsync(() => navigation.NavigateTo("/players"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("p.intake-consequence").Count.ShouldBe(0));
+        await cut.InvokeAsync(() => navigation.NavigateTo("/players/new"));
+
+        // Only the prerender and attach pair is answered by the snapshot: a later entry is a new question.
+        await cut.WaitForAssertionAsync(() => cut.Find("p.intake-consequence").TextContent.ShouldContain("Summer Tryouts"));
+        await intakeContext.Received(2)
+            .GetPlayerIntakeContextAsync(Arg.Any<GetPlayerIntakeContextInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>The set-aside acknowledgement lives outside the EditForm, so only the module sees that input.</summary>

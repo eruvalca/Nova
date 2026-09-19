@@ -121,6 +121,10 @@ public partial class Players(
     [PersistentState] public string? SnapshotScope { get; set; }
     /// <summary>The normalized query owning the roster snapshot.</summary>
     [PersistentState] public string? SnapshotQuery { get; set; }
+    /// <summary>The intake-context snapshot across prerender and interactive attach.</summary>
+    [PersistentState] public PlayerIntakeContext? PersistedIntakeContext { get; set; }
+    /// <summary>Whether the prerendered intake read settled without a context.</summary>
+    [PersistentState] public bool PersistedIntakeContextUnavailable { get; set; }
 
     private string GraduationYearFilterText => _urlState.GraduationYear?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
     private string PlayerTagFilterText => _urlState.TagId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
@@ -326,6 +330,8 @@ public partial class Players(
         PersistedTags = null;
         PersistedPageError = PersistedSummaryError = PersistedTagsError = null;
         SnapshotScope = SnapshotQuery = null;
+        PersistedIntakeContext = null;
+        PersistedIntakeContextUnavailable = false;
         Initialized = false;
     }
 

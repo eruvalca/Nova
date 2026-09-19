@@ -227,7 +227,10 @@ FORM: One bounded board; server field errors sit under their control, blockers a
                        was not dispatched, only that nothing left this board. *@
                     <p class="mb-2">Nothing has been sent from this board.</p>
                 }
-                <p class="mb-2">An addition is still only committed once its own request is retained, so continue once storage is available.</p>
+                <p class="mb-2">
+                    An addition is retained here before it is sent, so this browser's copy only records that a send was attempted, never what the server decided.
+                    Retry storage to check what it holds before adding.
+                </p>
             }
             <button type="button" class="btn btn-outline-primary" @onclick="OnRetryStorage">
                 @(ShowsReceipt ? "Release retained request" : "Retry storage")

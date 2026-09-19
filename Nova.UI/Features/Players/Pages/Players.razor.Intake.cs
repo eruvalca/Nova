@@ -18,6 +18,13 @@ public partial class Players
     private bool _intakeContextLoading;
     private bool _intakeContextUnavailable;
     private int _intakeContextVersion;
+
+    /// <summary>
+    /// Whether this instance has already reconciled the prerendered intake read. The snapshot is adopted
+    /// once per instance — the prerender and interactive attach pair — so a later entry to the form reads
+    /// the campaign again rather than adopting what an earlier entry settled.
+    /// </summary>
+    private bool _intakeContextStarted;
     private PlayerCreationRecoveryState _recoveryState;
     private string? _invalidRetainedValue;
     private bool _recoveryChecked;
@@ -52,6 +59,17 @@ public partial class Players
             return;
         }
 
+        if (!_intakeContextStarted)
+        {
+            // The prerendered page already showed this read's outcome, so attaching the client adopts it
+            // instead of asking the same question of the club a second time.
+            _intakeContextStarted = true;
+            if (RestoreIntakeContext())
+            {
+                return;
+            }
+        }
+
         var version = ++_intakeContextVersion;
         var identity = _identityVersion;
         var token = _identitySource?.Token ?? ComponentCancellationToken;
@@ -81,6 +99,35 @@ public partial class Players
                 _intakeContext = null;
                 _intakeContextUnavailable = true;
             });
+
+        // Both settled outcomes are published, because the prerendered page showed one of them: an
+        // attaching client adopts the same answer rather than reading the campaign again.
+        PersistedIntakeContext = _intakeContext;
+        PersistedIntakeContextUnavailable = _intakeContextUnavailable;
+    }
+
+    /// <summary>
+    /// Adopts the intake read the prerender already made for this owner, so attaching the client does not
+    /// repeat it. Mirrors the roster snapshot: a read that never settled, or one another identity owns,
+    /// leaves the question to this visit.
+    /// </summary>
+    /// <returns><see langword="true"/> when the prerendered read answered for this owner.</returns>
+    private bool RestoreIntakeContext()
+    {
+        if (PersistedIntakeContext is null && !PersistedIntakeContextUnavailable)
+        {
+            return false;
+        }
+
+        if (!string.Equals(SnapshotScope, CurrentScope, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        _intakeContextLoading = false;
+        _intakeContext = PersistedIntakeContext;
+        _intakeContextUnavailable = PersistedIntakeContextUnavailable;
+        return true;
     }
 
     /// <summary>
