@@ -1186,6 +1186,42 @@ Tested revision: `3926096e` (the record's own commit follows it).
 | Full browser suite | One attempt: **230 total, 219 passed, 1 failed, 10 skipped** — the same count-derived journey as the previous two passes (it failed minutes earlier in the same revision's selection). The before-merge row stays pending; see *Limitations*. |
 | Build/test incidents, recorded | The first two tests written for this pass never reached their state (above) and were replaced by the boundary tests; the component test then failed to compile on the board's `PlayerCreationRecoveryState` (declared in the component namespace, which the test file aliases only for the board), fixed with a file alias; and that alias tripped the import-ordering rule. All three were caught by reading the build and format output before trusting any result. |
 
+## GitHub Copilot code review, twenty-seventh pass (PR #285, on `a24027ab`, fixed in `3b209ef0`)
+
+Copilot raised **two inline findings**, both about the uncommitted-departure guard, and both were fixed,
+replied to and resolved.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The board's Cancel button bypasses the departure guard: the module intercepts only anchor clicks while `OnCancel` navigates immediately, so a member who typed create/edit values loses them to one click instead of meeting the board's confirmation, contrary to the uncommitted-departure contract; route Cancel through the confirmation and cover typed input plus Cancel in the browser suite (`PlayerIntakeBoard.razor:376`, **inline**) | **Fixed as prescribed.** Cancel now asks when the board holds input that would be lost (`_dirty`) and opens the same panel the guard uses, with the same focus and the same two answers; with nothing typed it leaves immediately, exactly as before, so the empty-form case does not acquire a pointless prompt. The browser journey that pins the guard now also types, clicks Cancel, and asserts the panel appears and `Keep editing` preserves the value. |
+| 2 | The module skips the guard for every anchor inside the board whenever it is dirty, so in the duplicate state `View existing player` discards corrected values without a prompt and `Review players` does the same while the set-aside decision is open; only clean receipt/frozen links are safe, and those are already `dirty === false` — do not bypass the guard for all in-board anchors (`PlayerIntakeBoard.razor.js:174`, **inline**) | **Fixed as prescribed.** The exemption is gone: every same-origin link a dirty board holds is asked about, the board's own included, and the safe cases stay silent because the board syncs `dirty` to "nothing unsaved" for its receipt, frozen and unreadable states. The module probe in the browser suite now attaches a guard over a probe root, marks it dirty, dispatches a click on an *in-board* anchor and asserts the click was prevented and the board was asked for `/players?view=archived`. |
+
+**The behavior change it implies, and the journeys that encoded the old one.** Making in-board links and
+Cancel honest with the panel means the confirmed departure *does* discard the draft, and three existing
+cases had encoded the old silent paths: the browser journey that cancels out of a duplicate state (its helper
+now confirms the panel), the journey that inspects the existing player from the duplicate board (it now
+confirms, because that link departs from a board holding the refused input) and the journey that corrects
+after cancelling (it re-enters the details, since the confirmed discard took them, which is what the panel's
+copy promises). The unit case that closes a rejected form with Cancel needed the same adaptation, plus a wait
+for the submit control's readiness: it had been relying on the *old* cancel path leaving `_createForm`
+populated, and on a withheld board's disabled submit not mattering — a latent race the flow change exposed
+rather than caused. The board's own behavior needed no change there: a disabled submit ignores clicks in a
+real browser, and the board withholds input until its recovery read answers by design.
+
+### Confirming evidence (Copilot twenty-seventh pass)
+
+Tested revision: `3b209ef0` (the record's own commit follows it).
+
+| Check | Command / result |
+| --- | --- |
+| Build | `dotnet build Nova.slnx` — **passed, 0 warnings, 0 errors**. |
+| Full unit | `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` — **3866 total, 3866 passed, 0 failed, 0 skipped** (3864 before; two cases added for Cancel, one adapted). |
+| Negative check | `CancelFormAsync` reverted to invoking the callback directly (an analyzer-clean revert), the **revert build re-verified as successful (0 warnings, 0 errors) before the run**: **2 failed, 3864 passed** — `PlayersAsksBeforeCancelDiscardsTypedInputAsync` and the adapted `PlayersClearsDuplicateWhenCancelledFormReopensAsync`, both waiting for a panel that never opens; the control case (Cancel with nothing typed leaves at once) still passed, which is what it asserts. Fix restored with `edit`, rebuilt, and re-run green. |
+| Format | `dotnet format Nova.slnx --verify-no-changes` — **exit 0**. |
+| Full integration | `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build` — **678 total, 678 passed, 0 failed, 0 skipped**. |
+| Affected browser selection | **Two attempts, each 21/23 with one failure, and the failures differ**: the first failed `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`, the retry failed `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync` — both from #286's tracked set, and neither in this pass's changed paths (that journey's Cancel click happens on a board with nothing typed, and its other departures are receipt links, which stay silent because `dirty` is false). Everything this pass changed passed in **both** runs: the module probe with its in-board-anchor assertion, the extended departure journey, and both duplicate journeys that the new in-board prompting could have broken. |
+| Full browser suite | Not attempted this pass: with the selection itself alternating between two tracked journeys, and the before-merge row already recorded as pending for four passes, another full run would not change the record. |
+
 ## Independent finish review
 
 An independent `impeccable-finish-reviewer` reviewed the finished surface against the direction
@@ -1412,7 +1448,8 @@ evidence above is unchanged by it.
   twenty-third to twenty-sixth passes' revisions reported 219/230, 219/230, 218/230, 219/230, 218/230 and
   219/230, failing one or two journeys each, and the twenty-fifth pass's affected selections failed 1 and 2
   of 23 — while the twenty-sixth pass's selection was **clean (22/23)** on the same revision whose full run
-  then failed the recurring journey. Every failing journey passes **alone** on the revision that failed it
+  then failed the recurring journey, and the twenty-seventh pass's two selections each failed one tracked
+  journey (a different one each time) with everything that pass changed passing in both. Every failing journey passes **alone** on the revision that failed it
   (`--filter-method`, verified for `DirectoryRecordAndFormPreserveCompleteDraftAndPlaceCorrectionReturnAsync`
   and `OrdinaryMemberCreatesEditsArchivesAndRestoresThroughRoutedFormAsync`), and the recurring one fails on a
   **count-derived** assertion (`"Page 2 of 4"`) that pre-exists on `origin/main` — this PR changes that file by
